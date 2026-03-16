@@ -36,6 +36,8 @@ test("settings modal subdrawer style contract keeps drawer-like chevron affordan
   assert.equal(SETTINGS_SUBDRAWER_STYLE_CONTRACT.chevronIcon, "\\f13a");
   assert.equal(SETTINGS_SUBDRAWER_STYLE_CONTRACT.chevronSize, 28);
   assert.equal(SETTINGS_SUBDRAWER_STYLE_CONTRACT.summaryMinHeight, 44);
+  assert.equal(SETTINGS_SUBDRAWER_STYLE_CONTRACT.closedRotationDeg, -90);
+  assert.equal(SETTINGS_SUBDRAWER_STYLE_CONTRACT.openRotationDeg, 0);
 });
 
 test("settings and related surfaces share the common UI surface contract", () => {

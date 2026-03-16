@@ -22,11 +22,13 @@ BST modal and panel surfaces should reuse one consistent shell language instead 
   - title + subtitle stack on the left
   - action group on the right
   - close actions reuse normal BST button classes
+  - settings modal header keeps one left accent source only; section accents should not visually bleed into header chrome
 - Shared footer contract:
   - modal footers span the full surface width visually
   - footer actions reuse the same button families as the header/body
 - Shared disclosure contract:
   - primary drawers and nested subdrawers both use the same circular chevron affordance
+  - collapsed disclosure state points right; expanded disclosure state points down
   - subdrawers keep a neutral accent instead of the primary section accent
 - Shared control contract:
   - checkboxes and toggles should come from the same BST control family

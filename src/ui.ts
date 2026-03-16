@@ -465,6 +465,8 @@ export const SETTINGS_SUBDRAWER_STYLE_CONTRACT = {
   chevronIcon: "\\f13a",
   chevronSize: 28,
   summaryMinHeight: 44,
+  closedRotationDeg: -90,
+  openRotationDeg: 0,
 } as const;
 
 function toPercent(value: StatValue): number {
@@ -2024,9 +2026,9 @@ export function ensureStyles(): void {
   box-sizing: border-box;
   margin: -16px -16px 12px;
   padding: 14px 16px;
-  background: linear-gradient(180deg, rgba(18, 24, 38, 0.96), rgba(18, 24, 38, 0.86));
+  background: linear-gradient(180deg, rgb(18, 24, 38), rgb(18, 24, 38));
   border-bottom: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(6px);
+  box-shadow: 0 10px 28px rgba(4, 8, 14, 0.22);
 }
 .bst-settings-top::before {
   content: "";
@@ -2034,10 +2036,9 @@ export function ensureStyles(): void {
   left: 16px;
   top: 14px;
   bottom: 14px;
-  width: 4px;
+  width: 3px;
   border-radius: 999px;
   background: linear-gradient(180deg, rgba(56,189,248,0.88), rgba(14,116,144,0.82));
-  box-shadow: 0 0 10px rgba(56,189,248,0.24);
 }
 .bst-settings-top .bst-surface-header-copy {
   padding-left: 14px;
@@ -2465,9 +2466,10 @@ export function ensureStyles(): void {
 .bst-subdrawer .bst-disclosure-icon {
   flex: 0 0 28px;
   color: rgba(233, 239, 248, 0.92);
+  transform: rotate(-90deg);
 }
 .bst-subdrawer[open] > summary .bst-disclosure-icon {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
 }
 .bst-subdrawer > .bst-settings-grid {
   padding: 12px;
@@ -2990,6 +2992,10 @@ export function ensureStyles(): void {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(13, 18, 29, 0.66), rgba(10, 14, 22, 0.54));
 }
 .bst-custom-stat-empty {
   border: 1px dashed rgba(255,255,255,0.2);
@@ -3559,6 +3565,52 @@ export function ensureStyles(): void {
   color: #f1f3f8;
   display: grid;
   gap: 12px;
+}
+.bst-character-panel > .bst-surface-header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.bst-character-panel > .bst-surface-header .bst-surface-title {
+  font-size: 16px;
+}
+.bst-character-panel > .bst-surface-header .bst-surface-subtitle {
+  max-width: 76ch;
+}
+.bst-character-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bst-character-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(10, 15, 25, 0.62);
+  color: rgba(241, 246, 255, 0.9);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.bst-character-meta-pill strong {
+  font-weight: 700;
+}
+.bst-character-section {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: linear-gradient(180deg, rgba(13, 18, 29, 0.64), rgba(10, 14, 22, 0.58));
+}
+.bst-character-section > .bst-character-divider:first-child {
+  margin-top: 0;
+  padding-top: 0;
+}
+.bst-character-section > .bst-character-divider:first-child::after {
+  background: linear-gradient(90deg, rgba(255,255,255,0.16), rgba(255,255,255,0.04));
 }
 .bst-character-grid {
   display: grid;

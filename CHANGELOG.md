@@ -2,6 +2,14 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.11-dev4] - 2026-03-16
+### Changed
+- Refined the settings surface chrome so the top header reads as one clean band with a single left accent instead of competing stacked accents.
+- Brought character defaults and persona defaults closer to the same BST surface language by adding clearer identity pills, section cards, and grouped toggle/default blocks.
+
+### Fixed
+- Fixed nested settings subdrawers so their disclosure chevrons now follow the same closed-right / open-down state as the primary drawers.
+
 ## [2.2.4.11-dev3] - 2026-03-16
 ### Changed
 - Unified the visual language across BST settings, tracker edit, graph, character defaults, and persona defaults so shared surfaces now use the same header/footer rhythm, disclosure affordances, and checkbox/button families.
