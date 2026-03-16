@@ -2,6 +2,15 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.11-dev1] - 2026-03-16
+### Changed
+- Reorganized the settings modal into clearer top-level sections for setup, extraction, context sources, user tracking, prompt injection, tracking schema, display, prompts, and diagnostics.
+- Moved custom stat management under the tracking schema flow and grouped display controls under a dedicated card appearance subdrawer.
+- Renamed owner-card ordering controls and prompt-injection/user-tracking labels to better match actual behavior.
+
+### Fixed
+- Disabled dependent user-tracking toggles when user-side extraction is off, so the settings UI no longer implies impossible combinations.
+
 ## [2.2.4.11] - 2026-03-14
 ### Changed
 - Lorebook extraction now prefers SillyTavern's already-activated lorebook context directly, with an optional internal fallback scan for setups that still need BST-side recovery.

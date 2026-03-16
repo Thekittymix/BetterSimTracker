@@ -75,22 +75,26 @@ Supports:
 
 Major sections:
 
+- Setup
 - Extraction
-- Connection/Generation
-- Tracked Stats
+- Context Sources
+- User Tracking
+- Prompt Injection
+- Tracking Schema
 - Display
-- Debug
+- Prompts
+- Diagnostics
 
 Key capabilities:
 
 - live auto-save behavior
 - prompt template editing
 - per-stat built-in management wizard
-- custom stat wizard (`Add`, `Edit`, `Clone`, `Remove`)
+- custom stat wizard (`Add`, `Edit`, `Clone`, `Remove`) grouped under Tracking Schema
 - custom stat JSON actions (`Import JSON` + per-stat `Export JSON` from stat row)
 - AI helper buttons for prompt/description/guidance generation
 - scene card controls in Display section drawer (enable/position/layout/title/colors/empty-state + Scene Stat Studio for order/per-stat display)
-- character card stat order controls in Display section drawer (manual up/down ordering for built-in + custom non-global stat rows)
+- owner card stat order controls in Display section drawer (manual up/down ordering for built-in + custom non-global stat rows)
 
 ## Custom Stat Wizard
 
