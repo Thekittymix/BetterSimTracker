@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.11-dev2] - 2026-03-16
+### Changed
+- Polished settings subdrawers so they use a clearer right-side chevron affordance and a header style closer to the main section drawers while keeping the neutral subdrawer accent.
+
 ## [2.2.4.11-dev1] - 2026-03-16
 ### Changed
 - Reorganized the settings modal into clearer top-level sections for setup, extraction, context sources, user tracking, prompt injection, tracking schema, display, prompts, and diagnostics.

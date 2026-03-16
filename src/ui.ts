@@ -456,6 +456,12 @@ const autoCardColorAssignments = new Map<string, AutoCardColorAssignment>();
 const AUTO_CARD_COLOR_CACHE_LIMIT = 300;
 const AUTO_CARD_MIN_HUE_DISTANCE = 24;
 
+export const SETTINGS_SUBDRAWER_STYLE_CONTRACT = {
+  chevronIcon: "\\f13a",
+  chevronSize: 28,
+  summaryMinHeight: 44,
+} as const;
+
 function toPercent(value: StatValue): number {
   if (typeof value === "number") return Math.max(0, Math.min(100, value));
   const parsed = Number(value);
@@ -2363,12 +2369,14 @@ export function ensureStyles(): void {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 12px;
+  min-height: 44px;
+  padding: 10px 12px 10px 14px;
   color: rgba(236, 244, 255, 0.95);
   font-size: 12px;
   font-weight: 700;
   border-bottom: 1px solid rgba(255,255,255,0.08);
-  background: linear-gradient(180deg, rgba(17, 24, 39, 0.9), rgba(12, 18, 30, 0.86));
+  background: linear-gradient(135deg, rgba(18, 24, 36, 0.7), rgba(10, 14, 22, 0.68));
+  position: relative;
 }
 .bst-subdrawer:hover {
   border-color: rgba(194, 204, 223, 0.3);
@@ -2378,6 +2386,13 @@ export function ensureStyles(): void {
 .bst-subdrawer[open] {
   border-left-color: rgba(206, 216, 233, 0.74);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+.bst-subdrawer > summary:hover {
+  background: linear-gradient(135deg, rgba(24, 31, 46, 0.82), rgba(13, 19, 31, 0.8));
+}
+.bst-subdrawer > summary:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.55);
+  outline-offset: 2px;
 }
 .bst-subdrawer > summary::-webkit-details-marker {
   display: none;
@@ -2391,8 +2406,22 @@ export function ensureStyles(): void {
   content: "\f13a";
   font-family: "Font Awesome 6 Free";
   font-weight: 900;
-  opacity: 0.88;
-  transition: transform .14s ease;
+  opacity: 0.92;
+  transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(11, 17, 28, 0.88);
+  color: rgba(243,245,249,0.92);
+  flex: 0 0 28px;
+}
+.bst-subdrawer > summary:hover::after {
+  border-color: rgba(184, 205, 230, 0.34);
+  background: rgba(15, 21, 34, 0.94);
 }
 .bst-subdrawer[open] > summary::after {
   transform: rotate(180deg);
