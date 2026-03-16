@@ -549,8 +549,12 @@ function renderPanel(input: InitInput, force = false): void {
   const characterIdentity: CharacterDefaultsIdentity = { name: resolvedCharacterName, avatar: characterAvatar };
   if (!characterName) {
     panel.innerHTML = `
-      <div class="bst-character-title">BetterSimTracker</div>
-      <div class="bst-character-sub">Open a character to edit defaults.</div>
+      <div class="bst-surface-header">
+        <div class="bst-surface-header-copy">
+          <div class="bst-surface-title">BetterSimTracker</div>
+          <div class="bst-surface-subtitle">Open a character to edit defaults.</div>
+        </div>
+      </div>
     `;
     return;
   }
@@ -730,9 +734,13 @@ function renderPanel(input: InitInput, force = false): void {
   };
 
   panel.innerHTML = `
-    <div class="bst-character-title">BetterSimTracker Defaults</div>
-    <div class="bst-character-sub">Per-character defaults and optional mood source overrides.</div>
-    <label class="bst-character-check">
+    <div class="bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <div class="bst-surface-title">BetterSimTracker Defaults</div>
+        <div class="bst-surface-subtitle">Per-character defaults and optional mood source overrides.</div>
+      </div>
+    </div>
+    <label class="bst-character-check bst-check">
       <input type="checkbox" data-bst-default-toggle="trackerEnabled" ${defaults.trackerEnabled !== false ? "checked" : ""}>
       <span>Enable tracker for this character</span>
     </label>
@@ -805,7 +813,7 @@ function renderPanel(input: InitInput, force = false): void {
       <div class="bst-character-help">
         Optional per-character override for expression image framing.
       </div>
-      <label class="bst-character-check">
+      <label class="bst-character-check bst-check">
         <input type="checkbox" data-bst-st-image-override ${hasStExpressionImageOverride ? "checked" : ""}>
         <span>Advanced image options (override global)</span>
       </label>

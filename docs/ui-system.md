@@ -12,6 +12,25 @@ Primary implementation: `src/ui.ts`, `src/settingsPanel.ts`, `src/characterPanel
 - Settings modal with section drawers and wizards.
 - Graph modal.
 - Character defaults panel in ST advanced definitions.
+- Persona defaults panel in ST persona management.
+
+## Shared Surface Contract
+
+BST modal and panel surfaces should reuse one consistent shell language instead of creating one-off controls per screen.
+
+- Shared header contract:
+  - title + subtitle stack on the left
+  - action group on the right
+  - close actions reuse normal BST button classes
+- Shared footer contract:
+  - modal footers span the full surface width visually
+  - footer actions reuse the same button families as the header/body
+- Shared disclosure contract:
+  - primary drawers and nested subdrawers both use the same circular chevron affordance
+  - subdrawers keep a neutral accent instead of the primary section accent
+- Shared control contract:
+  - checkboxes and toggles should come from the same BST control family
+  - action buttons should reuse existing BST button classes instead of introducing one-off chrome
 
 ## Tracker Cards
 

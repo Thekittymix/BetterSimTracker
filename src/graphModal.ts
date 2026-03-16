@@ -98,9 +98,14 @@ export function openGraphModal(input: {
   }
 
   modal.innerHTML = `
-    <div class="bst-graph-top">
-      <div class="bst-graph-title">${input.character} Relationship Trend</div>
-      <button class="bst-btn bst-close-btn" data-action="close" title="Close graph" aria-label="Close graph">&times;</button>
+    <div class="bst-graph-top bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <div class="bst-surface-title">${input.character} Relationship Trend</div>
+        <div class="bst-surface-subtitle">Numeric stat history for the selected owner across recorded tracker snapshots.</div>
+      </div>
+      <div class="bst-surface-actions">
+        <button class="bst-btn bst-btn-soft bst-close-btn" data-action="close" title="Close graph" aria-label="Close graph">&times;</button>
+      </div>
     </div>
     <div class="bst-graph-controls">
       <label class="bst-graph-toggle" title="Display history range">
@@ -112,9 +117,8 @@ export function openGraphModal(input: {
           <option value="all" ${windowPreference === "all" ? "selected" : ""}>All</option>
         </select>
       </label>
-      <label class="bst-graph-toggle" title="Toggle smoothed graph lines">
+      <label class="bst-check bst-graph-toggle" title="Toggle smoothed graph lines">
         <input type="checkbox" data-action="toggle-smoothing" ${smoothing ? "checked" : ""}>
-        <span class="bst-graph-toggle-switch"></span>
         <span>Smoothed</span>
       </label>
     </div>
@@ -153,7 +157,7 @@ export function openGraphModal(input: {
     </svg>
     <div class="bst-graph-tooltip" id="bst-graph-tooltip"></div>
     </div>
-    <div class="bst-graph-legend">
+    <div class="bst-graph-legend bst-surface-footer bst-surface-footer-wrap">
       ${enabledNumeric.length
         ? enabledNumeric.map(def => {
             const color = def.key === "connection" ? connectionColor : def.color;

@@ -2,6 +2,12 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.11-dev3] - 2026-03-16
+### Changed
+- Unified the visual language across BST settings, tracker edit, graph, character defaults, and persona defaults so shared surfaces now use the same header/footer rhythm, disclosure affordances, and checkbox/button families.
+- Reworked settings subdrawers to reuse the same circular chevron drawer pattern as primary section drawers instead of a separate custom affordance.
+- Adjusted the settings modal chrome so header and footer span the modal cleanly and no longer feel inset from the dialog edges.
+
 ## [2.2.4.11-dev2] - 2026-03-16
 ### Changed
 - Polished settings subdrawers so they use a clearer right-side chevron affordance and a header style closer to the main section drawers while keeping the neutral subdrawer accent.

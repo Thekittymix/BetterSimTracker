@@ -446,6 +446,11 @@ export const EDIT_STATS_BACKDROP_CLASS = "bst-edit-backdrop";
 export const EDIT_STATS_MODAL_CLASS = "bst-edit-modal";
 export const EDIT_STATS_DIALOG_CLASS = "bst-edit-dialog";
 export const MAX_EDIT_LAST_THOUGHT_CHARS = 600;
+export const BST_UI_SURFACE_CONTRACT = {
+  headerClass: "bst-surface-header",
+  footerClass: "bst-surface-footer",
+  disclosureIconClass: "bst-disclosure-icon",
+} as const;
 let textareaCounterSequence = 0;
 type AutoCardColorAssignment = {
   hue: number;
@@ -1963,31 +1968,80 @@ export function ensureStyles(): void {
   pointer-events: auto;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: stable;
   font-family: "Segoe UI", "Trebuchet MS", sans-serif;
   box-shadow: 0 24px 80px rgba(0,0,0,0.5);
 }
-.bst-settings h3 { margin: 0 0 4px 0; font-size: 20px; letter-spacing: 0.2px; }
+.bst-surface-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.bst-surface-header-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.bst-surface-title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: 0.2px;
+  font-weight: 800;
+  color: #f3f5f9;
+}
+.bst-surface-subtitle {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(220, 235, 255, 0.88);
+}
+.bst-surface-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.bst-surface-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.bst-surface-footer-end {
+  justify-content: flex-end;
+}
+.bst-surface-footer-wrap {
+  flex-wrap: wrap;
+}
+.bst-settings h3 { margin: 0; }
 .bst-settings-top {
   position: sticky;
   top: -16px;
   z-index: 5;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
+  width: calc(100% + 32px);
+  box-sizing: border-box;
   margin: -16px -16px 12px;
-  padding: 12px 16px;
+  padding: 14px 16px;
   background: linear-gradient(180deg, rgba(18, 24, 38, 0.96), rgba(18, 24, 38, 0.86));
   border-bottom: 1px solid rgba(255,255,255,0.08);
   backdrop-filter: blur(6px);
 }
-.bst-settings-top-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+.bst-settings-top::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 14px;
+  bottom: 14px;
+  width: 4px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(56,189,248,0.88), rgba(14,116,144,0.82));
+  box-shadow: 0 0 10px rgba(56,189,248,0.24);
 }
-.bst-settings-subtitle { margin: 0; opacity: 0.84; font-size: 12px; color: rgba(220, 235, 255, 0.88); }
+.bst-settings-top .bst-surface-header-copy {
+  padding-left: 14px;
+}
 .bst-settings-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .bst-settings-grid-compact { gap: 8px; }
 .bst-settings-grid-single { grid-template-columns: minmax(0, 1fr); }
@@ -2276,7 +2330,9 @@ export function ensureStyles(): void {
   border-color: rgba(255,255,255,0.4);
   background: rgba(20,26,38,0.9);
 }
-.bst-section-icon {
+.bst-disclosure-icon,
+.bst-section-icon,
+.bst-prompt-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2288,7 +2344,9 @@ export function ensureStyles(): void {
   color: rgba(243,245,249,0.9);
   transform: rotate(0deg);
 }
-.bst-section-head:hover .bst-section-icon {
+.bst-section-head:hover .bst-section-icon,
+.bst-subdrawer > summary:hover .bst-disclosure-icon,
+.bst-prompt-head:hover .bst-prompt-toggle {
   color: #ffffff;
 }
 .bst-section-collapsed .bst-section-icon {
@@ -2374,7 +2432,6 @@ export function ensureStyles(): void {
   color: rgba(236, 244, 255, 0.95);
   font-size: 12px;
   font-weight: 700;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
   background: linear-gradient(135deg, rgba(18, 24, 36, 0.7), rgba(10, 14, 22, 0.68));
   position: relative;
 }
@@ -2386,6 +2443,9 @@ export function ensureStyles(): void {
 .bst-subdrawer[open] {
   border-left-color: rgba(206, 216, 233, 0.74);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+}
+.bst-subdrawer[open] > summary {
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .bst-subdrawer > summary:hover {
   background: linear-gradient(135deg, rgba(24, 31, 46, 0.82), rgba(13, 19, 31, 0.8));
@@ -2402,28 +2462,11 @@ export function ensureStyles(): void {
   align-items: center;
   gap: 8px;
 }
-.bst-subdrawer > summary::after {
-  content: "\f13a";
-  font-family: "Font Awesome 6 Free";
-  font-weight: 900;
-  opacity: 0.92;
-  transition: transform .14s ease, border-color .14s ease, background-color .14s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(11, 17, 28, 0.88);
-  color: rgba(243,245,249,0.92);
+.bst-subdrawer .bst-disclosure-icon {
   flex: 0 0 28px;
+  color: rgba(233, 239, 248, 0.92);
 }
-.bst-subdrawer > summary:hover::after {
-  border-color: rgba(184, 205, 230, 0.34);
-  background: rgba(15, 21, 34, 0.94);
-}
-.bst-subdrawer[open] > summary::after {
+.bst-subdrawer[open] > summary .bst-disclosure-icon {
   transform: rotate(180deg);
 }
 .bst-subdrawer > .bst-settings-grid {
@@ -2718,6 +2761,8 @@ export function ensureStyles(): void {
   position: sticky;
   bottom: -18px;
   z-index: 5;
+  width: calc(100% + 32px);
+  box-sizing: border-box;
   margin: 12px -16px -18px;
   padding: 12px 16px;
   display: flex;
@@ -3221,15 +3266,14 @@ export function ensureStyles(): void {
   box-shadow: 0 18px 44px rgba(0,0,0,0.45);
 }
 .bst-edit-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
   margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
-.bst-edit-title {
+.bst-edit-head .bst-surface-title,
+.bst-graph-top .bst-surface-title,
+.bst-character-panel .bst-surface-title {
   font-size: 16px;
-  font-weight: 700;
 }
 .bst-edit-sub {
   font-size: 12px;
@@ -3293,9 +3337,8 @@ export function ensureStyles(): void {
 }
 .bst-edit-actions {
   margin-top: 14px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
 }
 .bst-edit-array-status {
   font-size: 11px;
@@ -3320,8 +3363,9 @@ export function ensureStyles(): void {
   background: #121621;
   border: 1px solid rgba(255,255,255,0.16);
   border-radius: 16px;
-  padding: 14px;
+  padding: 16px;
   color: #fff;
+  background: linear-gradient(160deg, rgba(18, 23, 34, 0.98), rgba(10, 14, 24, 0.98));
 }
 .bst-mood-preview-backdrop {
   position: fixed;
@@ -3430,14 +3474,9 @@ export function ensureStyles(): void {
   to { opacity: 0; transform: translateY(8px) scale(0.985); }
 }
 .bst-graph-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 10px;
-}
-.bst-graph-title {
-  font-size: 15px;
-  font-weight: 700;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .bst-graph-controls {
   display: flex;
@@ -3491,42 +3530,14 @@ export function ensureStyles(): void {
   opacity: 0.92;
   user-select: none;
 }
-.bst-graph-toggle input {
-  display: none;
-}
-.bst-graph-toggle-switch {
-  position: relative;
-  width: 36px;
-  height: 20px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.2);
-  border: 1px solid rgba(255,255,255,0.32);
-  transition: background .18s ease, border-color .18s ease;
-}
-.bst-graph-toggle-switch::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: #fff;
-  transition: transform .18s ease;
-}
-.bst-graph-toggle input:checked + .bst-graph-toggle-switch {
-  background: color-mix(in srgb, var(--bst-accent) 60%, #22314d 40%);
-  border-color: color-mix(in srgb, var(--bst-accent) 72%, #ffffff 28%);
-}
-.bst-graph-toggle input:checked + .bst-graph-toggle-switch::after {
-  transform: translateX(16px);
-}
 .bst-graph-legend {
   display: flex;
   gap: 10px;
   margin-top: 8px;
   font-size: 11px;
   flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
 }
 .bst-graph-legend span {
   display: inline-flex;
@@ -3541,22 +3552,13 @@ export function ensureStyles(): void {
 }
 .bst-character-panel {
   margin-top: 12px;
-  padding: 12px;
+  padding: 16px;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.12);
   background: linear-gradient(155deg, rgba(19,24,36,0.78), rgba(14,18,28,0.95));
   color: #f1f3f8;
   display: grid;
-  gap: 10px;
-}
-.bst-character-title {
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.2px;
-}
-.bst-character-sub {
-  font-size: 12px;
-  opacity: 0.8;
+  gap: 12px;
 }
 .bst-character-grid {
   display: grid;
@@ -3574,12 +3576,6 @@ export function ensureStyles(): void {
   display: flex;
   flex-direction: column;
   gap: 4px;
-}
-.bst-character-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
 }
 .bst-character-st-tools {
   display: grid;
@@ -3603,11 +3599,23 @@ export function ensureStyles(): void {
   grid-column: 1 / -1;
 }
 .bst-character-divider {
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.8;
+  position: relative;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+  opacity: 0.86;
   padding-top: 4px;
-  border-top: 1px solid rgba(255,255,255,0.08);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bst-character-divider::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255,255,255,0.18), rgba(255,255,255,0.05));
 }
 .bst-character-help {
   font-size: 11px;
@@ -3801,13 +3809,22 @@ export function ensureStyles(): void {
   }
   .bst-settings-top {
     top: -12px;
+    width: calc(100% + 20px);
     margin: -12px -10px 12px;
     padding: calc(env(safe-area-inset-top, 0px) + 10px) 10px 10px;
+  }
+  .bst-settings-top::before {
+    left: 10px;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    bottom: 10px;
+  }
+  .bst-settings-top .bst-surface-header-copy {
+    padding-left: 14px;
   }
   .bst-settings-top-actions {
     gap: 6px;
   }
-  .bst-settings h3 {
+  .bst-surface-title {
     font-size: 18px;
   }
   .bst-close-btn {
@@ -3854,6 +3871,7 @@ export function ensureStyles(): void {
   }
   .bst-settings-footer {
     bottom: -18px;
+    width: calc(100% + 20px);
     margin: 12px -10px -18px;
     padding: 10px;
     justify-content: stretch;

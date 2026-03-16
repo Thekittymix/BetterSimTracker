@@ -446,8 +446,12 @@ function renderPanel(input: InitInput, force = false): void {
   const persona = getSelectedPersona(context);
   if (!persona) {
     panel.innerHTML = `
-      <div class="bst-character-title">BetterSimTracker Persona Defaults</div>
-      <div class="bst-character-sub">Select a persona to edit BST user defaults and mood image settings.</div>
+      <div class="bst-surface-header">
+        <div class="bst-surface-header-copy">
+          <div class="bst-surface-title">BetterSimTracker Persona Defaults</div>
+          <div class="bst-surface-subtitle">Select a persona to edit BST user defaults and mood image settings.</div>
+        </div>
+      </div>
     `;
     return;
   }
@@ -599,12 +603,16 @@ function renderPanel(input: InitInput, force = false): void {
     input.onSettingsUpdated();
   };
 
-  panel.innerHTML = `
-    <div class="bst-character-title">BetterSimTracker Persona Defaults</div>
-    <div class="bst-character-sub">Per-persona user defaults, mood source override, and BST mood images for the user tracker card.</div>
+    panel.innerHTML = `
+    <div class="bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <div class="bst-surface-title">BetterSimTracker Persona Defaults</div>
+        <div class="bst-surface-subtitle">Per-persona user defaults, mood source override, and BST mood images for the user tracker card.</div>
+      </div>
+    </div>
     <div class="bst-character-help">Active persona: <strong>${escapeHtml(persona.personaName)}</strong></div>
     <div class="bst-character-help">Persona avatar key: <code>${escapeHtml(persona.avatarId || "(missing)")}</code></div>
-    <label class="bst-character-check">
+    <label class="bst-character-check bst-check">
       <input type="checkbox" data-bst-persona-toggle="trackerEnabled" ${defaults.trackerEnabled !== false ? "checked" : ""}>
       <span>Enable tracker for this persona</span>
     </label>
@@ -632,7 +640,7 @@ function renderPanel(input: InitInput, force = false): void {
       <div class="bst-character-help">
         Optional per-persona override for ST expression image framing on user cards.
       </div>
-      <label class="bst-character-check">
+      <label class="bst-character-check bst-check">
         <input type="checkbox" data-bst-persona-st-image-override ${hasStExpressionImageOverride ? "checked" : ""}>
         <span>Advanced image options (override global)</span>
       </label>

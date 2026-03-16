@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { SETTINGS_PRIMARY_SECTION_LABELS, SETTINGS_SECTION_IDS } from "../src/settingsModalSections";
-import { SETTINGS_SUBDRAWER_STYLE_CONTRACT } from "../src/ui";
+import { BST_UI_SURFACE_CONTRACT, SETTINGS_SUBDRAWER_STYLE_CONTRACT } from "../src/ui";
 
 test("settings modal exposes the new primary section outline", () => {
   assert.deepEqual(SETTINGS_PRIMARY_SECTION_LABELS, [
@@ -36,4 +36,12 @@ test("settings modal subdrawer style contract keeps drawer-like chevron affordan
   assert.equal(SETTINGS_SUBDRAWER_STYLE_CONTRACT.chevronIcon, "\\f13a");
   assert.equal(SETTINGS_SUBDRAWER_STYLE_CONTRACT.chevronSize, 28);
   assert.equal(SETTINGS_SUBDRAWER_STYLE_CONTRACT.summaryMinHeight, 44);
+});
+
+test("settings and related surfaces share the common UI surface contract", () => {
+  assert.deepEqual(BST_UI_SURFACE_CONTRACT, {
+    headerClass: "bst-surface-header",
+    footerClass: "bst-surface-footer",
+    disclosureIconClass: "bst-disclosure-icon",
+  });
 });

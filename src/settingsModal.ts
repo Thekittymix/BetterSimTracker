@@ -190,14 +190,14 @@ export function openSettingsModal(input: {
   const modal = document.createElement("div");
   modal.className = "bst-settings";
   modal.innerHTML = `
-    <div class="bst-settings-top">
-      <div>
-        <h3>BetterSimTracker Settings</h3>
-        <p class="bst-settings-subtitle">Changes save automatically. Diagnostics tools are separated below.</p>
+    <div class="bst-settings-top bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <h3 class="bst-surface-title">BetterSimTracker Settings</h3>
+        <p class="bst-surface-subtitle bst-settings-subtitle">Changes save automatically. Diagnostics tools are separated below.</p>
       </div>
-      <div class="bst-settings-top-actions">
+      <div class="bst-surface-actions bst-settings-top-actions">
         <button class="bst-btn bst-btn-soft" data-action="toggle-all-sections" title="Expand all sections">Expand all</button>
-        <button class="bst-btn bst-close-btn" data-action="close" title="Close settings" aria-label="Close settings">&times;</button>
+        <button class="bst-btn bst-btn-soft bst-close-btn" data-action="close" title="Close settings" aria-label="Close settings">&times;</button>
       </div>
     </div>
     <div class="bst-settings-section bst-quick-help">
@@ -401,7 +401,7 @@ export function openSettingsModal(input: {
         </div>
       </div>
       <details class="bst-subdrawer" data-bst-row="sceneCardDrawer">
-        <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-layer-group" aria-hidden="true"></span>Scene Card</span></summary>
+        <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-layer-group" aria-hidden="true"></span>Scene Card</span><span class="bst-disclosure-icon fa-solid fa-circle-chevron-down" aria-hidden="true"></span></summary>
         <div class="bst-settings-grid bst-settings-grid-single">
           <label class="bst-check" data-bst-row="sceneCardEnabled"><input data-k="sceneCardEnabled" type="checkbox">Enable Scene Card (global stats)</label>
           <label data-bst-row="sceneCardPosition">Position
@@ -441,7 +441,7 @@ export function openSettingsModal(input: {
         </div>
       </details>
       <details class="bst-subdrawer" data-bst-row="characterCardOrderDrawer">
-        <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-list-ol" aria-hidden="true"></span>Owner Card Stat Order</span></summary>
+        <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-list-ol" aria-hidden="true"></span>Owner Card Stat Order</span><span class="bst-disclosure-icon fa-solid fa-circle-chevron-down" aria-hidden="true"></span></summary>
         <div class="bst-settings-grid bst-settings-grid-single">
           <div class="bst-help-line">Order controls for stat rows shown on owner cards (user + character, built-in + custom, non-global).</div>
           <div class="bst-scene-order-list" data-bst-row="characterCardOrderList"></div>
@@ -732,7 +732,7 @@ export function openSettingsModal(input: {
         <div class="bst-debug-box">${input.injectedPrompt?.trim() ? input.injectedPrompt : "No injected prompt currently active."}</div>
       </div>
     </div>
-    <div class="bst-settings-footer">
+    <div class="bst-settings-footer bst-surface-footer bst-surface-footer-end">
       <button class="bst-btn" data-action="close" title="Close settings">Done</button>
     </div>
   `;
@@ -753,7 +753,7 @@ export function openSettingsModal(input: {
     customStatsDrawer.dataset.bstRow = "trackingSchemaCustomStatsDrawer";
     customStatsDrawer.open = true;
     customStatsDrawer.innerHTML = `
-      <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-sliders" aria-hidden="true"></span>Custom Stats</span></summary>
+      <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-sliders" aria-hidden="true"></span>Custom Stats</span><span class="bst-disclosure-icon fa-solid fa-circle-chevron-down" aria-hidden="true"></span></summary>
       <div class="bst-settings-grid bst-settings-grid-single"></div>
     `;
     const drawerBody = customStatsDrawer.querySelector(".bst-settings-grid");
@@ -777,7 +777,7 @@ export function openSettingsModal(input: {
     appearanceDrawer.dataset.bstRow = "cardAppearanceDrawer";
     appearanceDrawer.open = true;
     appearanceDrawer.innerHTML = `
-      <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-palette" aria-hidden="true"></span>Card Appearance</span></summary>
+      <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-palette" aria-hidden="true"></span>Card Appearance</span><span class="bst-disclosure-icon fa-solid fa-circle-chevron-down" aria-hidden="true"></span></summary>
     `;
     appearanceDrawer.appendChild(topGrid);
     displaySection.insertBefore(appearanceDrawer, displaySection.children[1] ?? null);
@@ -869,7 +869,7 @@ export function openSettingsModal(input: {
       head.setAttribute("aria-expanded", "true");
       head.setAttribute("title", "Toggle section");
       const icon = document.createElement("span");
-      icon.className = "bst-section-icon fa-solid fa-circle-chevron-down";
+      icon.className = "bst-disclosure-icon bst-section-icon fa-solid fa-circle-chevron-down";
       head.appendChild(header);
       head.appendChild(icon);
       section.insertBefore(head, section.firstChild);
