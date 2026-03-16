@@ -2030,19 +2030,6 @@ export function ensureStyles(): void {
   border-bottom: 1px solid rgba(255,255,255,0.08);
   box-shadow: 0 10px 28px rgba(4, 8, 14, 0.22);
 }
-.bst-settings-top::before {
-  content: "";
-  position: absolute;
-  left: 16px;
-  top: 14px;
-  bottom: 14px;
-  width: 3px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(56,189,248,0.88), rgba(14,116,144,0.82));
-}
-.bst-settings-top .bst-surface-header-copy {
-  padding-left: 14px;
-}
 .bst-settings-grid { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .bst-settings-grid-compact { gap: 8px; }
 .bst-settings-grid-single { grid-template-columns: minmax(0, 1fr); }

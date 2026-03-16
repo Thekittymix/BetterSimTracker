@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.11-dev5] - 2026-03-16
+### Changed
+- Removed the extra left accent from the settings modal header so the title band no longer competes with section accents underneath.
+
 ## [2.2.4.11-dev4] - 2026-03-16
 ### Changed
 - Refined the settings surface chrome so the top header reads as one clean band with a single left accent instead of competing stacked accents.
