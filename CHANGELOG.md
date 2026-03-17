@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.12-dev1] - 2026-03-17
+### Added
+- Added compact image-generation macro `{{bst_image_state}}` for scene/user/character state export in image prompt workflows.
+
+### Changed
+- `{{bst_image_state}}` is built from existing BST stat metadata instead of hardcoded custom stat names, using visible owner-scoped non-numeric card stats only.
+
 ## [2.2.4.12] - 2026-03-17
 ### Changed
 - Reorganized the settings modal into clearer top-level sections for setup, extraction, context sources, user tracking, prompt injection, tracking schema, display, prompts, and diagnostics.

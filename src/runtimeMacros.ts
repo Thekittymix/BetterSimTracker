@@ -2,6 +2,7 @@ import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
 const BST_INJECTION_MACRO = "bst_injection";
+const BST_IMAGE_STATE_MACRO = "bst_image_state";
 const BST_MACRO_STAT_SCOPE_USER = "user";
 const BST_MACRO_STAT_SCOPE_SCENE = "scene";
 const registeredBstMacros = new Set<string>();
@@ -52,6 +53,13 @@ type MacroResolutionSample = {
   resolved: string;
   legacyMacro?: string | null;
   legacyResolved?: string | null;
+};
+
+type ImageMacroStatDef = {
+  id: string;
+  label: string;
+  includeForUser: boolean;
+  includeForCharacter: boolean;
 };
 
 function buildCharacterMacroTargets(context: STContext, allCharacterNames: string[]): CharacterMacroTarget[] {
@@ -154,6 +162,91 @@ function formatMacroValue(value: unknown): string {
       .join(", ");
   }
   return String(value ?? "").trim();
+}
+
+function buildImageMacroStatDefs(settings: BetterSimTrackerSettings): ImageMacroStatDef[] {
+  return (settings.customStats ?? [])
+    .map(def => ({ ...def, id: String(def.id ?? "").trim() }))
+    .filter(def => def.id)
+    .filter(def => (def.kind ?? "numeric") !== "numeric")
+    .filter(def => !def.globalScope)
+    .filter(def => !def.privateToOwner)
+    .filter(def => def.showOnCard)
+    .filter(def => def.track)
+    .map(def => ({
+      id: def.id,
+      label: String(def.label ?? def.id).trim() || def.id,
+      includeForUser: Boolean(def.trackUser ?? def.track),
+      includeForCharacter: Boolean(def.trackCharacters ?? def.track),
+    }));
+}
+
+function toImageFieldLabel(value: string): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function formatImageStateBlock(
+  data: TrackerData | null,
+  settings: BetterSimTrackerSettings,
+  allCharacterNames: string[],
+  characterTargets: CharacterMacroTarget[],
+  currentCharacterTarget: CharacterMacroTarget | null,
+): string {
+  if (!data) return "";
+  const imageStatDefs = buildImageMacroStatDefs(settings);
+
+  const preferredSceneRoster = resolveMacroStatValue(data, settings, "characters_in_scene", BST_MACRO_STAT_SCOPE_SCENE);
+  const activeOwners = (data.activeCharacters ?? [])
+    .map(name => String(name ?? "").trim())
+    .filter(name => name && name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY);
+  const fallbackOwners = allCharacterNames
+    .map(name => String(name ?? "").trim())
+    .filter(name => name && name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY);
+
+  const orderedOwners = (() => {
+    if (activeOwners.length) return activeOwners;
+    if (currentCharacterTarget?.ownerName) return [currentCharacterTarget.ownerName];
+    if (characterTargets.length) {
+      return characterTargets.map(target => target.ownerName).filter(Boolean);
+    }
+    return fallbackOwners;
+  })();
+
+  const seenOwners = new Set<string>();
+  const uniqueOwners = orderedOwners.filter(owner => {
+    const key = normalizeName(owner);
+    if (!key || seenOwners.has(key)) return false;
+    seenOwners.add(key);
+    return true;
+  });
+
+  const lines: string[] = [];
+  const sceneLine = preferredSceneRoster || uniqueOwners.join(", ");
+  if (sceneLine) {
+    lines.push(`Scene: ${sceneLine}`);
+  }
+
+  const userEntries = imageStatDefs
+    .filter(def => def.includeForUser)
+    .map(def => [toImageFieldLabel(def.label), resolveMacroStatValue(data, settings, def.id, BST_MACRO_STAT_SCOPE_USER)] as const)
+    .filter(([, value]) => value);
+  if (userEntries.length) {
+    lines.push(`User: ${userEntries.map(([label, value]) => `${label}=${value}`).join("; ")}`);
+  }
+
+  for (const owner of uniqueOwners) {
+    const ownerEntries = imageStatDefs
+      .filter(def => def.includeForCharacter)
+      .map(def => [toImageFieldLabel(def.label), resolveMacroStatValue(data, settings, def.id, "char_target", owner)] as const)
+      .filter(([, value]) => value);
+    if (!ownerEntries.length) continue;
+    lines.push(`${owner}: ${ownerEntries.map(([label, value]) => `${label}=${value}`).join("; ")}`);
+  }
+
+  return lines.join("\n");
 }
 
 function resolveMacroStatValue(
@@ -387,6 +480,12 @@ export function syncBstMacros(input: {
     BST_INJECTION_MACRO,
     "BetterSimTracker hidden injection block (latest generated value).",
     () => getLastInjectedPrompt(),
+  );
+  registerBstMacro(
+    context,
+    BST_IMAGE_STATE_MACRO,
+    "BetterSimTracker compact scene/user/character state block for image-generation prompts.",
+    () => formatImageStateBlock(getLatestPromptMacroData(), settings, allCharacterNames, characterTargets, currentCharacterTarget),
   );
 
   const statIds = [
