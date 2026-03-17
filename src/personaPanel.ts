@@ -446,8 +446,12 @@ function renderPanel(input: InitInput, force = false): void {
   const persona = getSelectedPersona(context);
   if (!persona) {
     panel.innerHTML = `
-      <div class="bst-character-title">BetterSimTracker Persona Defaults</div>
-      <div class="bst-character-sub">Select a persona to edit BST user defaults and mood image settings.</div>
+      <div class="bst-surface-header">
+        <div class="bst-surface-header-copy">
+          <div class="bst-surface-title">BetterSimTracker Persona Defaults</div>
+          <div class="bst-surface-subtitle">Select a persona to edit BST user defaults and mood image settings.</div>
+        </div>
+      </div>
     `;
     return;
   }
@@ -599,40 +603,50 @@ function renderPanel(input: InitInput, force = false): void {
     input.onSettingsUpdated();
   };
 
-  panel.innerHTML = `
-    <div class="bst-character-title">BetterSimTracker Persona Defaults</div>
-    <div class="bst-character-sub">Per-persona user defaults, mood source override, and BST mood images for the user tracker card.</div>
-    <div class="bst-character-help">Active persona: <strong>${escapeHtml(persona.personaName)}</strong></div>
-    <div class="bst-character-help">Persona avatar key: <code>${escapeHtml(persona.avatarId || "(missing)")}</code></div>
-    <label class="bst-character-check">
-      <input type="checkbox" data-bst-persona-toggle="trackerEnabled" ${defaults.trackerEnabled !== false ? "checked" : ""}>
-      <span>Enable tracker for this persona</span>
-    </label>
-    <div class="bst-character-divider">Per-Stat Toggles</div>
-    <div class="bst-character-help">Disable specific user-side stats for this persona only.</div>
-    <div class="bst-character-grid bst-character-grid-single">
-      <div class="bst-character-toggle-group">${builtInStatTogglesHtml || `<div class="bst-character-help">No built-in user stats available.</div>`}</div>
-      <div class="bst-character-toggle-group">${customStatTogglesHtml || `<div class="bst-character-help">No user-trackable custom stats.</div>`}</div>
+    panel.innerHTML = `
+    <div class="bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <div class="bst-surface-title">BetterSimTracker Persona Defaults</div>
+        <div class="bst-surface-subtitle">Per-persona user defaults, mood source override, and BST mood images for the user tracker card.</div>
+      </div>
     </div>
-    <div class="bst-character-divider">Mood Source Override</div>
-    <div class="bst-character-grid">
-      <label class="bst-character-wide">Mood Source
-        <select data-bst-persona="moodSource">
-          <option value="">Use global setting</option>
-          <option value="bst_images" ${moodSourceOverride === "bst_images" ? "selected" : ""}>BST mood images</option>
-          <option value="st_expressions" ${moodSourceOverride === "st_expressions" ? "selected" : ""}>ST expressions</option>
-        </select>
+    <div class="bst-character-meta">
+      <span class="bst-character-meta-pill"><strong>Persona</strong> ${escapeHtml(persona.personaName)}</span>
+      <span class="bst-character-meta-pill"><strong>Avatar</strong> ${escapeHtml(persona.avatarId || "(missing)")}</span>
+    </div>
+    <div class="bst-character-section">
+      <label class="bst-character-check bst-check">
+        <input type="checkbox" data-bst-persona-toggle="trackerEnabled" ${defaults.trackerEnabled !== false ? "checked" : ""}>
+        <span>Enable tracker for this persona</span>
       </label>
+      <div class="bst-character-divider">Per-Stat Toggles</div>
+      <div class="bst-character-help">Disable specific user-side stats for this persona only.</div>
+      <div class="bst-character-grid bst-character-grid-single">
+        <div class="bst-character-toggle-group">${builtInStatTogglesHtml || `<div class="bst-character-help">No built-in user stats available.</div>`}</div>
+        <div class="bst-character-toggle-group">${customStatTogglesHtml || `<div class="bst-character-help">No user-trackable custom stats.</div>`}</div>
+      </div>
     </div>
-    <div class="bst-character-help">
-      Effective mood source right now: <strong>${effectiveMoodSource === "st_expressions" ? "ST expressions" : "BST mood images"}</strong>.
+    <div class="bst-character-section">
+      <div class="bst-character-divider">Mood Source Override</div>
+      <div class="bst-character-grid">
+        <label class="bst-character-wide">Mood Source
+          <select data-bst-persona="moodSource">
+            <option value="">Use global setting</option>
+            <option value="bst_images" ${moodSourceOverride === "bst_images" ? "selected" : ""}>BST mood images</option>
+            <option value="st_expressions" ${moodSourceOverride === "st_expressions" ? "selected" : ""}>ST expressions</option>
+          </select>
+        </label>
+      </div>
+      <div class="bst-character-help">
+        Effective mood source right now: <strong>${effectiveMoodSource === "st_expressions" ? "ST expressions" : "BST mood images"}</strong>.
+      </div>
     </div>
     <div style="display:${showStExpressionControls ? "grid" : "none"}; gap:8px;">
       <div class="bst-character-divider">ST Expression Image Options</div>
       <div class="bst-character-help">
         Optional per-persona override for ST expression image framing on user cards.
       </div>
-      <label class="bst-character-check">
+      <label class="bst-character-check bst-check">
         <input type="checkbox" data-bst-persona-st-image-override ${hasStExpressionImageOverride ? "checked" : ""}>
         <span>Advanced image options (override global)</span>
       </label>
@@ -648,29 +662,31 @@ function renderPanel(input: InitInput, force = false): void {
     <div class="bst-character-help" style="display:${showStExpressionControls ? "none" : "block"};">
       Switch effective mood source to ST expressions to edit persona ST expression framing.
     </div>
-    <div class="bst-character-divider">Persona Defaults</div>
-    <div class="bst-character-help">
-      These defaults apply to the user tracker when this persona is active.
+    <div class="bst-character-section">
+      <div class="bst-character-divider">Persona Defaults</div>
+      <div class="bst-character-help">
+        These defaults apply to the user tracker when this persona is active.
+      </div>
+      <div class="bst-character-grid">
+        <label class="bst-character-wide">Mood Default
+          <select data-bst-persona-default="mood" ${(settings.userTrackMood && isStatEnabled("mood")) ? "" : "disabled"}>
+            <option value="">Use stat default</option>
+            ${moodLabels.map(label => {
+              const selected = normalizeMoodLabel(String(defaults.mood ?? "")) === label ? "selected" : "";
+              return `<option value="${escapeHtml(label)}" ${selected}>${escapeHtml(label)}</option>`;
+            }).join("")}
+          </select>
+        </label>
+        <label class="bst-character-wide">Last Thought Default
+          <textarea rows="3" maxlength="${LAST_THOUGHT_DEFAULT_MAX_CHARS}" data-bst-persona-default="lastThought" placeholder="Use stat default" ${(settings.userTrackLastThought && isStatEnabled("lastThought")) ? "" : "disabled"}>${escapeHtml(String(defaults.lastThought ?? ""))}</textarea>
+        </label>
+      </div>
+      ${settings.userTrackMood ? "" : `<div class="bst-character-help">Mood default is unavailable because User Mood tracking is disabled.</div>`}
+      ${settings.userTrackLastThought ? "" : `<div class="bst-character-help">Last Thought default is unavailable because User Last Thought tracking is disabled.</div>`}
+      ${userCustomDefaultFieldsHtml
+        ? `<div class="bst-character-grid bst-character-grid-single">${userCustomDefaultFieldsHtml}</div>`
+        : `<div class="bst-character-help">No user-trackable custom stats configured yet.</div>`}
     </div>
-    <div class="bst-character-grid">
-      <label class="bst-character-wide">Mood Default
-        <select data-bst-persona-default="mood" ${(settings.userTrackMood && isStatEnabled("mood")) ? "" : "disabled"}>
-          <option value="">Use stat default</option>
-          ${moodLabels.map(label => {
-            const selected = normalizeMoodLabel(String(defaults.mood ?? "")) === label ? "selected" : "";
-            return `<option value="${escapeHtml(label)}" ${selected}>${escapeHtml(label)}</option>`;
-          }).join("")}
-        </select>
-      </label>
-      <label class="bst-character-wide">Last Thought Default
-        <textarea rows="3" maxlength="${LAST_THOUGHT_DEFAULT_MAX_CHARS}" data-bst-persona-default="lastThought" placeholder="Use stat default" ${(settings.userTrackLastThought && isStatEnabled("lastThought")) ? "" : "disabled"}>${escapeHtml(String(defaults.lastThought ?? ""))}</textarea>
-      </label>
-    </div>
-    ${settings.userTrackMood ? "" : `<div class="bst-character-help">Mood default is unavailable because User Mood tracking is disabled.</div>`}
-    ${settings.userTrackLastThought ? "" : `<div class="bst-character-help">Last Thought default is unavailable because User Last Thought tracking is disabled.</div>`}
-    ${userCustomDefaultFieldsHtml
-      ? `<div class="bst-character-grid bst-character-grid-single">${userCustomDefaultFieldsHtml}</div>`
-      : `<div class="bst-character-help">No user-trackable custom stats configured yet.</div>`}
     <div style="display:${showBstMoodImageControls ? "grid" : "none"}; gap:8px;">
       <div class="bst-character-divider">Mood Images</div>
       <div class="bst-character-help">

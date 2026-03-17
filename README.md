@@ -13,6 +13,7 @@ It tracks character relationship stats over time, stores them per AI message, vi
 - Manual mode is available via `Auto-Generate Tracker` toggle (with in-chat `Generate Tracker` entry points).
 - Lorebook extraction prefers already-activated ST lorebook context, with an optional internal fallback scan toggle.
 - Current ST builds use the modern macro engine path, reducing BST macro warning noise while keeping prompt macros working.
+- The settings modal is split into clearer sections (`Setup`, `Extraction`, `Context Sources`, `User Tracking`, `Prompt Injection`, `Tracking Schema`, `Display`, `Prompts`, `Diagnostics`) with cleaner subdrawer grouping.
 - Character/persona defaults, mood-image integrations (BST + ST expressions), graphing, and diagnostics are built-in.
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dogzera)

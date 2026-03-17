@@ -549,8 +549,12 @@ function renderPanel(input: InitInput, force = false): void {
   const characterIdentity: CharacterDefaultsIdentity = { name: resolvedCharacterName, avatar: characterAvatar };
   if (!characterName) {
     panel.innerHTML = `
-      <div class="bst-character-title">BetterSimTracker</div>
-      <div class="bst-character-sub">Open a character to edit defaults.</div>
+      <div class="bst-surface-header">
+        <div class="bst-surface-header-copy">
+          <div class="bst-surface-title">BetterSimTracker</div>
+          <div class="bst-surface-subtitle">Open a character to edit defaults.</div>
+        </div>
+      </div>
     `;
     return;
   }
@@ -730,56 +734,73 @@ function renderPanel(input: InitInput, force = false): void {
   };
 
   panel.innerHTML = `
-    <div class="bst-character-title">BetterSimTracker Defaults</div>
-    <div class="bst-character-sub">Per-character defaults and optional mood source overrides.</div>
-    <label class="bst-character-check">
-      <input type="checkbox" data-bst-default-toggle="trackerEnabled" ${defaults.trackerEnabled !== false ? "checked" : ""}>
-      <span>Enable tracker for this character</span>
-    </label>
-    <div class="bst-character-divider">Per-Stat Toggles</div>
-    <div class="bst-character-help">Disable specific stats for this character without changing global stat setup.</div>
-    <div class="bst-character-grid bst-character-grid-single">
-      <div class="bst-character-toggle-group">${builtInStatTogglesHtml || `<div class="bst-character-help">No built-in stats available.</div>`}</div>
-      <div class="bst-character-toggle-group">${customStatTogglesHtml || `<div class="bst-character-help">No character-trackable custom stats.</div>`}</div>
-    </div>
-    <div class="bst-character-grid">
-      <label>Affection Default <input type="number" min="0" max="100" step="1" data-bst-default="affection" value="${defaults.affection ?? ""}" ${(trackAffection && isStatEnabled("affection")) ? "" : "disabled"}></label>
-      <label>Trust Default <input type="number" min="0" max="100" step="1" data-bst-default="trust" value="${defaults.trust ?? ""}" ${(trackTrust && isStatEnabled("trust")) ? "" : "disabled"}></label>
-      <label>Desire Default <input type="number" min="0" max="100" step="1" data-bst-default="desire" value="${defaults.desire ?? ""}" ${(trackDesire && isStatEnabled("desire")) ? "" : "disabled"}></label>
-      <label>Connection Default <input type="number" min="0" max="100" step="1" data-bst-default="connection" value="${defaults.connection ?? ""}" ${(trackConnection && isStatEnabled("connection")) ? "" : "disabled"}></label>
-      <label class="bst-character-wide">Mood Default <input type="text" data-bst-default="mood" value="${defaults.mood ?? ""}" placeholder="Neutral" ${(trackMood && isStatEnabled("mood")) ? "" : "disabled"}></label>
-      <label class="bst-character-wide">Last Thought Default
-        <textarea rows="3" maxlength="${LAST_THOUGHT_DEFAULT_MAX_CHARS}" data-bst-default="lastThought" placeholder="Use stat default" ${(trackLastThought && isStatEnabled("lastThought")) ? "" : "disabled"}>${escapeHtml(String(defaults.lastThought ?? ""))}</textarea>
-      </label>
-      <label class="bst-character-wide">Card Color (optional)
-        <div class="bst-color-inputs">
-          <input data-bst-color="cardColor" type="color" value="${escapeHtml(cardColorPreview)}">
-          <input type="text" data-bst-default="cardColor" value="${escapeHtml(normalizedCardColor)}" placeholder="Auto">
-        </div>
-      </label>
-    </div>
-    ${trackAffection && trackTrust && trackDesire && trackConnection && trackMood && trackLastThought ? "" : `
-      <div class="bst-character-help">
-        Some built-in defaults are unavailable because those stats are not tracked in extension settings.
+    <div class="bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <div class="bst-surface-title">BetterSimTracker Defaults</div>
+        <div class="bst-surface-subtitle">Per-character defaults and optional mood source overrides.</div>
       </div>
-    `}
-    <div class="bst-character-help">Leave card color empty to use the automatic palette for this character. Hex colors like #2b7cff.</div>
-    <div class="bst-character-divider">Custom Stat Defaults</div>
-    ${customStatFieldsHtml
-      ? `<div class="bst-character-grid bst-character-grid-three">${customStatFieldsHtml}</div>`
-      : `<div class="bst-character-help">No custom stats configured in extension settings yet.</div>`}
-    <div class="bst-character-divider">Mood Source Override</div>
-    <div class="bst-character-grid">
-      <label class="bst-character-wide">Mood Source
-        <select data-bst-default="moodSource">
-          <option value="">Use global setting</option>
-          <option value="bst_images" ${moodSourceOverride === "bst_images" ? "selected" : ""}>BST mood images</option>
-          <option value="st_expressions" ${moodSourceOverride === "st_expressions" ? "selected" : ""}>ST expressions</option>
-        </select>
-      </label>
     </div>
-    <div class="bst-character-help">
-      Effective mood source right now: <strong>${effectiveMoodSource === "st_expressions" ? "ST expressions" : "BST mood images"}</strong>.
+    <div class="bst-character-meta">
+      <span class="bst-character-meta-pill"><strong>Character</strong> ${escapeHtml(resolvedCharacterName)}</span>
+      <span class="bst-character-meta-pill"><strong>Avatar</strong> ${escapeHtml(characterAvatar || "(missing)")}</span>
+    </div>
+    <div class="bst-character-section">
+      <label class="bst-character-check bst-check">
+        <input type="checkbox" data-bst-default-toggle="trackerEnabled" ${defaults.trackerEnabled !== false ? "checked" : ""}>
+        <span>Enable tracker for this character</span>
+      </label>
+      <div class="bst-character-divider">Per-Stat Toggles</div>
+      <div class="bst-character-help">Disable specific stats for this character without changing global stat setup.</div>
+      <div class="bst-character-grid bst-character-grid-single">
+        <div class="bst-character-toggle-group">${builtInStatTogglesHtml || `<div class="bst-character-help">No built-in stats available.</div>`}</div>
+        <div class="bst-character-toggle-group">${customStatTogglesHtml || `<div class="bst-character-help">No character-trackable custom stats.</div>`}</div>
+      </div>
+    </div>
+    <div class="bst-character-section">
+      <div class="bst-character-divider">Built-In Defaults</div>
+      <div class="bst-character-grid">
+        <label>Affection Default <input type="number" min="0" max="100" step="1" data-bst-default="affection" value="${defaults.affection ?? ""}" ${(trackAffection && isStatEnabled("affection")) ? "" : "disabled"}></label>
+        <label>Trust Default <input type="number" min="0" max="100" step="1" data-bst-default="trust" value="${defaults.trust ?? ""}" ${(trackTrust && isStatEnabled("trust")) ? "" : "disabled"}></label>
+        <label>Desire Default <input type="number" min="0" max="100" step="1" data-bst-default="desire" value="${defaults.desire ?? ""}" ${(trackDesire && isStatEnabled("desire")) ? "" : "disabled"}></label>
+        <label>Connection Default <input type="number" min="0" max="100" step="1" data-bst-default="connection" value="${defaults.connection ?? ""}" ${(trackConnection && isStatEnabled("connection")) ? "" : "disabled"}></label>
+        <label class="bst-character-wide">Mood Default <input type="text" data-bst-default="mood" value="${defaults.mood ?? ""}" placeholder="Neutral" ${(trackMood && isStatEnabled("mood")) ? "" : "disabled"}></label>
+        <label class="bst-character-wide">Last Thought Default
+          <textarea rows="3" maxlength="${LAST_THOUGHT_DEFAULT_MAX_CHARS}" data-bst-default="lastThought" placeholder="Use stat default" ${(trackLastThought && isStatEnabled("lastThought")) ? "" : "disabled"}>${escapeHtml(String(defaults.lastThought ?? ""))}</textarea>
+        </label>
+        <label class="bst-character-wide">Card Color (optional)
+          <div class="bst-color-inputs">
+            <input data-bst-color="cardColor" type="color" value="${escapeHtml(cardColorPreview)}">
+            <input type="text" data-bst-default="cardColor" value="${escapeHtml(normalizedCardColor)}" placeholder="Auto">
+          </div>
+        </label>
+      </div>
+      ${trackAffection && trackTrust && trackDesire && trackConnection && trackMood && trackLastThought ? "" : `
+        <div class="bst-character-help">
+          Some built-in defaults are unavailable because those stats are not tracked in extension settings.
+        </div>
+      `}
+      <div class="bst-character-help">Leave card color empty to use the automatic palette for this character. Hex colors like #2b7cff.</div>
+    </div>
+    <div class="bst-character-section">
+      <div class="bst-character-divider">Custom Stat Defaults</div>
+      ${customStatFieldsHtml
+        ? `<div class="bst-character-grid bst-character-grid-three">${customStatFieldsHtml}</div>`
+        : `<div class="bst-character-help">No custom stats configured in extension settings yet.</div>`}
+    </div>
+    <div class="bst-character-section">
+      <div class="bst-character-divider">Mood Source Override</div>
+      <div class="bst-character-grid">
+        <label class="bst-character-wide">Mood Source
+          <select data-bst-default="moodSource">
+            <option value="">Use global setting</option>
+            <option value="bst_images" ${moodSourceOverride === "bst_images" ? "selected" : ""}>BST mood images</option>
+            <option value="st_expressions" ${moodSourceOverride === "st_expressions" ? "selected" : ""}>ST expressions</option>
+          </select>
+        </label>
+      </div>
+      <div class="bst-character-help">
+        Effective mood source right now: <strong>${effectiveMoodSource === "st_expressions" ? "ST expressions" : "BST mood images"}</strong>.
+      </div>
     </div>
     <div style="display:${showStExpressionControls ? "grid" : "none"}; gap:8px;">
       <div class="bst-character-divider">Mood to ST Expression Map</div>
@@ -805,7 +826,7 @@ function renderPanel(input: InitInput, force = false): void {
       <div class="bst-character-help">
         Optional per-character override for expression image framing.
       </div>
-      <label class="bst-character-check">
+      <label class="bst-character-check bst-check">
         <input type="checkbox" data-bst-st-image-override ${hasStExpressionImageOverride ? "checked" : ""}>
         <span>Advanced image options (override global)</span>
       </label>

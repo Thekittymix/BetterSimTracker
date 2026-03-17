@@ -2,6 +2,37 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.11-dev5] - 2026-03-16
+### Changed
+- Removed the extra left accent from the settings modal header so the title band no longer competes with section accents underneath.
+
+## [2.2.4.11-dev4] - 2026-03-16
+### Changed
+- Refined the settings surface chrome so the top header reads as one clean band with a single left accent instead of competing stacked accents.
+- Brought character defaults and persona defaults closer to the same BST surface language by adding clearer identity pills, section cards, and grouped toggle/default blocks.
+
+### Fixed
+- Fixed nested settings subdrawers so their disclosure chevrons now follow the same closed-right / open-down state as the primary drawers.
+
+## [2.2.4.11-dev3] - 2026-03-16
+### Changed
+- Unified the visual language across BST settings, tracker edit, graph, character defaults, and persona defaults so shared surfaces now use the same header/footer rhythm, disclosure affordances, and checkbox/button families.
+- Reworked settings subdrawers to reuse the same circular chevron drawer pattern as primary section drawers instead of a separate custom affordance.
+- Adjusted the settings modal chrome so header and footer span the modal cleanly and no longer feel inset from the dialog edges.
+
+## [2.2.4.11-dev2] - 2026-03-16
+### Changed
+- Polished settings subdrawers so they use a clearer right-side chevron affordance and a header style closer to the main section drawers while keeping the neutral subdrawer accent.
+
+## [2.2.4.11-dev1] - 2026-03-16
+### Changed
+- Reorganized the settings modal into clearer top-level sections for setup, extraction, context sources, user tracking, prompt injection, tracking schema, display, prompts, and diagnostics.
+- Moved custom stat management under the tracking schema flow and grouped display controls under a dedicated card appearance subdrawer.
+- Renamed owner-card ordering controls and prompt-injection/user-tracking labels to better match actual behavior.
+
+### Fixed
+- Disabled dependent user-tracking toggles when user-side extraction is off, so the settings UI no longer implies impossible combinations.
+
 ## [2.2.4.11] - 2026-03-14
 ### Changed
 - Lorebook extraction now prefers SillyTavern's already-activated lorebook context directly, with an optional internal fallback scan for setups that still need BST-side recovery.

@@ -255,11 +255,15 @@ export function openEditStatsModal(input: {
     ? "Scene/global stats only. Leave a field empty to clear that stat for this tracker entry. Edits apply to the latest scene tracker snapshot."
     : "Numeric values are percentages (0-100). Leave a field empty to clear that stat for this tracker entry. Edits apply to the latest tracker snapshot for this character.";
   modal.innerHTML = `
-    <div class="bst-edit-head">
-      <div class="bst-edit-title">Edit Tracker Stats - ${escapeHtml(characterLabel)}</div>
-      <button class="bst-btn bst-close-btn" data-action="close" aria-label="Close edit dialog">&times;</button>
+    <div class="bst-edit-head bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <div class="bst-surface-title">Edit Tracker Stats - ${escapeHtml(characterLabel)}</div>
+        <div class="bst-surface-subtitle">${escapeHtml(modalIntro)}</div>
+      </div>
+      <div class="bst-surface-actions">
+        <button class="bst-btn bst-btn-soft bst-close-btn" data-action="close" aria-label="Close edit dialog">&times;</button>
+      </div>
     </div>
-    <div class="bst-edit-sub">${escapeHtml(modalIntro)}</div>
     ${(!isUserCharacter && !isGlobalCharacter)
       ? `<div class="bst-edit-divider"></div>
          <label class="bst-edit-field bst-check">
@@ -299,7 +303,7 @@ export function openEditStatsModal(input: {
            <textarea rows="3" maxlength="${MAX_EDIT_LAST_THOUGHT_CHARS}" data-bst-edit-text="lastThought" placeholder="Optional. Keep it concise (max ${MAX_EDIT_LAST_THOUGHT_CHARS} chars).">${escapeHtml(String(currentThought ?? ""))}</textarea>
          </label>`
       : ""}
-    <div class="bst-edit-actions">
+    <div class="bst-edit-actions bst-surface-footer bst-surface-footer-end">
       <button type="button" class="bst-btn bst-btn-soft" data-action="cancel">Cancel</button>
       <button type="button" class="bst-btn" data-action="save">Save</button>
     </div>

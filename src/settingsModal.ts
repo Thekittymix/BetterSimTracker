@@ -35,6 +35,7 @@ import {
   buildSequentialCustomOverrideGenerationPrompt,
   moodOptions,
 } from "./prompts";
+import { SETTINGS_PRIMARY_SECTION_LABELS, SETTINGS_SECTION_IDS } from "./settingsModalSections";
 import {
   closeStExpressionFrameEditor,
   formatStExpressionFrameSummary,
@@ -84,6 +85,12 @@ import {
   toMacroCharacterSlug,
 } from "./ui";
 import { closeGraphModal } from "./graphModal";
+
+export const __testables = {
+  SETTINGS_SECTION_IDS,
+  SETTINGS_PRIMARY_SECTION_LABELS,
+};
+
 export function openSettingsModal(input: {
   settings: BetterSimTrackerSettings;
   profileOptions: ConnectionProfileOption[];
@@ -183,19 +190,23 @@ export function openSettingsModal(input: {
   const modal = document.createElement("div");
   modal.className = "bst-settings";
   modal.innerHTML = `
-    <div class="bst-settings-top">
-      <div>
-        <h3>BetterSimTracker Settings</h3>
-        <p class="bst-settings-subtitle">Changes are saved automatically.</p>
+    <div class="bst-settings-top bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <h3 class="bst-surface-title">BetterSimTracker Settings</h3>
+        <p class="bst-surface-subtitle bst-settings-subtitle">Changes save automatically. Diagnostics tools are separated below.</p>
       </div>
-      <div class="bst-settings-top-actions">
+      <div class="bst-surface-actions bst-settings-top-actions">
         <button class="bst-btn bst-btn-soft" data-action="toggle-all-sections" title="Expand all sections">Expand all</button>
-        <button class="bst-btn bst-close-btn" data-action="close" title="Close settings" aria-label="Close settings">&times;</button>
+        <button class="bst-btn bst-btn-soft bst-close-btn" data-action="close" title="Close settings" aria-label="Close settings">&times;</button>
       </div>
     </div>
     <div class="bst-settings-section bst-quick-help">
-      <h4><span class="bst-header-icon fa-solid fa-circle-info"></span>Quick Help</h4>
-      <div class="bst-help-line"><strong>Extraction mode:</strong> Unified = faster single request. Sequential = one request per stat (more robust, slower).</div>
+      <h4><span class="bst-header-icon fa-solid fa-circle-info"></span>Overview</h4>
+      <div class="bst-help-line"><strong>Setup</strong> chooses the connection/profile BST uses for extraction.</div>
+      <div class="bst-help-line"><strong>Extraction</strong> controls when BST runs and how aggressive it is.</div>
+      <div class="bst-help-line"><strong>Context Sources</strong> decides whether character cards and lorebook content can influence extraction.</div>
+      <div class="bst-help-line"><strong>Prompt Injection</strong> affects hidden prompt guidance only, not visible chat messages.</div>
+      <div class="bst-help-line"><strong>Tracking Schema</strong> defines what BST tracks, including built-in and custom stats.</div>
       <ul class="bst-help-list">
         <li><strong>Affection:</strong> emotional warmth and care</li>
         <li><strong>Trust:</strong> safety and willingness to be vulnerable</li>
@@ -205,35 +216,17 @@ export function openSettingsModal(input: {
       <div class="bst-help-line"><strong>Mood</strong> is short-term tone. <strong>Last Thought</strong> is one brief internal line for continuity.</div>
     </div>
     <div class="bst-settings-section">
-      <h4><span class="bst-header-icon fa-solid fa-plug"></span>Connection</h4>
+      <h4><span class="bst-header-icon fa-solid fa-plug"></span>Setup</h4>
       <div class="bst-settings-grid">
         <label>Connection Profile <select data-k="connectionProfile">${profileOptionsHtml}</select></label>
         <label>Max Tokens Override <input data-k="maxTokensOverride" type="number" min="0" max="100000"></label>
         <label>Context Size Override <input data-k="truncationLengthOverride" type="number" min="0" max="200000"></label>
       </div>
     </div>
-    <div class="bst-settings-section">
-      <h4><span class="bst-header-icon fa-solid fa-filter"></span>Extraction &amp; Injection</h4>
+        <div class="bst-settings-section">
+      <h4><span class="bst-header-icon fa-solid fa-filter"></span>Extraction</h4>
       <div class="bst-settings-grid">
-        <div class="bst-section-divider">Extraction Settings</div>
-        <label>Context Messages <input data-k="contextMessages" type="number" min="1" max="40"></label>
-        <label data-bst-row="maxConcurrentCalls">Max Concurrent Requests <input data-k="maxConcurrentCalls" type="number" min="1" max="8"></label>
-        <label data-bst-row="maxRetriesPerStat">Max Retries Per Stat <input data-k="maxRetriesPerStat" type="number" min="0" max="4"></label>
-        <label>Max Delta Per Turn <input data-k="maxDeltaPerTurn" type="number" min="1" max="30"></label>
-        <label>Confidence Dampening <input data-k="confidenceDampening" type="number" min="0" max="1" step="0.05"></label>
-        <label>Mood Stickiness <input data-k="moodStickiness" type="number" min="0" max="1" step="0.05"></label>
-        <label data-bst-row="activityLookback">Activity Lookback <input data-k="activityLookback" type="number" min="1" max="25"></label>
-        <div class="bst-section-divider">Extraction Includes</div>
-        <div class="bst-check-grid">
-          <label class="bst-check"><input data-k="includeCharacterCardsInPrompt" type="checkbox">Include Character Cards in Extraction Prompt</label>
-          <label class="bst-check"><input data-k="includeLorebookInExtraction" type="checkbox">Include Activated Lorebook in Extraction Prompt</label>
-          <label class="bst-check" data-bst-row="useInternalLorebookScanFallback"><input data-k="useInternalLorebookScanFallback" type="checkbox">Use Internal Lorebook Scan Fallback</label>
-        </div>
-        <label data-bst-row="lorebookExtractionMaxChars">Lorebook Extraction Limit <input data-k="lorebookExtractionMaxChars" type="number" min="0" max="12000"></label>
-        <div class="bst-help-line bst-toggle-help" data-bst-row="lorebookExtractionHelp">Maximum lorebook characters included in extraction context (0 = no trim).</div>
-        <div class="bst-help-line bst-toggle-help" data-bst-row="lorebookFallbackHelp">Fallback only. BST performs its own lorebook activation scan if ST does not expose activated entries. Disable this to avoid BST-triggered lorebook matching and follow quiet-style lorebook behavior more strictly.</div>
-
-        <div class="bst-section-divider">Extraction Toggles</div>
+        <div class="bst-help-line bst-toggle-help">Controls when BST runs, how robust extraction should be, and how much it is allowed to smooth stat changes.</div>
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="autoGenerateTracker" type="checkbox">Auto-Generate Tracker</label>
           <label class="bst-check"><input data-k="sequentialExtraction" type="checkbox">Sequential Extraction (per stat)</label>
@@ -243,39 +236,69 @@ export function openSettingsModal(input: {
           <label class="bst-check" data-bst-row="regenerateOnMessageEdit"><input data-k="regenerateOnMessageEdit" type="checkbox">Regenerate Tracker After Message Edit</label>
           <label class="bst-check" data-bst-row="generateOnGreetingMessages"><input data-k="generateOnGreetingMessages" type="checkbox">Generate Tracker on Greetings</label>
         </div>
-
-        <div class="bst-section-divider">User Tracking</div>
+        <div class="bst-section-divider">Advanced Extraction Tuning</div>
+        <label>Context Messages <input data-k="contextMessages" type="number" min="1" max="40"></label>
+        <label data-bst-row="maxConcurrentCalls">Max Concurrent Requests <input data-k="maxConcurrentCalls" type="number" min="1" max="8"></label>
+        <label data-bst-row="maxRetriesPerStat">Max Retries Per Stat <input data-k="maxRetriesPerStat" type="number" min="0" max="4"></label>
+        <label>Max Delta Per Turn <input data-k="maxDeltaPerTurn" type="number" min="1" max="30"></label>
+        <label>Confidence Dampening <input data-k="confidenceDampening" type="number" min="0" max="1" step="0.05"></label>
+        <label>Mood Stickiness <input data-k="moodStickiness" type="number" min="0" max="1" step="0.05"></label>
+        <label data-bst-row="activityLookback">Activity Lookback <input data-k="activityLookback" type="number" min="1" max="25"></label>
+      </div>
+    </div>
+    <div class="bst-settings-section">
+      <h4><span class="bst-header-icon fa-solid fa-book-open"></span>Context Sources</h4>
+      <div class="bst-settings-grid">
+        <div class="bst-help-line bst-toggle-help">Decides which external context BST may use when scene evidence is incomplete.</div>
+        <div class="bst-check-grid">
+          <label class="bst-check"><input data-k="includeCharacterCardsInPrompt" type="checkbox">Include Character Cards in Extraction Prompt</label>
+          <label class="bst-check"><input data-k="includeLorebookInExtraction" type="checkbox">Include Activated Lorebook in Extraction Prompt</label>
+          <label class="bst-check" data-bst-row="useInternalLorebookScanFallback"><input data-k="useInternalLorebookScanFallback" type="checkbox">Use Internal Lorebook Scan Fallback</label>
+        </div>
+        <label data-bst-row="lorebookExtractionMaxChars">Lorebook Extraction Limit <input data-k="lorebookExtractionMaxChars" type="number" min="0" max="12000"></label>
+        <div class="bst-help-line bst-toggle-help" data-bst-row="lorebookExtractionHelp">Maximum lorebook characters included in extraction context (0 = no trim).</div>
+        <div class="bst-help-line bst-toggle-help" data-bst-row="lorebookFallbackHelp">Fallback only. BST performs its own lorebook activation scan if ST does not expose activated entries. Disable this to follow SillyTavern trigger behavior more strictly.</div>
+      </div>
+    </div>
+    <div class="bst-settings-section">
+      <h4><span class="bst-header-icon fa-solid fa-user"></span>User Tracking</h4>
+      <div class="bst-settings-grid">
+        <div class="bst-help-line bst-toggle-help">Controls whether BST extracts user-side state at all and which user-only fields are allowed.</div>
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="enableUserTracking" type="checkbox">Enable User-Side Extraction</label>
           <label class="bst-check"><input data-k="userTrackMood" type="checkbox">Track User Mood</label>
           <label class="bst-check"><input data-k="userTrackLastThought" type="checkbox">Track User Last Thought</label>
           <label class="bst-check"><input data-k="includeUserTrackerInInjection" type="checkbox">Include User Tracker In Injection</label>
         </div>
-
-        <div class="bst-section-divider">Injection Settings</div>
-        <label data-bst-row="injectPromptDepth">Injection Depth <select data-k="injectPromptDepth"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
-        <label data-bst-row="injectionPromptMaxChars">Injection Prompt Max Chars <input data-k="injectionPromptMaxChars" type="number" min="500" max="100000"></label>
+      </div>
+    </div>
+    <div class="bst-settings-section">
+      <h4><span class="bst-header-icon fa-solid fa-file-lines"></span>Prompt Injection</h4>
+      <div class="bst-settings-grid">
+        <div class="bst-help-line bst-toggle-help">Controls hidden prompt guidance only. This does not change visible chat messages.</div>
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="injectTrackerIntoPrompt" type="checkbox">Inject Tracker Into Prompt</label>
-          <label class="bst-check"><input data-k="summarizationNoteVisibleForAI" type="checkbox">Summarization Note Visible for AI (future notes)</label>
-          <label class="bst-check" data-bst-row="injectSummarizationNote"><input data-k="injectSummarizationNote" type="checkbox">Inject Summarization Note</label>
+          <label class="bst-check"><input data-k="summarizationNoteVisibleForAI" type="checkbox">Make BST Summary Notes Visible For AI</label>
+          <label class="bst-check" data-bst-row="injectSummarizationNote"><input data-k="injectSummarizationNote" type="checkbox">Include Latest BST Summary Note In Prompt Injection</label>
         </div>
+        <label data-bst-row="injectPromptDepth">Injection Depth <select data-k="injectPromptDepth"><option value="0">0</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option></select></label>
+        <label data-bst-row="injectionPromptMaxChars">Injection Prompt Max Chars <input data-k="injectionPromptMaxChars" type="number" min="500" max="100000"></label>
         <div class="bst-help-line bst-toggle-help">Global macro: <code>{{bst_injection}}</code></div>
         <div class="bst-help-line bst-toggle-help"><strong>Summarize</strong> creates a prose note of current tracked stats (no numbers), typically 4-6 sentences, grounded in recent messages.</div>
-        <div class="bst-help-line bst-toggle-help"><code>Summarization Note Visible for AI</code> affects only newly generated BetterSimTracker summary notes. Existing notes are not modified for safety.</div>
-        <div class="bst-help-line bst-toggle-help"><code>Inject Summarization Note</code> only affects hidden tracker prompt injection guidance and does not edit chat messages.</div>
+        <div class="bst-help-line bst-toggle-help"><code>Make BST Summary Notes Visible For AI</code> affects only newly generated BetterSimTracker summary notes. Existing notes are not modified for safety.</div>
+        <div class="bst-help-line bst-toggle-help"><code>Include Latest BST Summary Note In Prompt Injection</code> affects only hidden tracker prompt guidance and does not edit chat messages.</div>
         <div class="bst-section-divider" data-bst-row="injectPromptDivider">Injection Prompt</div>
         <div class="bst-injection-prompt" data-bst-row="injectPromptBlock">
           <div class="bst-help-line">Shown only when Inject Tracker Into Prompt is enabled.</div>
           <div class="bst-help-line">Placeholders you can use:</div>
           <ul class="bst-help-list">
-            <li><code>{{header}}</code> — privacy + usage rules header</li>
-            <li><code>{{statSemantics}}</code> — enabled stat meanings</li>
-            <li><code>{{behaviorBands}}</code> — low/medium/high behavior bands</li>
-            <li><code>{{reactRules}}</code> — how-to-react rules</li>
-            <li><code>{{priorityRules}}</code> — priority rules block</li>
-            <li><code>{{lines}}</code> — per-character state lines</li>
-            <li><code>{{summarizationNote}}</code> — optional latest tracker summary note (when enabled)</li>
+            <li><code>{{header}}</code> - privacy + usage rules header</li>
+            <li><code>{{statSemantics}}</code> - enabled stat meanings</li>
+            <li><code>{{behaviorBands}}</code> - low/medium/high behavior bands</li>
+            <li><code>{{reactRules}}</code> - how-to-react rules</li>
+            <li><code>{{priorityRules}}</code> - priority rules block</li>
+            <li><code>{{lines}}</code> - per-character state lines</li>
+            <li><code>{{summarizationNote}}</code> - optional latest tracker summary note (when enabled)</li>
           </ul>
           <div class="bst-prompt-group bst-prompt-inline">
             <div class="bst-prompt-head">
@@ -291,7 +314,7 @@ export function openSettingsModal(input: {
       </div>
     </div>
     <div class="bst-settings-section">
-      <h4><span class="bst-header-icon fa-solid fa-chart-line"></span>Tracked Stats</h4>
+      <h4><span class="bst-header-icon fa-solid fa-chart-line"></span>Tracking Schema</h4>
       <div class="bst-custom-stats-top bst-custom-stats-top-centered">
         <button type="button" class="bst-btn bst-btn-soft" data-action="manage-builtins">Manage Built-in Stats</button>
       </div>
@@ -378,7 +401,7 @@ export function openSettingsModal(input: {
         </div>
       </div>
       <details class="bst-subdrawer" data-bst-row="sceneCardDrawer">
-        <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-layer-group" aria-hidden="true"></span>Scene Card</span></summary>
+        <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-layer-group" aria-hidden="true"></span>Scene Card</span><span class="bst-disclosure-icon fa-solid fa-circle-chevron-down" aria-hidden="true"></span></summary>
         <div class="bst-settings-grid bst-settings-grid-single">
           <label class="bst-check" data-bst-row="sceneCardEnabled"><input data-k="sceneCardEnabled" type="checkbox">Enable Scene Card (global stats)</label>
           <label data-bst-row="sceneCardPosition">Position
@@ -418,9 +441,9 @@ export function openSettingsModal(input: {
         </div>
       </details>
       <details class="bst-subdrawer" data-bst-row="characterCardOrderDrawer">
-        <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-list-ol" aria-hidden="true"></span>Character Card Stat Order</span></summary>
+        <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-list-ol" aria-hidden="true"></span>Owner Card Stat Order</span><span class="bst-disclosure-icon fa-solid fa-circle-chevron-down" aria-hidden="true"></span></summary>
         <div class="bst-settings-grid bst-settings-grid-single">
-          <div class="bst-help-line">Order controls for stat rows shown on character cards (built-in + custom, non-global).</div>
+          <div class="bst-help-line">Order controls for stat rows shown on owner cards (user + character, built-in + custom, non-global).</div>
           <div class="bst-scene-order-list" data-bst-row="characterCardOrderList"></div>
         </div>
       </details>
@@ -672,7 +695,7 @@ export function openSettingsModal(input: {
       </div>
     </div>
     <div class="bst-settings-section">
-      <h4><span class="bst-header-icon fa-solid fa-bug"></span>Debug</h4>
+      <h4><span class="bst-header-icon fa-solid fa-bug"></span>Diagnostics</h4>
       <div class="bst-check-grid">
         <label class="bst-check"><input data-k="debug" type="checkbox">Debug</label>
       </div>
@@ -709,31 +732,57 @@ export function openSettingsModal(input: {
         <div class="bst-debug-box">${input.injectedPrompt?.trim() ? input.injectedPrompt : "No injected prompt currently active."}</div>
       </div>
     </div>
-    <div class="bst-settings-footer">
-      <button class="bst-btn bst-btn-soft" data-action="retrack" title="Retrack Last AI Message">
-        <span class="fa-solid fa-rotate-left bst-btn-icon-left" aria-hidden="true"></span>
-        Retrack
-      </button>
+    <div class="bst-settings-footer bst-surface-footer bst-surface-footer-end">
       <button class="bst-btn" data-action="close" title="Close settings">Done</button>
     </div>
   `;
   document.body.appendChild(modal);
 
-  const mergeConnectionAndGeneration = (): void => {
+  const mergeTrackingSchemaSections = (): void => {
     const sections = Array.from(modal.querySelectorAll(".bst-settings-section")) as HTMLElement[];
-    const connectionSection = sections.find(section => section.querySelector("h4")?.textContent?.trim() === "Connection");
-    const generationSection = sections.find(section => section.querySelector("h4")?.textContent?.trim() === "Generation");
-    if (!connectionSection || !generationSection) return;
-    const generationGrid = generationSection.querySelector(".bst-settings-grid");
-    if (!generationGrid) return;
-    const divider = document.createElement("div");
-    divider.className = "bst-section-divider";
-    divider.textContent = "Generation";
-    connectionSection.appendChild(divider);
-    connectionSection.appendChild(generationGrid);
-    generationSection.remove();
+    const trackingSchemaSection = sections.find(section => section.querySelector("h4")?.textContent?.trim() === "Tracking Schema");
+    const customStatsSection = sections.find(section => section.querySelector("h4")?.textContent?.trim() === "Custom Stats");
+    if (!trackingSchemaSection || !customStatsSection) return;
+    const customStatsTop = customStatsSection.querySelector(".bst-custom-stats-top");
+    const customStatsStatus = customStatsSection.querySelector('[data-bst-row="customStatsImportStatus"]');
+    const customStatsList = customStatsSection.querySelector('[data-bst-row="customStatsList"]');
+    if (!customStatsTop || !customStatsStatus || !customStatsList) return;
+
+    const customStatsDrawer = document.createElement("details");
+    customStatsDrawer.className = "bst-subdrawer";
+    customStatsDrawer.dataset.bstRow = "trackingSchemaCustomStatsDrawer";
+    customStatsDrawer.open = true;
+    customStatsDrawer.innerHTML = `
+      <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-sliders" aria-hidden="true"></span>Custom Stats</span><span class="bst-disclosure-icon fa-solid fa-circle-chevron-down" aria-hidden="true"></span></summary>
+      <div class="bst-settings-grid bst-settings-grid-single"></div>
+    `;
+    const drawerBody = customStatsDrawer.querySelector(".bst-settings-grid");
+    if (!drawerBody) return;
+    drawerBody.appendChild(customStatsTop);
+    drawerBody.appendChild(customStatsStatus);
+    drawerBody.appendChild(customStatsList);
+    trackingSchemaSection.appendChild(customStatsDrawer);
+    customStatsSection.remove();
   };
-  mergeConnectionAndGeneration();
+  mergeTrackingSchemaSections();
+
+  const organizeDisplaySection = (): void => {
+    const displaySection = Array.from(modal.querySelectorAll(".bst-settings-section"))
+      .find(section => section.querySelector("h4")?.textContent?.trim() === "Display") as HTMLElement | undefined;
+    if (!displaySection) return;
+    const topGrid = displaySection.querySelector(":scope > .bst-settings-grid") as HTMLElement | null;
+    if (!topGrid) return;
+    const appearanceDrawer = document.createElement("details");
+    appearanceDrawer.className = "bst-subdrawer";
+    appearanceDrawer.dataset.bstRow = "cardAppearanceDrawer";
+    appearanceDrawer.open = true;
+    appearanceDrawer.innerHTML = `
+      <summary><span class="bst-subdrawer-title"><span class="fa-solid fa-palette" aria-hidden="true"></span>Card Appearance</span><span class="bst-disclosure-icon fa-solid fa-circle-chevron-down" aria-hidden="true"></span></summary>
+    `;
+    appearanceDrawer.appendChild(topGrid);
+    displaySection.insertBefore(appearanceDrawer, displaySection.children[1] ?? null);
+  };
+  organizeDisplaySection();
 
   const addMinMaxHints = (): void => {
     const numberInputs = Array.from(modal.querySelectorAll('input[type="number"]')) as HTMLInputElement[];
@@ -803,22 +852,13 @@ export function openSettingsModal(input: {
   enforceNumberBounds();
 
   const initSectionDrawers = (): void => {
-    const sectionIds: Record<string, string> = {
-      "Connection": "connection",
-      "Extraction & Injection": "extraction",
-      "Tracked Stats": "tracked-stats",
-      "Custom Stats": "custom-stats",
-      "Display": "display",
-      "Prompts": "prompts",
-      "Debug": "debug"
-    };
     const sections = Array.from(modal.querySelectorAll(".bst-settings-section")) as HTMLElement[];
     sections.forEach((section, index) => {
       if (index === 0) return;
       const header = section.querySelector("h4") as HTMLHeadingElement | null;
       if (!header) return;
       const label = header.textContent?.trim() ?? "";
-      const id = sectionIds[label] ?? label.toLowerCase().replace(/\s+/g, "-");
+      const id = SETTINGS_SECTION_IDS[label] ?? label.toLowerCase().replace(/\s+/g, "-");
       section.dataset.bstSection = id;
       const head = document.createElement("div");
       head.className = "bst-section-head";
@@ -829,7 +869,7 @@ export function openSettingsModal(input: {
       head.setAttribute("aria-expanded", "true");
       head.setAttribute("title", "Toggle section");
       const icon = document.createElement("span");
-      icon.className = "bst-section-icon fa-solid fa-circle-chevron-down";
+      icon.className = "bst-disclosure-icon bst-section-icon fa-solid fa-circle-chevron-down";
       head.appendChild(header);
       head.appendChild(icon);
       section.insertBefore(head, section.firstChild);
@@ -4137,6 +4177,11 @@ export function openSettingsModal(input: {
     const moodAdvancedBlock = modal.querySelector('[data-bst-row="moodAdvancedBlock"]') as HTMLElement | null;
     const globalMoodExpressionMap = modal.querySelector('[data-bst-row="globalMoodExpressionMap"]') as HTMLElement | null;
     const stExpressionImageOptions = modal.querySelector('[data-bst-row="stExpressionImageOptions"]') as HTMLElement | null;
+    const userTrackingDependentKeys = [
+      "userTrackMood",
+      "userTrackLastThought",
+      "includeUserTrackerInInjection",
+    ] as const;
     const protocolReadonlyBlocks = Array.from(modal.querySelectorAll(".bst-protocol-readonly-wrap")) as HTMLElement[];
     const protocolEditableBlocks = Array.from(modal.querySelectorAll(".bst-protocol-editable-wrap")) as HTMLElement[];
     const current = collectSettings();
@@ -4244,6 +4289,16 @@ export function openSettingsModal(input: {
     }
     if (lorebookFallbackHelpRow) {
       lorebookFallbackHelpRow.style.display = current.includeLorebookInExtraction ? "block" : "none";
+    }
+    for (const key of userTrackingDependentKeys) {
+      const inputNode = modal.querySelector(`[data-k="${key}"]`) as HTMLInputElement | null;
+      const row = inputNode?.closest(".bst-check") as HTMLElement | null;
+      if (!inputNode || !row) continue;
+      inputNode.disabled = !current.enableUserTracking;
+      row.style.opacity = current.enableUserTracking ? "1" : "0.55";
+      row.title = current.enableUserTracking
+        ? ""
+        : "Enable User-Side Extraction first.";
     }
     if (injectionPromptMaxCharsRow) {
       injectionPromptMaxCharsRow.style.display = current.injectTrackerIntoPrompt ? "flex" : "none";
