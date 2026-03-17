@@ -44,7 +44,7 @@ test("activity analysis does not keep stale speakers active for the old long per
   assert.match(result.reasons.Alice, /not seen in recent activity window/i);
 });
 
-test("manual inactive override persists across activity resolution and can be cleared", () => {
+test("manual inactive override persists until the character speaks again and can still be cleared manually", () => {
   const context = makeContext();
 
   const inactive = setManualInactiveCharacter(context, "Billie", true);
@@ -59,6 +59,25 @@ test("manual inactive override persists across activity resolution and can be cl
   assert.deepEqual(inactiveResult.activeCharacters, []);
   assert.equal(inactiveResult.reasons.Billie, "manual inactive override");
   assert.deepEqual(inactiveResult.manualInactiveCharacters, ["Billie"]);
+
+  context.chat.push(
+    { name: "User", mes: "Say something again.", is_user: true, is_system: false },
+    { name: "Billie", mes: "I'm back in the scene.", is_user: false, is_system: false },
+  );
+
+  const resumedResult = resolveActiveCharacterAnalysis(context, {
+    ...defaultSettings,
+    autoDetectActive: true,
+    activityLookback: 5,
+  });
+  assert.deepEqual(resumedResult.activeCharacters, ["Billie"]);
+  assert.deepEqual(resumedResult.manualInactiveCharacters, []);
+  assert.deepEqual(readManualInactiveCharacters(context), []);
+});
+
+test("manual inactive override can still be cleared manually before the character speaks again", () => {
+  const context = makeContext();
+  setManualInactiveCharacter(context, "Billie", true);
 
   const cleared = setManualInactiveCharacter(context, "Billie", false);
   assert.deepEqual(cleared, []);

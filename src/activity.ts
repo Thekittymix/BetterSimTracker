@@ -2,6 +2,7 @@ import type { BetterSimTrackerSettings, Character, STContext } from "./types";
 import { isTrackableAiMessage } from "./messageFilter";
 
 const MANUAL_INACTIVE_METADATA_KEY = "bstManualInactiveCharacters";
+type ManualInactiveOverrideMap = Record<string, number>;
 
 function getGroupCharacters(context: STContext): Character[] {
   if (!context.groupId || !context.groups || !context.characters) return [];
@@ -66,23 +67,61 @@ export function getActiveCharacterNames(
   return resolveActiveCharacterAnalysis(context, settings).activeCharacters;
 }
 
-function normalizeManualInactiveCharacters(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const item of raw) {
-    const name = String(item ?? "").trim();
+function normalizeManualInactiveOverrideMap(raw: unknown, fallbackIndex: number): ManualInactiveOverrideMap {
+  const out: ManualInactiveOverrideMap = {};
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      const name = String(item ?? "").trim();
+      if (!name) continue;
+      out[name] = fallbackIndex;
+    }
+    return out;
+  }
+  if (!raw || typeof raw !== "object") return out;
+  for (const [owner, value] of Object.entries(raw as Record<string, unknown>)) {
+    const name = String(owner ?? "").trim();
     if (!name) continue;
-    const key = name.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(name);
+    const parsed = Number(value);
+    out[name] = Number.isFinite(parsed) ? parsed : fallbackIndex;
+  }
+  return out;
+}
+
+function persistManualInactiveOverrideMap(
+  context: STContext,
+  overrides: ManualInactiveOverrideMap,
+): void {
+  if (!context.chatMetadata || typeof context.chatMetadata !== "object") {
+    context.chatMetadata = {};
+  }
+  if (Object.keys(overrides).length) {
+    context.chatMetadata[MANUAL_INACTIVE_METADATA_KEY] = overrides;
+  } else {
+    delete context.chatMetadata[MANUAL_INACTIVE_METADATA_KEY];
+  }
+  context.saveMetadataDebounced?.();
+  context.saveChatDebounced?.();
+}
+
+function readManualInactiveOverrideMap(context: STContext): ManualInactiveOverrideMap {
+  const fallbackIndex = Math.max(0, context.chat.length - 1);
+  const normalized = normalizeManualInactiveOverrideMap(
+    context.chatMetadata?.[MANUAL_INACTIVE_METADATA_KEY],
+    fallbackIndex,
+  );
+  const allTracked = getAllTrackedCharacterNames(context);
+  const canonicalByLower = new Map(allTracked.map(name => [name.toLowerCase(), name] as const));
+  const out: ManualInactiveOverrideMap = {};
+  for (const [name, value] of Object.entries(normalized)) {
+    const canonical = canonicalByLower.get(name.toLowerCase());
+    if (!canonical) continue;
+    out[canonical] = value;
   }
   return out;
 }
 
 export function readManualInactiveCharacters(context: STContext): string[] {
-  return normalizeManualInactiveCharacters(context.chatMetadata?.[MANUAL_INACTIVE_METADATA_KEY]);
+  return Object.keys(readManualInactiveOverrideMap(context));
 }
 
 export function setManualInactiveCharacter(
@@ -92,25 +131,22 @@ export function setManualInactiveCharacter(
 ): string[] {
   const target = String(character ?? "").trim();
   if (!target) return readManualInactiveCharacters(context);
-  const next = new Set(readManualInactiveCharacters(context).map(name => name.toLowerCase()));
+  const existing = readManualInactiveOverrideMap(context);
+  const next = new Map<string, number>(Object.entries(existing));
   if (inactive) {
-    next.add(target.toLowerCase());
+    next.set(target, Math.max(0, context.chat.length - 1));
   } else {
-    next.delete(target.toLowerCase());
+    for (const key of Array.from(next.keys())) {
+      if (key.toLowerCase() === target.toLowerCase()) next.delete(key);
+    }
   }
-  const allTracked = getAllTrackedCharacterNames(context);
-  const materialized = allTracked.filter(name => next.has(name.toLowerCase()));
-  if (!context.chatMetadata || typeof context.chatMetadata !== "object") {
-    context.chatMetadata = {};
-  }
-  if (materialized.length) {
-    context.chatMetadata[MANUAL_INACTIVE_METADATA_KEY] = materialized;
-  } else {
-    delete context.chatMetadata[MANUAL_INACTIVE_METADATA_KEY];
-  }
-  context.saveMetadataDebounced?.();
-  context.saveChatDebounced?.();
-  return materialized;
+  const materialized = Object.fromEntries(next.entries());
+  persistManualInactiveOverrideMap(context, materialized);
+  const ordered = getAllTrackedCharacterNames(context);
+  const materializedNames = ordered.filter(name => Object.prototype.hasOwnProperty.call(materialized, name));
+  const leftovers = Object.keys(materialized).filter(name => !materializedNames.includes(name));
+  if (leftovers.length) materializedNames.push(...leftovers);
+  return materializedNames;
 }
 
 export function resolveActiveCharacterAnalysis(
@@ -127,7 +163,28 @@ export function resolveActiveCharacterAnalysis(
   const allNamesSet = new Set(allNames);
   const lookback = Math.max(1, settings.activityLookback);
   const reasons: Record<string, string> = {};
-  const manualInactiveCharacters = readManualInactiveCharacters(context)
+  const manualInactiveOverrides = readManualInactiveOverrideMap(context);
+  const lastSpokeAtOverall = new Map<string, number>();
+  for (let i = 0; i < context.chat.length; i += 1) {
+    const message = context.chat[i];
+    if (!message.name || !isTrackableAiMessage(message)) continue;
+    const speaker = String(message.name ?? "").trim();
+    if (!allNamesSet.has(speaker)) continue;
+    lastSpokeAtOverall.set(speaker, i);
+  }
+  let manualOverridesChanged = false;
+  for (const [name, overrideIndex] of Object.entries(manualInactiveOverrides)) {
+    const lastSpokeAt = lastSpokeAtOverall.get(name);
+    if (lastSpokeAt == null) continue;
+    if (lastSpokeAt > overrideIndex) {
+      delete manualInactiveOverrides[name];
+      manualOverridesChanged = true;
+    }
+  }
+  if (manualOverridesChanged) {
+    persistManualInactiveOverrideMap(context, manualInactiveOverrides);
+  }
+  const manualInactiveCharacters = Object.keys(manualInactiveOverrides)
     .filter(name => allNamesSet.has(name));
   const manualInactiveSet = new Set(manualInactiveCharacters.map(name => name.toLowerCase()));
   if (!settings.autoDetectActive) {
