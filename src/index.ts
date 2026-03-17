@@ -1,4 +1,9 @@
-import { getAllTrackedCharacterNames, buildRecentContext, resolveActiveCharacterAnalysis } from "./activity";
+import {
+  buildRecentContext,
+  getAllTrackedCharacterNames,
+  resolveActiveCharacterAnalysis,
+  setManualInactiveCharacter,
+} from "./activity";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
@@ -112,7 +117,13 @@ let runtimeManifestVersion: string | null = null;
 let debugTrace: string[] = [];
 let traceCacheKey: string | null = null;
 let traceCacheLines: string[] = [];
-let lastActivityAnalysis: { allCharacterNames: string[]; activeCharacters: string[]; reasons: Record<string, string>; lookback: number } | null = null;
+let lastActivityAnalysis: {
+  allCharacterNames: string[];
+  activeCharacters: string[];
+  reasons: Record<string, string>;
+  lookback: number;
+  manualInactiveCharacters: string[];
+} | null = null;
 let chatGenerationInFlight = false;
 let chatGenerationSawCharacterRender = false;
 let chatGenerationStartLastAiIndex: number | null = null;
@@ -2925,6 +2936,7 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
       activeSet.delete(character);
     }
     next.activeCharacters = Array.from(activeSet);
+    setManualInactiveCharacter(context, character, !payload.active);
   }
 
   writeTrackerDataToMessage(context, next, messageIndex);

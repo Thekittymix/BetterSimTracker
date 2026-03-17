@@ -1,6 +1,8 @@
 import type { BetterSimTrackerSettings, Character, STContext } from "./types";
 import { isTrackableAiMessage } from "./messageFilter";
 
+const MANUAL_INACTIVE_METADATA_KEY = "bstManualInactiveCharacters";
+
 function getGroupCharacters(context: STContext): Character[] {
   if (!context.groupId || !context.groups || !context.characters) return [];
   const group = context.groups.find(g => g.id === context.groupId);
@@ -64,6 +66,53 @@ export function getActiveCharacterNames(
   return resolveActiveCharacterAnalysis(context, settings).activeCharacters;
 }
 
+function normalizeManualInactiveCharacters(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const name = String(item ?? "").trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
+export function readManualInactiveCharacters(context: STContext): string[] {
+  return normalizeManualInactiveCharacters(context.chatMetadata?.[MANUAL_INACTIVE_METADATA_KEY]);
+}
+
+export function setManualInactiveCharacter(
+  context: STContext,
+  character: string,
+  inactive: boolean,
+): string[] {
+  const target = String(character ?? "").trim();
+  if (!target) return readManualInactiveCharacters(context);
+  const next = new Set(readManualInactiveCharacters(context).map(name => name.toLowerCase()));
+  if (inactive) {
+    next.add(target.toLowerCase());
+  } else {
+    next.delete(target.toLowerCase());
+  }
+  const allTracked = getAllTrackedCharacterNames(context);
+  const materialized = allTracked.filter(name => next.has(name.toLowerCase()));
+  if (!context.chatMetadata || typeof context.chatMetadata !== "object") {
+    context.chatMetadata = {};
+  }
+  if (materialized.length) {
+    context.chatMetadata[MANUAL_INACTIVE_METADATA_KEY] = materialized;
+  } else {
+    delete context.chatMetadata[MANUAL_INACTIVE_METADATA_KEY];
+  }
+  context.saveMetadataDebounced?.();
+  context.saveChatDebounced?.();
+  return materialized;
+}
+
 export function resolveActiveCharacterAnalysis(
   context: STContext,
   settings: BetterSimTrackerSettings,
@@ -72,16 +121,23 @@ export function resolveActiveCharacterAnalysis(
   activeCharacters: string[];
   reasons: Record<string, string>;
   lookback: number;
+  manualInactiveCharacters: string[];
 } {
   const allNames = getAllTrackedCharacterNames(context);
   const allNamesSet = new Set(allNames);
   const lookback = Math.max(1, settings.activityLookback);
   const reasons: Record<string, string> = {};
+  const manualInactiveCharacters = readManualInactiveCharacters(context)
+    .filter(name => allNamesSet.has(name));
+  const manualInactiveSet = new Set(manualInactiveCharacters.map(name => name.toLowerCase()));
   if (!settings.autoDetectActive) {
+    const activeCharacters = allNames.filter(name => !manualInactiveSet.has(name.toLowerCase()));
     for (const name of allNames) {
-      reasons[name] = "autoDetectActive disabled";
+      reasons[name] = manualInactiveSet.has(name.toLowerCase())
+        ? "manual inactive override"
+        : "autoDetectActive disabled";
     }
-    return { allCharacterNames: allNames, activeCharacters: allNames, reasons, lookback };
+    return { allCharacterNames: allNames, activeCharacters, reasons, lookback, manualInactiveCharacters };
   }
 
   const recentMessages = context.chat.slice(-lookback);
@@ -98,7 +154,7 @@ export function resolveActiveCharacterAnalysis(
 
   // Keep recently-speaking characters active for longer even if they miss a few turns.
   // This prevents "off-screen" flips in scenes where one character is temporarily silent.
-  const persistenceWindow = Math.max(12, lookback * 3);
+  const persistenceWindow = lookback + 2;
   if (persistenceWindow > lookback) {
     const persistenceStart = Math.max(0, context.chat.length - persistenceWindow);
     const lastSpokeAt = new Map<string, number>();
@@ -226,9 +282,16 @@ export function resolveActiveCharacterAnalysis(
     for (const name of active) {
       if (!reasons[name]) reasons[name] = "fallback: include all tracked characters";
     }
-    return { allCharacterNames: allNames, activeCharacters: active, reasons, lookback };
+    const filteredActive = active.filter(name => !manualInactiveSet.has(name.toLowerCase()));
+    for (const name of manualInactiveCharacters) {
+      reasons[name] = "manual inactive override";
+    }
+    return { allCharacterNames: allNames, activeCharacters: filteredActive, reasons, lookback, manualInactiveCharacters };
   }
-  const activeCharacters = Array.from(seen);
+  const activeCharacters = Array.from(seen).filter(name => !manualInactiveSet.has(name.toLowerCase()));
+  for (const name of manualInactiveCharacters) {
+    reasons[name] = "manual inactive override";
+  }
   for (const name of allNames) {
     if (!reasons[name]) {
       reasons[name] = activeCharacters.includes(name)
@@ -236,7 +299,7 @@ export function resolveActiveCharacterAnalysis(
         : `not seen in recent activity window (${lookback})`;
     }
   }
-  return { allCharacterNames: allNames, activeCharacters, reasons, lookback };
+  return { allCharacterNames: allNames, activeCharacters, reasons, lookback, manualInactiveCharacters };
 }
 
 export function buildRecentContext(context: STContext, messageCount: number): string {

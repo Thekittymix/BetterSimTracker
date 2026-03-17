@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.12-dev2] - 2026-03-17
+### Fixed
+- Reduced group-chat active-state stickiness so characters who stopped speaking drop out of `Active` sooner instead of lingering for long persistence windows.
+- Manual `Active` / inactive edits on character cards now persist across subsequent turns, so manually marking a character off-screen no longer gets overwritten by the next extraction cycle.
+
 ## [2.2.4.12-dev1] - 2026-03-17
 ### Added
 - Added compact image-generation macro `{{bst_image_state}}` for scene/user/character state export in image prompt workflows.

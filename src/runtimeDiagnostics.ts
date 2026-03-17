@@ -23,6 +23,7 @@ type ActivityAnalysis = {
   activeCharacters: string[];
   reasons: Record<string, string>;
   lookback: number;
+  manualInactiveCharacters: string[];
 } | null;
 
 type TrackerUiStateLike = {
