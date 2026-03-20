@@ -26,6 +26,7 @@ import {
 } from "./extractorHelpers";
 import {
   buildProgressApply,
+  buildProgressBaseline,
   buildProgressApplyingDefaults,
   buildProgressNoExtractionNeeded,
   buildProgressParse,
@@ -395,7 +396,7 @@ export async function extractStatisticsParallel(input: {
   const progressTotal = settings.sequentialExtraction
     ? Math.max(1, sequentialStatPasses * 3)
     : Math.max(1, unifiedBatchCount * 3);
-  onProgress?.(0, progressTotal, "Preparing context");
+  onProgress?.(0, progressTotal, buildProgressBaseline());
 
   try {
     const applyDelta = (prev: number, delta: number, confidence: number, maxDeltaOverride?: number): number => {

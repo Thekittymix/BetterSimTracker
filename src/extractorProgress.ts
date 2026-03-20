@@ -17,6 +17,16 @@ export function buildProgressRequest(label: string): string {
   return `Requesting ${label}`;
 }
 
+export function buildProgressResolveActive(mode: "standard" | "multi_character" = "standard"): string {
+  return mode === "multi_character"
+    ? "Resolving multi-character aliases"
+    : "Resolving active characters";
+}
+
+export function buildProgressBaseline(): string {
+  return "Building extraction baseline";
+}
+
 export function buildProgressParse(label: string): string {
   return `Parsing ${label}`;
 }

@@ -441,6 +441,44 @@ export type TrackerUiState = {
   stepLabel?: string | null;
 };
 
+export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | null): { title: string; subtitle: string } {
+  const normalizedLabel = String(stepLabel ?? "").trim();
+  if (/^Resolving /i.test(normalizedLabel)) {
+    return {
+      title: normalizedLabel,
+      subtitle: /multi-character aliases/i.test(normalizedLabel)
+        ? "Matching source cards, aliases, and active owners before extraction."
+        : "Determining who is active for this message before extraction.",
+    };
+  }
+  if (/^Building extraction baseline$/i.test(normalizedLabel) || /^Preparing context$/i.test(normalizedLabel)) {
+    return {
+      title: normalizedLabel || "Building extraction baseline",
+      subtitle: "Collecting recent messages, tracker history, and owner context for extraction.",
+    };
+  }
+  if (done === 1) {
+    return {
+      title: normalizedLabel || "Requesting relationship analysis",
+      subtitle: normalizedLabel && normalizedLabel !== "Requesting relationship analysis"
+        ? normalizedLabel
+        : "Sending extraction prompt to backend/profile.",
+    };
+  }
+  if (done >= 2) {
+    return {
+      title: normalizedLabel || "Parsing and applying tracker update",
+      subtitle: normalizedLabel && normalizedLabel !== "Parsing and applying tracker update"
+        ? normalizedLabel
+        : "Validating AI delta output and updating relationship state.",
+    };
+  }
+  return {
+    title: normalizedLabel || "Building extraction baseline",
+    subtitle: "Collecting recent messages, tracker history, and owner context for extraction.",
+  };
+}
+
 export type TrackerRecoveryEntry = {
   kind: "error" | "stopped";
   title: string;
@@ -4641,18 +4679,9 @@ export function renderTracker(
       const ratio = Math.max(0, Math.min(1, done / total));
       const percent = Math.round(ratio * 100);
       const left = `stage ${Math.min(done + 1, total)}/${total}`;
-      let title = uiState.stepLabel ?? "Preparing tracker context";
-      let subtitle = "Collecting recent messages and active characters.";
-      if (done === 1) {
-        title = uiState.stepLabel ?? "Requesting relationship analysis";
-        subtitle = "Sending extraction prompt to backend/profile.";
-      } else if (done >= 2) {
-        title = uiState.stepLabel ?? "Parsing and applying tracker update";
-        subtitle = "Validating AI delta output and updating relationship state.";
-      }
-      if (uiState.stepLabel && uiState.stepLabel !== title) {
-        subtitle = uiState.stepLabel;
-      }
+      const copy = resolveExtractionLoadingCopy(done, uiState.stepLabel);
+      const title = copy.title;
+      const subtitle = copy.subtitle;
       const loadingBox = document.createElement("div");
       loadingBox.className = "bst-loading";
       loadingBox.innerHTML = `

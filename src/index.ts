@@ -14,6 +14,7 @@ import {
 } from "./entityResolution";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
+import { buildProgressResolveActive } from "./extractorProgress";
 import { resolveBaselineBeforeIndex, shouldBypassConfidenceControls } from "./extractorHelpers";
 import { isTrackableAiMessage, isTrackableMessage, isTrackableUserMessage } from "./messageFilter";
 import { clearPromptInjection, getLastInjectedPrompt, getLastInjectedPromptDebug } from "./promptInjection";
@@ -3249,7 +3250,15 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     targetMessageIndex: targetMessageIndex ?? null,
     resolvedMessageIndex: lastIndex
   });
-  setTrackerUi(context, { phase: "extracting", done: 0, total: 1, messageIndex: lastIndex, stepLabel: "Preparing context" });
+  setTrackerUi(context, {
+    phase: "extracting",
+    done: 0,
+    total: 1,
+    messageIndex: lastIndex,
+    stepLabel: buildProgressResolveActive(
+      activeSettings.entityTrackingMode === "multi_character" ? "multi_character" : "standard",
+    ),
+  });
   queueRender();
 
   try {
