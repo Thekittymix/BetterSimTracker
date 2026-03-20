@@ -655,6 +655,33 @@ export function resolveMoodSymbolBoxStyleVars(
   };
 }
 
+export function isBuiltInTextStatVisibleForOwner(
+  settings: Pick<BetterSimTrackerSettings, "trackMood" | "trackLastThought" | "enableUserTracking" | "userTrackMood" | "userTrackLastThought">,
+  ownerName: string,
+  stat: "mood" | "lastThought",
+  isOwnerStatEnabled?: (ownerName: string, statId: string) => boolean | undefined,
+): boolean {
+  const normalizedOwner = normalizeName(ownerName);
+  const isUser = normalizedOwner === normalizeName(USER_TRACKER_KEY);
+  if (stat === "mood") {
+    if (isUser) {
+      if (!settings.enableUserTracking || !settings.userTrackMood) return false;
+    } else if (!settings.trackMood) {
+      return false;
+    }
+    if (isOwnerStatEnabled?.(ownerName, "mood") === false) return false;
+    return true;
+  }
+
+  if (isUser) {
+    if (!settings.enableUserTracking || !settings.userTrackLastThought) return false;
+  } else if (!settings.trackLastThought) {
+    return false;
+  }
+  if (isOwnerStatEnabled?.(ownerName, "lastthought") === false) return false;
+  return true;
+}
+
 export function normalizeHexColor(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
@@ -4730,7 +4757,7 @@ export function renderTracker(
       return resolveNonNumericValue(data, def, name);
     };
     const getEffectiveMoodText = (name: string): string => {
-      if (isOwnerStatEnabled?.(name, "mood") === false) return "";
+      if (!isBuiltInTextStatVisibleForOwner(settings, name, "mood", isOwnerStatEnabled)) return "";
       if (data.statistics.mood?.[name] !== undefined) return String(data.statistics.mood?.[name] ?? "");
       if (isTextStatExplicitlyCleared(data, "mood", name)) return "";
       const previous = findPreviousDataWithMood(entry.messageIndex, name);
@@ -4738,7 +4765,7 @@ export function renderTracker(
       return "";
     };
     const getEffectiveLastThoughtText = (name: string): string => {
-      if (isOwnerStatEnabled?.(name, "lastthought") === false) return "";
+      if (!isBuiltInTextStatVisibleForOwner(settings, name, "lastThought", isOwnerStatEnabled)) return "";
       if (data.statistics.lastThought?.[name] !== undefined) return String(data.statistics.lastThought?.[name] ?? "");
       if (isTextStatExplicitlyCleared(data, "lastThought", name)) return "";
       const previous = findPreviousDataWithLastThought(entry.messageIndex, name);

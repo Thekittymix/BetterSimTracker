@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveMoodSymbol, resolveMoodSymbolBoxStyleVars } from "../src/ui";
+import { USER_TRACKER_KEY } from "../src/constants";
+import { isBuiltInTextStatVisibleForOwner, resolveMoodSymbol, resolveMoodSymbolBoxStyleVars } from "../src/ui";
 
 test("resolveMoodSymbol uses configured custom symbols before default emoji", () => {
   assert.equal(resolveMoodSymbol("Happy", { Happy: "(≧▽≦)" }), "(≧▽≦)");
@@ -25,4 +26,40 @@ test("resolveMoodSymbolBoxStyleVars maps display settings to css variables", () 
     "--bst-mood-symbol-radius": "17px",
     "--bst-mood-symbol-font-size": "24px",
   });
+});
+
+test("isBuiltInTextStatVisibleForOwner hides character mood when global char mood tracking is off", () => {
+  assert.equal(isBuiltInTextStatVisibleForOwner({
+    trackMood: false,
+    trackLastThought: true,
+    enableUserTracking: true,
+    userTrackMood: true,
+    userTrackLastThought: true,
+  }, "Seraphina", "mood"), false);
+
+  assert.equal(isBuiltInTextStatVisibleForOwner({
+    trackMood: false,
+    trackLastThought: true,
+    enableUserTracking: true,
+    userTrackMood: true,
+    userTrackLastThought: true,
+  }, USER_TRACKER_KEY, "mood"), true);
+});
+
+test("isBuiltInTextStatVisibleForOwner hides character last thought when global char thought tracking is off", () => {
+  assert.equal(isBuiltInTextStatVisibleForOwner({
+    trackMood: true,
+    trackLastThought: false,
+    enableUserTracking: true,
+    userTrackMood: true,
+    userTrackLastThought: true,
+  }, "Seraphina", "lastThought"), false);
+
+  assert.equal(isBuiltInTextStatVisibleForOwner({
+    trackMood: true,
+    trackLastThought: false,
+    enableUserTracking: true,
+    userTrackMood: true,
+    userTrackLastThought: true,
+  }, USER_TRACKER_KEY, "lastThought"), true);
 });

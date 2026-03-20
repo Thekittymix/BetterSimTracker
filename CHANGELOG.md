@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.15-dev1] - 2026-03-20
+### Fixed
+- Fixed character cards so disabled built-in text stats no longer leak stale mood or inner-thought values from stored tracker history when character-side mood or last-thought tracking is turned off.
+
 ## [2.2.4.15] - 2026-03-20
 ### Added
 - Added compact image-generation macro `{{bst_image_state}}` for scene/user/character state export in image prompt workflows.
