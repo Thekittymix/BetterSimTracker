@@ -24,6 +24,7 @@ import type {
   MoodExpressionMap,
   MoodLabel,
   MoodSource,
+  MoodSymbolMap,
   SceneCardLayout,
   SceneCardPosition,
   SceneCardStatDisplayOptions,
@@ -57,6 +58,24 @@ const DEFAULT_MOOD_EXPRESSION_MAP: Record<MoodLabel, string> = {
   "Content": "relief",
   "Frustrated": "annoyance",
   "Neutral": "neutral",
+};
+
+const DEFAULT_MOOD_SYMBOL_MAP: Record<MoodLabel, string> = {
+  "Happy": "😄",
+  "Sad": "😔",
+  "Angry": "😠",
+  "Excited": "😄",
+  "Confused": "😕",
+  "In Love": "😍",
+  "Shy": "😊",
+  "Playful": "😏",
+  "Serious": "😐",
+  "Lonely": "😔",
+  "Hopeful": "🤞",
+  "Anxious": "😟",
+  "Content": "🙂",
+  "Frustrated": "😤",
+  "Neutral": "😶",
 };
 
 export const defaultSettings: BetterSimTrackerSettings = {
@@ -121,6 +140,7 @@ export const defaultSettings: BetterSimTrackerSettings = {
   },
   moodSource: "bst_images",
   moodExpressionMap: { ...DEFAULT_MOOD_EXPRESSION_MAP },
+  moodSymbolMap: { ...DEFAULT_MOOD_SYMBOL_MAP },
   stExpressionImageZoom: 1.2,
   stExpressionImagePositionX: 50,
   stExpressionImagePositionY: 20,
@@ -632,6 +652,7 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
     builtInNumericStatUi: sanitizeBuiltInNumericStatUi(input.builtInNumericStatUi),
     moodSource: sanitizeMoodSource(input.moodSource, defaultSettings.moodSource),
     moodExpressionMap: sanitizeMoodExpressionMap(input.moodExpressionMap) ?? { ...DEFAULT_MOOD_EXPRESSION_MAP },
+    moodSymbolMap: sanitizeMoodSymbolMap((input as Record<string, unknown>).moodSymbolMap) ?? { ...DEFAULT_MOOD_SYMBOL_MAP },
     stExpressionImageZoom: sanitizeStExpressionZoom(input.stExpressionImageZoom, defaultSettings.stExpressionImageZoom),
     stExpressionImagePositionX: sanitizeStExpressionPosition(input.stExpressionImagePositionX, defaultSettings.stExpressionImagePositionX),
     stExpressionImagePositionY: sanitizeStExpressionPosition(input.stExpressionImagePositionY, defaultSettings.stExpressionImagePositionY),
@@ -715,6 +736,20 @@ function sanitizeMoodExpressionMap(raw: unknown): MoodExpressionMap | null {
     const expression = value.trim().slice(0, 80);
     if (!expression) continue;
     out[label] = expression;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function sanitizeMoodSymbolMap(raw: unknown): MoodSymbolMap | null {
+  if (!raw || typeof raw !== "object") return null;
+  const out: MoodSymbolMap = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== "string") continue;
+    const label = normalizeMoodLabel(key);
+    if (!label) continue;
+    const symbol = value.trim().slice(0, 32);
+    if (!symbol) continue;
+    out[label] = symbol;
   }
   return Object.keys(out).length ? out : null;
 }

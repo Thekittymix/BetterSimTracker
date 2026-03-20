@@ -60,6 +60,10 @@ function makeContext(extensionSettings?: Record<string, unknown>): STContext {
 
 test("sanitizeSettings normalizes custom stats, defaults, and scene card display settings", () => {
   const sanitized = sanitizeSettings({
+    moodSymbolMap: {
+      Happy: "(≧▽≦)",
+      Neutral: "(-_-)",
+    },
     sceneCardLayout: "rows",
     injectionPromptMaxChars: 200000,
     customStats: [
@@ -120,6 +124,8 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
   assert.equal(sanitized.customStats[1].privateToOwner, false);
   assert.equal(sanitized.customStats[1].dateTimeMode, "structured");
   assert.equal(sanitized.injectionPromptMaxChars, 100000);
+  assert.equal(sanitized.moodSymbolMap.Happy, "(≧▽≦)");
+  assert.equal(sanitized.moodSymbolMap.Neutral, "(-_-)");
   assert.equal(sanitized.sceneCardStatDisplay.scene_date_time.colorOverride, "#aabbcc");
   assert.equal(sanitized.sceneCardStatDisplay.scene_date_time.textMaxLength, 400);
   assert.equal(sanitized.sceneCardStatDisplay.scene_date_time.arrayCollapsedLimit, 30);

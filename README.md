@@ -45,7 +45,7 @@ It tracks character relationship stats over time, stores them per AI message, vi
   - when injected guidance grows too large, custom stat lines are trimmed first to keep prompt size safe
 - Prompt templates (unified + per-stat + custom numeric/non-numeric defaults) with per-prompt reset
 - AI-assisted generation for built-in sequential prompt instructions (`Affection`, `Trust`, `Desire`, `Connection`, `Mood`, `LastThought`)
-- Mood source switch: BST mood images or ST expressions (emoji fallback always available)
+- Mood source switch: BST mood images or ST expressions (configurable mood-symbol fallback always available)
 - Per-persona BST mood image management inside ST Persona Management (user tracker card)
 - Per-character card color override (advanced character defaults)
 - Interactive ST expression framing editor with live preview (global + per-character override)
@@ -499,8 +499,8 @@ In Advanced Definitions, the panel also follows the character ST reports as curr
 
 If no advanced defaults are present, tracker baseline falls back to global extension defaults.
 
-Mood images are optional per label; missing images fall back to emoji.  
-When source is `st_expressions`, tracker maps mood to expression and uses the character sprite if found; missing mappings/sprites also fall back to emoji.
+Mood images are optional per label; missing images fall back to the configured mood symbol.  
+When source is `st_expressions`, tracker maps mood to expression and uses the character sprite if found; missing mappings/sprites also fall back to the configured mood symbol.
 For `st_expressions`, tracker uses face-focused framing (top-centered crop) to better match portrait-style sprites.
 If no ST expression sprites are available, framing editor opens in notice-only mode with guidance to add at least one expression sprite.
 

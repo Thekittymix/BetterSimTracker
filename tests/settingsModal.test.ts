@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 
 import { SETTINGS_PRIMARY_SECTION_LABELS, SETTINGS_SECTION_IDS } from "../src/settingsModalSections";
 import { BST_UI_SURFACE_CONTRACT, SETTINGS_SUBDRAWER_STYLE_CONTRACT } from "../src/ui";
@@ -46,4 +48,10 @@ test("settings and related surfaces share the common UI surface contract", () =>
     footerClass: "bst-surface-footer",
     disclosureIconClass: "bst-disclosure-icon",
   });
+});
+
+test("settings modal exposes the global mood symbol fallback map controls", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /data-bst-row="globalMoodSymbolMap"/);
+  assert.match(source, /data-bst-global-mood-symbol/);
 });

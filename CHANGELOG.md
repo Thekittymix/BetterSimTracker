@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.12-dev4] - 2026-03-20
+### Added
+- Added a configurable global mood-symbol fallback map so mood displays can use custom emoji, kaomoji, or short symbols instead of fixed built-in emoji when no image/sprite is available.
+
+### Changed
+- Mood fallback labels and help text now describe configurable symbols rather than fixed emoji fallback behavior.
+
 ## [2.2.4.12-dev3] - 2026-03-17
 ### Fixed
 - Reduced group-chat active-state stickiness so characters who stopped speaking drop out of `Active` sooner instead of lingering for long persistence windows.

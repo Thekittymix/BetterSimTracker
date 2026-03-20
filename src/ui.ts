@@ -13,6 +13,7 @@ import type {
   DeltaDebugRecord,
   MoodLabel,
   MoodSource,
+  MoodSymbolMap,
   SceneCardStatDisplayOptions,
   StExpressionImageOptions,
   StatValue,
@@ -125,6 +126,24 @@ export const DEFAULT_MOOD_EXPRESSION_MAP: Record<MoodLabel, string> = {
   "Content": "relief",
   "Frustrated": "annoyance",
   "Neutral": "neutral",
+};
+
+export const DEFAULT_MOOD_SYMBOL_MAP: Record<MoodLabel, string> = {
+  "Happy": "😄",
+  "Sad": "😔",
+  "Angry": "😠",
+  "Excited": "😄",
+  "Confused": "😕",
+  "In Love": "😍",
+  "Shy": "😊",
+  "Playful": "😏",
+  "Serious": "😐",
+  "Lonely": "😔",
+  "Hopeful": "🤞",
+  "Anxious": "😟",
+  "Content": "🙂",
+  "Frustrated": "😤",
+  "Neutral": "😶",
 };
 
 type SpriteEntry = { label?: string; path?: string };
@@ -611,21 +630,18 @@ export function bindTextareaCounters(
   };
 }
 
-function moodToEmojiEntity(moodRaw: string): string {
-  const mood = moodRaw.toLowerCase();
-  if (mood.includes("happy") || mood.includes("excited")) return "&#x1F604;";
-  if (mood.includes("content")) return "&#x1F642;";
-  if (mood.includes("hopeful")) return "&#x1F91E;";
-  if (mood.includes("playful")) return "&#x1F60F;";
-  if (mood.includes("serious")) return "&#x1F610;";
-  if (mood.includes("shy")) return "&#x1F60A;";
-  if (mood.includes("in love")) return "&#x1F60D;";
-  if (mood.includes("anxious")) return "&#x1F61F;";
-  if (mood.includes("confused")) return "&#x1F615;";
-  if (mood.includes("angry")) return "&#x1F620;";
-  if (mood.includes("frustrated")) return "&#x1F624;";
-  if (mood.includes("sad") || mood.includes("lonely")) return "&#x1F614;";
-  return "&#x1F636;";
+export function resolveMoodSymbol(
+  moodRaw: string,
+  symbolMap: MoodSymbolMap | null | undefined = undefined,
+): string {
+  const label = normalizeMoodLabel(moodRaw) as MoodLabel | null;
+  if (label) {
+    const explicit = typeof symbolMap?.[label] === "string" ? String(symbolMap[label] ?? "").trim() : "";
+    if (explicit) return explicit;
+    return DEFAULT_MOOD_SYMBOL_MAP[label];
+  }
+  const explicitNeutral = typeof symbolMap?.Neutral === "string" ? String(symbolMap.Neutral ?? "").trim() : "";
+  return explicitNeutral || DEFAULT_MOOD_SYMBOL_MAP.Neutral;
 }
 
 export function normalizeHexColor(raw: unknown): string | null {
@@ -4848,7 +4864,7 @@ export function renderTracker(
         <div class="bst-collapsed-summary" title="Tracked stats">
           ${collapsedSummary || ""}
           ${collapsedNonNumeric || ""}
-          ${showCollapsedMood ? `<span class="bst-collapsed-mood" title="${moodText}">${moodToEmojiEntity(moodText)}</span>` : ""}
+          ${showCollapsedMood ? `<span class="bst-collapsed-mood" title="${moodText}">${escapeHtml(resolveMoodSymbol(moodText, settings.moodSymbolMap))}</span>` : ""}
         </div>` : ""}
         <div class="bst-body">
         ${enabledNumeric.map(({ key, label, color, defaultValue }) => {
@@ -4924,7 +4940,7 @@ export function renderTracker(
           <div class="bst-mood-wrap ${moodImage ? "bst-mood-wrap--image" : "bst-mood-wrap--emoji"}">
             ${moodImage
               ? `<button type="button" class="bst-mood-image-trigger" data-bst-action="open-mood-preview" data-bst-image-src="${escapeHtml(moodImage)}" data-bst-image-alt="${escapeHtml(moodText)}" data-bst-image-character="${escapeHtml(displayName)}" data-bst-image-mood="${escapeHtml(moodText)}" aria-label="Open mood image preview for ${escapeHtml(displayName)} (${escapeHtml(moodText)})"><span class="bst-mood-image-frame${moodSource === "st_expressions" ? " bst-mood-image-frame--st-expression" : ""}"><img class="bst-mood-image${moodSource === "st_expressions" ? " bst-mood-image--st-expression" : ""}" src="${escapeHtml(moodImage)}" alt="${escapeHtml(moodText)}"${stExpressionImageStyle}></span></button>`
-              : `<span class="bst-mood-chip"><span class="bst-mood-emoji">${moodToEmojiEntity(moodText)}</span></span>`}
+              : `<span class="bst-mood-chip"><span class="bst-mood-emoji">${escapeHtml(resolveMoodSymbol(moodText, settings.moodSymbolMap))}</span></span>`}
             ${moodImage && lastThoughtText
               ? renderThoughtMarkup(lastThoughtText, thoughtUiKey, "bubble", expandedThoughtKeys.has(thoughtUiKey))
               : moodImage
