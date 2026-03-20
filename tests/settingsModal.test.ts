@@ -64,10 +64,12 @@ test("settings modal exposes mood symbol chip display controls in Card Appearanc
   assert.match(source, /Mood Symbol Font Size/);
 });
 
-test("settings modal exposes inactive archive lifecycle controls in Card Appearance", () => {
+test("settings modal exposes multi-character archive lifecycle controls in Extraction only", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /Auto-Archive Inactive/);
   assert.match(source, /Archive After Turns/);
+  assert.match(source, /Multi-Character Lifecycle/);
+  assert.match(source, /entityTrackingMode === "multi_character"/);
   assert.doesNotMatch(source, /Show Archived/);
 });
 

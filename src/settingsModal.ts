@@ -238,6 +238,12 @@ export function openSettingsModal(input: {
           <label class="bst-check" data-bst-row="regenerateOnMessageEdit"><input data-k="regenerateOnMessageEdit" type="checkbox">Regenerate Tracker After Message Edit</label>
           <label class="bst-check" data-bst-row="generateOnGreetingMessages"><input data-k="generateOnGreetingMessages" type="checkbox">Generate Tracker on Greetings</label>
         </div>
+        <div class="bst-section-divider" data-bst-row="multiCharacterLifecycleDivider">Multi-Character Lifecycle</div>
+        <div class="bst-help-line bst-toggle-help" data-bst-row="multiCharacterLifecycleHelp">Controls when multi-character alias cards stop rendering in the main tracker UI after leaving the scene. Archived entities remain in chat lifecycle metadata for later reactivation.</div>
+        <div class="bst-check-grid" data-bst-row="multiCharacterLifecycleToggles">
+          <label class="bst-check"><input data-k="autoArchiveInactiveCards" type="checkbox">Auto-Archive Inactive</label>
+        </div>
+        <label data-bst-row="archiveInactiveAfterTurns">Archive After Turns <input data-k="archiveInactiveAfterTurns" type="number" min="1" max="200"></label>
         <div class="bst-section-divider">Advanced Extraction Tuning</div>
         <label>Context Messages <input data-k="contextMessages" type="number" min="1" max="40"></label>
         <label data-bst-row="maxConcurrentCalls">Max Concurrent Requests <input data-k="maxConcurrentCalls" type="number" min="1" max="8"></label>
@@ -399,7 +405,6 @@ export function openSettingsModal(input: {
       <h4><span class="bst-header-icon fa-solid fa-eye"></span>Display</h4>
       <div class="bst-settings-grid">
         <label data-bst-row="inactiveLabel">Inactive Label <input data-k="inactiveLabel" type="text"></label>
-        <label data-bst-row="archiveInactiveAfterTurns">Archive After Turns <input data-k="archiveInactiveAfterTurns" type="number" min="1" max="200"></label>
         <label>Accent Color
           <div class="bst-color-inputs">
             <input data-k-color="accentColor" type="color">
@@ -424,7 +429,6 @@ export function openSettingsModal(input: {
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="collapseCardsByDefault" type="checkbox">Collapse Cards By Default</label>
           <label class="bst-check"><input data-k="showInactive" type="checkbox">Show Inactive</label>
-          <label class="bst-check"><input data-k="autoArchiveInactiveCards" type="checkbox">Auto-Archive Inactive</label>
           <label class="bst-check"><input data-k="showLastThought" type="checkbox">Show Last Thought</label>
         </div>
       </div>
@@ -4198,6 +4202,9 @@ export function openSettingsModal(input: {
     const lookbackRow = modal.querySelector('[data-bst-row="activityLookback"]') as HTMLElement | null;
     const regenerateOnMessageEditRow = modal.querySelector('[data-bst-row="regenerateOnMessageEdit"]') as HTMLElement | null;
     const generateOnGreetingMessagesRow = modal.querySelector('[data-bst-row="generateOnGreetingMessages"]') as HTMLElement | null;
+    const multiCharacterLifecycleDivider = modal.querySelector('[data-bst-row="multiCharacterLifecycleDivider"]') as HTMLElement | null;
+    const multiCharacterLifecycleHelp = modal.querySelector('[data-bst-row="multiCharacterLifecycleHelp"]') as HTMLElement | null;
+    const multiCharacterLifecycleToggles = modal.querySelector('[data-bst-row="multiCharacterLifecycleToggles"]') as HTMLElement | null;
     const inactiveLabelRow = modal.querySelector('[data-bst-row="inactiveLabel"]') as HTMLElement | null;
     const archiveAfterTurnsRow = modal.querySelector('[data-bst-row="archiveInactiveAfterTurns"]') as HTMLElement | null;
     const sceneCardDrawer = modal.querySelector('[data-bst-row="sceneCardDrawer"]') as HTMLElement | null;
@@ -4259,13 +4266,23 @@ export function openSettingsModal(input: {
     if (generateOnGreetingMessagesRow) {
       generateOnGreetingMessagesRow.style.display = current.autoGenerateTracker ? "" : "none";
     }
+    const showMultiCharacterLifecycle = current.entityTrackingMode === "multi_character";
+    if (multiCharacterLifecycleDivider) {
+      multiCharacterLifecycleDivider.style.display = showMultiCharacterLifecycle ? "block" : "none";
+    }
+    if (multiCharacterLifecycleHelp) {
+      multiCharacterLifecycleHelp.style.display = showMultiCharacterLifecycle ? "block" : "none";
+    }
+    if (multiCharacterLifecycleToggles) {
+      multiCharacterLifecycleToggles.style.display = showMultiCharacterLifecycle ? "grid" : "none";
+    }
     if (inactiveLabelRow) {
       inactiveLabelRow.style.display = current.showInactive ? "flex" : "none";
       inactiveLabelRow.style.flexDirection = "column";
       inactiveLabelRow.style.gap = "4px";
     }
     if (archiveAfterTurnsRow) {
-      archiveAfterTurnsRow.style.display = current.autoArchiveInactiveCards ? "flex" : "none";
+      archiveAfterTurnsRow.style.display = showMultiCharacterLifecycle && current.autoArchiveInactiveCards ? "flex" : "none";
       archiveAfterTurnsRow.style.flexDirection = "column";
       archiveAfterTurnsRow.style.gap = "4px";
     }
