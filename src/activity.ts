@@ -1,6 +1,6 @@
 import { EXTENSION_KEY } from "./constants";
 import type { BetterSimTrackerSettings, Character, STContext } from "./types";
-import { collectResolvedCharacterNames, resolveEntityTrackingMode } from "./entityResolution";
+import { collectResolvedCharacterNames, resolveCharacterFromContext, resolveCharacterIdentity, resolveEntityTrackingMode } from "./entityResolution";
 import { isTrackableAiMessage } from "./messageFilter";
 
 const MANUAL_INACTIVE_METADATA_KEY = "bstManualInactiveCharacters";
@@ -30,6 +30,58 @@ function pushUniqueName(target: string[], seen: Set<string>, raw: unknown): void
   if (seen.has(key)) return;
   seen.add(key);
   target.push(name);
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countAliasMentions(text: string, alias: string): number {
+  const escaped = escapeRegex(alias.trim());
+  if (!escaped) return 0;
+  const pattern = new RegExp(`(^|[^A-Za-z])${escaped}(?=$|[^A-Za-z])`, "gi");
+  let count = 0;
+  while (pattern.exec(text)) count += 1;
+  return count;
+}
+
+function collectActivityNamesFromMessage(
+  context: STContext,
+  message: STContext["chat"][number] | undefined,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+  allNamesSet: Set<string>,
+): string[] {
+  if (!message?.name || !isTrackableAiMessage(message)) return [];
+  const speaker = String(message.name ?? "").trim();
+  if (!speaker) return [];
+  const mode = resolveEntityTrackingMode(settings);
+  if (mode !== "multi_character") {
+    return allNamesSet.has(speaker) ? [speaker] : [];
+  }
+
+  const resolved = resolveCharacterIdentity(context, speaker, mode);
+  if (!resolved) {
+    return allNamesSet.has(speaker) ? [speaker] : [];
+  }
+  if (resolved.matchedBy === "alias") {
+    return allNamesSet.has(resolved.resolvedName) ? [resolved.resolvedName] : [];
+  }
+
+  const source = resolveCharacterFromContext(context, speaker, mode);
+  if (!source) {
+    return allNamesSet.has(speaker) ? [speaker] : [];
+  }
+
+  const aliases = collectResolvedCharacterNames(
+    { ...context, characters: [source] },
+    { entityTrackingMode: mode },
+  ).filter(name => name.toLowerCase() !== resolved.sourceName.toLowerCase());
+  const text = String(message.mes ?? "").trim().toLowerCase();
+  const mentionedAliases = aliases.filter(alias =>
+    countAliasMentions(text, alias.toLowerCase()) > 0,
+  ).filter(alias => allNamesSet.has(alias));
+  if (mentionedAliases.length) return mentionedAliases;
+  return allNamesSet.has(speaker) ? [speaker] : [];
 }
 
 export function getAllTrackedCharacterNames(
@@ -188,10 +240,9 @@ export function resolveActiveCharacterAnalysis(
   const lastSpokeAtOverall = new Map<string, number>();
   for (let i = 0; i < context.chat.length; i += 1) {
     const message = context.chat[i];
-    if (!message.name || !isTrackableAiMessage(message)) continue;
-    const speaker = String(message.name ?? "").trim();
-    if (!allNamesSet.has(speaker)) continue;
-    lastSpokeAtOverall.set(speaker, i);
+    for (const name of collectActivityNamesFromMessage(context, message, settings, allNamesSet)) {
+      lastSpokeAtOverall.set(name, i);
+    }
   }
   let manualOverridesChanged = false;
   for (const [name, overrideIndex] of Object.entries(manualInactiveOverrides)) {
@@ -222,11 +273,9 @@ export function resolveActiveCharacterAnalysis(
   const seen = new Set<string>();
 
   for (const message of recentMessages) {
-    if (!message.name || !isTrackableAiMessage(message)) continue;
-    const speaker = String(message.name ?? "").trim();
-    if (allNamesSet.has(speaker)) {
-      seen.add(speaker);
-      reasons[speaker] = `spoke in last ${lookback} messages`;
+    for (const name of collectActivityNamesFromMessage(context, message, settings, allNamesSet)) {
+      seen.add(name);
+      reasons[name] = `spoke in last ${lookback} messages`;
     }
   }
 
@@ -238,10 +287,9 @@ export function resolveActiveCharacterAnalysis(
     const lastSpokeAt = new Map<string, number>();
     for (let i = persistenceStart; i < context.chat.length; i += 1) {
       const message = context.chat[i];
-      if (!message.name || !isTrackableAiMessage(message)) continue;
-      const speaker = String(message.name ?? "").trim();
-      if (!allNamesSet.has(speaker)) continue;
-      lastSpokeAt.set(speaker, i);
+      for (const name of collectActivityNamesFromMessage(context, message, settings, allNamesSet)) {
+        lastSpokeAt.set(name, i);
+      }
     }
     for (const name of allNames) {
       if (seen.has(name)) continue;

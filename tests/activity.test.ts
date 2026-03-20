@@ -116,3 +116,67 @@ test("getAllTrackedCharacterNames expands multi-character source cards into alia
     ],
   );
 });
+
+test("activity analysis credits mentioned aliases from a multi-character source-card reply", () => {
+  const context = {
+    groupId: undefined,
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chatMetadata: {},
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Ashley froze at the door while Blake glanced over her shoulder.", is_user: false, is_system: false },
+      { name: "User", mes: "What now?", is_user: true, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  const result = resolveActiveCharacterAnalysis(context, {
+    ...defaultSettings,
+    autoDetectActive: true,
+    activityLookback: 5,
+    entityTrackingMode: "multi_character",
+  });
+
+  assert.deepEqual(result.activeCharacters, ["Ashley", "Blake"]);
+  assert.match(result.reasons.Ashley, /spoke in last 5 messages/i);
+  assert.match(result.reasons.Blake, /spoke in last 5 messages/i);
+});
+
+test("manual inactive alias override clears when a later source-card reply explicitly mentions that alias again", () => {
+  const context = {
+    groupId: undefined,
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    extensionSettings: {
+      bettersimtracker: {
+        entityTrackingMode: "multi_character",
+      },
+    },
+    chatMetadata: {},
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Ashley stared toward the window.", is_user: false, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  setManualInactiveCharacter(context, "Ashley", true);
+  assert.deepEqual(readManualInactiveCharacters(context), ["Ashley"]);
+
+  context.chat.push(
+    { name: "User", mes: "Ashley, answer again.", is_user: true, is_system: false },
+    { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Ashley flinched and answered quietly.", is_user: false, is_system: false },
+  );
+
+  const result = resolveActiveCharacterAnalysis(context, {
+    ...defaultSettings,
+    autoDetectActive: true,
+    activityLookback: 5,
+    entityTrackingMode: "multi_character",
+  });
+
+  assert.deepEqual(result.manualInactiveCharacters, []);
+  assert.deepEqual(readManualInactiveCharacters(context), []);
+  assert.deepEqual(result.activeCharacters, ["Ashley"]);
+});
