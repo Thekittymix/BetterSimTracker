@@ -529,6 +529,26 @@ export function mergeRegistryOwnersIntoTargets(
   return merged;
 }
 
+export function buildDisplayPoolWithRegistry(input: {
+  includeAllTargets: boolean;
+  activeCharacters: string[];
+  dataCharacterNames: string[];
+  mergedWithRegistryOwners: string[];
+}): string[] {
+  if (input.includeAllTargets) {
+    return input.mergedWithRegistryOwners.length > 0
+      ? input.mergedWithRegistryOwners
+      : input.dataCharacterNames.length > 0
+        ? input.dataCharacterNames
+        : input.activeCharacters;
+  }
+  return input.mergedWithRegistryOwners.length > 0
+    ? input.mergedWithRegistryOwners
+    : input.activeCharacters.length > 0
+      ? input.activeCharacters
+      : input.dataCharacterNames;
+}
+
 export function shouldKeepOwnerInRenderTargetPool(input: {
   ownerName: string;
   hasAnyStat: boolean;
@@ -4908,16 +4928,12 @@ export function renderTracker(
       mergedCharacters,
       registryOwnersForMessage,
     );
-    const displayPool =
-      forceAllInGroup || settings.showInactive
-        ? (mergedWithRegistryOwners.length > 0
-          ? mergedWithRegistryOwners
-          : dataCharacterNames.length > 0
-            ? dataCharacterNames
-            : data.activeCharacters)
-        : (data.activeCharacters.length > 0
-          ? data.activeCharacters
-          : dataCharacterNames);
+    const displayPool = buildDisplayPoolWithRegistry({
+      includeAllTargets: forceAllInGroup || settings.showInactive,
+      activeCharacters: data.activeCharacters,
+      dataCharacterNames,
+      mergedWithRegistryOwners,
+    });
     const scopedDisplayPool = userMessageEntry
       ? displayPool.filter(name => normalizeName(name) === normalizeName(USER_TRACKER_KEY))
       : displayPool.filter(name => normalizeName(name) !== normalizeName(USER_TRACKER_KEY));

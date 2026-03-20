@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildDisplayPoolWithRegistry,
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   mergeRegistryOwnersIntoTargets,
@@ -54,6 +55,17 @@ test("mergeRegistryOwnersIntoTargets backfills registry owners without duplicati
   );
 
   assert.deepEqual(merged, ["Ashley", "Blake", "Garret", "Raleigh"]);
+});
+
+test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
+  const displayPool = buildDisplayPoolWithRegistry({
+    includeAllTargets: false,
+    activeCharacters: ["Ashley"],
+    dataCharacterNames: ["Ashley"],
+    mergedWithRegistryOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+  });
+
+  assert.deepEqual(displayPool, ["Ashley", "Blake", "Garret", "Raleigh"]);
 });
 
 test("shouldKeepOwnerInRenderTargetPool keeps registry-visible owners even without current stat payload", () => {

@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp17] - 2026-03-20
+### Changed
+- Experimental multi-character direct-chat rendering now keeps registry-backed alias owners in the message display pool even when only one alias is currently active, so historical alias card continuity is no longer cut off before UI filtering runs.
+
 ## [2.2.4.16-exp16] - 2026-03-20
 ### Changed
 - Experimental multi-character tracker rendering now treats message-visible registry owners as renderable card targets even when a given snapshot does not carry per-owner stat payload for all of them, preserving multi-character continuity across older AI messages.
