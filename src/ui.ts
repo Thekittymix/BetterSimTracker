@@ -441,6 +441,12 @@ export type TrackerUiState = {
   stepLabel?: string | null;
 };
 
+export type OwnerRenderIdentity = {
+  sourceKey: string;
+  isAlias: boolean;
+  isSource: boolean;
+};
+
 export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | null): { title: string; subtitle: string } {
   const normalizedLabel = String(stepLabel ?? "").trim();
   if (/^Resolving /i.test(normalizedLabel)) {
@@ -477,6 +483,26 @@ export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | 
     title: normalizedLabel || "Building extraction baseline",
     subtitle: "Collecting recent messages, tracker history, and owner context for extraction.",
   };
+}
+
+export function filterTechnicalSourceOwnersFromTargets(
+  targets: string[],
+  resolveOwnerRenderIdentity?: (ownerName: string) => OwnerRenderIdentity | null,
+): string[] {
+  if (!resolveOwnerRenderIdentity) return [...targets];
+  const aliasSourceKeys = new Set<string>();
+  for (const ownerName of targets) {
+    const identity = resolveOwnerRenderIdentity(ownerName);
+    if (identity?.isAlias) {
+      aliasSourceKeys.add(identity.sourceKey);
+    }
+  }
+  if (!aliasSourceKeys.size) return [...targets];
+  return targets.filter(ownerName => {
+    const identity = resolveOwnerRenderIdentity(ownerName);
+    if (!identity?.isSource) return true;
+    return !aliasSourceKeys.has(identity.sourceKey);
+  });
 }
 
 export type TrackerRecoveryEntry = {
@@ -4188,6 +4214,7 @@ export function renderTracker(
   isUserMessageIndex?: (messageIndex: number) => boolean,
   resolveDisplayName?: (characterName: string) => string,
   resolveCharacterAvatar?: (characterName: string) => string | null,
+  resolveOwnerRenderIdentity?: (characterName: string) => OwnerRenderIdentity | null,
   isTrackerEnabled?: (characterName: string) => boolean,
   isOwnerStatEnabled?: (characterName: string, statId: string) => boolean,
   onOpenGraph?: (characterName: string) => void,
@@ -4837,7 +4864,8 @@ export function renderTracker(
     const targetSource = includeAllTargets
       ? scopedDisplayPool
       : scopedDisplayPool.filter(name => hasAnyStatFor(name) || activeSet.has(normalizeName(name)));
-    const targets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)))
+    const uniqueTargets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)));
+    const targets = filterTechnicalSourceOwnersFromTargets(uniqueTargets, resolveOwnerRenderIdentity)
       .sort((a, b) => {
         const aActive = activeSet.has(normalizeName(a));
         const bActive = activeSet.has(normalizeName(b));

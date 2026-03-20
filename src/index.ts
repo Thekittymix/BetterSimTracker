@@ -7,6 +7,7 @@ import {
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
 import {
   isAliasResolvedOwner,
+  resolveCharacterIdentity,
   projectTrackerDataToMessageScopedOwners,
   resolveCharacterFromContext,
   resolveEntityTrackingMode,
@@ -1656,6 +1657,18 @@ function queueRender(): void {
       }
       const avatar = String(character?.avatar ?? "").trim();
       return avatar || null;
+    }, characterName => {
+      const liveContext = getSafeContext();
+      if (!settings) return null;
+      const mode = resolveEntityTrackingMode(settings);
+      const resolved = resolveCharacterIdentity(liveContext, characterName, mode);
+      if (!resolved) return null;
+      const sourceKey = `${resolved.sourceAvatar ?? ""}|${resolved.sourceName}`.toLowerCase();
+      return {
+        sourceKey,
+        isAlias: resolved.matchedBy === "alias",
+        isSource: resolved.matchedBy === "source",
+      };
     }, characterName => {
       const liveContext = getSafeContext();
       return isTrackerEnabledForOwner(liveContext, settings!, characterName);
