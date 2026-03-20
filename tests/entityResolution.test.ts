@@ -182,3 +182,44 @@ test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload
   assert.deepEqual(projected.customNonNumericStatistics?.clothes, { Ashley: ["sneakers"] });
   assert.deepEqual(projected.customNonNumericStatistics?.pose, { Ashley: "Frozen in the kitchen doorway." });
 });
+
+test("projectTrackerDataToMessageScopedOwners can leave owner-scoped non-numeric custom stats unmapped for continuity reads", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const projected = projectTrackerDataToMessageScopedOwners(
+    context,
+    {
+      timestamp: 1,
+      activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      statistics: {
+        affection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 51 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        clothes: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": ["sneakers"] },
+      },
+    },
+    {
+      mes: "Ashley flinched and stared toward the door.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+    { projectOwnerScopedCustomNonNumeric: false },
+  );
+
+  assert.deepEqual(projected.activeCharacters, ["Ashley"]);
+  assert.deepEqual(projected.statistics.affection, { Ashley: 51 });
+  assert.deepEqual(projected.customNonNumericStatistics?.clothes, {
+    "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": ["sneakers"],
+  });
+});

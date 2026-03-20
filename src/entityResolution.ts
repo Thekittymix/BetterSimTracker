@@ -341,9 +341,13 @@ export function projectTrackerDataToMessageScopedOwners(
   data: TrackerData,
   message: ChatMessage | null | undefined,
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+  options?: {
+    projectOwnerScopedCustomNonNumeric?: boolean;
+  },
 ): TrackerData {
   const ownerMap = new Map<string, string>();
   let changed = false;
+  const projectOwnerScopedCustomNonNumeric = options?.projectOwnerScopedCustomNonNumeric !== false;
 
   for (const ownerName of data.activeCharacters ?? []) {
     const mappedOwner = resolveMessageScopedOwnerName(context, ownerName, message, settings);
@@ -358,9 +362,13 @@ export function projectTrackerDataToMessageScopedOwners(
     activeCharacters: (data.activeCharacters ?? []).map(ownerName => ownerMap.get(ownerName) ?? ownerName),
     statistics: remapStatistics(data.statistics, ownerMap),
     customStatistics: remapCustomStatistics(data.customStatistics, ownerMap),
-    customNonNumericStatistics: remapCustomNonNumericStatistics(data.customNonNumericStatistics, ownerMap),
+    customNonNumericStatistics: projectOwnerScopedCustomNonNumeric
+      ? remapCustomNonNumericStatistics(data.customNonNumericStatistics, ownerMap)
+      : data.customNonNumericStatistics,
     clearedStatistics: remapClearedStatistics(data.clearedStatistics, ownerMap),
     clearedCustomStatistics: remapClearedCustomBuckets(data.clearedCustomStatistics, ownerMap),
-    clearedCustomNonNumericStatistics: remapClearedCustomBuckets(data.clearedCustomNonNumericStatistics, ownerMap),
+    clearedCustomNonNumericStatistics: projectOwnerScopedCustomNonNumeric
+      ? remapClearedCustomBuckets(data.clearedCustomNonNumericStatistics, ownerMap)
+      : data.clearedCustomNonNumericStatistics,
   };
 }

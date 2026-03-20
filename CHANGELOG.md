@@ -10,6 +10,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed experimental multi-character alias owners so owner-scoped non-numeric tracker stats start from unknown instead of inheriting misleading default scene-state values on first appearance.
 
+## [2.2.4.16-exp4] - 2026-03-20
+### Fixed
+- Fixed experimental multi-character continuity so source-card history no longer projects owner-scoped non-numeric scene-state stats onto alias owners during baseline/history reads.
+
 ## [2.2.4.16-exp1] - 2026-03-20
 ### Added
 - Added experimental `Entity Tracking Mode` with a new `Multi-Character` mode for chats that use one source card to represent multiple named characters.

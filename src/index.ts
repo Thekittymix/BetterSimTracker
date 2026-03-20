@@ -901,6 +901,9 @@ function getMessageScopedTrackerData(
   messageIndex: number,
   data: TrackerData,
   settingsInput: BetterSimTrackerSettings,
+  options?: {
+    projectOwnerScopedCustomNonNumeric?: boolean;
+  },
 ): TrackerData {
   const message = messageIndex >= 0 && messageIndex < context.chat.length
     ? context.chat[messageIndex]
@@ -910,6 +913,7 @@ function getMessageScopedTrackerData(
     data,
     message,
     settingsInput,
+    options,
   );
 }
 
@@ -924,7 +928,9 @@ function getLatestRelevantTrackerDataWithIndexBefore(
   for (let i = start; i >= 0; i -= 1) {
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
-    const projected = getMessageScopedTrackerData(context, i, found, settingsInput);
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
+      projectOwnerScopedCustomNonNumeric: false,
+    });
     const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(projected, name, settingsInput));
     if (hasRelevantValue) {
       return { data: projected, messageIndex: i };
@@ -937,7 +943,9 @@ function getLatestRelevantTrackerDataWithIndexBefore(
   let best: { data: TrackerData; messageIndex: number } | null = null;
   for (const entry of historyEntries) {
     if (entry.messageIndex >= beforeIndex) continue;
-    const projected = getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput);
+    const projected = getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
+      projectOwnerScopedCustomNonNumeric: false,
+    });
     const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(projected, name, settingsInput));
     if (!hasRelevantValue) continue;
     if (!best || entry.messageIndex > best.messageIndex) {
@@ -964,7 +972,9 @@ function getMergedRelevantTrackerDataWithIndexBefore(
     .map(entry => ({
       messageIndex: entry.messageIndex,
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
-      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput),
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
+        projectOwnerScopedCustomNonNumeric: false,
+      }),
     }))
     .filter(entry => activeCharacters.some(name => hasTrackedValueForCharacter(entry.data, name, settingsInput)))
     .map(entry => ({
@@ -999,7 +1009,9 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
   for (let i = start; i >= 0; i -= 1) {
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
-    const projected = getMessageScopedTrackerData(context, i, found, settingsInput);
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
+      projectOwnerScopedCustomNonNumeric: false,
+    });
     const hasRelevantValue = activeCharacters.some(name =>
       hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput),
     );
@@ -1011,7 +1023,9 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
   const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length));
   const latestEntry = selectLatestRelevantHistoryEntry(
     historyEntries.map(entry => ({
-      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput),
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
+        projectOwnerScopedCustomNonNumeric: false,
+      }),
       messageIndex: entry.messageIndex,
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
     })),
@@ -1036,7 +1050,9 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
     if (!isTrackableUserMessage(context.chat[i])) continue;
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
-    const projected = getMessageScopedTrackerData(context, i, found, settingsInput);
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
+      projectOwnerScopedCustomNonNumeric: false,
+    });
     const hasRelevantValue = activeCharacters.some(name =>
       hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput),
     );
@@ -1048,7 +1064,9 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
   const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length));
   const latestEntry = selectLatestRelevantHistoryEntry(
     historyEntries.map(entry => ({
-      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput),
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
+        projectOwnerScopedCustomNonNumeric: false,
+      }),
       messageIndex: entry.messageIndex,
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
     })),
@@ -3448,7 +3466,9 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       .filter(entry => entry.messageIndex < baselineBeforeIndex)
       .map(entry => ({
         ...entry,
-        data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, runScopedSettings),
+        data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, runScopedSettings, {
+          projectOwnerScopedCustomNonNumeric: false,
+        }),
       }));
     const relevantHistory = boundedHistoryEntries
       .filter(entry => activeCharacters.some(name => (
