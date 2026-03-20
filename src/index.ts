@@ -14,7 +14,7 @@ import {
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
 } from "./entityResolution";
-import { buildEntitySourceKey, getEntityRegistryEntryByOwnerName, listEntityRegistryOwnersForMessage, syncEntityRegistryFromRender } from "./entityRegistry";
+  import { buildEntitySourceKey, getEntityRegistryEntryByOwnerName, getEntityRegistryLifecycleStateForMessage, listEntityRegistryOwnersForMessage, syncEntityRegistryFromRender } from "./entityRegistry";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
@@ -1677,16 +1677,12 @@ function queueRender(): void {
     }, (characterName, statId) => {
       const liveContext = getSafeContext();
       return isOwnerStatEnabled(liveContext, settings!, characterName, statId);
-    }, characterName => {
-      const liveContext = getSafeContext();
-      const entry = getEntityRegistryEntryByOwnerName(liveContext, characterName);
-      return entry ? {
-        lastActiveMessageIndex: entry.lastActiveMessageIndex,
-        lifecycleState: entry.lifecycleState,
-      } : null;
-    }, messageIndex => {
-      const liveContext = getSafeContext();
-      return listEntityRegistryOwnersForMessage(liveContext, messageIndex);
+      }, (characterName, messageIndex) => {
+        const liveContext = getSafeContext();
+        return getEntityRegistryLifecycleStateForMessage(liveContext, characterName, messageIndex);
+      }, messageIndex => {
+        const liveContext = getSafeContext();
+        return listEntityRegistryOwnersForMessage(liveContext, messageIndex);
     }, characterName => {
       const context = getSafeContext();
       if (!context || !settings) return;

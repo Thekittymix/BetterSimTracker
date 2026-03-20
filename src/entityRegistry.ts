@@ -5,6 +5,7 @@ import type {
   TrackerEntityRegistryEntry,
 } from "./types";
 import { resolveCharacterIdentity, type EntityTrackingMode, type ResolvedCharacterIdentity } from "./entityResolution";
+import type { CardLifecycleRegistryState } from "./cardLifecycle";
 
 const ENTITY_REGISTRY_METADATA_KEY = "bstEntityRegistry";
 
@@ -233,6 +234,29 @@ export function getEntityRegistryEntryByOwnerName(
   const entityId = registry.ownerToEntityId[normalizeToken(ownerName)];
   if (!entityId) return null;
   return registry.entities[entityId] ?? null;
+}
+
+export function getEntityRegistryLifecycleStateForMessage(
+  context: STContext | null,
+  ownerName: string,
+  messageIndex: number,
+): CardLifecycleRegistryState | null {
+  const entry = getEntityRegistryEntryByOwnerName(context, ownerName);
+  if (!entry) return null;
+  const archivedAtMessageIndex = entry.archivedAtMessageIndex != null && entry.archivedAtMessageIndex <= messageIndex
+    ? entry.archivedAtMessageIndex
+    : null;
+  const lastActiveMessageIndex = entry.lastActiveMessageIndex != null && entry.lastActiveMessageIndex <= messageIndex
+    ? entry.lastActiveMessageIndex
+    : null;
+  const lifecycleState: CardLifecycleRegistryState["lifecycleState"] = archivedAtMessageIndex != null
+    ? "archived"
+    : "inactive";
+  return {
+    lastActiveMessageIndex,
+    lifecycleState,
+    archivedAtMessageIndex,
+  };
 }
 
 export function listEntityRegistryOwnersForMessage(

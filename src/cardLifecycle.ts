@@ -8,6 +8,7 @@ export interface CardLifecycleSnapshot {
 export interface CardLifecycleRegistryState {
   lastActiveMessageIndex: number | null;
   lifecycleState: CardLifecycleState;
+  archivedAtMessageIndex?: number | null;
 }
 
 function normalizeName(value: string): string {
@@ -60,7 +61,12 @@ export function resolveCardLifecycleState(input: {
     ? (historicalLastActive != null ? Math.max(historicalLastActive, registryLastActive) : registryLastActive)
     : historicalLastActive;
   if (lastActiveMessageIndex == null) return "inactive";
+  const registryArchivedAt = Number.isFinite(Number(registryState?.archivedAtMessageIndex))
+    ? Number(registryState?.archivedAtMessageIndex)
+    : null;
   if (registryState?.lifecycleState === "archived"
+    && registryArchivedAt != null
+    && registryArchivedAt <= input.currentMessageIndex
     && (input.currentMessageIndex - lastActiveMessageIndex) > threshold) {
     return "archived";
   }

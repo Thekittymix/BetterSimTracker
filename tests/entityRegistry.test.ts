@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildEntitySourceKey,
   buildTrackerEntityId,
+  getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryOwnersForMessage,
   readEntityRegistry,
   syncEntityRegistryFromRender,
@@ -140,5 +141,36 @@ test("listEntityRegistryOwnersForMessage returns visible owners for a given mess
   assert.deepEqual(
     listEntityRegistryOwnersForMessage(context, 15),
     ["Ashley"],
+  );
+});
+
+test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the requested message index", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
+  });
+
+  assert.deepEqual(
+    getEntityRegistryLifecycleStateForMessage(context, "Ashley", 8),
+    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null },
+  );
+  assert.deepEqual(
+    getEntityRegistryLifecycleStateForMessage(context, "Blake", 8),
+    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null },
+  );
+  assert.deepEqual(
+    getEntityRegistryLifecycleStateForMessage(context, "Blake", 15),
+    { lastActiveMessageIndex: null, lifecycleState: "archived", archivedAtMessageIndex: 15 },
   );
 });

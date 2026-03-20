@@ -4249,7 +4249,7 @@ export function renderTracker(
   resolveOwnerRenderIdentity?: (characterName: string) => OwnerRenderIdentity | null,
   isTrackerEnabled?: (characterName: string) => boolean,
   isOwnerStatEnabled?: (characterName: string, statId: string) => boolean,
-  resolveLifecycleRegistryState?: (characterName: string) => CardLifecycleRegistryState | null,
+  resolveLifecycleRegistryState?: (characterName: string, messageIndex: number) => CardLifecycleRegistryState | null,
   resolveRegistryOwnersForMessage?: (messageIndex: number) => string[],
   onOpenGraph?: (characterName: string) => void,
   onRetrackMessage?: (messageIndex: number) => void,
@@ -4921,8 +4921,8 @@ export function renderTracker(
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,
-      registryState: resolveLifecycleRegistryState?.(name) ?? null,
-    });
+        registryState: resolveLifecycleRegistryState?.(name, entry.messageIndex) ?? null,
+      });
       const targets = filterArchivedOwnersFromTargets(
         filterTechnicalSourceOwnersFromTargets(uniqueTargets, resolveOwnerRenderIdentity),
         getLifecycleState,
