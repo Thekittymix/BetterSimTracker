@@ -644,6 +644,17 @@ export function resolveMoodSymbol(
   return explicitNeutral || DEFAULT_MOOD_SYMBOL_MAP.Neutral;
 }
 
+export function resolveMoodSymbolBoxStyleVars(
+  settings: Pick<BetterSimTrackerSettings, "moodSymbolMinWidth" | "moodSymbolMinHeight" | "moodSymbolBoxRadius" | "moodSymbolFontSize">,
+): Record<string, string> {
+  return {
+    "--bst-mood-symbol-min-width": `${settings.moodSymbolMinWidth}px`,
+    "--bst-mood-symbol-min-height": `${settings.moodSymbolMinHeight}px`,
+    "--bst-mood-symbol-radius": `${settings.moodSymbolBoxRadius}px`,
+    "--bst-mood-symbol-font-size": `${settings.moodSymbolFontSize}px`,
+  };
+}
+
 export function normalizeHexColor(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
@@ -1753,7 +1764,10 @@ export function ensureStyles(): void {
   100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
 }
 .bst-mood { margin-top: 10px; }
-.bst-mood-emoji { font-size: 18px; line-height: 1; }
+.bst-mood-emoji {
+  font-size: var(--bst-mood-symbol-font-size, 18px);
+  line-height: 1;
+}
 .bst-mood-wrap {
   display: inline-flex;
   align-items: center;
@@ -1832,9 +1846,10 @@ export function ensureStyles(): void {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
+  min-width: var(--bst-mood-symbol-min-width, 34px);
+  min-height: var(--bst-mood-symbol-min-height, 34px);
+  padding: 4px 6px;
+  border-radius: var(--bst-mood-symbol-radius, 12px);
   background: color-mix(in srgb, var(--bst-card-local, var(--bst-accent)) 16%, rgba(255,255,255,0.12) 84%);
   border: 1px solid rgba(255,255,255,0.18);
   box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2), 0 6px 16px rgba(0,0,0,0.28);
@@ -4319,6 +4334,9 @@ export function renderTracker(
     root.style.setProperty("--bst-card", "#1f2028");
     root.style.setProperty("--bst-accent", settings.accentColor);
     root.style.setProperty("--bst-radius", `${settings.borderRadius}px`);
+    for (const [name, value] of Object.entries(resolveMoodSymbolBoxStyleVars(settings))) {
+      root.style.setProperty(name, value);
+    }
     root.style.opacity = `${settings.cardOpacity}`;
     root.style.fontSize = `${settings.fontSize}px`;
     root.style.display = "grid";
@@ -4326,6 +4344,9 @@ export function renderTracker(
       sceneRoot.style.setProperty("--bst-card", "#1f2028");
       sceneRoot.style.setProperty("--bst-accent", settings.accentColor);
       sceneRoot.style.setProperty("--bst-radius", `${settings.borderRadius}px`);
+      for (const [name, value] of Object.entries(resolveMoodSymbolBoxStyleVars(settings))) {
+        sceneRoot.style.setProperty(name, value);
+      }
       sceneRoot.style.opacity = `${settings.cardOpacity}`;
       sceneRoot.style.fontSize = `${settings.fontSize}px`;
       sceneRoot.style.display = "grid";

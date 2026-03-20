@@ -414,6 +414,10 @@ export function openSettingsModal(input: {
         <label>Card Opacity <input data-k="cardOpacity" type="number" min="0.1" max="1" step="0.01"></label>
         <label>Border Radius <input data-k="borderRadius" type="number" min="0" max="32"></label>
         <label>Font Size <input data-k="fontSize" type="number" min="10" max="22"></label>
+        <label>Mood Symbol Min Width <input data-k="moodSymbolMinWidth" type="number" min="18" max="120"></label>
+        <label>Mood Symbol Min Height <input data-k="moodSymbolMinHeight" type="number" min="18" max="120"></label>
+        <label>Mood Symbol Radius <input data-k="moodSymbolBoxRadius" type="number" min="0" max="48"></label>
+        <label>Mood Symbol Font Size <input data-k="moodSymbolFontSize" type="number" min="10" max="48"></label>
         <div class="bst-section-divider">Toggles</div>
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="collapseCardsByDefault" type="checkbox">Collapse Cards By Default</label>
@@ -4486,6 +4490,10 @@ export function openSettingsModal(input: {
     cardOpacity: "Overall tracker container opacity.",
     borderRadius: "Corner roundness for tracker cards and controls.",
     fontSize: "Base font size used inside tracker cards.",
+    moodSymbolMinWidth: "Minimum width of the fallback mood-symbol chip when no mood image is available.",
+    moodSymbolMinHeight: "Minimum height of the fallback mood-symbol chip when no mood image is available.",
+    moodSymbolBoxRadius: "Corner radius of the fallback mood-symbol chip.",
+    moodSymbolFontSize: "Font size used for fallback mood symbols and kaomoji inside the chip.",
     debug: "Enable verbose diagnostics logging for troubleshooting.",
     includeContextInDiagnostics: "Include extraction prompt/context text in diagnostics dumps (larger logs).",
     includeGraphInDiagnostics: "Include graph-open series payloads in diagnostics trace output.",

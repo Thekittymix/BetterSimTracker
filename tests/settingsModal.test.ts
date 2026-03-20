@@ -55,3 +55,11 @@ test("settings modal exposes the global mood symbol fallback map controls", () =
   assert.match(source, /data-bst-row="globalMoodSymbolMap"/);
   assert.match(source, /data-bst-global-mood-symbol/);
 });
+
+test("settings modal exposes mood symbol chip display controls in Card Appearance", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Mood Symbol Min Width/);
+  assert.match(source, /Mood Symbol Min Height/);
+  assert.match(source, /Mood Symbol Radius/);
+  assert.match(source, /Mood Symbol Font Size/);
+});

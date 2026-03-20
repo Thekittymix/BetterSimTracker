@@ -174,6 +174,10 @@ export interface BetterSimTrackerSettings {
   cardOpacity: number;
   borderRadius: number;
   fontSize: number;
+  moodSymbolMinWidth: number;
+  moodSymbolMinHeight: number;
+  moodSymbolBoxRadius: number;
+  moodSymbolFontSize: number;
   defaultAffection: number;
   defaultTrust: number;
   defaultDesire: number;

@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.12-dev5] - 2026-03-20
+### Added
+- Added card-appearance controls for fallback mood-symbol chips, including minimum width, minimum height, corner radius, and symbol font size.
+
 ## [2.2.4.12-dev4] - 2026-03-20
 ### Added
 - Added a configurable global mood-symbol fallback map so mood displays can use custom emoji, kaomoji, or short symbols instead of fixed built-in emoji when no image/sprite is available.

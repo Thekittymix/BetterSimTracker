@@ -64,6 +64,10 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
       Happy: "(≧▽≦)",
       Neutral: "(-_-)",
     },
+    moodSymbolMinWidth: 8,
+    moodSymbolMinHeight: 200,
+    moodSymbolBoxRadius: 99,
+    moodSymbolFontSize: 7,
     sceneCardLayout: "rows",
     injectionPromptMaxChars: 200000,
     customStats: [
@@ -114,6 +118,10 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
   });
 
   assert.equal(sanitized.sceneCardLayout, "rows");
+  assert.equal(sanitized.moodSymbolMinWidth, 18);
+  assert.equal(sanitized.moodSymbolMinHeight, 120);
+  assert.equal(sanitized.moodSymbolBoxRadius, 48);
+  assert.equal(sanitized.moodSymbolFontSize, 10);
   assert.equal(sanitized.customStats.length, 2);
   assert.equal(sanitized.customStats[0].id, "clothes");
   assert.equal(sanitized.customStats[0].textMaxLength, 200);
