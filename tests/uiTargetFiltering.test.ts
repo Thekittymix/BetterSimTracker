@@ -6,8 +6,10 @@ import {
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   mergeRegistryOwnersIntoTargets,
+  applyTrackerCardCollapsed,
   resolveRegistryLookupNamesForOwner,
   resolveRegistryOwnersFromEntries,
+  resolveTrackerCardCollapsed,
   resolveOwnerUiKey,
   shouldKeepOwnerInRenderTargetPool,
   type OwnerRenderIdentity,
@@ -140,5 +142,66 @@ test("resolveOwnerUiKey prefers stable registry entity ids over raw owner names"
   assert.equal(
     resolveOwnerUiKey("Ashley", null),
     "ashley",
+  );
+});
+
+test("resolveTrackerCardCollapsed defaults active cards open and inactive cards collapsed", () => {
+  assert.equal(
+    resolveTrackerCardCollapsed({
+      cardKey: "m:ashley",
+      isActive: true,
+      collapsedActiveCardKeys: new Set(),
+      expandedInactiveCardKeys: new Set(),
+    }),
+    false,
+  );
+
+  assert.equal(
+    resolveTrackerCardCollapsed({
+      cardKey: "m:blake",
+      isActive: false,
+      collapsedActiveCardKeys: new Set(),
+      expandedInactiveCardKeys: new Set(),
+    }),
+    true,
+  );
+});
+
+test("applyTrackerCardCollapsed overrides per-card UI state by stable card key", () => {
+  const collapsedActive = new Set<string>();
+  const expandedInactive = new Set<string>();
+
+  applyTrackerCardCollapsed({
+    cardKey: "m:ashley",
+    isActive: true,
+    nextCollapsed: true,
+    collapsedActiveCardKeys: collapsedActive,
+    expandedInactiveCardKeys: expandedInactive,
+  });
+  applyTrackerCardCollapsed({
+    cardKey: "m:blake",
+    isActive: false,
+    nextCollapsed: false,
+    collapsedActiveCardKeys: collapsedActive,
+    expandedInactiveCardKeys: expandedInactive,
+  });
+
+  assert.equal(
+    resolveTrackerCardCollapsed({
+      cardKey: "m:ashley",
+      isActive: true,
+      collapsedActiveCardKeys: collapsedActive,
+      expandedInactiveCardKeys: expandedInactive,
+    }),
+    true,
+  );
+  assert.equal(
+    resolveTrackerCardCollapsed({
+      cardKey: "m:blake",
+      isActive: false,
+      collapsedActiveCardKeys: collapsedActive,
+      expandedInactiveCardKeys: expandedInactive,
+    }),
+    false,
   );
 });

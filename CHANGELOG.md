@@ -1,3 +1,7 @@
+## [2.2.4.16-exp24] - 2026-03-20
+### Added
+- Experimental multi-character tracker cards now have per-card collapse state keyed by stable message/entity card keys, with inactive cards collapsing by default while still supporting global collapse/expand for the whole message block.
+
 # Changelog
 
 All notable changes to BetterSimTracker are documented here.
@@ -974,6 +978,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

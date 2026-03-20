@@ -602,6 +602,43 @@ export function shouldKeepOwnerInRenderTargetPool(input: {
   return input.hasAnyStat || input.isActive || input.registryOwners.has(normalized);
 }
 
+export function resolveTrackerCardCollapsed(input: {
+  cardKey: string;
+  isActive: boolean;
+  collapsedActiveCardKeys: ReadonlySet<string>;
+  expandedInactiveCardKeys: ReadonlySet<string>;
+}): boolean {
+  const key = String(input.cardKey ?? "").trim();
+  if (!key) return !input.isActive;
+  return input.isActive
+    ? input.collapsedActiveCardKeys.has(key)
+    : !input.expandedInactiveCardKeys.has(key);
+}
+
+export function applyTrackerCardCollapsed(input: {
+  cardKey: string;
+  isActive: boolean;
+  nextCollapsed: boolean;
+  collapsedActiveCardKeys: Set<string>;
+  expandedInactiveCardKeys: Set<string>;
+}): void {
+  const key = String(input.cardKey ?? "").trim();
+  if (!key) return;
+  if (input.isActive) {
+    if (input.nextCollapsed) {
+      input.collapsedActiveCardKeys.add(key);
+    } else {
+      input.collapsedActiveCardKeys.delete(key);
+    }
+    return;
+  }
+  if (input.nextCollapsed) {
+    input.expandedInactiveCardKeys.delete(key);
+  } else {
+    input.expandedInactiveCardKeys.add(key);
+  }
+}
+
 export type TrackerRecoveryEntry = {
   kind: "error" | "stopped";
   title: string;
@@ -618,6 +655,8 @@ type RenderEntry = {
 const ROOT_CLASS = "bst-root";
 const collapsedTrackerMessages = new Set<number>();
 const expandedTrackerMessages = new Set<number>();
+const collapsedActiveCardKeys = new Set<string>();
+const expandedInactiveCardKeys = new Set<string>();
 const collapsedSceneMessages = new Set<number>();
 const expandedThoughtKeys = new Set<string>();
 const expandedArrayValueKeys = new Set<string>();
@@ -2161,6 +2200,9 @@ export function ensureStyles(): void {
 .bst-root-collapsed .bst-body {
   display: none;
 }
+.bst-card-collapsed .bst-body {
+  display: none;
+}
 .bst-collapsed-summary {
   display: none;
   margin-top: 6px;
@@ -2169,7 +2211,8 @@ export function ensureStyles(): void {
   align-items: center;
   gap: 8px;
 }
-.bst-root-collapsed .bst-collapsed-summary {
+.bst-root-collapsed .bst-collapsed-summary,
+.bst-card-collapsed .bst-collapsed-summary {
   display: flex;
 }
 .bst-collapsed-mood {
@@ -4758,11 +4801,38 @@ export function renderTracker(
               collapsedTrackerMessages.delete(idx);
             }
           }
+          root.querySelectorAll<HTMLElement>(".bst-card[data-bst-card-key]").forEach(card => {
+            const cardKey = String(card.dataset.bstCardKey ?? "").trim();
+            const isActive = card.dataset.bstCardActive === "true";
+            applyTrackerCardCollapsed({
+              cardKey,
+              isActive,
+              nextCollapsed,
+              collapsedActiveCardKeys,
+              expandedInactiveCardKeys,
+            });
+          });
           collapse.setAttribute("aria-expanded", String(!nextCollapsed));
           collapse.setAttribute("title", nextCollapsed ? "Expand cards" : "Collapse cards");
           collapse.innerHTML = nextCollapsed
             ? `<span class="bst-root-action-icon" aria-hidden="true">&#9656;</span><span class="bst-root-action-label">Expand cards</span>`
             : `<span class="bst-root-action-icon" aria-hidden="true">&#9662;</span><span class="bst-root-action-label">Collapse cards</span>`;
+          root.dataset.bstRenderSignature = "";
+          onRequestRerender?.();
+          return;
+        }
+        const cardCollapse = target?.closest('[data-bst-action="toggle-card-collapse"]') as HTMLElement | null;
+        if (cardCollapse) {
+          const cardKey = String(cardCollapse.getAttribute("data-bst-card-key") ?? "").trim();
+          const isActive = cardCollapse.getAttribute("data-bst-card-active") === "true";
+          const nextCollapsed = cardCollapse.getAttribute("aria-expanded") !== "false";
+          applyTrackerCardCollapsed({
+            cardKey,
+            isActive,
+            nextCollapsed,
+            collapsedActiveCardKeys,
+            expandedInactiveCardKeys,
+          });
           root.dataset.bstRenderSignature = "";
           onRequestRerender?.();
           return;
@@ -5085,7 +5155,7 @@ export function renderTracker(
         getLifecycleState,
       });
 
-      const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isNew: boolean; cardColor: string }> = [];
+      const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isCollapsed: boolean; cardKey: string; isNew: boolean; cardColor: string }> = [];
     const signatureParts: string[] = [
       `msg:${entry.messageIndex}`,
       `collapsed:${collapsed ? "1" : "0"}`,
@@ -5113,6 +5183,13 @@ export function renderTracker(
       const isUserCard = name === USER_TRACKER_KEY;
       const moodLookupName = isUserCard ? displayName : name;
       const characterAvatar = resolveCharacterAvatar?.(name) ?? undefined;
+      const cardKey = `${entry.messageIndex}:${ownerUiKey}`;
+      const cardCollapsed = resolveTrackerCardCollapsed({
+        cardKey,
+        isActive,
+        collapsedActiveCardKeys,
+        expandedInactiveCardKeys,
+      });
       const baseEnabledNumeric = getNumericStatsForCharacter(data, name, settings);
       const baseEnabledNonNumeric = ownerCardNonNumericDefs.filter(def => (isUserCard ? def.trackUser : def.trackCharacters));
       const ownerStatEnabled = (statId: string): boolean => isOwnerStatEnabled?.(name, statId) !== false;
@@ -5168,13 +5245,13 @@ export function renderTracker(
         ?? getResolvedCardColor(settings, moodLookupName, characterAvatar)
         ?? palette[name]
         ?? getStableAutoCardColor(name);
-      const cardKey = `${entry.messageIndex}:${ownerUiKey}`;
       const isNew = !renderedCardKeys.has(cardKey);
       renderedCardKeys.add(cardKey);
       const cardHtml = `
         <div class="bst-head">
           <div class="bst-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</div>
           <div class="bst-actions">
+            <button class="bst-mini-btn bst-mini-btn-icon" data-bst-action="toggle-card-collapse" data-bst-card-key="${escapeHtml(cardKey)}" data-bst-card-active="${isActive ? "true" : "false"}" title="${cardCollapsed ? `Expand ${escapeHtml(displayName)}` : `Collapse ${escapeHtml(displayName)}`}" aria-expanded="${cardCollapsed ? "false" : "true"}"><span aria-hidden="true">${cardCollapsed ? "&#9656;" : "&#9662;"}</span></button>
             ${!isUserCard ? `<button class="bst-mini-btn" data-bst-action="graph" data-character="${name}" title="Open relationship graph"><span aria-hidden="true">&#128200;</span> <span class="bst-graph-label">Graph</span></button>` : ""}
             ${canEdit ? `<button class="bst-mini-btn bst-mini-btn-icon" data-bst-action="edit-stats" data-bst-edit-message="${entry.messageIndex}" data-bst-edit-character="${escapeHtml(name)}" title="Edit last tracker stats for ${escapeHtml(displayName)}" aria-label="Edit last tracker stats for ${escapeHtml(displayName)}"><span aria-hidden="true">&#9998;</span></button>` : ""}
             ${!isUserCard ? `<div class="bst-state" title="${isActive ? "Active" : settings.inactiveLabel}">${isActive ? "Active" : `${settings.inactiveLabel} <span class="fa-solid fa-ghost bst-inactive-icon" aria-hidden="true"></span>`}</div>` : ""}
@@ -5186,7 +5263,7 @@ export function renderTracker(
           ${collapsedNonNumeric || ""}
           ${showCollapsedMood ? `<span class="bst-collapsed-mood" title="${moodText}">${escapeHtml(resolveMoodSymbol(moodText, settings.moodSymbolMap))}</span>` : ""}
         </div>` : ""}
-        <div class="bst-body">
+        <div class="bst-body"${cardCollapsed ? ` style="display:none"` : ""}>
         ${enabledNumeric.map(({ key, label, color, defaultValue }) => {
           const defDefault = defaultValue ?? 50;
           const currentValueRaw = getNumericRawValue(data, key, name, isNumericGlobalScope(key));
@@ -5273,7 +5350,7 @@ export function renderTracker(
         </div>
       `;
       const ownerClass = `bst-owner-${toOwnerClassSuffix(displayName)}`;
-      cardHtmlByName.push({ name, displayName, ownerClass, html: cardHtml, isActive, isNew, cardColor });
+      cardHtmlByName.push({ name, displayName, ownerClass, html: cardHtml, isActive, isCollapsed: cardCollapsed, cardKey, isNew, cardColor });
       const nonNumericSignature = enabledNonNumeric.map(def => {
         const value = resolveEffectiveNonNumericValue(def, name);
         if (value == null) return `${def.id}:not_set`;
@@ -5571,9 +5648,11 @@ export function renderTracker(
     const appendOwnerCards = (): void => {
       for (const item of cardHtmlByName) {
         const card = document.createElement("div");
-        card.className = `bst-card ${item.ownerClass}${item.isActive ? "" : " bst-card-inactive"}${item.isNew ? " bst-card-new" : ""}`;
+        card.className = `bst-card ${item.ownerClass}${item.isActive ? "" : " bst-card-inactive"}${item.isNew ? " bst-card-new" : ""}${item.isCollapsed ? " bst-card-collapsed" : ""}`;
         card.dataset.bstOwner = item.displayName;
         card.dataset.bstOwnerClass = item.ownerClass;
+        card.dataset.bstCardKey = item.cardKey;
+        card.dataset.bstCardActive = item.isActive ? "true" : "false";
         card.style.setProperty("--bst-card-local", item.cardColor);
         const palette = buildActionPalette(item.cardColor);
         card.style.setProperty("--bst-action-bg", palette.bg);
