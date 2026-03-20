@@ -163,14 +163,14 @@ test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the
 
   assert.deepEqual(
     getEntityRegistryLifecycleStateForMessage(context, "Ashley", 8),
-    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null },
+    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
   );
   assert.deepEqual(
     getEntityRegistryLifecycleStateForMessage(context, "Blake", 8),
-    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null },
+    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
   );
   assert.deepEqual(
     getEntityRegistryLifecycleStateForMessage(context, "Blake", 15),
-    { lastActiveMessageIndex: null, lifecycleState: "archived", archivedAtMessageIndex: 15 },
+    { lastActiveMessageIndex: null, lifecycleState: "archived", archivedAtMessageIndex: 15, introducedAtMessageIndex: 8 },
   );
 });

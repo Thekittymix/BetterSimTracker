@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp18] - 2026-03-20
+### Fixed
+- Experimental multi-character lifecycle now clamps alias archive/history continuity to the entity introduction point, so newly introduced alias cards no longer inherit pre-introduction active turns and disappear immediately under aggressive archive settings.
+
 ## [2.2.4.16-exp17] - 2026-03-20
 ### Changed
 - Experimental multi-character direct-chat rendering now keeps registry-backed alias owners in the message display pool even when only one alias is currently active, so historical alias card continuity is no longer cut off before UI filtering runs.

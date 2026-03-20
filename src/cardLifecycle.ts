@@ -9,6 +9,7 @@ export interface CardLifecycleRegistryState {
   lastActiveMessageIndex: number | null;
   lifecycleState: CardLifecycleState;
   archivedAtMessageIndex?: number | null;
+  introducedAtMessageIndex?: number | null;
 }
 
 function normalizeName(value: string): string {
@@ -49,6 +50,9 @@ export function resolveCardLifecycleState(input: {
   const registryState = input.registryState ?? null;
   if (!input.autoArchiveInactiveCards) return "inactive";
   const threshold = Math.max(1, Math.floor(input.archiveInactiveAfterTurns));
+  const introducedAtMessageIndex = Number.isFinite(Number(registryState?.introducedAtMessageIndex))
+    ? Number(registryState?.introducedAtMessageIndex)
+    : null;
   const historicalLastActive = findLastActiveMessageIndex(
     input.history,
     input.currentMessageIndex,
@@ -57,9 +61,17 @@ export function resolveCardLifecycleState(input: {
   const registryLastActive = Number.isFinite(Number(registryState?.lastActiveMessageIndex))
     ? Number(registryState?.lastActiveMessageIndex)
     : null;
-  const lastActiveMessageIndex = registryLastActive != null
-    ? (historicalLastActive != null ? Math.max(historicalLastActive, registryLastActive) : registryLastActive)
-    : historicalLastActive;
+  const clampedHistoricalLastActive = historicalLastActive != null
+    && (introducedAtMessageIndex == null || historicalLastActive >= introducedAtMessageIndex)
+    ? historicalLastActive
+    : null;
+  const clampedRegistryLastActive = registryLastActive != null
+    && (introducedAtMessageIndex == null || registryLastActive >= introducedAtMessageIndex)
+    ? registryLastActive
+    : null;
+  const lastActiveMessageIndex = clampedRegistryLastActive != null
+    ? (clampedHistoricalLastActive != null ? Math.max(clampedHistoricalLastActive, clampedRegistryLastActive) : clampedRegistryLastActive)
+    : clampedHistoricalLastActive;
   if (lastActiveMessageIndex == null) return "inactive";
   const registryArchivedAt = Number.isFinite(Number(registryState?.archivedAtMessageIndex))
     ? Number(registryState?.archivedAtMessageIndex)

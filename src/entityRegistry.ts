@@ -256,6 +256,7 @@ export function getEntityRegistryLifecycleStateForMessage(
     lastActiveMessageIndex,
     lifecycleState,
     archivedAtMessageIndex,
+    introducedAtMessageIndex: entry.introducedAtMessageIndex,
   };
 }
 
