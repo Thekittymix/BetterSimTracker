@@ -531,19 +531,22 @@ export function mergeRegistryOwnersIntoTargets(
 }
 
 export function buildDisplayPoolWithRegistry(input: {
+  entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
   includeAllTargets: boolean;
   activeCharacters: string[];
   dataCharacterNames: string[];
   mergedWithRegistryOwners: string[];
 }): string[] {
+  const preferRegistryOwners = input.entityTrackingMode === "multi_character"
+    && input.mergedWithRegistryOwners.length > 0;
   if (input.includeAllTargets) {
-    return input.mergedWithRegistryOwners.length > 0
+    return preferRegistryOwners
       ? input.mergedWithRegistryOwners
       : input.dataCharacterNames.length > 0
         ? input.dataCharacterNames
         : input.activeCharacters;
   }
-  return input.mergedWithRegistryOwners.length > 0
+  return preferRegistryOwners
     ? input.mergedWithRegistryOwners
     : input.activeCharacters.length > 0
       ? input.activeCharacters
@@ -4939,6 +4942,7 @@ export function renderTracker(
       registryOwnersForMessage,
     );
     const displayPool = buildDisplayPoolWithRegistry({
+      entityTrackingMode: settings.entityTrackingMode,
       includeAllTargets: forceAllInGroup || settings.showInactive,
       activeCharacters: data.activeCharacters,
       dataCharacterNames,

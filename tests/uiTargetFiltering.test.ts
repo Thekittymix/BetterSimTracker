@@ -60,6 +60,7 @@ test("mergeRegistryOwnersIntoTargets backfills registry owners without duplicati
 
 test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
   const displayPool = buildDisplayPoolWithRegistry({
+    entityTrackingMode: "multi_character",
     includeAllTargets: false,
     activeCharacters: ["Ashley"],
     dataCharacterNames: ["Ashley"],
@@ -67,6 +68,18 @@ test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat 
   });
 
   assert.deepEqual(displayPool, ["Ashley", "Blake", "Garret", "Raleigh"]);
+});
+
+test("buildDisplayPoolWithRegistry keeps standard mode focused on current active/data owners", () => {
+  const displayPool = buildDisplayPoolWithRegistry({
+    entityTrackingMode: "standard",
+    includeAllTargets: false,
+    activeCharacters: ["Ashley"],
+    dataCharacterNames: ["Ashley"],
+    mergedWithRegistryOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+  });
+
+  assert.deepEqual(displayPool, ["Ashley"]);
 });
 
 test("shouldKeepOwnerInRenderTargetPool keeps registry-visible owners even without current stat payload", () => {
