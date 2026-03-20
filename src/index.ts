@@ -14,7 +14,14 @@ import {
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
 } from "./entityResolution";
-  import { buildEntitySourceKey, getEntityRegistryEntryByOwnerName, getEntityRegistryLifecycleStateForMessage, listEntityRegistryOwnersForMessage, syncEntityRegistryFromRender } from "./entityRegistry";
+import {
+  buildEntitySourceKey,
+  getEntityRegistryEntryByOwnerName,
+  getEntityRegistryLifecycleStateForMessage,
+  listEntityRegistryEntriesForMessage,
+  listEntityRegistryOwnersForMessage,
+  syncEntityRegistryFromRender,
+} from "./entityRegistry";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
@@ -1683,6 +1690,9 @@ function queueRender(): void {
       }, messageIndex => {
         const liveContext = getSafeContext();
         return listEntityRegistryOwnersForMessage(liveContext, messageIndex);
+    }, messageIndex => {
+        const liveContext = getSafeContext();
+        return listEntityRegistryEntriesForMessage(liveContext, messageIndex);
     }, (characterName, messageIndex) => {
         const liveContext = getSafeContext();
         const entry = getEntityRegistryEntryByOwnerName(liveContext, characterName);

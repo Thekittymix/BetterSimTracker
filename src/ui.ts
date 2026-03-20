@@ -530,6 +530,21 @@ export function mergeRegistryOwnersIntoTargets(
   return merged;
 }
 
+export function resolveRegistryOwnersFromEntries(
+  entries: TrackerEntityRegistryEntry[],
+): string[] {
+  const owners: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const ownerName = String(entry?.ownerName ?? "").trim();
+    const normalized = normalizeName(ownerName);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    owners.push(ownerName);
+  }
+  return owners;
+}
+
 export function buildDisplayPoolWithRegistry(input: {
   entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
   includeAllTargets: boolean;
@@ -4294,6 +4309,7 @@ export function renderTracker(
   isOwnerStatEnabled?: (characterName: string, statId: string) => boolean,
   resolveLifecycleRegistryState?: (characterName: string, messageIndex: number) => CardLifecycleRegistryState | null,
   resolveRegistryOwnersForMessage?: (messageIndex: number) => string[],
+  resolveRegistryEntriesForMessage?: (messageIndex: number) => TrackerEntityRegistryEntry[],
   resolveRegistryEntryForMessage?: (ownerName: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
   onOpenGraph?: (characterName: string) => void,
   onRetrackMessage?: (messageIndex: number) => void,
@@ -4935,7 +4951,10 @@ export function renderTracker(
     for (const name of dataCharacterNames) {
       pushUniqueCharacterName(mergedCharacters, mergedSeen, name);
     }
-    const registryOwnersForMessage = resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? [];
+    const registryEntriesForMessage = resolveRegistryEntriesForMessage?.(entry.messageIndex) ?? [];
+    const registryOwnersForMessage = registryEntriesForMessage.length > 0
+      ? resolveRegistryOwnersFromEntries(registryEntriesForMessage)
+      : (resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? []);
     const registryOwnerSet = new Set(registryOwnersForMessage.map(name => normalizeName(name)));
     const mergedWithRegistryOwners = mergeRegistryOwnersIntoTargets(
       mergedCharacters,

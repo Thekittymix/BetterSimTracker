@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp22] - 2026-03-20
+### Changed
+- Experimental multi-character tracker rendering now resolves per-message registry entries first and derives visible registry owners from those entity entries, tightening the render path around the chat-scoped registry layer instead of owner-name lists alone.
+
 ## [2.2.4.16-exp21] - 2026-03-20
 ### Changed
 - Experimental multi-character render targeting now treats chat-scoped registry owners as the primary visible card pool in Multi-Character, keeping alias-card continuity driven by the registry layer instead of raw owner-name heuristics.

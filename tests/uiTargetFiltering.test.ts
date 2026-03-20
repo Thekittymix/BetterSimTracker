@@ -6,6 +6,7 @@ import {
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   mergeRegistryOwnersIntoTargets,
+  resolveRegistryOwnersFromEntries,
   resolveOwnerUiKey,
   shouldKeepOwnerInRenderTargetPool,
   type OwnerRenderIdentity,
@@ -56,6 +57,17 @@ test("mergeRegistryOwnersIntoTargets backfills registry owners without duplicati
   );
 
   assert.deepEqual(merged, ["Ashley", "Blake", "Garret", "Raleigh"]);
+});
+
+test("resolveRegistryOwnersFromEntries preserves introduction order and deduplicates names", () => {
+  const owners = resolveRegistryOwnersFromEntries([
+    { id: "a", ownerName: "Ashley" } as never,
+    { id: "b", ownerName: "Blake" } as never,
+    { id: "c", ownerName: "Ashley" } as never,
+    { id: "d", ownerName: "Raleigh" } as never,
+  ]);
+
+  assert.deepEqual(owners, ["Ashley", "Blake", "Raleigh"]);
 });
 
 test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
