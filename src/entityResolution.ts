@@ -43,6 +43,15 @@ function uniqueStrings(values: string[]): string[] {
   return out;
 }
 
+function pushUniqueString(target: string[], seen: Set<string>, raw: unknown): void {
+  const value = normalizeToken(raw);
+  if (!value) return;
+  const key = value.toLowerCase();
+  if (seen.has(key)) return;
+  seen.add(key);
+  target.push(value);
+}
+
 function stripOuterPunctuation(value: string): string {
   return value
     .replace(/^[\s"'`([{<]+/g, "")
@@ -108,6 +117,28 @@ function countAliasMentions(text: string, alias: string): number {
   let count = 0;
   while (pattern.exec(text)) count += 1;
   return count;
+}
+
+function buildSourceKey(sourceName: string, sourceAvatar: string | null): string {
+  return `${normalizeKey(sourceName)}::${normalizeKey(sourceAvatar ?? "")}`;
+}
+
+function collectMentionedAliases(messageText: string, aliases: string[]): string[] {
+  const text = normalizeToken(messageText);
+  if (!text) return [];
+  const normalizedText = text.toLowerCase();
+  const mentioned: string[] = [];
+  for (const alias of aliases) {
+    const trimmed = normalizeToken(alias);
+    if (!trimmed) continue;
+    const escaped = escapeRegex(trimmed);
+    const startsWithAlias = new RegExp(`^[\\s"'([{-]*${escaped}(?:\\b|['â€™]s\\b)`, "i").test(text);
+    const mentions = countAliasMentions(normalizedText, trimmed.toLowerCase());
+    if (startsWithAlias || mentions > 0) {
+      mentioned.push(trimmed);
+    }
+  }
+  return uniqueStrings(mentioned);
 }
 
 function inferMessageAliasSpeaker(messageText: string, aliases: string[]): string | null {
@@ -219,6 +250,84 @@ export function resolveMessageScopedActiveCharacters(
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): string[] {
   return activeCharacters.map(ownerName => resolveMessageScopedOwnerName(context, ownerName, message, settings));
+}
+
+export function resolveMessageScopedParticipants(
+  context: STContext | null,
+  activeCharacters: string[],
+  message: ChatMessage | null | undefined,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): string[] {
+  const mode = resolveEntityTrackingMode(settings);
+  if (mode !== "multi_character") return [...activeCharacters];
+  if (!message || message.is_user || message.is_system) return [...activeCharacters];
+
+  const messageText = normalizeToken(message.mes);
+  if (!messageText) return [...activeCharacters];
+
+  const speakerIdentity = resolveCharacterIdentity(context, String(message.name ?? "").trim(), mode);
+  const speakerSourceKey = speakerIdentity
+    ? buildSourceKey(speakerIdentity.sourceName, speakerIdentity.sourceAvatar)
+    : null;
+  const appended: string[] = [];
+  const appendedSeen = new Set<string>();
+  const grouped = new Map<string, { owners: string[]; aliases: string[]; isMulti: boolean; isSpeakerGroup: boolean }>();
+
+  for (const ownerName of activeCharacters) {
+    const resolved = resolveCharacterIdentity(context, ownerName, mode);
+    if (!resolved) {
+      if (
+        normalizeKey(String(message.name ?? "")) === normalizeKey(ownerName)
+        || countAliasMentions(messageText.toLowerCase(), ownerName.toLowerCase()) > 0
+      ) {
+        pushUniqueString(appended, appendedSeen, ownerName);
+      }
+      continue;
+    }
+    const source = resolveCharacterFromContext(context, ownerName, mode);
+    const aliases = source
+      ? getCharacterAliases(source, mode).filter(alias => normalizeKey(alias) !== normalizeKey(resolved.sourceName))
+      : [];
+    const sourceKey = buildSourceKey(resolved.sourceName, resolved.sourceAvatar);
+    const entry = grouped.get(sourceKey) ?? {
+      owners: [],
+      aliases,
+      isMulti: aliases.length >= 2,
+      isSpeakerGroup: speakerSourceKey === sourceKey,
+    };
+    entry.owners.push(ownerName);
+    grouped.set(sourceKey, entry);
+  }
+
+  for (const [, group] of grouped) {
+    if (!group.isMulti) {
+      for (const ownerName of group.owners) {
+        if (
+          normalizeKey(String(message.name ?? "")) === normalizeKey(ownerName)
+          || countAliasMentions(messageText.toLowerCase(), ownerName.toLowerCase()) > 0
+        ) {
+          pushUniqueString(appended, appendedSeen, ownerName);
+        }
+      }
+      continue;
+    }
+
+    const mentionedAliases = collectMentionedAliases(messageText, group.aliases);
+    if (mentionedAliases.length) {
+      for (const alias of mentionedAliases) {
+        pushUniqueString(appended, appendedSeen, alias);
+      }
+      continue;
+    }
+
+    if (group.isSpeakerGroup) {
+      for (const ownerName of group.owners) {
+        pushUniqueString(appended, appendedSeen, resolveMessageScopedOwnerName(context, ownerName, message, settings));
+      }
+    }
+  }
+
+  return appended.length ? appended : [...activeCharacters];
 }
 
 export function resolveMessageScopedOwnerName(

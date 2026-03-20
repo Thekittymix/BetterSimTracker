@@ -9,6 +9,7 @@ import {
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveMessageScopedActiveCharacters,
+  resolveMessageScopedParticipants,
 } from "../src/entityResolution";
 
 test("extractMultiCharacterAliases parses multi-character source card names generically", () => {
@@ -139,6 +140,50 @@ test("resolveMessageScopedActiveCharacters keeps source-card owner when message 
   );
 
   assert.deepEqual(resolved, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"]);
+});
+
+test("resolveMessageScopedParticipants narrows a multi-character speaker to the aliases actually present in the AI message", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+      { name: "Billie", avatar: "billie.png" },
+    ],
+  } as any;
+
+  const resolved = resolveMessageScopedParticipants(
+    context,
+    ["Ashley", "Blake", "Garret", "Raleigh", "Billie"],
+    {
+      mes: "Ashley froze at the door while Blake glanced over her shoulder.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(resolved, ["Ashley", "Blake"]);
+});
+
+test("resolveMessageScopedParticipants keeps a non-multi speaker even if the message does not repeat its own name", () => {
+  const context = {
+    characters: [
+      { name: "Billie", avatar: "billie.png" },
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const resolved = resolveMessageScopedParticipants(
+    context,
+    ["Billie", "Ashley", "Blake"],
+    {
+      mes: "She crossed her arms and stared at the window.",
+      name: "Billie",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(resolved, ["Billie"]);
 });
 
 test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {

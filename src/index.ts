@@ -12,6 +12,7 @@ import {
   resolveCharacterFromContext,
   resolveEntityTrackingMode,
   resolveMessageScopedActiveCharacters,
+  resolveMessageScopedParticipants,
 } from "./entityResolution";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
@@ -3288,9 +3289,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const initialActiveCharacters = (userExtraction ? [USER_TRACKER_KEY] : activity.activeCharacters).filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
-    const activeCharacters = userExtraction
+    const scopedActiveCharacters = userExtraction
       ? initialActiveCharacters
-      : resolveMessageScopedActiveCharacters(context, initialActiveCharacters, lastMessage, activeSettings).filter(name =>
+      : resolveMessageScopedActiveCharacters(context, initialActiveCharacters, lastMessage, activeSettings);
+    const activeCharacters = userExtraction
+      ? scopedActiveCharacters
+      : resolveMessageScopedParticipants(context, scopedActiveCharacters, lastMessage, activeSettings).filter(name =>
           isTrackerEnabledForOwner(context, activeSettings, name),
         );
     pushTrace("activity.resolve", {

@@ -6,6 +6,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Experimental multi-character tracker rendering now hides a technical source-card owner when one of its resolved alias cards is already being rendered for the same message.
 
+## [2.2.4.16-exp8] - 2026-03-20
+### Fixed
+- Experimental multi-character AI turn extraction now resolves rendered tracker cards from the actual participants mentioned in the AI message, instead of blindly expanding every represented alias from the source card.
+
 ## [2.2.4.16-exp5] - 2026-03-20
 ### Fixed
 - Fixed experimental multi-character prompt generation so explicit empty owner-scoped non-numeric values stay empty in extraction prompts instead of falling back to custom stat defaults.
