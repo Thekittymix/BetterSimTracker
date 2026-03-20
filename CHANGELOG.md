@@ -2,32 +2,19 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.2.4.12-dev5] - 2026-03-20
-### Added
-- Added card-appearance controls for fallback mood-symbol chips, including minimum width, minimum height, corner radius, and symbol font size.
-
-## [2.2.4.12-dev4] - 2026-03-20
-### Added
-- Added a configurable global mood-symbol fallback map so mood displays can use custom emoji, kaomoji, or short symbols instead of fixed built-in emoji when no image/sprite is available.
-
-### Changed
-- Mood fallback labels and help text now describe configurable symbols rather than fixed emoji fallback behavior.
-
-## [2.2.4.12-dev3] - 2026-03-17
-### Fixed
-- Reduced group-chat active-state stickiness so characters who stopped speaking drop out of `Active` sooner instead of lingering for long persistence windows.
-- Manual `Active` / inactive edits on character cards now survive normal extraction turns, but automatically clear once that character starts speaking again in the chat.
-
-## [2.2.4.12-dev2] - 2026-03-17
-### Fixed
-- Manual `Active` / inactive edits on character cards now persist across subsequent turns instead of being overwritten immediately by the next extraction cycle.
-
-## [2.2.4.12-dev1] - 2026-03-17
+## [2.2.4.15] - 2026-03-20
 ### Added
 - Added compact image-generation macro `{{bst_image_state}}` for scene/user/character state export in image prompt workflows.
+- Added a configurable global mood-symbol fallback map so mood displays can use custom emoji, kaomoji, or short symbols instead of fixed built-in emoji when no image or sprite is available.
+- Added card-appearance controls for fallback mood-symbol chips, including minimum width, minimum height, corner radius, and symbol font size.
 
 ### Changed
 - `{{bst_image_state}}` is built from existing BST stat metadata instead of hardcoded custom stat names, using visible owner-scoped non-numeric card stats only.
+- Mood fallback labels and help text now describe configurable symbols rather than fixed emoji fallback behavior.
+
+### Fixed
+- Reduced group-chat active-state stickiness so characters who stopped speaking drop out of `Active` sooner instead of lingering for long persistence windows.
+- Manual `Active` / inactive edits on character cards now survive normal extraction turns, but automatically clear once that character starts speaking again in the chat.
 
 ## [2.2.4.12] - 2026-03-17
 ### Changed
