@@ -2,7 +2,7 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.2.4.15-dev1] - 2026-03-20
+## [2.2.4.16] - 2026-03-20
 ### Fixed
 - Fixed character cards so disabled built-in text stats no longer leak stale mood or inner-thought values from stored tracker history when character-side mood or last-thought tracking is turned off.
 
