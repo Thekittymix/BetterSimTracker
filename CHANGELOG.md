@@ -10,9 +10,9 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Experimental multi-character AI turn extraction now resolves rendered tracker cards from the actual participants mentioned in the AI message, instead of blindly expanding every represented alias from the source card.
 
-## [2.2.4.16-exp10] - 2026-03-20
-### Added
-- Added an experimental inactive-card archive lifecycle in tracker display, with controls for auto-archiving inactive cards, archive turn threshold, and showing archived cards.
+## [2.2.4.16-exp11] - 2026-03-20
+### Changed
+- Experimental multi-character archive lifecycle now keeps archived entities only in chat lifecycle metadata; archived cards no longer render in the tracker UI and the temporary `Show Archived` control was removed.
 
 ## [2.2.4.16-exp9] - 2026-03-20
 ### Fixed

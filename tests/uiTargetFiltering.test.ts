@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { filterTechnicalSourceOwnersFromTargets, type OwnerRenderIdentity } from "../src/ui";
+import { filterArchivedOwnersFromTargets, filterTechnicalSourceOwnersFromTargets, type OwnerRenderIdentity } from "../src/ui";
 
 test("filterTechnicalSourceOwnersFromTargets hides a source-card owner when one of its aliases is rendered", () => {
   const identities = new Map<string, OwnerRenderIdentity>([
@@ -30,4 +30,13 @@ test("filterTechnicalSourceOwnersFromTargets keeps source-card owner when no ali
   );
 
   assert.deepEqual(filtered, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "Billie"]);
+});
+
+test("filterArchivedOwnersFromTargets removes archived owners from the render target list", () => {
+  const filtered = filterArchivedOwnersFromTargets(
+    ["Ashley", "Blake", "Garret"],
+    ownerName => ownerName === "Ashley" ? "archived" : "inactive",
+  );
+
+  assert.deepEqual(filtered, ["Blake", "Garret"]);
 });

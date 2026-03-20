@@ -425,7 +425,6 @@ export function openSettingsModal(input: {
           <label class="bst-check"><input data-k="collapseCardsByDefault" type="checkbox">Collapse Cards By Default</label>
           <label class="bst-check"><input data-k="showInactive" type="checkbox">Show Inactive</label>
           <label class="bst-check"><input data-k="autoArchiveInactiveCards" type="checkbox">Auto-Archive Inactive</label>
-          <label class="bst-check"><input data-k="showArchived" type="checkbox">Show Archived</label>
           <label class="bst-check"><input data-k="showLastThought" type="checkbox">Show Last Thought</label>
         </div>
       </div>
@@ -1128,7 +1127,6 @@ export function openSettingsModal(input: {
   set("showInactive", String(input.settings.showInactive));
   set("autoArchiveInactiveCards", String(input.settings.autoArchiveInactiveCards));
   set("archiveInactiveAfterTurns", String(input.settings.archiveInactiveAfterTurns));
-  set("showArchived", String(input.settings.showArchived));
   set("inactiveLabel", input.settings.inactiveLabel);
   set("showLastThought", String(input.settings.showLastThought));
   set("sceneCardEnabled", String(input.settings.sceneCardEnabled));
@@ -4119,7 +4117,6 @@ export function openSettingsModal(input: {
       showInactive: readBool("showInactive", input.settings.showInactive),
       autoArchiveInactiveCards: readBool("autoArchiveInactiveCards", input.settings.autoArchiveInactiveCards),
       archiveInactiveAfterTurns: readNumber("archiveInactiveAfterTurns", input.settings.archiveInactiveAfterTurns, 1, 200),
-      showArchived: readBool("showArchived", input.settings.showArchived),
       inactiveLabel: read("inactiveLabel") || input.settings.inactiveLabel,
       showLastThought: readBool("showLastThought", input.settings.showLastThought),
       sceneCardEnabled: readBool("sceneCardEnabled", input.settings.sceneCardEnabled),
@@ -4495,7 +4492,6 @@ export function openSettingsModal(input: {
     showInactive: "Show tracker cards for inactive/off-screen characters.",
     autoArchiveInactiveCards: "Hide long-idle inactive cards from the main tracker view by moving them into an archived state.",
     archiveInactiveAfterTurns: "Number of chat turns an inactive card can stay visible before becoming archived.",
-    showArchived: "Show archived cards in the tracker list.",
     inactiveLabel: "Text label shown on cards for inactive characters.",
     showLastThought: "Show extracted last thought text inside tracker cards.",
     sceneCardEnabled: "Render a dedicated Scene card from global custom stats.",

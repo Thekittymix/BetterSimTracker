@@ -66,7 +66,6 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
     },
     autoArchiveInactiveCards: true,
     archiveInactiveAfterTurns: 999,
-    showArchived: true,
     moodSymbolMinWidth: 8,
     moodSymbolMinHeight: 200,
     moodSymbolBoxRadius: 99,
@@ -123,7 +122,6 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
   assert.equal(sanitized.sceneCardLayout, "rows");
   assert.equal(sanitized.autoArchiveInactiveCards, true);
   assert.equal(sanitized.archiveInactiveAfterTurns, 200);
-  assert.equal(sanitized.showArchived, true);
   assert.equal(sanitized.moodSymbolMinWidth, 18);
   assert.equal(sanitized.moodSymbolMinHeight, 120);
   assert.equal(sanitized.moodSymbolBoxRadius, 48);
