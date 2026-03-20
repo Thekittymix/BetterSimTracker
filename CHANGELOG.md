@@ -6,6 +6,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed experimental multi-character AI extraction so source-card replies can resolve to a specific alias owner for tracker storage when the reply text clearly identifies one represented character.
 
+## [2.2.4.16-exp3] - 2026-03-20
+### Fixed
+- Fixed experimental multi-character alias owners so owner-scoped non-numeric tracker stats start from unknown instead of inheriting misleading default scene-state values on first appearance.
+
 ## [2.2.4.16-exp1] - 2026-03-20
 ### Added
 - Added experimental `Entity Tracking Mode` with a new `Multi-Character` mode for chats that use one source card to represent multiple named characters.

@@ -1,4 +1,16 @@
-import type { BetterSimTrackerSettings, Character, ChatMessage, STContext } from "./types";
+import type {
+  BetterSimTrackerSettings,
+  Character,
+  ChatMessage,
+  ClearedCustomNonNumericStatistics,
+  ClearedCustomStatistics,
+  ClearedStatistics,
+  CustomNonNumericStatistics,
+  CustomStatistics,
+  STContext,
+  Statistics,
+  TrackerData,
+} from "./types";
 
 export type EntityTrackingMode = "standard" | "multi_character";
 
@@ -176,6 +188,17 @@ export function resolveCharacterFromContext(
   }) ?? null;
 }
 
+export function isAliasResolvedOwner(
+  context: STContext | null,
+  ownerName: string,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): boolean {
+  const mode = resolveEntityTrackingMode(settings);
+  if (mode !== "multi_character") return false;
+  const resolved = resolveCharacterIdentity(context, ownerName, mode);
+  return resolved?.matchedBy === "alias";
+}
+
 export function collectResolvedCharacterNames(
   context: STContext | null,
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
@@ -195,22 +218,149 @@ export function resolveMessageScopedActiveCharacters(
   message: ChatMessage | null | undefined,
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): string[] {
+  return activeCharacters.map(ownerName => resolveMessageScopedOwnerName(context, ownerName, message, settings));
+}
+
+export function resolveMessageScopedOwnerName(
+  context: STContext | null,
+  ownerName: string,
+  message: ChatMessage | null | undefined,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): string {
   const mode = resolveEntityTrackingMode(settings);
-  if (mode !== "multi_character") return [...activeCharacters];
-  if (!message || message.is_user || message.is_system) return [...activeCharacters];
+  if (mode !== "multi_character") return ownerName;
+  if (!message || message.is_user || message.is_system) return ownerName;
 
   const messageText = normalizeToken(message.mes);
-  if (!messageText) return [...activeCharacters];
+  if (!messageText) return ownerName;
 
-  return activeCharacters.map(ownerName => {
-    const resolved = resolveCharacterIdentity(context, ownerName, mode);
-    if (!resolved) return ownerName;
-    if (resolved.matchedBy === "alias") return resolved.resolvedName;
-    const source = resolveCharacterFromContext(context, ownerName, mode);
-    if (!source) return ownerName;
-    const aliases = getCharacterAliases(source, mode)
-      .filter(alias => normalizeKey(alias) !== normalizeKey(resolved.sourceName));
-    if (!aliases.length) return ownerName;
-    return inferMessageAliasSpeaker(messageText, aliases) ?? ownerName;
-  });
+  const resolved = resolveCharacterIdentity(context, ownerName, mode);
+  if (!resolved) return ownerName;
+  if (resolved.matchedBy === "alias") return resolved.resolvedName;
+  const source = resolveCharacterFromContext(context, ownerName, mode);
+  if (!source) return ownerName;
+  const aliases = getCharacterAliases(source, mode)
+    .filter(alias => normalizeKey(alias) !== normalizeKey(resolved.sourceName));
+  if (!aliases.length) return ownerName;
+  return inferMessageAliasSpeaker(messageText, aliases) ?? ownerName;
+}
+
+function remapOwnerBucket<T>(
+  bucket: Record<string, T> | undefined,
+  ownerMap: Map<string, string>,
+): Record<string, T> | undefined {
+  if (!bucket) return undefined;
+  let changed = false;
+  const next: Record<string, T> = {};
+  for (const [rawOwner, value] of Object.entries(bucket)) {
+    const mappedOwner = ownerMap.get(rawOwner) ?? rawOwner;
+    if (mappedOwner !== rawOwner) changed = true;
+    if (!(mappedOwner in next)) {
+      next[mappedOwner] = value;
+    }
+  }
+  return changed ? next : bucket;
+}
+
+function remapStatistics(
+  stats: Statistics,
+  ownerMap: Map<string, string>,
+): Statistics {
+  return {
+    affection: remapOwnerBucket(stats.affection, ownerMap) ?? stats.affection,
+    trust: remapOwnerBucket(stats.trust, ownerMap) ?? stats.trust,
+    desire: remapOwnerBucket(stats.desire, ownerMap) ?? stats.desire,
+    connection: remapOwnerBucket(stats.connection, ownerMap) ?? stats.connection,
+    mood: remapOwnerBucket(stats.mood, ownerMap) ?? stats.mood,
+    lastThought: remapOwnerBucket(stats.lastThought, ownerMap) ?? stats.lastThought,
+  };
+}
+
+function remapCustomStatistics(
+  stats: CustomStatistics | undefined,
+  ownerMap: Map<string, string>,
+): CustomStatistics | undefined {
+  if (!stats) return stats;
+  let changed = false;
+  const next: CustomStatistics = {};
+  for (const [statId, bucket] of Object.entries(stats)) {
+    const remapped = remapOwnerBucket(bucket, ownerMap) ?? bucket;
+    next[statId] = remapped;
+    if (remapped !== bucket) changed = true;
+  }
+  return changed ? next : stats;
+}
+
+function remapCustomNonNumericStatistics(
+  stats: CustomNonNumericStatistics | undefined,
+  ownerMap: Map<string, string>,
+): CustomNonNumericStatistics | undefined {
+  if (!stats) return stats;
+  let changed = false;
+  const next: CustomNonNumericStatistics = {};
+  for (const [statId, bucket] of Object.entries(stats)) {
+    const remapped = remapOwnerBucket(bucket, ownerMap) ?? bucket;
+    next[statId] = remapped;
+    if (remapped !== bucket) changed = true;
+  }
+  return changed ? next : stats;
+}
+
+function remapClearedStatistics(
+  stats: ClearedStatistics | undefined,
+  ownerMap: Map<string, string>,
+): ClearedStatistics | undefined {
+  if (!stats) return stats;
+  let changed = false;
+  const next: ClearedStatistics = {};
+  for (const [statId, bucket] of Object.entries(stats)) {
+    const remapped = remapOwnerBucket(bucket, ownerMap) ?? bucket;
+    next[statId as keyof ClearedStatistics] = remapped;
+    if (remapped !== bucket) changed = true;
+  }
+  return changed ? next : stats;
+}
+
+function remapClearedCustomBuckets<T extends ClearedCustomStatistics | ClearedCustomNonNumericStatistics>(
+  stats: T | undefined,
+  ownerMap: Map<string, string>,
+): T | undefined {
+  if (!stats) return stats;
+  let changed = false;
+  const next: Record<string, Record<string, true>> = {};
+  for (const [statId, bucket] of Object.entries(stats)) {
+    const remapped = remapOwnerBucket(bucket, ownerMap) ?? bucket;
+    next[statId] = remapped;
+    if (remapped !== bucket) changed = true;
+  }
+  return (changed ? next : stats) as T | undefined;
+}
+
+export function projectTrackerDataToMessageScopedOwners(
+  context: STContext | null,
+  data: TrackerData,
+  message: ChatMessage | null | undefined,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): TrackerData {
+  const ownerMap = new Map<string, string>();
+  let changed = false;
+
+  for (const ownerName of data.activeCharacters ?? []) {
+    const mappedOwner = resolveMessageScopedOwnerName(context, ownerName, message, settings);
+    ownerMap.set(ownerName, mappedOwner);
+    if (mappedOwner !== ownerName) changed = true;
+  }
+
+  if (!changed) return data;
+
+  return {
+    ...data,
+    activeCharacters: (data.activeCharacters ?? []).map(ownerName => ownerMap.get(ownerName) ?? ownerName),
+    statistics: remapStatistics(data.statistics, ownerMap),
+    customStatistics: remapCustomStatistics(data.customStatistics, ownerMap),
+    customNonNumericStatistics: remapCustomNonNumericStatistics(data.customNonNumericStatistics, ownerMap),
+    clearedStatistics: remapClearedStatistics(data.clearedStatistics, ownerMap),
+    clearedCustomStatistics: remapClearedCustomBuckets(data.clearedCustomStatistics, ownerMap),
+    clearedCustomNonNumericStatistics: remapClearedCustomBuckets(data.clearedCustomNonNumericStatistics, ownerMap),
+  };
 }

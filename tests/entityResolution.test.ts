@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   collectResolvedCharacterNames,
   extractMultiCharacterAliases,
+  isAliasResolvedOwner,
+  projectTrackerDataToMessageScopedOwners,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveMessageScopedActiveCharacters,
@@ -56,6 +58,19 @@ test("resolveCharacterFromContext returns the source character entry for a resol
 
   assert.equal(resolveCharacterFromContext(context, "Raleigh", "multi_character"), camp);
   assert.equal(resolveCharacterFromContext(context, "Raleigh", "standard"), null);
+});
+
+test("isAliasResolvedOwner is true only for aliases in multi-character mode", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+      { name: "Billie", avatar: "billie.png" },
+    ],
+  } as any;
+
+  assert.equal(isAliasResolvedOwner(context, "Ashley", { entityTrackingMode: "multi_character" }), true);
+  assert.equal(isAliasResolvedOwner(context, "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", { entityTrackingMode: "multi_character" }), false);
+  assert.equal(isAliasResolvedOwner(context, "Ashley", { entityTrackingMode: "standard" }), false);
 });
 
 test("collectResolvedCharacterNames includes aliases only in multi-character mode", () => {
@@ -124,4 +139,46 @@ test("resolveMessageScopedActiveCharacters keeps source-card owner when message 
   );
 
   assert.deepEqual(resolved, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"]);
+});
+
+test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const projected = projectTrackerDataToMessageScopedOwners(
+    context,
+    {
+      timestamp: 1,
+      activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      statistics: {
+        affection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 51 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "Anxious" },
+        lastThought: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "Need to keep moving." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        clothes: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": ["sneakers"] },
+        pose: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "Frozen in the kitchen doorway." },
+      },
+    },
+    {
+      mes: "Ashley flinched and stared toward the door.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(projected.activeCharacters, ["Ashley"]);
+  assert.deepEqual(projected.statistics.affection, { Ashley: 51 });
+  assert.deepEqual(projected.statistics.mood, { Ashley: "Anxious" });
+  assert.deepEqual(projected.statistics.lastThought, { Ashley: "Need to keep moving." });
+  assert.deepEqual(projected.customNonNumericStatistics?.clothes, { Ashley: ["sneakers"] });
+  assert.deepEqual(projected.customNonNumericStatistics?.pose, { Ashley: "Frozen in the kitchen doorway." });
 });

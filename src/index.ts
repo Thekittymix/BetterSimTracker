@@ -5,7 +5,13 @@ import {
   setManualInactiveCharacter,
 } from "./activity";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
-import { resolveCharacterFromContext, resolveEntityTrackingMode, resolveMessageScopedActiveCharacters } from "./entityResolution";
+import {
+  isAliasResolvedOwner,
+  projectTrackerDataToMessageScopedOwners,
+  resolveCharacterFromContext,
+  resolveEntityTrackingMode,
+  resolveMessageScopedActiveCharacters,
+} from "./entityResolution";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { resolveBaselineBeforeIndex, shouldBypassConfidenceControls } from "./extractorHelpers";
@@ -890,6 +896,23 @@ function hasTrackedValueForCharacter(
   return false;
 }
 
+function getMessageScopedTrackerData(
+  context: STContext,
+  messageIndex: number,
+  data: TrackerData,
+  settingsInput: BetterSimTrackerSettings,
+): TrackerData {
+  const message = messageIndex >= 0 && messageIndex < context.chat.length
+    ? context.chat[messageIndex]
+    : null;
+  return projectTrackerDataToMessageScopedOwners(
+    context,
+    data,
+    message,
+    settingsInput,
+  );
+}
+
 function getLatestRelevantTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
@@ -901,9 +924,10 @@ function getLatestRelevantTrackerDataWithIndexBefore(
   for (let i = start; i >= 0; i -= 1) {
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
-    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(found, name, settingsInput));
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput);
+    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(projected, name, settingsInput));
     if (hasRelevantValue) {
-      return { data: found, messageIndex: i };
+      return { data: projected, messageIndex: i };
     }
   }
 
@@ -913,10 +937,11 @@ function getLatestRelevantTrackerDataWithIndexBefore(
   let best: { data: TrackerData; messageIndex: number } | null = null;
   for (const entry of historyEntries) {
     if (entry.messageIndex >= beforeIndex) continue;
-    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(entry.data, name, settingsInput));
+    const projected = getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput);
+    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(projected, name, settingsInput));
     if (!hasRelevantValue) continue;
     if (!best || entry.messageIndex > best.messageIndex) {
-      best = { data: entry.data, messageIndex: entry.messageIndex };
+      best = { data: projected, messageIndex: entry.messageIndex };
     }
   }
   if (best) {
@@ -936,11 +961,16 @@ function getMergedRelevantTrackerDataWithIndexBefore(
   const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length));
   const relevantEntries = historyEntries
     .filter(entry => entry.messageIndex < beforeIndex)
+    .map(entry => ({
+      messageIndex: entry.messageIndex,
+      timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput),
+    }))
     .filter(entry => activeCharacters.some(name => hasTrackedValueForCharacter(entry.data, name, settingsInput)))
     .map(entry => ({
       data: entry.data,
       messageIndex: entry.messageIndex,
-      timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
+      timestamp: entry.timestamp,
     }));
 
   if (!relevantEntries.length) return null;
@@ -969,18 +999,19 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
   for (let i = start; i >= 0; i -= 1) {
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput);
     const hasRelevantValue = activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(found, name, settingsInput),
+      hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput),
     );
     if (hasRelevantValue) {
-      return { data: found, messageIndex: i };
+      return { data: projected, messageIndex: i };
     }
   }
 
   const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length));
   const latestEntry = selectLatestRelevantHistoryEntry(
     historyEntries.map(entry => ({
-      data: entry.data,
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput),
       messageIndex: entry.messageIndex,
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
     })),
@@ -1005,18 +1036,19 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
     if (!isTrackableUserMessage(context.chat[i])) continue;
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput);
     const hasRelevantValue = activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(found, name, settingsInput),
+      hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput),
     );
     if (hasRelevantValue) {
-      return { data: found, messageIndex: i };
+      return { data: projected, messageIndex: i };
     }
   }
 
   const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length));
   const latestEntry = selectLatestRelevantHistoryEntry(
     historyEntries.map(entry => ({
-      data: entry.data,
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput),
       messageIndex: entry.messageIndex,
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
     })),
@@ -1496,7 +1528,8 @@ function queueRender(): void {
       for (let i = 0; i < context.chat.length; i += 1) {
         const message = context.chat[i];
         if (!isTrackableMessage(message)) continue;
-        const data = getTrackerDataFromMessage(message);
+        const rawData = getTrackerDataFromMessage(message);
+        const data = rawData ? getMessageScopedTrackerData(context, i, rawData, settings) : null;
         if (!data) continue;
         entries.push({ messageIndex: i, data, recovery: null });
         const hadRecovery = trackerRecoveryByMessage.has(i);
@@ -2281,13 +2314,18 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
         seeded[statId][name] = normalizeValue(seeded[statId][name]);
         continue;
       }
+      const shouldForceUnknownForAliasOwner =
+        !def.globalScope &&
+        isAliasResolvedOwner(context, name, settingsInput);
       const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
       const configuredValue = configured.customNonNumericStatDefaults?.[statId];
-      if (configuredValue !== undefined) {
+      if (!shouldForceUnknownForAliasOwner && configuredValue !== undefined) {
         seeded[statId][name] = normalizeValue(configuredValue);
         continue;
       }
-      seeded[statId][name] = normalizeValue(undefined);
+      seeded[statId][name] = shouldForceUnknownForAliasOwner
+        ? (kind === "boolean" ? false : kind === "array" ? [] : "")
+        : normalizeValue(undefined);
     }
   }
 
@@ -2377,6 +2415,7 @@ function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettin
   } => {
     const contextual = inferFromContext(name);
     const defaults = getConfiguredCharacterDefaults(context, s, name);
+    const isAliasOwner = isAliasResolvedOwner(context, name, s);
     const customDefaults: Record<string, number> = {};
     const customNonNumericDefaults: Record<string, string | boolean | string[]> = {};
     for (const def of s.customStats ?? []) {
@@ -2389,11 +2428,19 @@ function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettin
         const fallback = Number(def.defaultValue);
         customDefaults[statId] = pickNumber(configuredCustom, Number.isNaN(fallback) ? 50 : fallback);
       } else if (kind === "boolean") {
+        if (isAliasOwner && !def.globalScope) {
+          customNonNumericDefaults[statId] = false;
+          continue;
+        }
         const configuredCustom = defaults.customNonNumericStatDefaults?.[statId];
         customNonNumericDefaults[statId] = typeof configuredCustom === "boolean"
           ? configuredCustom
           : (typeof def.defaultValue === "boolean" ? def.defaultValue : false);
       } else if (kind === "array") {
+        if (isAliasOwner && !def.globalScope) {
+          customNonNumericDefaults[statId] = [];
+          continue;
+        }
         const maxLength = Math.max(20, Math.min(200, Math.round(Number(def.textMaxLength) || 120)));
         const configuredCustom = defaults.customNonNumericStatDefaults?.[statId];
         const configuredItems = Array.isArray(configuredCustom)
@@ -2409,6 +2456,10 @@ function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettin
           def.defaultValue,
         );
       } else {
+        if (isAliasOwner && !def.globalScope) {
+          customNonNumericDefaults[statId] = "";
+          continue;
+        }
         const configuredCustom = defaults.customNonNumericStatDefaults?.[statId];
         const text = typeof configuredCustom === "string"
           ? configuredCustom.trim()
@@ -3393,7 +3444,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       context,
     );
     const rawHistoryEntries = getRecentTrackerHistoryEntries(context, 6);
-    const boundedHistoryEntries = rawHistoryEntries.filter(entry => entry.messageIndex < baselineBeforeIndex);
+    const boundedHistoryEntries = rawHistoryEntries
+      .filter(entry => entry.messageIndex < baselineBeforeIndex)
+      .map(entry => ({
+        ...entry,
+        data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, runScopedSettings),
+      }));
     const relevantHistory = boundedHistoryEntries
       .filter(entry => activeCharacters.some(name => (
         userExtraction
