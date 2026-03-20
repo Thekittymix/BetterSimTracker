@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp16] - 2026-03-20
+### Changed
+- Experimental multi-character tracker rendering now treats message-visible registry owners as renderable card targets even when a given snapshot does not carry per-owner stat payload for all of them, preserving multi-character continuity across older AI messages.
+
 ## [2.2.4.16-exp15] - 2026-03-20
 ### Changed
 - Experimental multi-character tracker rendering now backfills visible alias cards from the chat-scoped entity registry for each message, so multi-character continuity no longer depends only on the current/history payload surviving in that specific tracker snapshot.

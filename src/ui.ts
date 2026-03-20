@@ -529,6 +529,17 @@ export function mergeRegistryOwnersIntoTargets(
   return merged;
 }
 
+export function shouldKeepOwnerInRenderTargetPool(input: {
+  ownerName: string;
+  hasAnyStat: boolean;
+  isActive: boolean;
+  registryOwners: Set<string>;
+}): boolean {
+  const normalized = normalizeName(input.ownerName);
+  if (!normalized) return false;
+  return input.hasAnyStat || input.isActive || input.registryOwners.has(normalized);
+}
+
 export type TrackerRecoveryEntry = {
   kind: "error" | "stopped";
   title: string;
@@ -4891,9 +4902,11 @@ export function renderTracker(
     for (const name of dataCharacterNames) {
       pushUniqueCharacterName(mergedCharacters, mergedSeen, name);
     }
+    const registryOwnersForMessage = resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? [];
+    const registryOwnerSet = new Set(registryOwnersForMessage.map(name => normalizeName(name)));
     const mergedWithRegistryOwners = mergeRegistryOwnersIntoTargets(
       mergedCharacters,
-      resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? [],
+      registryOwnersForMessage,
     );
     const displayPool =
       forceAllInGroup || settings.showInactive
@@ -4912,7 +4925,12 @@ export function renderTracker(
     const includeAllTargets = forceAllInGroup || settings.showInactive;
     const targetSource = includeAllTargets
       ? scopedDisplayPool
-      : scopedDisplayPool.filter(name => hasAnyStatFor(name) || activeSet.has(normalizeName(name)));
+      : scopedDisplayPool.filter(name => shouldKeepOwnerInRenderTargetPool({
+        ownerName: name,
+        hasAnyStat: hasAnyStatFor(name),
+        isActive: activeSet.has(normalizeName(name)),
+        registryOwners: registryOwnerSet,
+      }));
     const uniqueTargets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)));
     const getLifecycleState = (name: string) => resolveCardLifecycleState({
       ownerName: name,

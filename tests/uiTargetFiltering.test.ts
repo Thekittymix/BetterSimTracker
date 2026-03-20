@@ -5,6 +5,7 @@ import {
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   mergeRegistryOwnersIntoTargets,
+  shouldKeepOwnerInRenderTargetPool,
   type OwnerRenderIdentity,
 } from "../src/ui";
 
@@ -53,4 +54,26 @@ test("mergeRegistryOwnersIntoTargets backfills registry owners without duplicati
   );
 
   assert.deepEqual(merged, ["Ashley", "Blake", "Garret", "Raleigh"]);
+});
+
+test("shouldKeepOwnerInRenderTargetPool keeps registry-visible owners even without current stat payload", () => {
+  assert.equal(
+    shouldKeepOwnerInRenderTargetPool({
+      ownerName: "Blake",
+      hasAnyStat: false,
+      isActive: false,
+      registryOwners: new Set(["blake", "garret"]),
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldKeepOwnerInRenderTargetPool({
+      ownerName: "Raleigh",
+      hasAnyStat: false,
+      isActive: false,
+      registryOwners: new Set(["blake", "garret"]),
+    }),
+    false,
+  );
 });
