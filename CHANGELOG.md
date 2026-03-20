@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp20] - 2026-03-20
+### Changed
+- Experimental multi-character card UI now keys per-card render state from registry entity IDs when available, so render/collapse/thought state no longer depends only on raw owner-name strings.
+
 ## [2.2.4.16-exp19] - 2026-03-20
 ### Changed
 - Experimental multi-character entity registry now resolves owners through normalized owner/canonical/alias identity keys instead of relying only on raw owner-name lookups, strengthening the registry-first identity layer for later `entityId`-centric flow.

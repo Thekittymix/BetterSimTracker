@@ -18,6 +18,7 @@ import type {
   StExpressionImageOptions,
   StatValue,
   TrackerData,
+  TrackerEntityRegistryEntry,
 } from "./types";
 import {
   DEFAULT_INJECTION_PROMPT_TEMPLATE,
@@ -942,6 +943,14 @@ function getResolvedCardColor(settings: BetterSimTrackerSettings, characterName:
 
 function thoughtKey(messageIndex: number, characterName: string): string {
   return `${messageIndex}:${normalizeName(characterName)}`;
+}
+
+export function resolveOwnerUiKey(
+  ownerName: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id"> | null,
+): string {
+  const entityId = String(registryEntry?.id ?? "").trim();
+  return entityId || normalizeName(ownerName);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -4282,6 +4291,7 @@ export function renderTracker(
   isOwnerStatEnabled?: (characterName: string, statId: string) => boolean,
   resolveLifecycleRegistryState?: (characterName: string, messageIndex: number) => CardLifecycleRegistryState | null,
   resolveRegistryOwnersForMessage?: (messageIndex: number) => string[],
+  resolveRegistryEntryForMessage?: (ownerName: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
   onOpenGraph?: (characterName: string) => void,
   onRetrackMessage?: (messageIndex: number) => void,
   onSendSummaryMessage?: (messageIndex: number) => void,
@@ -5001,6 +5011,8 @@ export function renderTracker(
       if (!isActive && !settings.showInactive) continue;
       const displayName = resolveDisplayName?.(name)
         ?? (name === USER_TRACKER_KEY ? "User" : name);
+      const registryEntry = resolveRegistryEntryForMessage?.(name, entry.messageIndex) ?? null;
+      const ownerUiKey = resolveOwnerUiKey(name, registryEntry);
       const isUserCard = name === USER_TRACKER_KEY;
       const moodLookupName = isUserCard ? displayName : name;
       const characterAvatar = resolveCharacterAvatar?.(name) ?? undefined;
@@ -5036,7 +5048,7 @@ export function renderTracker(
       const lastThoughtText = settings.showLastThought
         ? getEffectiveLastThoughtText(name)
         : "";
-      const thoughtUiKey = thoughtKey(entry.messageIndex, name);
+      const thoughtUiKey = thoughtKey(entry.messageIndex, ownerUiKey);
       const stExpressionImageStyle = (() => {
         if (!stExpressionImageOptions) return "";
         const panX = computeZoomPanOffset(stExpressionImageOptions.positionX, stExpressionImageOptions.zoom);
@@ -5058,7 +5070,7 @@ export function renderTracker(
         ?? getResolvedCardColor(settings, moodLookupName, characterAvatar)
         ?? palette[name]
         ?? getStableAutoCardColor(name);
-      const cardKey = `${entry.messageIndex}:${normalizeName(name)}`;
+      const cardKey = `${entry.messageIndex}:${ownerUiKey}`;
       const isNew = !renderedCardKeys.has(cardKey);
       renderedCardKeys.add(cardKey);
       const cardHtml = `
@@ -5102,7 +5114,7 @@ export function renderTracker(
           const color = def.color || "#9bd5ff";
           if (def.kind === "array") {
             const items = Array.isArray(resolved) ? resolved : normalizeNonNumericArrayItems(resolved, def.textMaxLength);
-            const arrayKey = `arr:${entry.messageIndex}:${normalizeName(name)}:${def.id}`;
+            const arrayKey = `arr:${entry.messageIndex}:${ownerUiKey}:${def.id}`;
             const expanded = expandedArrayValueKeys.has(arrayKey);
             const hasOverflow = items.length > 4;
             const visibleItems = hasOverflow && !expanded ? items.slice(0, 4) : items;
@@ -5170,7 +5182,7 @@ export function renderTracker(
         if (Array.isArray(value)) return `${def.id}:[${value.join("|")}]`;
         return `${def.id}:${typeof value === "boolean" ? String(value) : value}`;
       }).join("|");
-      signatureParts.push(`card:${name}:${isActive ? "1" : "0"}:${moodText}:${moodImage ?? ""}:${lastThoughtText}:${nonNumericSignature}:${cardColor}:${cardHtml}`);
+      signatureParts.push(`card:${ownerUiKey}:${name}:${isActive ? "1" : "0"}:${moodText}:${moodImage ?? ""}:${lastThoughtText}:${nonNumericSignature}:${cardColor}:${cardHtml}`);
     }
 
     const hasSceneCard = settings.sceneCardEnabled && sceneCardDefs.length > 0;

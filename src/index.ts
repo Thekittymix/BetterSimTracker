@@ -1677,12 +1677,18 @@ function queueRender(): void {
     }, (characterName, statId) => {
       const liveContext = getSafeContext();
       return isOwnerStatEnabled(liveContext, settings!, characterName, statId);
-      }, (characterName, messageIndex) => {
+    }, (characterName, messageIndex) => {
         const liveContext = getSafeContext();
         return getEntityRegistryLifecycleStateForMessage(liveContext, characterName, messageIndex);
       }, messageIndex => {
         const liveContext = getSafeContext();
         return listEntityRegistryOwnersForMessage(liveContext, messageIndex);
+    }, (characterName, messageIndex) => {
+        const liveContext = getSafeContext();
+        const entry = getEntityRegistryEntryByOwnerName(liveContext, characterName);
+        if (!entry || entry.introducedAtMessageIndex > messageIndex) return null;
+        if (entry.archivedAtMessageIndex != null && entry.archivedAtMessageIndex <= messageIndex) return null;
+        return entry;
     }, characterName => {
       const context = getSafeContext();
       if (!context || !settings) return;

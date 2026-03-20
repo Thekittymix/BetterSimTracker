@@ -6,6 +6,7 @@ import {
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   mergeRegistryOwnersIntoTargets,
+  resolveOwnerUiKey,
   shouldKeepOwnerInRenderTargetPool,
   type OwnerRenderIdentity,
 } from "../src/ui";
@@ -87,5 +88,17 @@ test("shouldKeepOwnerInRenderTargetPool keeps registry-visible owners even witho
       registryOwners: new Set(["blake", "garret"]),
     }),
     false,
+  );
+});
+
+test("resolveOwnerUiKey prefers stable registry entity ids over raw owner names", () => {
+  assert.equal(
+    resolveOwnerUiKey("Ashley", { id: "bst_mc_alias:camp:ashley" }),
+    "bst_mc_alias:camp:ashley",
+  );
+
+  assert.equal(
+    resolveOwnerUiKey("Ashley", null),
+    "ashley",
   );
 });
