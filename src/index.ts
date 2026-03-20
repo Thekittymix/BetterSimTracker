@@ -7,13 +7,14 @@ import {
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
 import {
   isAliasResolvedOwner,
-  resolveCharacterIdentity,
   projectTrackerDataToMessageScopedOwners,
+  resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveEntityTrackingMode,
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
 } from "./entityResolution";
+import { buildEntitySourceKey, syncEntityRegistryFromRender } from "./entityRegistry";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
@@ -1664,7 +1665,7 @@ function queueRender(): void {
       const mode = resolveEntityTrackingMode(settings);
       const resolved = resolveCharacterIdentity(liveContext, characterName, mode);
       if (!resolved) return null;
-      const sourceKey = `${resolved.sourceAvatar ?? ""}|${resolved.sourceName}`.toLowerCase();
+      const sourceKey = buildEntitySourceKey(resolved.sourceName, resolved.sourceAvatar);
       return {
         sourceKey,
         isAlias: resolved.matchedBy === "alias",
@@ -1720,6 +1721,16 @@ function queueRender(): void {
       return getTrackerDataFromMessage(liveContext.chat[messageIndex]);
     }, () => {
       queueRender();
+    }, payload => {
+      const liveContext = getSafeContext();
+      if (!liveContext || !settings) return;
+      syncEntityRegistryFromRender({
+        context: liveContext,
+        mode: resolveEntityTrackingMode(settings),
+        messageIndex: payload.messageIndex,
+        owners: payload.owners,
+        getLifecycleState: payload.getLifecycleState,
+      });
     }, messageIndex => {
       clearTrackerRecovery(messageIndex);
       void runExtraction("manual_refresh", messageIndex);

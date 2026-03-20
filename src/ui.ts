@@ -4241,6 +4241,11 @@ export function renderTracker(
   onEditStats?: (payload: EditStatsPayload) => void,
   resolveEntryData?: (messageIndex: number) => TrackerData | null,
   onRequestRerender?: () => void,
+  onSyncEntityRegistry?: (payload: {
+    messageIndex: number;
+    owners: string[];
+    getLifecycleState: (ownerName: string) => CardLifecycleState;
+  }) => void,
   onRecoverTracker?: (messageIndex: number) => void,
 ): void {
   ensureStyles();
@@ -4896,11 +4901,11 @@ export function renderTracker(
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,
     });
-    const targets = filterArchivedOwnersFromTargets(
-      filterTechnicalSourceOwnersFromTargets(uniqueTargets, resolveOwnerRenderIdentity),
-      getLifecycleState,
-    )
-      .sort((a, b) => {
+      const targets = filterArchivedOwnersFromTargets(
+        filterTechnicalSourceOwnersFromTargets(uniqueTargets, resolveOwnerRenderIdentity),
+        getLifecycleState,
+      )
+        .sort((a, b) => {
         const rank = (state: "active" | "inactive" | "archived"): number =>
           state === "active" ? 0 : state === "inactive" ? 1 : 2;
         const aRank = rank(getLifecycleState(a));
@@ -4908,11 +4913,16 @@ export function renderTracker(
         if (aRank !== bRank) return aRank - bRank;
         const aOrder = displayOrder.get(normalizeName(a)) ?? Number.MAX_SAFE_INTEGER;
         const bOrder = displayOrder.get(normalizeName(b)) ?? Number.MAX_SAFE_INTEGER;
-        if (aOrder !== bOrder) return aOrder - bOrder;
-        return a.localeCompare(b);
+          if (aOrder !== bOrder) return aOrder - bOrder;
+          return a.localeCompare(b);
+        });
+      onSyncEntityRegistry?.({
+        messageIndex: entry.messageIndex,
+        owners: uniqueTargets,
+        getLifecycleState,
       });
 
-    const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isNew: boolean; cardColor: string }> = [];
+      const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isNew: boolean; cardColor: string }> = [];
     const signatureParts: string[] = [
       `msg:${entry.messageIndex}`,
       `collapsed:${collapsed ? "1" : "0"}`,

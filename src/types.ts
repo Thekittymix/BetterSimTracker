@@ -109,6 +109,30 @@ export interface TrackerData {
   clearedCustomNonNumericStatistics?: ClearedCustomNonNumericStatistics;
 }
 
+export type TrackerEntityLifecycleState = "active" | "inactive" | "archived";
+
+export interface TrackerEntityRegistryEntry {
+  id: string;
+  ownerName: string;
+  canonicalName: string;
+  aliases: string[];
+  sourceName: string;
+  sourceAvatar: string | null;
+  sourceKey: string;
+  kind: "owner" | "multi_character_alias";
+  introducedAtMessageIndex: number;
+  lastSeenMessageIndex: number;
+  lastActiveMessageIndex: number | null;
+  lifecycleState: TrackerEntityLifecycleState;
+  archivedAtMessageIndex: number | null;
+}
+
+export interface TrackerEntityRegistry {
+  version: 1;
+  entities: Record<string, TrackerEntityRegistryEntry>;
+  ownerToEntityId: Record<string, string>;
+}
+
 export interface BetterSimTrackerSettings {
   enabled: boolean;
   maxConcurrentCalls: number;
