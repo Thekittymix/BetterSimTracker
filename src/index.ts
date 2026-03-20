@@ -14,7 +14,7 @@ import {
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
 } from "./entityResolution";
-import { buildEntitySourceKey, getEntityRegistryEntryByOwnerName, syncEntityRegistryFromRender } from "./entityRegistry";
+import { buildEntitySourceKey, getEntityRegistryEntryByOwnerName, listEntityRegistryOwnersForMessage, syncEntityRegistryFromRender } from "./entityRegistry";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
@@ -1684,6 +1684,9 @@ function queueRender(): void {
         lastActiveMessageIndex: entry.lastActiveMessageIndex,
         lifecycleState: entry.lifecycleState,
       } : null;
+    }, messageIndex => {
+      const liveContext = getSafeContext();
+      return listEntityRegistryOwnersForMessage(liveContext, messageIndex);
     }, characterName => {
       const context = getSafeContext();
       if (!context || !settings) return;

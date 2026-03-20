@@ -70,11 +70,19 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
       const sourceKey = normalizeToken(entry.sourceKey) || buildEntitySourceKey(sourceName, sourceAvatar);
       const aliases = Array.isArray(entry.aliases) ? uniqueStrings(entry.aliases.map(item => normalizeToken(item))) : [];
       const kind = entry.kind === "multi_character_alias" ? "multi_character_alias" : "owner";
-      const introducedAtMessageIndex = Number.isFinite(Number(entry.introducedAtMessageIndex)) ? Number(entry.introducedAtMessageIndex) : 0;
-      const lastSeenMessageIndex = Number.isFinite(Number(entry.lastSeenMessageIndex)) ? Number(entry.lastSeenMessageIndex) : introducedAtMessageIndex;
-      const lastActiveMessageIndex = Number.isFinite(Number(entry.lastActiveMessageIndex)) ? Number(entry.lastActiveMessageIndex) : null;
+      const introducedAtMessageIndex = entry.introducedAtMessageIndex == null
+        ? 0
+        : (Number.isFinite(Number(entry.introducedAtMessageIndex)) ? Number(entry.introducedAtMessageIndex) : 0);
+      const lastSeenMessageIndex = entry.lastSeenMessageIndex == null
+        ? introducedAtMessageIndex
+        : (Number.isFinite(Number(entry.lastSeenMessageIndex)) ? Number(entry.lastSeenMessageIndex) : introducedAtMessageIndex);
+      const lastActiveMessageIndex = entry.lastActiveMessageIndex == null
+        ? null
+        : (Number.isFinite(Number(entry.lastActiveMessageIndex)) ? Number(entry.lastActiveMessageIndex) : null);
       const lifecycleState = isLifecycleState(entry.lifecycleState) ? entry.lifecycleState : "inactive";
-      const archivedAtMessageIndex = Number.isFinite(Number(entry.archivedAtMessageIndex)) ? Number(entry.archivedAtMessageIndex) : null;
+      const archivedAtMessageIndex = entry.archivedAtMessageIndex == null
+        ? null
+        : (Number.isFinite(Number(entry.archivedAtMessageIndex)) ? Number(entry.archivedAtMessageIndex) : null);
       if (!id || !ownerName || !canonicalName || !sourceName || !sourceKey) continue;
       entities[id] = {
         id,
@@ -225,4 +233,24 @@ export function getEntityRegistryEntryByOwnerName(
   const entityId = registry.ownerToEntityId[normalizeToken(ownerName)];
   if (!entityId) return null;
   return registry.entities[entityId] ?? null;
+}
+
+export function listEntityRegistryOwnersForMessage(
+  context: STContext | null,
+  messageIndex: number,
+): string[] {
+  const registry = readRegistry(context);
+  return Object.values(registry.entities)
+    .filter(entry => entry.introducedAtMessageIndex <= messageIndex)
+    .filter(entry => entry.archivedAtMessageIndex == null || entry.archivedAtMessageIndex > messageIndex)
+    .sort((a, b) => {
+      if (a.introducedAtMessageIndex !== b.introducedAtMessageIndex) {
+        return a.introducedAtMessageIndex - b.introducedAtMessageIndex;
+      }
+      if (a.kind !== b.kind) {
+        return a.kind === "multi_character_alias" ? -1 : 1;
+      }
+      return a.ownerName.localeCompare(b.ownerName);
+    })
+    .map(entry => entry.ownerName);
 }

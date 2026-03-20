@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildEntitySourceKey, buildTrackerEntityId, readEntityRegistry, syncEntityRegistryFromRender } from "../src/entityRegistry";
+import {
+  buildEntitySourceKey,
+  buildTrackerEntityId,
+  listEntityRegistryOwnersForMessage,
+  readEntityRegistry,
+  syncEntityRegistryFromRender,
+} from "../src/entityRegistry";
 import type { STContext } from "../src/types";
 
 function makeContext(): STContext {
@@ -104,4 +110,35 @@ test("syncEntityRegistryFromRender marks archived aliases without deleting them"
   assert.equal(registry.entities[ashleyId]?.lifecycleState, "archived");
   assert.equal(registry.entities[ashleyId]?.archivedAtMessageIndex, 15);
   assert.equal(registry.entities[ashleyId]?.lastActiveMessageIndex, 8);
+});
+
+test("listEntityRegistryOwnersForMessage returns visible owners for a given message index", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
+  });
+
+  assert.deepEqual(
+    listEntityRegistryOwnersForMessage(context, 8),
+    ["Ashley", "Blake"],
+  );
+  assert.deepEqual(
+    listEntityRegistryOwnersForMessage(context, 14),
+    ["Ashley", "Blake"],
+  );
+  assert.deepEqual(
+    listEntityRegistryOwnersForMessage(context, 15),
+    ["Ashley"],
+  );
 });

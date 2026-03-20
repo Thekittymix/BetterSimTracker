@@ -514,6 +514,21 @@ export function filterArchivedOwnersFromTargets(
   return targets.filter(ownerName => getLifecycleState(ownerName) !== "archived");
 }
 
+export function mergeRegistryOwnersIntoTargets(
+  targets: string[],
+  registryOwners: string[],
+): string[] {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  for (const ownerName of [...targets, ...registryOwners]) {
+    const normalized = normalizeName(ownerName);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    merged.push(ownerName);
+  }
+  return merged;
+}
+
 export type TrackerRecoveryEntry = {
   kind: "error" | "stopped";
   title: string;
@@ -4235,6 +4250,7 @@ export function renderTracker(
   isTrackerEnabled?: (characterName: string) => boolean,
   isOwnerStatEnabled?: (characterName: string, statId: string) => boolean,
   resolveLifecycleRegistryState?: (characterName: string) => CardLifecycleRegistryState | null,
+  resolveRegistryOwnersForMessage?: (messageIndex: number) => string[],
   onOpenGraph?: (characterName: string) => void,
   onRetrackMessage?: (messageIndex: number) => void,
   onSendSummaryMessage?: (messageIndex: number) => void,
@@ -4875,10 +4891,14 @@ export function renderTracker(
     for (const name of dataCharacterNames) {
       pushUniqueCharacterName(mergedCharacters, mergedSeen, name);
     }
+    const mergedWithRegistryOwners = mergeRegistryOwnersIntoTargets(
+      mergedCharacters,
+      resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? [],
+    );
     const displayPool =
       forceAllInGroup || settings.showInactive
-        ? (mergedCharacters.length > 0
-          ? mergedCharacters
+        ? (mergedWithRegistryOwners.length > 0
+          ? mergedWithRegistryOwners
           : dataCharacterNames.length > 0
             ? dataCharacterNames
             : data.activeCharacters)

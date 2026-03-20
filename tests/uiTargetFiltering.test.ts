@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { filterArchivedOwnersFromTargets, filterTechnicalSourceOwnersFromTargets, type OwnerRenderIdentity } from "../src/ui";
+import {
+  filterArchivedOwnersFromTargets,
+  filterTechnicalSourceOwnersFromTargets,
+  mergeRegistryOwnersIntoTargets,
+  type OwnerRenderIdentity,
+} from "../src/ui";
 
 test("filterTechnicalSourceOwnersFromTargets hides a source-card owner when one of its aliases is rendered", () => {
   const identities = new Map<string, OwnerRenderIdentity>([
@@ -39,4 +44,13 @@ test("filterArchivedOwnersFromTargets removes archived owners from the render ta
   );
 
   assert.deepEqual(filtered, ["Blake", "Garret"]);
+});
+
+test("mergeRegistryOwnersIntoTargets backfills registry owners without duplicating existing names", () => {
+  const merged = mergeRegistryOwnersIntoTargets(
+    ["Ashley", "Blake"],
+    ["Blake", "Garret", "Raleigh"],
+  );
+
+  assert.deepEqual(merged, ["Ashley", "Blake", "Garret", "Raleigh"]);
 });
