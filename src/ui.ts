@@ -55,7 +55,7 @@ import { getDateTimeStructuredParts, normalizeDateTimeValue, toDateTimeInputValu
 import { renderThoughtMarkup } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
-import { type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
+import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
 import {
   buildLastPointCircle,
   buildPointCircles,
@@ -4234,6 +4234,7 @@ export function renderTracker(
   resolveOwnerRenderIdentity?: (characterName: string) => OwnerRenderIdentity | null,
   isTrackerEnabled?: (characterName: string) => boolean,
   isOwnerStatEnabled?: (characterName: string, statId: string) => boolean,
+  resolveLifecycleRegistryState?: (characterName: string) => CardLifecycleRegistryState | null,
   onOpenGraph?: (characterName: string) => void,
   onRetrackMessage?: (messageIndex: number) => void,
   onSendSummaryMessage?: (messageIndex: number) => void,
@@ -4900,6 +4901,7 @@ export function renderTracker(
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,
+      registryState: resolveLifecycleRegistryState?.(name) ?? null,
     });
       const targets = filterArchivedOwnersFromTargets(
         filterTechnicalSourceOwnersFromTargets(uniqueTargets, resolveOwnerRenderIdentity),

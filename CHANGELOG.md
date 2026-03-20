@@ -6,6 +6,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Added
 - Experimental multi-character flow now maintains a chat-scoped entity registry in metadata for resolved alias owners, including deterministic entity IDs and persisted lifecycle timestamps.
 
+## [2.2.4.16-exp14] - 2026-03-20
+### Changed
+- Experimental multi-character card lifecycle now reads last-active continuity from the chat-scoped entity registry, so alias `active` / `inactive` / `archived` transitions no longer depend only on currently rendered tracker history.
+
 ## [2.2.4.16-exp7] - 2026-03-20
 ### Fixed
 - Experimental multi-character tracker rendering now hides a technical source-card owner when one of its resolved alias cards is already being rendered for the same message.

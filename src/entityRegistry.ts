@@ -216,3 +216,13 @@ export function syncEntityRegistryFromRender(input: {
 export function readEntityRegistry(context: STContext | null): TrackerEntityRegistry {
   return readRegistry(context);
 }
+
+export function getEntityRegistryEntryByOwnerName(
+  context: STContext | null,
+  ownerName: string,
+): TrackerEntityRegistryEntry | null {
+  const registry = readRegistry(context);
+  const entityId = registry.ownerToEntityId[normalizeToken(ownerName)];
+  if (!entityId) return null;
+  return registry.entities[entityId] ?? null;
+}

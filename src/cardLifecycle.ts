@@ -5,6 +5,11 @@ export interface CardLifecycleSnapshot {
   activeCharacters: string[];
 }
 
+export interface CardLifecycleRegistryState {
+  lastActiveMessageIndex: number | null;
+  lifecycleState: CardLifecycleState;
+}
+
 function normalizeName(value: string): string {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -33,20 +38,32 @@ export function resolveCardLifecycleState(input: {
   history: CardLifecycleSnapshot[];
   autoArchiveInactiveCards: boolean;
   archiveInactiveAfterTurns: number;
+  registryState?: CardLifecycleRegistryState | null;
 }): CardLifecycleState {
   const needle = normalizeName(input.ownerName);
   if (!needle) return "inactive";
   if ((input.currentActiveCharacters ?? []).some(name => normalizeName(name) === needle)) {
     return "active";
   }
+  const registryState = input.registryState ?? null;
   if (!input.autoArchiveInactiveCards) return "inactive";
   const threshold = Math.max(1, Math.floor(input.archiveInactiveAfterTurns));
-  const lastActiveMessageIndex = findLastActiveMessageIndex(
+  const historicalLastActive = findLastActiveMessageIndex(
     input.history,
     input.currentMessageIndex,
     input.ownerName,
   );
+  const registryLastActive = Number.isFinite(Number(registryState?.lastActiveMessageIndex))
+    ? Number(registryState?.lastActiveMessageIndex)
+    : null;
+  const lastActiveMessageIndex = registryLastActive != null
+    ? (historicalLastActive != null ? Math.max(historicalLastActive, registryLastActive) : registryLastActive)
+    : historicalLastActive;
   if (lastActiveMessageIndex == null) return "inactive";
+  if (registryState?.lifecycleState === "archived"
+    && (input.currentMessageIndex - lastActiveMessageIndex) > threshold) {
+    return "archived";
+  }
   return (input.currentMessageIndex - lastActiveMessageIndex) > threshold
     ? "archived"
     : "inactive";

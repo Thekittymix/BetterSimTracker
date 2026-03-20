@@ -61,3 +61,31 @@ test("card lifecycle keeps active owners active and disables archive when the to
     archiveInactiveAfterTurns: 1,
   }), "inactive");
 });
+
+test("card lifecycle can use registry last-active state when history is empty", () => {
+  assert.equal(resolveCardLifecycleState({
+    ownerName: "Ashley",
+    currentMessageIndex: 12,
+    currentActiveCharacters: ["Blake"],
+    history: [],
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 3,
+    registryState: {
+      lastActiveMessageIndex: 10,
+      lifecycleState: "inactive",
+    },
+  }), "inactive");
+
+  assert.equal(resolveCardLifecycleState({
+    ownerName: "Ashley",
+    currentMessageIndex: 20,
+    currentActiveCharacters: ["Blake"],
+    history: [],
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 3,
+    registryState: {
+      lastActiveMessageIndex: 10,
+      lifecycleState: "archived",
+    },
+  }), "archived");
+});
