@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp5] - 2026-03-20
+### Fixed
+- Fixed experimental multi-character prompt generation so explicit empty owner-scoped non-numeric values stay empty in extraction prompts instead of falling back to custom stat defaults.
+
 ## [2.2.4.16-exp2] - 2026-03-20
 ### Fixed
 - Fixed experimental multi-character AI extraction so source-card replies can resolve to a specific alias owner for tracker storage when the reply text clearly identifies one represented character.

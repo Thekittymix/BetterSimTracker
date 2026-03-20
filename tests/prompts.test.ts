@@ -201,6 +201,51 @@ test("buildUnifiedAllStatsPrompt does not leak global fallback into owner-scoped
   assert.match(prompt, /scene_date_time="2026-03-06 20:05"/);
 });
 
+test("buildUnifiedAllStatsPrompt preserves explicit empty owner-scoped non-numeric values instead of falling back to defaults", () => {
+  const prompt = buildUnifiedAllStatsPrompt({
+    stats: [],
+    customStats: [
+      {
+        id: "clothes",
+        kind: "array",
+        label: "Clothes",
+        defaultValue: ["black sundress", "white panties"],
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+    userName: "User",
+    characters: ["Ashley"],
+    contextText: "Scene text",
+    current: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    currentCustom: {},
+    currentCustomNonNumeric: {
+      clothes: { Ashley: [] },
+    },
+    history: [],
+    maxDeltaPerTurn: 8,
+    includeCharacterCardsInPrompt: true,
+    includeLorebookInExtraction: false,
+  });
+
+  assert.match(prompt, /clothes=\[\]/);
+  assert.doesNotMatch(prompt, /black sundress/);
+});
+
 test("buildSequentialPrompt respects built-in tracking and source priority wording", () => {
   const prompt = buildSequentialPrompt(
     "trust",
@@ -306,6 +351,36 @@ test("buildSequentialCustomNonNumericPrompt includes scoped values and mode-awar
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
   assert.match(prompt, /structured datetime intent/);
   assert.match(prompt, /use character cards and lorebook only to disambiguate when context is unclear\./);
+});
+
+test("buildSequentialCustomNonNumericPrompt preserves explicit empty arrays instead of falling back to defaults", () => {
+  const prompt = buildSequentialCustomNonNumericPrompt({
+    statId: "clothes",
+    statKind: "array",
+    statLabel: "Clothes",
+    statDefault: ["black sundress", "white panties"],
+    textMaxLength: 80,
+    userName: "User",
+    characters: ["Ashley"],
+    contextText: "Recent lines",
+    current: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    currentCustomNonNumeric: {
+      clothes: { Ashley: [] },
+    },
+    history: [],
+    includeCharacterCardsInPrompt: true,
+    includeLorebookInExtraction: false,
+  });
+
+  assert.match(prompt, /clothes=\[\]/);
+  assert.doesNotMatch(prompt, /black sundress/);
 });
 
 test("buildTrackerSummaryGenerationPrompt keeps tracked-dimension scope explicit", () => {

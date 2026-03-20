@@ -614,6 +614,7 @@ export function buildUnifiedAllStatsPrompt(input: {
         customRaw,
         fallback,
         Math.max(20, Math.min(200, Math.round(Number(stat.textMaxLength) || 120))),
+        { preserveExplicitEmpty: true },
       );
       const literal = customNonNumericLiteral(customValue);
       chunks.push(`${stat.id}=${literal}`);
@@ -651,6 +652,7 @@ export function buildUnifiedAllStatsPrompt(input: {
           customRaw,
           fallback,
           Math.max(20, Math.min(200, Math.round(Number(stat.textMaxLength) || 120))),
+          { preserveExplicitEmpty: true },
         );
         const literal = customNonNumericLiteral(customValue);
         chunks.push(`${stat.id}=${literal}`);
@@ -1016,7 +1018,11 @@ function formatCustomNonNumericValue(
   value: unknown,
   fallback: string | boolean | string[],
   textMaxLen = 120,
+  options?: {
+    preserveExplicitEmpty?: boolean;
+  },
 ): string | boolean | string[] {
+  const preserveExplicitEmpty = options?.preserveExplicitEmpty === true;
   if (kind === "boolean") {
     if (typeof value === "boolean") return value;
     if (typeof value === "string") {
@@ -1028,6 +1034,7 @@ function formatCustomNonNumericValue(
   }
 
   if (kind === "array") {
+    if (preserveExplicitEmpty && Array.isArray(value) && value.length === 0) return [];
     const items = normalizeNonNumericArrayItems(value, textMaxLen);
     if (items.length) return items;
     const fallbackItems = normalizeNonNumericArrayItems(fallback, textMaxLen);
@@ -1045,6 +1052,7 @@ function formatCustomNonNumericValue(
   }
 
   const text = typeof value === "string" ? value.trim() : "";
+  if (preserveExplicitEmpty && typeof value === "string" && !text) return "";
   if (text) return text;
   return typeof fallback === "string" ? fallback : "";
 }
@@ -1211,7 +1219,9 @@ export function buildSequentialCustomNonNumericPrompt(input: {
       name,
       input.globalScope,
     );
-    const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue);
+    const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue, textMaxLen, {
+      preserveExplicitEmpty: true,
+    });
     const customLiteral = customNonNumericLiteral(customValue);
     const chunks = [builtInChunk, `${statId}=${customLiteral}`].filter(Boolean).join(", ");
     return `- ${name}: ${chunks}`;
@@ -1233,7 +1243,9 @@ export function buildSequentialCustomNonNumericPrompt(input: {
         name,
         input.globalScope,
       );
-      const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue);
+      const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue, textMaxLen, {
+        preserveExplicitEmpty: true,
+      });
       const customLiteral = customNonNumericLiteral(customValue);
       const chunks = [builtInChunk, `${statId}=${customLiteral}`].filter(Boolean).join(", ");
       return `  - ${name}: ${chunks}`;
