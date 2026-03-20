@@ -6,6 +6,7 @@ import {
   extractMultiCharacterAliases,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
+  resolveMessageScopedActiveCharacters,
 } from "../src/entityResolution";
 
 test("extractMultiCharacterAliases parses multi-character source card names generically", () => {
@@ -80,4 +81,47 @@ test("collectResolvedCharacterNames includes aliases only in multi-character mod
       "Billie",
     ],
   );
+});
+
+test("resolveMessageScopedActiveCharacters replaces a source-card speaker with a unique alias speaker from AI message text", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+      { name: "Billie", avatar: "billie.png" },
+    ],
+  } as any;
+
+  const resolved = resolveMessageScopedActiveCharacters(
+    context,
+    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "Billie"],
+    {
+      mes: "Ashley flinched at the direct question. Her gaze darted from the door to the floor and back again.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(resolved, ["Ashley", "Billie"]);
+});
+
+test("resolveMessageScopedActiveCharacters keeps source-card owner when message text does not uniquely identify one alias", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const resolved = resolveMessageScopedActiveCharacters(
+    context,
+    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    {
+      mes: "The tense silence hung between Ashley and Blake as both of them stared toward the door.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(resolved, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"]);
 });

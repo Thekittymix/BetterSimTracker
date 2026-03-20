@@ -5,7 +5,7 @@ import {
   setManualInactiveCharacter,
 } from "./activity";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
-import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
+import { resolveCharacterFromContext, resolveEntityTrackingMode, resolveMessageScopedActiveCharacters } from "./entityResolution";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { resolveBaselineBeforeIndex, shouldBypassConfidenceControls } from "./extractorHelpers";
@@ -3194,9 +3194,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         allCharacterNames = [...allCharacterNames, USER_TRACKER_KEY];
       }
     }
-    const activeCharacters = (userExtraction ? [USER_TRACKER_KEY] : activity.activeCharacters).filter(name =>
+    const initialActiveCharacters = (userExtraction ? [USER_TRACKER_KEY] : activity.activeCharacters).filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
+    const activeCharacters = userExtraction
+      ? initialActiveCharacters
+      : resolveMessageScopedActiveCharacters(context, initialActiveCharacters, lastMessage, activeSettings).filter(name =>
+          isTrackerEnabledForOwner(context, activeSettings, name),
+        );
     pushTrace("activity.resolve", {
       allCharacterNames,
       activeCharacters,

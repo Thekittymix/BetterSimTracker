@@ -1,4 +1,4 @@
-import type { BetterSimTrackerSettings, Character, STContext } from "./types";
+import type { BetterSimTrackerSettings, Character, ChatMessage, STContext } from "./types";
 
 export type EntityTrackingMode = "standard" | "multi_character";
 
@@ -85,6 +85,49 @@ function getCharacterAliases(character: Character, mode: EntityTrackingMode): st
   return uniqueStrings([sourceName, ...aliases]);
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function countAliasMentions(text: string, alias: string): number {
+  const escaped = escapeRegex(alias.trim());
+  if (!escaped) return 0;
+  const pattern = new RegExp(`(^|[^A-Za-z])${escaped}(?=$|[^A-Za-z])`, "gi");
+  let count = 0;
+  while (pattern.exec(text)) count += 1;
+  return count;
+}
+
+function inferMessageAliasSpeaker(messageText: string, aliases: string[]): string | null {
+  const text = normalizeToken(messageText);
+  if (!text) return null;
+  const normalizedText = text.toLowerCase();
+  let bestAlias: string | null = null;
+  let bestScore = 0;
+  let tied = false;
+
+  for (const alias of aliases) {
+    const trimmed = normalizeToken(alias);
+    if (!trimmed) continue;
+    const escaped = escapeRegex(trimmed);
+    const startsWithAlias = new RegExp(`^[\\s"'([{-]*${escaped}(?:\\b|['’]s\\b)`, "i").test(text);
+    const mentions = countAliasMentions(normalizedText, trimmed.toLowerCase());
+    const score = (startsWithAlias ? 100 : 0) + mentions;
+    if (score <= 0) continue;
+    if (score > bestScore) {
+      bestAlias = trimmed;
+      bestScore = score;
+      tied = false;
+      continue;
+    }
+    if (score === bestScore) {
+      tied = true;
+    }
+  }
+
+  return tied ? null : bestAlias;
+}
+
 export function resolveEntityTrackingMode(
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): EntityTrackingMode {
@@ -144,4 +187,30 @@ export function collectResolvedCharacterNames(
     names.push(...getCharacterAliases(character, mode));
   }
   return uniqueStrings(names);
+}
+
+export function resolveMessageScopedActiveCharacters(
+  context: STContext | null,
+  activeCharacters: string[],
+  message: ChatMessage | null | undefined,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): string[] {
+  const mode = resolveEntityTrackingMode(settings);
+  if (mode !== "multi_character") return [...activeCharacters];
+  if (!message || message.is_user || message.is_system) return [...activeCharacters];
+
+  const messageText = normalizeToken(message.mes);
+  if (!messageText) return [...activeCharacters];
+
+  return activeCharacters.map(ownerName => {
+    const resolved = resolveCharacterIdentity(context, ownerName, mode);
+    if (!resolved) return ownerName;
+    if (resolved.matchedBy === "alias") return resolved.resolvedName;
+    const source = resolveCharacterFromContext(context, ownerName, mode);
+    if (!source) return ownerName;
+    const aliases = getCharacterAliases(source, mode)
+      .filter(alias => normalizeKey(alias) !== normalizeKey(resolved.sourceName));
+    if (!aliases.length) return ownerName;
+    return inferMessageAliasSpeaker(messageText, aliases) ?? ownerName;
+  });
 }
