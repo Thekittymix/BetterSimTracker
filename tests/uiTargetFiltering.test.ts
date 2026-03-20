@@ -6,6 +6,7 @@ import {
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   mergeRegistryOwnersIntoTargets,
+  resolveRegistryLookupNamesForOwner,
   resolveRegistryOwnersFromEntries,
   resolveOwnerUiKey,
   shouldKeepOwnerInRenderTargetPool,
@@ -68,6 +69,20 @@ test("resolveRegistryOwnersFromEntries preserves introduction order and deduplic
   ]);
 
   assert.deepEqual(owners, ["Ashley", "Blake", "Raleigh"]);
+});
+
+test("resolveRegistryLookupNamesForOwner includes entity aliases without falling back to source-card owner", () => {
+  const names = resolveRegistryLookupNamesForOwner(
+    "Ashley",
+    {
+      ownerName: "Ashley",
+      canonicalName: "Ashley",
+      aliases: ["Ash", "Ashley"],
+      kind: "multi_character_alias",
+    } as never,
+  );
+
+  assert.deepEqual(names, ["Ashley", "Ash"]);
 });
 
 test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {

@@ -545,6 +545,29 @@ export function resolveRegistryOwnersFromEntries(
   return owners;
 }
 
+export function resolveRegistryLookupNamesForOwner(
+  ownerName: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const pushName = (raw: unknown): void => {
+    const value = String(raw ?? "").trim();
+    const normalized = normalizeName(value);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    names.push(value);
+  };
+  pushName(ownerName);
+  if (!registryEntry) return names;
+  pushName(registryEntry.ownerName);
+  pushName(registryEntry.canonicalName);
+  for (const alias of registryEntry.aliases ?? []) {
+    pushName(alias);
+  }
+  return names;
+}
+
 export function buildDisplayPoolWithRegistry(input: {
   entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
   includeAllTargets: boolean;
@@ -4356,17 +4379,55 @@ export function renderTracker(
   );
   const isNumericGlobalScope = (key: string): boolean =>
     Boolean(numericGlobalScopeById.get(String(key ?? "").trim().toLowerCase()));
+  const resolveLookupNamesForOwner = (
+    ownerName: string,
+    messageIndex: number,
+  ): string[] => resolveRegistryLookupNamesForOwner(
+    ownerName,
+    resolveRegistryEntryForMessage?.(ownerName, messageIndex) ?? null,
+  );
+  const resolvePreviousNonNumericValue = (
+    data: TrackerData,
+    def: UiNonNumericStatDefinition,
+    ownerName: string,
+    messageIndex: number,
+  ): CustomNonNumericValue | undefined => {
+    const byOwner = data.customNonNumericStatistics?.[def.id];
+    if (!byOwner) return undefined;
+    const lookupNames = def.globalScope ? [GLOBAL_TRACKER_KEY] : resolveLookupNamesForOwner(ownerName, messageIndex);
+    for (const lookupName of lookupNames) {
+      const value = byOwner[lookupName];
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  };
+  const resolvePreviousBuiltInTextValue = (
+    data: TrackerData,
+    stat: "mood" | "lastThought",
+    ownerName: string,
+    messageIndex: number,
+  ): string | undefined => {
+    const lookupNames = resolveLookupNamesForOwner(ownerName, messageIndex);
+    const source = stat === "mood" ? data.statistics.mood : data.statistics.lastThought;
+    for (const lookupName of lookupNames) {
+      if (source?.[lookupName] !== undefined) return String(source[lookupName] ?? "");
+    }
+    return undefined;
+  };
   const findPreviousDataWithNumericStat = (
     messageIndex: number,
     key: string,
     name: string,
   ): { data: TrackerData; value: number } | null => {
+    const lookupNames = resolveLookupNamesForOwner(name, messageIndex);
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      const value = getNumericRawValue(candidate.data, key, name, isNumericGlobalScope(key));
-      if (value === undefined || Number.isNaN(value)) continue;
-      return { data: candidate.data, value };
+      for (const lookupName of lookupNames) {
+        const value = getNumericRawValue(candidate.data, key, lookupName, isNumericGlobalScope(key));
+        if (value === undefined || Number.isNaN(value)) continue;
+        return { data: candidate.data, value };
+      }
     }
     return null;
   };
@@ -4375,26 +4436,34 @@ export function renderTracker(
     def: UiNonNumericStatDefinition,
     name: string,
   ): TrackerData | null => {
+    const lookupNames = resolveLookupNamesForOwner(name, messageIndex);
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      if (hasNonNumericValue(candidate.data, def, name)) return candidate.data;
+      const candidateData = candidate.data;
+      for (const lookupName of lookupNames) {
+        if (hasNonNumericValue(candidateData, def, lookupName)) return candidateData;
+      }
     }
     return null;
   };
   const findPreviousDataWithMood = (messageIndex: number, name: string): TrackerData | null => {
+    const lookupNames = resolveLookupNamesForOwner(name, messageIndex);
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      if (candidate.data.statistics.mood?.[name] !== undefined) return candidate.data;
+      const candidateData = candidate.data;
+      if (lookupNames.some(lookupName => candidateData.statistics.mood?.[lookupName] !== undefined)) return candidateData;
     }
     return null;
   };
   const findPreviousDataWithLastThought = (messageIndex: number, name: string): TrackerData | null => {
+    const lookupNames = resolveLookupNamesForOwner(name, messageIndex);
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      if (candidate.data.statistics.lastThought?.[name] !== undefined) return candidate.data;
+      const candidateData = candidate.data;
+      if (lookupNames.some(lookupName => candidateData.statistics.lastThought?.[lookupName] !== undefined)) return candidateData;
     }
     return null;
   };
@@ -4470,10 +4539,8 @@ export function renderTracker(
       if (isNonNumericExplicitlyCleared(out, def.id, owner, def.globalScope)) continue;
       const prev = findPreviousDataWithNonNumericStat(messageIndex, def, owner);
       if (!prev) continue;
-      const prevByOwner = prev.customNonNumericStatistics?.[def.id];
-      if (!prevByOwner) continue;
       const sourceOwner = def.globalScope ? GLOBAL_TRACKER_KEY : owner;
-      const prevValue = prevByOwner[sourceOwner];
+      const prevValue = resolvePreviousNonNumericValue(prev, def, owner, messageIndex);
       if (prevValue === undefined) continue;
       const customNonNumeric = out.customNonNumericStatistics ?? {};
       const byOwner = customNonNumeric[def.id] ?? {};
@@ -4485,14 +4552,16 @@ export function renderTracker(
     if (!isGlobalOwner) {
       if (settings.trackMood && out.statistics.mood?.[owner] === undefined && !isTextStatExplicitlyCleared(out, "mood", owner)) {
         const prevMood = findPreviousDataWithMood(messageIndex, owner);
-        if (prevMood?.statistics.mood?.[owner] !== undefined) {
-          out.statistics.mood[owner] = prevMood.statistics.mood[owner];
+        const prevMoodValue = prevMood ? resolvePreviousBuiltInTextValue(prevMood, "mood", owner, messageIndex) : undefined;
+        if (prevMoodValue !== undefined) {
+          out.statistics.mood[owner] = prevMoodValue;
         }
       }
       if (settings.trackLastThought && out.statistics.lastThought?.[owner] === undefined && !isTextStatExplicitlyCleared(out, "lastThought", owner)) {
         const prevThought = findPreviousDataWithLastThought(messageIndex, owner);
-        if (prevThought?.statistics.lastThought?.[owner] !== undefined) {
-          out.statistics.lastThought[owner] = prevThought.statistics.lastThought[owner];
+        const prevThoughtValue = prevThought ? resolvePreviousBuiltInTextValue(prevThought, "lastThought", owner, messageIndex) : undefined;
+        if (prevThoughtValue !== undefined) {
+          out.statistics.lastThought[owner] = prevThoughtValue;
         }
       }
     }
@@ -4914,7 +4983,10 @@ export function renderTracker(
         return def.kind === "array" ? [] : null;
       }
       const previous = findPreviousDataWithNonNumericStat(entry.messageIndex, def, name);
-      if (previous) return resolveNonNumericValue(previous, def, name);
+      if (previous) {
+        const previousValue = resolvePreviousNonNumericValue(previous, def, name, entry.messageIndex);
+        if (previousValue !== undefined) return previousValue;
+      }
       return resolveNonNumericValue(data, def, name);
     };
     const getEffectiveMoodText = (name: string): string => {
@@ -4922,7 +4994,8 @@ export function renderTracker(
       if (data.statistics.mood?.[name] !== undefined) return String(data.statistics.mood?.[name] ?? "");
       if (isTextStatExplicitlyCleared(data, "mood", name)) return "";
       const previous = findPreviousDataWithMood(entry.messageIndex, name);
-      if (previous?.statistics.mood?.[name] !== undefined) return String(previous.statistics.mood?.[name] ?? "");
+      const previousValue = previous ? resolvePreviousBuiltInTextValue(previous, "mood", name, entry.messageIndex) : undefined;
+      if (previousValue !== undefined) return previousValue;
       return "";
     };
     const getEffectiveLastThoughtText = (name: string): string => {
@@ -4930,7 +5003,8 @@ export function renderTracker(
       if (data.statistics.lastThought?.[name] !== undefined) return String(data.statistics.lastThought?.[name] ?? "");
       if (isTextStatExplicitlyCleared(data, "lastThought", name)) return "";
       const previous = findPreviousDataWithLastThought(entry.messageIndex, name);
-      if (previous?.statistics.lastThought?.[name] !== undefined) return String(previous.statistics.lastThought?.[name] ?? "");
+      const previousValue = previous ? resolvePreviousBuiltInTextValue(previous, "lastThought", name, entry.messageIndex) : undefined;
+      if (previousValue !== undefined) return previousValue;
       return "";
     };
     const hasAnyStatFor = (name: string): boolean =>
@@ -5056,9 +5130,10 @@ export function renderTracker(
       );
       const moodText = getEffectiveMoodText(name);
       const previousMoodData = findPreviousDataWithMood(entry.messageIndex, name);
-      const prevMood = previousMoodData?.statistics.mood?.[name] !== undefined
-        ? String(previousMoodData.statistics.mood?.[name])
-        : moodText;
+      const prevMoodValue = previousMoodData
+        ? resolvePreviousBuiltInTextValue(previousMoodData, "mood", name, entry.messageIndex)
+        : undefined;
+      const prevMood = prevMoodValue !== undefined ? prevMoodValue : moodText;
       const moodTrend = prevMood === moodText ? "stable" : "shifted";
       const canEdit = isUserCard
         ? (latestTrackedUserMessageIndex != null && entry.messageIndex === latestTrackedUserMessageIndex)

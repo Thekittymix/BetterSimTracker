@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp23] - 2026-03-20
+### Changed
+- Experimental multi-character UI continuity lookups now resolve previous owner-scoped stats, mood, and inner-thought values through registry-backed entity names instead of relying on one raw owner-name key.
+
 ## [2.2.4.16-exp22] - 2026-03-20
 ### Changed
 - Experimental multi-character tracker rendering now resolves per-message registry entries first and derives visible registry owners from those entity entries, tightening the render path around the chat-scoped registry layer instead of owner-name lists alone.
