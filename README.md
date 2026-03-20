@@ -391,6 +391,9 @@ You can disable any metric you do not want extracted. Disabled stats stop updati
 ### Display
 
 - `Show Inactive`: show cards for inactive/off-scene characters.
+- `Auto-Archive Inactive`: move long-idle inactive cards into an archived UI state instead of keeping them in the main visible list forever.
+- `Archive After Turns`: number of chat turns an inactive card can remain visible before it becomes archived.
+- `Show Archived`: include archived cards in the visible tracker list.
 - `Inactive Label`: label text used for inactive cards.
 - `Show Last Thought`: show/hide `lastThought` text on cards.
 - `Enable Scene Card (global stats)`: render a dedicated Scene card from global custom stats and hide global stats on owner cards.

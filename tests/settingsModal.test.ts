@@ -64,6 +64,13 @@ test("settings modal exposes mood symbol chip display controls in Card Appearanc
   assert.match(source, /Mood Symbol Font Size/);
 });
 
+test("settings modal exposes inactive archive lifecycle controls in Card Appearance", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Auto-Archive Inactive/);
+  assert.match(source, /Archive After Turns/);
+  assert.match(source, /Show Archived/);
+});
+
 test("settings modal exposes entity tracking mode control in Extraction", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /Entity Tracking Mode/);

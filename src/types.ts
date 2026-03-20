@@ -135,6 +135,9 @@ export interface BetterSimTrackerSettings {
   showLastThought: boolean;
   collapseCardsByDefault: boolean;
   showInactive: boolean;
+  autoArchiveInactiveCards: boolean;
+  archiveInactiveAfterTurns: number;
+  showArchived: boolean;
   inactiveLabel: string;
   sceneCardEnabled: boolean;
   sceneCardPosition: SceneCardPosition;

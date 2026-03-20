@@ -399,6 +399,7 @@ export function openSettingsModal(input: {
       <h4><span class="bst-header-icon fa-solid fa-eye"></span>Display</h4>
       <div class="bst-settings-grid">
         <label data-bst-row="inactiveLabel">Inactive Label <input data-k="inactiveLabel" type="text"></label>
+        <label data-bst-row="archiveInactiveAfterTurns">Archive After Turns <input data-k="archiveInactiveAfterTurns" type="number" min="1" max="200"></label>
         <label>Accent Color
           <div class="bst-color-inputs">
             <input data-k-color="accentColor" type="color">
@@ -423,6 +424,8 @@ export function openSettingsModal(input: {
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="collapseCardsByDefault" type="checkbox">Collapse Cards By Default</label>
           <label class="bst-check"><input data-k="showInactive" type="checkbox">Show Inactive</label>
+          <label class="bst-check"><input data-k="autoArchiveInactiveCards" type="checkbox">Auto-Archive Inactive</label>
+          <label class="bst-check"><input data-k="showArchived" type="checkbox">Show Archived</label>
           <label class="bst-check"><input data-k="showLastThought" type="checkbox">Show Last Thought</label>
         </div>
       </div>
@@ -1123,6 +1126,9 @@ export function openSettingsModal(input: {
   set("generateOnGreetingMessages", String(input.settings.generateOnGreetingMessages));
   set("activityLookback", String(input.settings.activityLookback));
   set("showInactive", String(input.settings.showInactive));
+  set("autoArchiveInactiveCards", String(input.settings.autoArchiveInactiveCards));
+  set("archiveInactiveAfterTurns", String(input.settings.archiveInactiveAfterTurns));
+  set("showArchived", String(input.settings.showArchived));
   set("inactiveLabel", input.settings.inactiveLabel);
   set("showLastThought", String(input.settings.showLastThought));
   set("sceneCardEnabled", String(input.settings.sceneCardEnabled));
@@ -4111,6 +4117,9 @@ export function openSettingsModal(input: {
       generateOnGreetingMessages: readBool("generateOnGreetingMessages", input.settings.generateOnGreetingMessages),
       activityLookback: readNumber("activityLookback", input.settings.activityLookback, 1, 25),
       showInactive: readBool("showInactive", input.settings.showInactive),
+      autoArchiveInactiveCards: readBool("autoArchiveInactiveCards", input.settings.autoArchiveInactiveCards),
+      archiveInactiveAfterTurns: readNumber("archiveInactiveAfterTurns", input.settings.archiveInactiveAfterTurns, 1, 200),
+      showArchived: readBool("showArchived", input.settings.showArchived),
       inactiveLabel: read("inactiveLabel") || input.settings.inactiveLabel,
       showLastThought: readBool("showLastThought", input.settings.showLastThought),
       sceneCardEnabled: readBool("sceneCardEnabled", input.settings.sceneCardEnabled),
@@ -4193,6 +4202,7 @@ export function openSettingsModal(input: {
     const regenerateOnMessageEditRow = modal.querySelector('[data-bst-row="regenerateOnMessageEdit"]') as HTMLElement | null;
     const generateOnGreetingMessagesRow = modal.querySelector('[data-bst-row="generateOnGreetingMessages"]') as HTMLElement | null;
     const inactiveLabelRow = modal.querySelector('[data-bst-row="inactiveLabel"]') as HTMLElement | null;
+    const archiveAfterTurnsRow = modal.querySelector('[data-bst-row="archiveInactiveAfterTurns"]') as HTMLElement | null;
     const sceneCardDrawer = modal.querySelector('[data-bst-row="sceneCardDrawer"]') as HTMLElement | null;
     const sceneCardPositionRow = modal.querySelector('[data-bst-row="sceneCardPosition"]') as HTMLElement | null;
     const sceneCardLayoutRow = modal.querySelector('[data-bst-row="sceneCardLayout"]') as HTMLElement | null;
@@ -4256,6 +4266,11 @@ export function openSettingsModal(input: {
       inactiveLabelRow.style.display = current.showInactive ? "flex" : "none";
       inactiveLabelRow.style.flexDirection = "column";
       inactiveLabelRow.style.gap = "4px";
+    }
+    if (archiveAfterTurnsRow) {
+      archiveAfterTurnsRow.style.display = current.autoArchiveInactiveCards ? "flex" : "none";
+      archiveAfterTurnsRow.style.flexDirection = "column";
+      archiveAfterTurnsRow.style.gap = "4px";
     }
     if (sceneCardDrawer) {
       sceneCardDrawer.style.display = "block";
@@ -4478,6 +4493,9 @@ export function openSettingsModal(input: {
     stExpressionImagePositionX: "Global horizontal crop position for ST expression mood images.",
     stExpressionImagePositionY: "Global vertical crop position for ST expression mood images.",
     showInactive: "Show tracker cards for inactive/off-screen characters.",
+    autoArchiveInactiveCards: "Hide long-idle inactive cards from the main tracker view by moving them into an archived state.",
+    archiveInactiveAfterTurns: "Number of chat turns an inactive card can stay visible before becoming archived.",
+    showArchived: "Show archived cards in the tracker list.",
     inactiveLabel: "Text label shown on cards for inactive characters.",
     showLastThought: "Show extracted last thought text inside tracker cards.",
     sceneCardEnabled: "Render a dedicated Scene card from global custom stats.",

@@ -55,6 +55,7 @@ import { getDateTimeStructuredParts, normalizeDateTimeValue, toDateTimeInputValu
 import { renderThoughtMarkup } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
+import { type CardLifecycleSnapshot, resolveCardLifecycleState } from "./cardLifecycle";
 import {
   buildLastPointCircle,
   buildPointCircles,
@@ -1665,6 +1666,10 @@ export function ensureStyles(): void {
   border-color: rgba(255,255,255,0.12);
   box-shadow: 0 4px 12px rgba(0,0,0,0.30), 0 0 0 1px rgba(255,255,255,0.03) inset;
 }
+.bst-card-archived {
+  opacity: 0.7;
+  filter: saturate(0.82);
+}
 .bst-card-inactive::after {
   content: "";
   position: absolute;
@@ -1678,6 +1683,14 @@ export function ensureStyles(): void {
   color: rgba(255,255,255,0.9);
 }
 .bst-inactive-icon {
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.8;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(1px);
+}
+.bst-archived-icon {
   margin-left: 6px;
   font-size: 12px;
   opacity: 0.8;
@@ -4299,6 +4312,12 @@ export function renderTracker(
     }
     return null;
   };
+  const lifecycleSnapshots: CardLifecycleSnapshot[] = sortedEntries
+    .filter(item => item.data)
+    .map(item => ({
+      messageIndex: item.messageIndex,
+      activeCharacters: [...(item.data?.activeCharacters ?? [])],
+    }));
   const cloneTrackerDataForEdit = (data: TrackerData): TrackerData => {
     const cloneCustomNumeric: TrackerData["customStatistics"] = {};
     for (const [statId, byOwner] of Object.entries(data.customStatistics ?? {})) {
@@ -4865,18 +4884,28 @@ export function renderTracker(
       ? scopedDisplayPool
       : scopedDisplayPool.filter(name => hasAnyStatFor(name) || activeSet.has(normalizeName(name)));
     const uniqueTargets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)));
+    const getLifecycleState = (name: string) => resolveCardLifecycleState({
+      ownerName: name,
+      currentMessageIndex: entry.messageIndex,
+      currentActiveCharacters: data.activeCharacters,
+      history: lifecycleSnapshots,
+      autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
+      archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,
+    });
     const targets = filterTechnicalSourceOwnersFromTargets(uniqueTargets, resolveOwnerRenderIdentity)
       .sort((a, b) => {
-        const aActive = activeSet.has(normalizeName(a));
-        const bActive = activeSet.has(normalizeName(b));
-        if (aActive !== bActive) return aActive ? -1 : 1;
+        const rank = (state: "active" | "inactive" | "archived"): number =>
+          state === "active" ? 0 : state === "inactive" ? 1 : 2;
+        const aRank = rank(getLifecycleState(a));
+        const bRank = rank(getLifecycleState(b));
+        if (aRank !== bRank) return aRank - bRank;
         const aOrder = displayOrder.get(normalizeName(a)) ?? Number.MAX_SAFE_INTEGER;
         const bOrder = displayOrder.get(normalizeName(b)) ?? Number.MAX_SAFE_INTEGER;
         if (aOrder !== bOrder) return aOrder - bOrder;
         return a.localeCompare(b);
       });
 
-    const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isNew: boolean; cardColor: string }> = [];
+    const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isArchived: boolean; isNew: boolean; cardColor: string }> = [];
     const signatureParts: string[] = [
       `msg:${entry.messageIndex}`,
       `collapsed:${collapsed ? "1" : "0"}`,
@@ -4886,14 +4915,20 @@ export function renderTracker(
       `summarybusy:${summaryBusy ? "1" : "0"}`,
       `collapseDefault:${settings.collapseCardsByDefault ? "1" : "0"}`,
       `inactive:${settings.showInactive ? "1" : "0"}`,
+      `archive:${settings.autoArchiveInactiveCards ? "1" : "0"}`,
+      `archiveafter:${settings.archiveInactiveAfterTurns}`,
+      `showarchived:${settings.showArchived ? "1" : "0"}`,
       `thought:${settings.showLastThought ? "1" : "0"}`,
       `inactivelabel:${settings.inactiveLabel}`,
       `scale:${settings.fontSize}|${settings.cardOpacity}`
     ];
 
     for (const name of targets) {
-      const isActive = activeSet.has(normalizeName(name));
-      if (!isActive && !settings.showInactive) continue;
+      const lifecycleState = getLifecycleState(name);
+      const isActive = lifecycleState === "active";
+      const isArchived = lifecycleState === "archived";
+      if (!isActive && !isArchived && !settings.showInactive) continue;
+      if (isArchived && !settings.showArchived) continue;
       const displayName = resolveDisplayName?.(name)
         ?? (name === USER_TRACKER_KEY ? "User" : name);
       const isUserCard = name === USER_TRACKER_KEY;
@@ -4962,7 +4997,7 @@ export function renderTracker(
           <div class="bst-actions">
             ${!isUserCard ? `<button class="bst-mini-btn" data-bst-action="graph" data-character="${name}" title="Open relationship graph"><span aria-hidden="true">&#128200;</span> <span class="bst-graph-label">Graph</span></button>` : ""}
             ${canEdit ? `<button class="bst-mini-btn bst-mini-btn-icon" data-bst-action="edit-stats" data-bst-edit-message="${entry.messageIndex}" data-bst-edit-character="${escapeHtml(name)}" title="Edit last tracker stats for ${escapeHtml(displayName)}" aria-label="Edit last tracker stats for ${escapeHtml(displayName)}"><span aria-hidden="true">&#9998;</span></button>` : ""}
-            ${!isUserCard ? `<div class="bst-state" title="${isActive ? "Active" : settings.inactiveLabel}">${isActive ? "Active" : `${settings.inactiveLabel} <span class="fa-solid fa-ghost bst-inactive-icon" aria-hidden="true"></span>`}</div>` : ""}
+            ${!isUserCard ? `<div class="bst-state" title="${isActive ? "Active" : (isArchived ? "Archived" : settings.inactiveLabel)}">${isActive ? "Active" : (isArchived ? `Archived <span class="fa-solid fa-box-archive bst-archived-icon" aria-hidden="true"></span>` : `${settings.inactiveLabel} <span class="fa-solid fa-ghost bst-inactive-icon" aria-hidden="true"></span>`)}</div>` : ""}
           </div>
         </div>
         ${enabledNumeric.length || enabledNonNumeric.length || showCollapsedMood ? `
@@ -5058,7 +5093,7 @@ export function renderTracker(
         </div>
       `;
       const ownerClass = `bst-owner-${toOwnerClassSuffix(displayName)}`;
-      cardHtmlByName.push({ name, displayName, ownerClass, html: cardHtml, isActive, isNew, cardColor });
+      cardHtmlByName.push({ name, displayName, ownerClass, html: cardHtml, isActive, isArchived, isNew, cardColor });
       const nonNumericSignature = enabledNonNumeric.map(def => {
         const value = resolveEffectiveNonNumericValue(def, name);
         if (value == null) return `${def.id}:not_set`;
@@ -5356,7 +5391,7 @@ export function renderTracker(
     const appendOwnerCards = (): void => {
       for (const item of cardHtmlByName) {
         const card = document.createElement("div");
-        card.className = `bst-card ${item.ownerClass}${item.isActive ? "" : " bst-card-inactive"}${item.isNew ? " bst-card-new" : ""}`;
+        card.className = `bst-card ${item.ownerClass}${item.isActive ? "" : " bst-card-inactive"}${item.isArchived ? " bst-card-archived" : ""}${item.isNew ? " bst-card-new" : ""}`;
         card.dataset.bstOwner = item.displayName;
         card.dataset.bstOwnerClass = item.ownerClass;
         card.style.setProperty("--bst-card-local", item.cardColor);
