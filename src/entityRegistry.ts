@@ -107,7 +107,15 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
     for (const [ownerName, entityIdRaw] of Object.entries(record.ownerToEntityId as Record<string, unknown>)) {
       const entityId = normalizeToken(entityIdRaw);
       if (!entityId || !entities[entityId]) continue;
-      ownerToEntityId[normalizeToken(ownerName)] = entityId;
+      ownerToEntityId[normalizeKey(ownerName)] = entityId;
+    }
+  }
+
+  for (const entry of Object.values(entities)) {
+    ownerToEntityId[normalizeKey(entry.ownerName)] = entry.id;
+    ownerToEntityId[normalizeKey(entry.canonicalName)] = entry.id;
+    for (const alias of entry.aliases) {
+      ownerToEntityId[normalizeKey(alias)] = entry.id;
     }
   }
 
@@ -140,7 +148,7 @@ function ensureEntry(
   });
   const existing = registry.entities[entityId];
   if (existing) {
-    registry.ownerToEntityId[ownerName] = entityId;
+    registry.ownerToEntityId[normalizeKey(ownerName)] = entityId;
     return existing;
   }
   const entry: TrackerEntityRegistryEntry = {
@@ -159,7 +167,11 @@ function ensureEntry(
     archivedAtMessageIndex: null,
   };
   registry.entities[entityId] = entry;
-  registry.ownerToEntityId[ownerName] = entityId;
+  registry.ownerToEntityId[normalizeKey(ownerName)] = entityId;
+  registry.ownerToEntityId[normalizeKey(entry.canonicalName)] = entityId;
+  for (const alias of entry.aliases) {
+    registry.ownerToEntityId[normalizeKey(alias)] = entityId;
+  }
   return entry;
 }
 
@@ -214,7 +226,11 @@ export function syncEntityRegistryFromRender(input: {
       entry.archivedAtMessageIndex = archivedAtMessageIndex;
       changed = true;
     }
-    registry.ownerToEntityId[ownerName] = entry.id;
+    registry.ownerToEntityId[normalizeKey(ownerName)] = entry.id;
+    registry.ownerToEntityId[normalizeKey(entry.canonicalName)] = entry.id;
+    for (const alias of entry.aliases) {
+      registry.ownerToEntityId[normalizeKey(alias)] = entry.id;
+    }
   }
 
   if (!changed) return false;
@@ -231,9 +247,29 @@ export function getEntityRegistryEntryByOwnerName(
   ownerName: string,
 ): TrackerEntityRegistryEntry | null {
   const registry = readRegistry(context);
-  const entityId = registry.ownerToEntityId[normalizeToken(ownerName)];
+  const normalizedOwner = normalizeKey(ownerName);
+  const entityId = registry.ownerToEntityId[normalizedOwner];
   if (!entityId) return null;
   return registry.entities[entityId] ?? null;
+}
+
+export function listEntityRegistryEntriesForMessage(
+  context: STContext | null,
+  messageIndex: number,
+): TrackerEntityRegistryEntry[] {
+  const registry = readRegistry(context);
+  return Object.values(registry.entities)
+    .filter(entry => entry.introducedAtMessageIndex <= messageIndex)
+    .filter(entry => entry.archivedAtMessageIndex == null || entry.archivedAtMessageIndex > messageIndex)
+    .sort((a, b) => {
+      if (a.introducedAtMessageIndex !== b.introducedAtMessageIndex) {
+        return a.introducedAtMessageIndex - b.introducedAtMessageIndex;
+      }
+      if (a.kind !== b.kind) {
+        return a.kind === "multi_character_alias" ? -1 : 1;
+      }
+      return a.ownerName.localeCompare(b.ownerName);
+    });
 }
 
 export function getEntityRegistryLifecycleStateForMessage(
@@ -264,18 +300,5 @@ export function listEntityRegistryOwnersForMessage(
   context: STContext | null,
   messageIndex: number,
 ): string[] {
-  const registry = readRegistry(context);
-  return Object.values(registry.entities)
-    .filter(entry => entry.introducedAtMessageIndex <= messageIndex)
-    .filter(entry => entry.archivedAtMessageIndex == null || entry.archivedAtMessageIndex > messageIndex)
-    .sort((a, b) => {
-      if (a.introducedAtMessageIndex !== b.introducedAtMessageIndex) {
-        return a.introducedAtMessageIndex - b.introducedAtMessageIndex;
-      }
-      if (a.kind !== b.kind) {
-        return a.kind === "multi_character_alias" ? -1 : 1;
-      }
-      return a.ownerName.localeCompare(b.ownerName);
-    })
-    .map(entry => entry.ownerName);
+  return listEntityRegistryEntriesForMessage(context, messageIndex).map(entry => entry.ownerName);
 }

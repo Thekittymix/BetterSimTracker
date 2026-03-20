@@ -4,7 +4,9 @@ import test from "node:test";
 import {
   buildEntitySourceKey,
   buildTrackerEntityId,
+  getEntityRegistryEntryByOwnerName,
   getEntityRegistryLifecycleStateForMessage,
+  listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
   readEntityRegistry,
   syncEntityRegistryFromRender,
@@ -73,8 +75,8 @@ test("syncEntityRegistryFromRender stores multi-character alias lifecycle in cha
     ownerName: "Blake",
     matchedBy: "alias",
   });
-  assert.equal(registry.ownerToEntityId.Ashley, ashleyId);
-  assert.equal(registry.ownerToEntityId.Blake, blakeId);
+  assert.equal(registry.ownerToEntityId.ashley, ashleyId);
+  assert.equal(registry.ownerToEntityId.blake, blakeId);
   assert.equal(registry.entities[ashleyId]?.lifecycleState, "active");
   assert.equal(registry.entities[ashleyId]?.lastActiveMessageIndex, 8);
   assert.equal(registry.entities[blakeId]?.lifecycleState, "inactive");
@@ -142,6 +144,39 @@ test("listEntityRegistryOwnersForMessage returns visible owners for a given mess
     listEntityRegistryOwnersForMessage(context, 15),
     ["Ashley"],
   );
+});
+
+test("getEntityRegistryEntryByOwnerName is case-insensitive and resolves canonical aliases", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+
+  const byLower = getEntityRegistryEntryByOwnerName(context, "ashley");
+  const byCanonical = getEntityRegistryEntryByOwnerName(context, "Ashley");
+
+  assert.equal(byLower?.ownerName, "Ashley");
+  assert.equal(byCanonical?.ownerName, "Ashley");
+  assert.equal(byLower?.id, byCanonical?.id);
+});
+
+test("listEntityRegistryEntriesForMessage returns visible entities in introduction order", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Blake", "Ashley"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
+  });
+
+  const entries = listEntityRegistryEntriesForMessage(context, 8);
+  assert.deepEqual(entries.map(entry => entry.ownerName), ["Ashley", "Blake"]);
+  assert.deepEqual(entries.map(entry => entry.kind), ["multi_character_alias", "multi_character_alias"]);
 });
 
 test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the requested message index", () => {
