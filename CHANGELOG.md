@@ -4,6 +4,7 @@ All notable changes to BetterSimTracker are documented here.
 
 ## [2.2.4.15] - 2026-03-20
 ### Added
+- Added compact image-generation macro `{{bst_image_state}}` for scene/user/character state export in image prompt workflows.
 - Added a configurable global mood-symbol fallback map so mood displays can use custom emoji, kaomoji, or short symbols instead of fixed built-in emoji when no image or sprite is available.
 - Added card-appearance controls for fallback mood-symbol chips, including minimum width, minimum height, corner radius, and symbol font size.
 
