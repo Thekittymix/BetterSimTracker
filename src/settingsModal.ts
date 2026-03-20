@@ -62,6 +62,7 @@ import {
   BUILT_IN_TRACKABLE_STAT_KEY_LIST,
   CUSTOM_STAT_DESCRIPTION_MAX_LENGTH,
   DEFAULT_MOOD_EXPRESSION_MAP,
+  DEFAULT_MOOD_SYMBOL_MAP,
   DEFAULT_ST_EXPRESSION_IMAGE_OPTIONS,
   MOOD_LABELS,
   bindTextareaCounters,
@@ -328,6 +329,26 @@ export function openSettingsModal(input: {
             </select>
           </label>
         </div>
+        <div data-bst-row="globalMoodSymbolMap">
+          <div class="bst-help-line">Global mood fallback symbol map used when no mood image/sprite is available. You can use emoji, kaomoji, or any short text symbol.</div>
+          <div class="bst-character-map bst-global-mood-map">
+            ${MOOD_LABELS.map(label => {
+              const moodLabel = label as MoodLabel;
+              const safeLabel = escapeHtml(moodLabel);
+              const rawMap = input.settings.moodSymbolMap as Record<string, unknown> | undefined;
+              const explicitValue = rawMap && typeof rawMap[moodLabel] === "string" ? String(rawMap[moodLabel]).trim() : "";
+              const value = explicitValue || DEFAULT_MOOD_SYMBOL_MAP[moodLabel];
+              const safeValue = escapeHtml(value);
+              const safePlaceholder = escapeHtml(DEFAULT_MOOD_SYMBOL_MAP[moodLabel]);
+              return `
+                <label class="bst-character-map-row">
+                  <span>${safeLabel}</span>
+                  <input type="text" data-bst-global-mood-symbol="${safeLabel}" value="${safeValue}" placeholder="${safePlaceholder}">
+                </label>
+              `;
+            }).join("")}
+          </div>
+        </div>
         <div data-bst-row="globalMoodExpressionMap">
           <div class="bst-help-line">Global mood to ST expression map (character overrides still take priority).</div>
           <div class="bst-character-map bst-global-mood-map">
@@ -393,6 +414,10 @@ export function openSettingsModal(input: {
         <label>Card Opacity <input data-k="cardOpacity" type="number" min="0.1" max="1" step="0.01"></label>
         <label>Border Radius <input data-k="borderRadius" type="number" min="0" max="32"></label>
         <label>Font Size <input data-k="fontSize" type="number" min="10" max="22"></label>
+        <label>Mood Symbol Min Width <input data-k="moodSymbolMinWidth" type="number" min="18" max="120"></label>
+        <label>Mood Symbol Min Height <input data-k="moodSymbolMinHeight" type="number" min="18" max="120"></label>
+        <label>Mood Symbol Radius <input data-k="moodSymbolBoxRadius" type="number" min="0" max="48"></label>
+        <label>Mood Symbol Font Size <input data-k="moodSymbolFontSize" type="number" min="10" max="48"></label>
         <div class="bst-section-divider">Toggles</div>
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="collapseCardsByDefault" type="checkbox">Collapse Cards By Default</label>
@@ -4042,6 +4067,17 @@ export function openSettingsModal(input: {
       }
       return map;
     };
+    const readGlobalMoodSymbolMap = (): Record<MoodLabel, string> => {
+      const map: Record<MoodLabel, string> = { ...DEFAULT_MOOD_SYMBOL_MAP };
+      const nodes = Array.from(modal.querySelectorAll("[data-bst-global-mood-symbol]")) as HTMLInputElement[];
+      for (const node of nodes) {
+        const mood = normalizeMoodLabel(String(node.dataset.bstGlobalMoodSymbol ?? "")) as MoodLabel | null;
+        if (!mood) continue;
+        const value = String(node.value ?? "").trim().slice(0, 32);
+        map[mood] = value || DEFAULT_MOOD_SYMBOL_MAP[mood];
+      }
+      return map;
+    };
 
     return {
       ...input.settings,
@@ -4099,6 +4135,7 @@ export function openSettingsModal(input: {
       builtInNumericStatUi: cloneBuiltInNumericStatUi(builtInNumericStatUiState),
       moodSource: read("moodSource") === "st_expressions" ? "st_expressions" : "bst_images",
       moodExpressionMap: readGlobalMoodExpressionMap(),
+      moodSymbolMap: readGlobalMoodSymbolMap(),
       stExpressionImageZoom: readNumber("stExpressionImageZoom", input.settings.stExpressionImageZoom, 0.5, 3),
       stExpressionImagePositionX: readNumber("stExpressionImagePositionX", input.settings.stExpressionImagePositionX, 0, 100),
       stExpressionImagePositionY: readNumber("stExpressionImagePositionY", input.settings.stExpressionImagePositionY, 0, 100),
@@ -4176,6 +4213,7 @@ export function openSettingsModal(input: {
     const injectionPromptMaxCharsRow = modal.querySelector('[data-bst-row="injectionPromptMaxChars"]') as HTMLElement | null;
     const moodAdvancedBlock = modal.querySelector('[data-bst-row="moodAdvancedBlock"]') as HTMLElement | null;
     const globalMoodExpressionMap = modal.querySelector('[data-bst-row="globalMoodExpressionMap"]') as HTMLElement | null;
+    const globalMoodSymbolMap = modal.querySelector('[data-bst-row="globalMoodSymbolMap"]') as HTMLElement | null;
     const stExpressionImageOptions = modal.querySelector('[data-bst-row="stExpressionImageOptions"]') as HTMLElement | null;
     const userTrackingDependentKeys = [
       "userTrackMood",
@@ -4307,6 +4345,9 @@ export function openSettingsModal(input: {
     }
     if (moodAdvancedBlock) {
       moodAdvancedBlock.style.display = current.trackMood ? "block" : "none";
+    }
+    if (globalMoodSymbolMap) {
+      globalMoodSymbolMap.style.display = current.trackMood ? "block" : "none";
     }
     if (globalMoodExpressionMap) {
       globalMoodExpressionMap.style.display = current.trackMood && current.moodSource === "st_expressions" ? "block" : "none";
@@ -4449,6 +4490,10 @@ export function openSettingsModal(input: {
     cardOpacity: "Overall tracker container opacity.",
     borderRadius: "Corner roundness for tracker cards and controls.",
     fontSize: "Base font size used inside tracker cards.",
+    moodSymbolMinWidth: "Minimum width of the fallback mood-symbol chip when no mood image is available.",
+    moodSymbolMinHeight: "Minimum height of the fallback mood-symbol chip when no mood image is available.",
+    moodSymbolBoxRadius: "Corner radius of the fallback mood-symbol chip.",
+    moodSymbolFontSize: "Font size used for fallback mood symbols and kaomoji inside the chip.",
     debug: "Enable verbose diagnostics logging for troubleshooting.",
     includeContextInDiagnostics: "Include extraction prompt/context text in diagnostics dumps (larger logs).",
     includeGraphInDiagnostics: "Include graph-open series payloads in diagnostics trace output.",

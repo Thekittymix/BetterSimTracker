@@ -23,6 +23,7 @@ type ActivityAnalysis = {
   activeCharacters: string[];
   reasons: Record<string, string>;
   lookback: number;
+  manualInactiveCharacters: string[];
 } | null;
 
 type TrackerUiStateLike = {
@@ -237,6 +238,7 @@ export function buildDiagnosticsReport(input: {
       activityLookback: settings.activityLookback,
       moodSource: settings.moodSource,
       moodExpressionMap: settings.moodExpressionMap,
+      moodSymbolMap: settings.moodSymbolMap,
       stExpressionImageZoom: settings.stExpressionImageZoom,
       stExpressionImagePositionX: settings.stExpressionImagePositionX,
       stExpressionImagePositionY: settings.stExpressionImagePositionY,

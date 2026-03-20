@@ -24,6 +24,7 @@ export type MoodLabel =
   | "Frustrated"
   | "Neutral";
 export type MoodSource = "bst_images" | "st_expressions";
+export type MoodSymbolMap = Partial<Record<MoodLabel, string>>;
 export type SceneCardPosition = "above_tracker_cards" | "above_message";
 export type SceneCardLayout = "chips" | "rows";
 export type SceneStatLayout = "auto" | "chips" | "rows";
@@ -164,6 +165,7 @@ export interface BetterSimTrackerSettings {
   builtInNumericStatUi: BuiltInNumericStatUiSettings;
   moodSource: MoodSource;
   moodExpressionMap: MoodExpressionMap;
+  moodSymbolMap: MoodSymbolMap;
   stExpressionImageZoom: number;
   stExpressionImagePositionX: number;
   stExpressionImagePositionY: number;
@@ -172,6 +174,10 @@ export interface BetterSimTrackerSettings {
   cardOpacity: number;
   borderRadius: number;
   fontSize: number;
+  moodSymbolMinWidth: number;
+  moodSymbolMinHeight: number;
+  moodSymbolBoxRadius: number;
+  moodSymbolFontSize: number;
   defaultAffection: number;
   defaultTrust: number;
   defaultDesire: number;

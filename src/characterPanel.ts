@@ -845,7 +845,7 @@ function renderPanel(input: InitInput, force = false): void {
     <div style="display:${showBstMoodImageControls ? "grid" : "none"}; gap:8px;">
       <div class="bst-character-divider">Mood Images</div>
       <div class="bst-character-help">
-        Upload one image per mood label. Missing images fall back to emoji.
+        Upload one image per mood label. Missing images fall back to the configured mood symbol.
         Max ${formatBytes(MAX_IMAGE_BYTES)} and ${MAX_IMAGE_WIDTH}x${MAX_IMAGE_HEIGHT}px. PNG/JPG/WebP only.
       </div>
       <div class="bst-character-help">Configured mood images: ${moodCount}/${moodLabels.length}</div>

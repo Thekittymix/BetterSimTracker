@@ -66,6 +66,10 @@ function makeSettings(): BetterSimTrackerSettings {
       Frustrated: "annoyance",
       Neutral: "neutral",
     },
+    moodSymbolMap: {
+      Happy: "😄",
+      Neutral: "😶",
+    },
     stExpressionImageZoom: 1.2,
     stExpressionImagePositionX: 50,
     stExpressionImagePositionY: 20,

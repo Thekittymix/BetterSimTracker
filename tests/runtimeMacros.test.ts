@@ -84,6 +84,36 @@ function makeSettings(): BetterSimTrackerSettings {
         includeInInjection: true,
       },
       {
+        id: "pose",
+        kind: "text_short",
+        label: "Pose",
+        defaultValue: "",
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+      {
+        id: "physicality",
+        kind: "text_short",
+        label: "Physicality",
+        defaultValue: "",
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+      {
         id: "scene_date_time",
         kind: "date_time",
         label: "Scene Date/Time",
@@ -97,6 +127,36 @@ function makeSettings(): BetterSimTrackerSettings {
         showOnCard: true,
         showInGraph: false,
         includeInInjection: true,
+      },
+      {
+        id: "secret_note",
+        kind: "text_short",
+        label: "Secret Note",
+        defaultValue: "",
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: false,
+        privateToOwner: true,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: false,
+      },
+      {
+        id: "hidden_pose",
+        kind: "text_short",
+        label: "Hidden Pose",
+        defaultValue: "",
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: false,
+        showInGraph: false,
+        includeInInjection: false,
       },
     ],
   };
@@ -119,6 +179,21 @@ function makeTracker(): TrackerData {
       clothes: {
         Seraphina: ["black sundress", "sandals"],
         [USER_TRACKER_KEY]: ["hoodie"],
+      },
+      pose: {
+        Seraphina: "standing near the bed",
+        [USER_TRACKER_KEY]: "sitting upright",
+      },
+      physicality: {
+        Seraphina: "pink hair, amber eyes, soft skin",
+      },
+      secret_note: {
+        Seraphina: "should not leak",
+        [USER_TRACKER_KEY]: "should not leak",
+      },
+      hidden_pose: {
+        Seraphina: "should stay hidden",
+        [USER_TRACKER_KEY]: "should stay hidden",
       },
       scene_date_time: {
         __bst_global__: "2026-03-06 20:05",
@@ -150,6 +225,56 @@ test("syncBstMacros registers BST macros in the new macro engine by default", ()
   assert.equal(registeredNewEngine.get("bst_stat_scene_scene_date_time")?.(), "2026-03-06 20:05");
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "black sundress, sandals");
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_seraphina")?.(), "black sundress, sandals");
+});
+
+test("syncBstMacros exposes compact bst_image_state using configured owner-scoped visible non-numeric stats", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+  tracker.activeCharacters = ["Seraphina", "Billie"];
+  tracker.customNonNumericStatistics = {
+    ...tracker.customNonNumericStatistics,
+    clothes: {
+      Seraphina: ["black sundress", "sandals"],
+      Billie: ["hoodie", "leggings"],
+      [USER_TRACKER_KEY]: ["hoodie"],
+    },
+    pose: {
+      Seraphina: "standing near the bed",
+      Billie: "sitting on the couch",
+      [USER_TRACKER_KEY]: "sitting upright",
+    },
+    physicality: {
+      Seraphina: "pink hair, amber eyes, soft skin",
+      Billie: "green-black hair, blue eyes",
+    },
+    secret_note: {
+      Seraphina: "should not leak",
+      Billie: "should not leak",
+      [USER_TRACKER_KEY]: "should not leak",
+    },
+    hidden_pose: {
+      Seraphina: "hidden",
+      Billie: "hidden",
+      [USER_TRACKER_KEY]: "hidden",
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Seraphina", "Billie", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
+  assert.match(block, /^Scene: Seraphina, Billie/m);
+  assert.match(block, /^User: clothes=hoodie; pose=sitting upright/m);
+  assert.match(block, /^Seraphina: clothes=black sundress, sandals; pose=standing near the bed; physicality=pink hair, amber eyes, soft skin/m);
+  assert.match(block, /^Billie: clothes=hoodie, leggings; pose=sitting on the couch; physicality=green-black hair, blue eyes/m);
+  assert.equal(block.includes("secret note"), false);
+  assert.equal(block.includes("hidden pose"), false);
+  assert.equal(block.includes("scene date/time"), false);
 });
 
 test("syncBstMacros falls back to legacy registration only when new engine is unavailable", () => {

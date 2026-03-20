@@ -60,6 +60,14 @@ function makeContext(extensionSettings?: Record<string, unknown>): STContext {
 
 test("sanitizeSettings normalizes custom stats, defaults, and scene card display settings", () => {
   const sanitized = sanitizeSettings({
+    moodSymbolMap: {
+      Happy: "(≧▽≦)",
+      Neutral: "(-_-)",
+    },
+    moodSymbolMinWidth: 8,
+    moodSymbolMinHeight: 200,
+    moodSymbolBoxRadius: 99,
+    moodSymbolFontSize: 7,
     sceneCardLayout: "rows",
     injectionPromptMaxChars: 200000,
     customStats: [
@@ -110,6 +118,10 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
   });
 
   assert.equal(sanitized.sceneCardLayout, "rows");
+  assert.equal(sanitized.moodSymbolMinWidth, 18);
+  assert.equal(sanitized.moodSymbolMinHeight, 120);
+  assert.equal(sanitized.moodSymbolBoxRadius, 48);
+  assert.equal(sanitized.moodSymbolFontSize, 10);
   assert.equal(sanitized.customStats.length, 2);
   assert.equal(sanitized.customStats[0].id, "clothes");
   assert.equal(sanitized.customStats[0].textMaxLength, 200);
@@ -120,6 +132,8 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
   assert.equal(sanitized.customStats[1].privateToOwner, false);
   assert.equal(sanitized.customStats[1].dateTimeMode, "structured");
   assert.equal(sanitized.injectionPromptMaxChars, 100000);
+  assert.equal(sanitized.moodSymbolMap.Happy, "(≧▽≦)");
+  assert.equal(sanitized.moodSymbolMap.Neutral, "(-_-)");
   assert.equal(sanitized.sceneCardStatDisplay.scene_date_time.colorOverride, "#aabbcc");
   assert.equal(sanitized.sceneCardStatDisplay.scene_date_time.textMaxLength, 400);
   assert.equal(sanitized.sceneCardStatDisplay.scene_date_time.arrayCollapsedLimit, 30);
