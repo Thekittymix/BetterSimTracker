@@ -5,6 +5,7 @@ import {
   setManualInactiveCharacter,
 } from "./activity";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
+import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { resolveBaselineBeforeIndex, shouldBypassConfidenceControls } from "./extractorHelpers";
@@ -1592,7 +1593,9 @@ function queueRender(): void {
         }
       }
       if (!liveContext?.characters?.length) return null;
-      let character = liveContext.characters.find(item => String(item?.name ?? "").trim().toLowerCase() === normalized);
+      let character = settings
+        ? findCharacterByOwner(liveContext, settings, characterName)
+        : liveContext.characters.find(item => String(item?.name ?? "").trim().toLowerCase() === normalized);
       if (!character && normalized === USER_TRACKER_KEY.toLowerCase()) {
         const userName = String(liveContext.name1 ?? "").trim().toLowerCase();
         if (userName) {
@@ -1913,10 +1916,21 @@ function setTrackerRecovery(
 }
 
 function findCharacterByName(context: STContext | null, name: string): Character | null {
-  const normalized = String(name ?? "").trim().toLowerCase();
+  return findCharacterByOwner(context, { entityTrackingMode: "standard" }, name);
+}
+
+function findCharacterByOwner(
+  context: STContext | null,
+  settingsInput: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+  name: string,
+): Character | null {
+  const normalized = String(name ?? "").trim();
   if (!normalized) return null;
+  const resolved = resolveCharacterFromContext(context, normalized, resolveEntityTrackingMode(settingsInput));
+  if (resolved) return resolved;
+  const key = normalized.toLowerCase();
   const characters = context?.characters ?? [];
-  return characters.find(character => String(character?.name ?? "").trim().toLowerCase() === normalized) ?? null;
+  return characters.find(character => String(character?.name ?? "").trim().toLowerCase() === key) ?? null;
 }
 
 function parseDefaultNumber(raw: unknown): number | null {
@@ -2052,7 +2066,7 @@ function getConfiguredCharacterDefaults(
     };
   }
 
-  const character = findCharacterByName(context, name);
+  const character = findCharacterByOwner(context, settingsInput, name);
   const extFromCharacter = character?.extensions as Record<string, unknown> | undefined;
   const extFromData = character?.data?.extensions as Record<string, unknown> | undefined;
   const own = ((extFromCharacter?.bettersimtracker ?? extFromData?.bettersimtracker) as Record<string, unknown> | undefined);
@@ -3350,7 +3364,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     }
     let contextText = buildRecentContext(context, settings.contextMessages);
     if (activeSettings.includeCharacterCardsInPrompt) {
-      contextText = `${contextText}${buildCharacterCardsContext(context, activeCharacters)}`.trim();
+      contextText = `${contextText}${buildCharacterCardsContext(context, activeCharacters, resolveEntityTrackingMode(runScopedSettings))}`.trim();
     }
     if (activeSettings.includeLorebookInExtraction) {
       contextText = `${contextText}${buildLorebookExtractionContext(context, activeSettings.lorebookExtractionMaxChars)}`.trim();
@@ -3609,7 +3623,7 @@ function refreshFromStoredData(): void {
   const activeSettings = settings;
   readPersistedTrackerRecoveries(context);
 
-  allCharacterNames = getAllTrackedCharacterNames(context).filter(name =>
+  allCharacterNames = getAllTrackedCharacterNames(context, activeSettings).filter(name =>
     isTrackerEnabledForOwner(context, activeSettings, name),
   );
   if (activeSettings.enableUserTracking && !allCharacterNames.includes(USER_TRACKER_KEY)) {

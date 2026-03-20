@@ -1,4 +1,5 @@
 import type { Character, STContext } from "./types";
+import { resolveCharacterIdentity, resolveEntityTrackingMode } from "./entityResolution";
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
@@ -25,7 +26,11 @@ function buildCharacterCardChunk(character: Character, duplicateNameCount: numbe
   return `${buildCardHeader(character, duplicateNameCount, duplicateIndex)}\n${lines.join("\n")}`;
 }
 
-export function buildCharacterCardsContext(context: STContext, activeCharacters: string[]): string {
+export function buildCharacterCardsContext(
+  context: STContext,
+  activeCharacters: string[],
+  entityTrackingMode: "standard" | "multi_character" = "standard",
+): string {
   const allCharacters = Array.isArray(context?.characters) ? context.characters : [];
   if (!allCharacters.length) return "";
 
@@ -67,7 +72,12 @@ export function buildCharacterCardsContext(context: STContext, activeCharacters:
 
     const isActiveByAvatar = avatarKey ? activeAvatarKeys.has(avatarKey) : false;
     const isActiveByName = nameKey ? activeNameKeys.has(nameKey) : false;
-    if (!isActiveByAvatar && !isActiveByName) continue;
+    const isActiveByAlias = entityTrackingMode === "multi_character"
+      && activeCharacters.some(token => {
+        const resolved = resolveCharacterIdentity(context, token, resolveEntityTrackingMode({ entityTrackingMode }));
+        return Boolean(resolved && normalizeNameKey(resolved.sourceName) === nameKey);
+      });
+    if (!isActiveByAvatar && !isActiveByName && !isActiveByAlias) continue;
 
     const duplicateCount = duplicateNameCounts.get(nameKey) ?? 1;
     const duplicateIndex = duplicateNameIndices.get(nameKey) ?? 0;

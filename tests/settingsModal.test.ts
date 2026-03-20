@@ -63,3 +63,9 @@ test("settings modal exposes mood symbol chip display controls in Card Appearanc
   assert.match(source, /Mood Symbol Radius/);
   assert.match(source, /Mood Symbol Font Size/);
 });
+
+test("settings modal exposes entity tracking mode control in Extraction", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Entity Tracking Mode/);
+  assert.match(source, /Multi-Character \(Experimental\)/);
+});

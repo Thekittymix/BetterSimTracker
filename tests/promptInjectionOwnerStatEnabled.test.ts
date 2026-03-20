@@ -49,3 +49,26 @@ test("isOwnerStatEnabled reads persona-scoped user statEnabled map", () => {
   assert.equal(isOwnerStatEnabled(context, settings, USER_TRACKER_KEY, "mood"), false);
   assert.equal(isOwnerStatEnabled(context, settings, USER_TRACKER_KEY, "lastThought"), true);
 });
+
+test("isOwnerStatEnabled resolves alias owners against multi-character source card defaults", () => {
+  const settings = baseSettings();
+  settings.entityTrackingMode = "multi_character";
+  settings.characterDefaults = {
+    "avatar:camp.png": {
+      statEnabled: {
+        mood: false,
+      },
+    },
+  };
+  const context = {
+    characters: [
+      {
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        avatar: "camp.png",
+      },
+    ],
+  } as unknown as STContext;
+
+  assert.equal(isOwnerStatEnabled(context, settings, "Ashley", "mood"), false);
+  assert.equal(isOwnerStatEnabled(context, settings, "Ashley", "lastThought"), true);
+});

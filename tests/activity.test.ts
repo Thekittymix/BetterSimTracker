@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  getAllTrackedCharacterNames,
   readManualInactiveCharacters,
   resolveActiveCharacterAnalysis,
   setManualInactiveCharacter,
@@ -89,4 +90,29 @@ test("manual inactive override can still be cleared manually before the characte
     activityLookback: 5,
   });
   assert.deepEqual(clearedResult.activeCharacters, ["Billie"]);
+});
+
+test("getAllTrackedCharacterNames expands multi-character source cards into aliases when enabled", () => {
+  const context = {
+    groupId: "group-1",
+    groups: [{ id: "group-1", members: ["camp.png", "billie.png"] }],
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+      { name: "Billie", avatar: "billie.png" },
+    ],
+    chatMetadata: {},
+    chat: [],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "multi_character" }),
+    [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Billie",
+    ],
+  );
 });

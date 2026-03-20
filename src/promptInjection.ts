@@ -1,6 +1,7 @@
 import { DEFAULT_INJECTION_PROMPT_TEMPLATE } from "./prompts";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
+import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
 import { buildMergedPromptMacroData } from "./runtimeState";
 import {
   behaviorGuidanceLines,
@@ -131,9 +132,11 @@ function isOwnerStatEnabled(
     && normalizeOwnerName(String(contextCharacters[contextCharacterId]?.name ?? "")) === normalizeOwnerName(ownerName)
     ? contextCharacters[contextCharacterId]
     : null;
-  const matchedCharacter = matchedFromId ?? contextCharacters.find(character =>
-    normalizeOwnerName(String(character?.name ?? "")) === normalizeOwnerName(ownerName),
-  );
+  const matchedCharacter = matchedFromId
+    ?? resolveCharacterFromContext(context, ownerName, resolveEntityTrackingMode(settings))
+    ?? contextCharacters.find(character =>
+      normalizeOwnerName(String(character?.name ?? "")) === normalizeOwnerName(ownerName),
+    );
   const defaults = resolveCharacterDefaultsEntry(settings, {
     name: ownerName,
     avatar: String(matchedCharacter?.avatar ?? "").trim() || null,

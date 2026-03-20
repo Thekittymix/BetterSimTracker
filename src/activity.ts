@@ -1,4 +1,6 @@
+import { EXTENSION_KEY } from "./constants";
 import type { BetterSimTrackerSettings, Character, STContext } from "./types";
+import { collectResolvedCharacterNames, resolveEntityTrackingMode } from "./entityResolution";
 import { isTrackableAiMessage } from "./messageFilter";
 
 const MANUAL_INACTIVE_METADATA_KEY = "bstManualInactiveCharacters";
@@ -30,13 +32,20 @@ function pushUniqueName(target: string[], seen: Set<string>, raw: unknown): void
   target.push(name);
 }
 
-export function getAllTrackedCharacterNames(context: STContext): string[] {
+export function getAllTrackedCharacterNames(
+  context: STContext,
+  settings?: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): string[] {
+  const mode = resolveEntityTrackingMode(settings ?? { entityTrackingMode: "standard" });
   const groupCharacters = getGroupCharacters(context);
   if (context.groupId) {
     const merged: string[] = [];
     const seen = new Set<string>();
     for (const character of groupCharacters) {
       pushUniqueName(merged, seen, character.name);
+      for (const alias of collectResolvedCharacterNames({ ...context, characters: [character] }, { entityTrackingMode: mode })) {
+        pushUniqueName(merged, seen, alias);
+      }
     }
     const fromChat = Array.from(
       new Set(
@@ -55,7 +64,17 @@ export function getAllTrackedCharacterNames(context: STContext): string[] {
   }
 
   const single = getSingleCharacter(context);
-  if (single.length) return single.map(c => c.name).filter(Boolean);
+  if (single.length) {
+    const merged: string[] = [];
+    const seen = new Set<string>();
+    for (const character of single) {
+      pushUniqueName(merged, seen, character.name);
+      for (const alias of collectResolvedCharacterNames({ ...context, characters: [character] }, { entityTrackingMode: mode })) {
+        pushUniqueName(merged, seen, alias);
+      }
+    }
+    return merged;
+  }
 
   return context.name2 ? [context.name2] : [];
 }
@@ -109,7 +128,8 @@ function readManualInactiveOverrideMap(context: STContext): ManualInactiveOverri
     context.chatMetadata?.[MANUAL_INACTIVE_METADATA_KEY],
     fallbackIndex,
   );
-  const allTracked = getAllTrackedCharacterNames(context);
+  const settingsMode = (context.extensionSettings?.[EXTENSION_KEY] as Partial<BetterSimTrackerSettings> | undefined)?.entityTrackingMode;
+  const allTracked = getAllTrackedCharacterNames(context, { entityTrackingMode: settingsMode === "multi_character" ? "multi_character" : "standard" });
   const canonicalByLower = new Map(allTracked.map(name => [name.toLowerCase(), name] as const));
   const out: ManualInactiveOverrideMap = {};
   for (const [name, value] of Object.entries(normalized)) {
@@ -142,7 +162,8 @@ export function setManualInactiveCharacter(
   }
   const materialized = Object.fromEntries(next.entries());
   persistManualInactiveOverrideMap(context, materialized);
-  const ordered = getAllTrackedCharacterNames(context);
+  const settingsMode = (context.extensionSettings?.[EXTENSION_KEY] as Partial<BetterSimTrackerSettings> | undefined)?.entityTrackingMode;
+  const ordered = getAllTrackedCharacterNames(context, { entityTrackingMode: settingsMode === "multi_character" ? "multi_character" : "standard" });
   const materializedNames = ordered.filter(name => Object.prototype.hasOwnProperty.call(materialized, name));
   const leftovers = Object.keys(materialized).filter(name => !materializedNames.includes(name));
   if (leftovers.length) materializedNames.push(...leftovers);
@@ -159,7 +180,7 @@ export function resolveActiveCharacterAnalysis(
   lookback: number;
   manualInactiveCharacters: string[];
 } {
-  const allNames = getAllTrackedCharacterNames(context);
+  const allNames = getAllTrackedCharacterNames(context, settings);
   const allNamesSet = new Set(allNames);
   const lookback = Math.max(1, settings.activityLookback);
   const reasons: Record<string, string> = {};

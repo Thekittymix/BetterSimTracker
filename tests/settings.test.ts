@@ -164,6 +164,14 @@ test("loadSettings keeps enabled true when context is partial but accepts explic
   assert.equal(explicitLoaded.fontSize, 16);
 });
 
+test("sanitizeSettings preserves multi-character entity tracking mode", () => {
+  const sanitized = sanitizeSettings({
+    entityTrackingMode: "multi_character",
+  });
+
+  assert.equal(sanitized.entityTrackingMode, "multi_character");
+});
+
 test("loadSettings accepts local enabled fallback only when context has no BST settings at all", () => {
   localStorageMock.setItem(
     `extension-settings:${EXTENSION_KEY}`,

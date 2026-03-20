@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp1] - 2026-03-20
+### Added
+- Added experimental `Entity Tracking Mode` with a new `Multi-Character` mode for chats that use one source card to represent multiple named characters.
+
+### Changed
+- Group and single-character owner resolution can now expand multi-character source card names into alias candidates for activity detection, card-context resolution, and owner defaults lookup.
+
 ## [2.2.4.16] - 2026-03-20
 ### Fixed
 - Fixed character cards so disabled built-in text stats no longer leak stale mood or inner-thought values from stored tracker history when character-side mood or last-thought tracking is turned off.

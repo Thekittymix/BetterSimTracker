@@ -62,3 +62,22 @@ test("buildCharacterCardsContext skips cards without descriptive fields", () => 
   assert.equal(rendered, "");
 });
 
+test("buildCharacterCardsContext includes source card context when an active alias resolves to a multi-character card", () => {
+  const context = {
+    groupId: "group-1",
+    characters: [
+      {
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        avatar: "camp.png",
+        description: "Whispering Pines description.",
+      },
+      { name: "Billie", avatar: "billie.png", description: "Billie card." },
+    ],
+  } as any;
+
+  const rendered = buildCharacterCardsContext(context, ["Ashley"], "multi_character");
+  assert.match(rendered, /Camp Whispering Pines \| Ashley, Blake, Garret, & Raleigh/);
+  assert.match(rendered, /Whispering Pines description\./);
+  assert.doesNotMatch(rendered, /Billie card\./);
+});
+
