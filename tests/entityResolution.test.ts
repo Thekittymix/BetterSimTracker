@@ -313,6 +313,46 @@ test("resolveInitialExtractionOwners prefers built-in stat owners from saved tra
   assert.deepEqual(resolved, ["Blake"]);
 });
 
+test("resolveExtractionOwnerScopes narrows scene activity to a single remaining alias when the latest user cue makes presence exclusive", () => {
+  const context = {
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chatMetadata: {},
+    chat: [
+      {
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        mes: "Raleigh greeted User while Ashley fidgeted and Garret paced in the background.",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        name: "User",
+        mes: "Ashley leaves the room. Blake stays here alone now and answers in one short reply.",
+        is_user: true,
+        is_system: false,
+      },
+      {
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        mes: "Blake remained by the filing cabinet and answered in a flat monotone.",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const result = resolveExtractionOwnerScopes(
+    context,
+    ["Ashley", "Blake", "Garret", "Raleigh"],
+    context.chat[2],
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(result.requestCharacters, ["Blake"]);
+  assert.deepEqual(result.sceneActiveCharacters, ["Blake"]);
+});
+
 test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {
   const context = {
     characters: [

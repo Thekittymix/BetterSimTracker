@@ -1,3 +1,7 @@
+## [2.2.4.16-exp55] - 2026-03-21
+### Fixed
+- Experimental multi-character scene resolution now honors explicit single-remaining-character cues like `X stays here alone now`, so the next AI reply can persist the speaking alias as the only active scene owner instead of keeping unrelated aliases active.
+
 ## [2.2.4.16-exp54] - 2026-03-21
 ### Fixed
 - Experimental auto-bootstrap now prioritizes missing AI greeting tracker messages before later AI turns, so fresh multi-character chats can backfill opening-state continuity instead of leaving later inactive aliases stuck on empty baseline cards.

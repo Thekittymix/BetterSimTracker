@@ -197,6 +197,37 @@ function filterSceneActiveCharactersByRecentDepartureCues(
   const maxDepartureScan = 8;
   const scanStart = Math.max(0, currentMessageIndex - maxDepartureScan);
   const excluded = new Set<string>();
+  const normalizedRequestCharacters = uniqueStrings(requestCharacters.map(normalizeToken));
+
+  const buildExclusivePresencePatterns = (name: string): RegExp[] => {
+    const escaped = escapeRegex(name);
+    return [
+      new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\balone\\b`, "i"),
+      new RegExp(`\\bonly\\s+${escaped}\\b`, "i"),
+      new RegExp(`\\bjust\\s+${escaped}\\b`, "i"),
+      new RegExp(`\\bonly\\s+${escaped}\\s+(?:stays|stayed|remains|remained|is\\s+here)\\b`, "i"),
+      new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\b(?:stays?|stayed|remains?|remained)\\b[^.!?\\n]{0,40}\\b(?:alone|here\\s+alone)\\b`, "i"),
+    ];
+  };
+
+  const hasExclusivePresenceCue = (text: string, name: string): boolean => {
+    const normalized = normalizeToken(text);
+    if (!normalized || !name) return false;
+    return buildExclusivePresencePatterns(name).some(pattern => pattern.test(normalized));
+  };
+
+  const recentUserMessages = context.chat
+    .slice(scanStart, currentMessageIndex)
+    .filter(candidate => Boolean(candidate?.is_user) && !candidate?.is_system)
+    .map(candidate => normalizeToken(candidate?.mes))
+    .filter(Boolean);
+
+  if (normalizedRequestCharacters.length === 1) {
+    const exclusiveOwner = normalizedRequestCharacters[0];
+    if (recentUserMessages.some(text => hasExclusivePresenceCue(text, exclusiveOwner))) {
+      return [exclusiveOwner];
+    }
+  }
 
   for (const ownerName of sceneActiveCharacters) {
     const ownerKey = normalizeKey(ownerName);
