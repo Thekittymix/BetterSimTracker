@@ -100,7 +100,7 @@ test("collectResolvedCharacterNames includes aliases only in multi-character mod
   );
 });
 
-test("resolveMessageScopedActiveCharacters replaces a source-card speaker with a unique alias speaker from AI message text", () => {
+test("resolveMessageScopedActiveCharacters expands a multi-character source owner to the full alias pool for scene continuity", () => {
   const context = {
     characters: [
       { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
@@ -119,10 +119,10 @@ test("resolveMessageScopedActiveCharacters replaces a source-card speaker with a
     { entityTrackingMode: "multi_character" },
   );
 
-  assert.deepEqual(resolved, ["Ashley", "Billie"]);
+  assert.deepEqual(resolved, ["Ashley", "Blake", "Garret", "Raleigh", "Billie"]);
 });
 
-test("resolveMessageScopedActiveCharacters keeps source-card owner when message text does not uniquely identify one alias", () => {
+test("resolveMessageScopedActiveCharacters keeps multi-character source owners expanded even when the message mentions multiple aliases", () => {
   const context = {
     characters: [
       { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
@@ -140,7 +140,7 @@ test("resolveMessageScopedActiveCharacters keeps source-card owner when message 
     { entityTrackingMode: "multi_character" },
   );
 
-  assert.deepEqual(resolved, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"]);
+  assert.deepEqual(resolved, ["Ashley", "Blake", "Garret", "Raleigh"]);
 });
 
 test("resolveMessageScopedParticipants narrows a multi-character speaker to the aliases actually present in the AI message", () => {

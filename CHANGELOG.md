@@ -1,3 +1,7 @@
+## [2.2.4.16-exp43] - 2026-03-21
+### Changed
+- Experimental multi-character scene resolution now expands source-card owners into their alias pool for scene continuity, while keeping extraction requests narrowed to the aliases actually participating in the current reply.
+
 ## [2.2.4.16-exp42] - 2026-03-21
 ### Changed
 - Experimental multi-character extraction now separates scene-active owners from narrow request targets, so focused AI replies can extract only the speaking alias without dropping other scene entities from that message's tracker lifecycle/render pool.

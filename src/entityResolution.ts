@@ -249,7 +249,35 @@ export function resolveMessageScopedActiveCharacters(
   message: ChatMessage | null | undefined,
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): string[] {
-  return activeCharacters.map(ownerName => resolveMessageScopedOwnerName(context, ownerName, message, settings));
+  const mode = resolveEntityTrackingMode(settings);
+  if (mode !== "multi_character") {
+    return activeCharacters.map(ownerName => resolveMessageScopedOwnerName(context, ownerName, message, settings));
+  }
+
+  const expanded: string[] = [];
+  const seen = new Set<string>();
+  for (const ownerName of activeCharacters) {
+    const resolved = resolveCharacterIdentity(context, ownerName, mode);
+    if (!resolved) {
+      pushUniqueString(expanded, seen, ownerName);
+      continue;
+    }
+    const source = resolveCharacterFromContext(context, ownerName, mode);
+    if (!source) {
+      pushUniqueString(expanded, seen, resolveMessageScopedOwnerName(context, ownerName, message, settings));
+      continue;
+    }
+    const aliases = getCharacterAliases(source, mode)
+      .filter(alias => normalizeKey(alias) !== normalizeKey(resolved.sourceName));
+    if (resolved.matchedBy === "source" && aliases.length >= 2) {
+      for (const alias of aliases) {
+        pushUniqueString(expanded, seen, alias);
+      }
+      continue;
+    }
+    pushUniqueString(expanded, seen, resolved.matchedBy === "alias" ? resolved.resolvedName : ownerName);
+  }
+  return expanded;
 }
 
 export function resolveMessageScopedParticipants(
