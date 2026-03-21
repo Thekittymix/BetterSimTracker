@@ -135,6 +135,10 @@ export interface TrackerEntityRegistryEntry {
   lastActiveMessageIndex: number | null;
   lifecycleState: TrackerEntityLifecycleState;
   archivedAtMessageIndex: number | null;
+  lifecycleEvents?: Array<{
+    messageIndex: number;
+    state: TrackerEntityLifecycleState;
+  }>;
 }
 
 export interface TrackerEntityRegistry {

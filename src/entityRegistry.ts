@@ -54,6 +54,70 @@ function isLifecycleState(value: unknown): value is TrackerEntityLifecycleState 
   return value === "active" || value === "inactive" || value === "archived";
 }
 
+function sanitizeLifecycleEvents(
+  raw: unknown,
+  fallbackState: TrackerEntityLifecycleState,
+  introducedAtMessageIndex: number,
+): Array<{ messageIndex: number; state: TrackerEntityLifecycleState }> {
+  const events = Array.isArray(raw)
+    ? raw.flatMap(item => {
+        if (!item || typeof item !== "object") return [];
+        const record = item as Record<string, unknown>;
+        const messageIndex = Number(record.messageIndex);
+        const state = record.state;
+        if (!Number.isFinite(messageIndex) || !isLifecycleState(state)) return [];
+        return [{ messageIndex, state }];
+      })
+    : [];
+  const deduped = new Map<number, TrackerEntityLifecycleState>();
+  for (const event of events) {
+    deduped.set(event.messageIndex, event.state);
+  }
+  const normalized = Array.from(deduped.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([messageIndex, state]) => ({ messageIndex, state }));
+  if (normalized.length) return normalized;
+  return [{ messageIndex: introducedAtMessageIndex, state: fallbackState }];
+}
+
+function upsertLifecycleEvent(
+  entry: TrackerEntityRegistryEntry,
+  messageIndex: number,
+  state: TrackerEntityLifecycleState,
+): boolean {
+  const existing = Array.isArray(entry.lifecycleEvents) ? [...entry.lifecycleEvents] : [];
+  const deduped = new Map<number, TrackerEntityLifecycleState>();
+  for (const event of existing) {
+    if (!Number.isFinite(Number(event.messageIndex)) || !isLifecycleState(event.state)) continue;
+    deduped.set(Number(event.messageIndex), event.state);
+  }
+  deduped.set(messageIndex, state);
+  const next = Array.from(deduped.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([eventMessageIndex, eventState]) => ({ messageIndex: eventMessageIndex, state: eventState }));
+  const before = JSON.stringify(existing);
+  const after = JSON.stringify(next);
+  entry.lifecycleEvents = next;
+  return before !== after;
+}
+
+function resolveLifecycleStateAtMessage(
+  entry: TrackerEntityRegistryEntry,
+  messageIndex: number,
+): { state: TrackerEntityLifecycleState; stateChangedAtMessageIndex: number | null } {
+  const events = Array.isArray(entry.lifecycleEvents) && entry.lifecycleEvents.length
+    ? entry.lifecycleEvents
+    : [{ messageIndex: entry.introducedAtMessageIndex, state: entry.lifecycleState }];
+  let resolvedState: TrackerEntityLifecycleState = "inactive";
+  let stateChangedAtMessageIndex: number | null = null;
+  for (const event of events) {
+    if (event.messageIndex > messageIndex) break;
+    resolvedState = event.state;
+    stateChangedAtMessageIndex = event.messageIndex;
+  }
+  return { state: resolvedState, stateChangedAtMessageIndex };
+}
+
 function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
   const empty: TrackerEntityRegistry = { version: 1, entities: {}, ownerToEntityId: {} };
   if (!input || typeof input !== "object") return empty;
@@ -86,6 +150,7 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
       const archivedAtMessageIndex = entry.archivedAtMessageIndex == null
         ? null
         : (Number.isFinite(Number(entry.archivedAtMessageIndex)) ? Number(entry.archivedAtMessageIndex) : null);
+      const lifecycleEvents = sanitizeLifecycleEvents(entry.lifecycleEvents, lifecycleState, introducedAtMessageIndex);
       if (!id || !ownerName || !canonicalName || !sourceName || !sourceKey) continue;
       entities[id] = {
         id,
@@ -101,6 +166,7 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
         lastActiveMessageIndex,
         lifecycleState,
         archivedAtMessageIndex,
+        lifecycleEvents,
       };
     }
   }
@@ -167,6 +233,7 @@ function ensureEntry(
     lastActiveMessageIndex: null,
     lifecycleState: "inactive",
     archivedAtMessageIndex: null,
+    lifecycleEvents: [{ messageIndex, state: "inactive" }],
   };
   registry.entities[entityId] = entry;
   registry.ownerToEntityId[normalizeKey(ownerName)] = entityId;
@@ -221,6 +288,9 @@ export function syncEntityRegistryFromRender(input: {
     }
     if (entry.lifecycleState !== lifecycleState) {
       entry.lifecycleState = lifecycleState;
+      changed = true;
+    }
+    if (upsertLifecycleEvent(entry, input.messageIndex, lifecycleState)) {
       changed = true;
     }
     const archivedAtMessageIndex = lifecycleState === "archived" ? input.messageIndex : null;
@@ -382,7 +452,7 @@ export function getEntityRegistryEntryForMessage(
   const entry = getEntityRegistryEntryByOwnerName(context, ownerName);
   if (!entry) return null;
   if (entry.introducedAtMessageIndex > messageIndex) return null;
-  if (entry.archivedAtMessageIndex != null && entry.archivedAtMessageIndex <= messageIndex) return null;
+  if (resolveLifecycleStateAtMessage(entry, messageIndex).state === "archived") return null;
   return entry;
 }
 
@@ -393,7 +463,7 @@ export function listEntityRegistryEntriesForMessage(
   const registry = readRegistry(context);
   return Object.values(registry.entities)
     .filter(entry => entry.introducedAtMessageIndex <= messageIndex)
-    .filter(entry => entry.archivedAtMessageIndex == null || entry.archivedAtMessageIndex > messageIndex)
+    .filter(entry => resolveLifecycleStateAtMessage(entry, messageIndex).state !== "archived")
     .sort((a, b) => {
       if (a.introducedAtMessageIndex !== b.introducedAtMessageIndex) {
         return a.introducedAtMessageIndex - b.introducedAtMessageIndex;
@@ -412,8 +482,9 @@ export function getEntityRegistryLifecycleStateForMessage(
 ): CardLifecycleRegistryState | null {
   const entry = getEntityRegistryEntryByOwnerName(context, ownerName);
   if (!entry) return null;
-  const archivedAtMessageIndex = entry.archivedAtMessageIndex != null && entry.archivedAtMessageIndex <= messageIndex
-    ? entry.archivedAtMessageIndex
+  const lifecycleAtMessage = resolveLifecycleStateAtMessage(entry, messageIndex);
+  const archivedAtMessageIndex = lifecycleAtMessage.state === "archived"
+    ? lifecycleAtMessage.stateChangedAtMessageIndex
     : null;
   const lastActiveMessageIndex = entry.lastActiveMessageIndex != null && entry.lastActiveMessageIndex <= messageIndex
     ? entry.lastActiveMessageIndex

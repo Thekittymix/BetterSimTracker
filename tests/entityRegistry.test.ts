@@ -138,6 +138,48 @@ test("syncEntityRegistryFromRender marks archived aliases without deleting them"
   assert.equal(registry.entities[ashleyId]?.lastActiveMessageIndex, 8);
 });
 
+test("entity registry reactivation restores archived aliases for later messages without reviving them in archived history windows", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    owners: ["Ashley"],
+    getLifecycleState: () => "archived",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 22,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+
+  assert.equal(getEntityRegistryEntryForMessage(context, "Ashley", 14)?.ownerName, "Ashley");
+  assert.equal(getEntityRegistryEntryForMessage(context, "Ashley", 16), null);
+  assert.equal(getEntityRegistryEntryForMessage(context, "Ashley", 22)?.ownerName, "Ashley");
+  assert.equal(getEntityRegistryEntryForMessage(context, "Ashley", 30)?.ownerName, "Ashley");
+
+  assert.deepEqual(listEntityRegistryOwnersForMessage(context, 16), []);
+  assert.deepEqual(listEntityRegistryOwnersForMessage(context, 22), ["Ashley"]);
+
+  const archivedState = getEntityRegistryLifecycleStateForMessage(context, "Ashley", 16);
+  assert.equal(archivedState?.lifecycleState, "archived");
+  assert.equal(archivedState?.archivedAtMessageIndex, 15);
+
+  const restoredState = getEntityRegistryLifecycleStateForMessage(context, "Ashley", 22);
+  assert.equal(restoredState?.lifecycleState, "inactive");
+  assert.equal(restoredState?.archivedAtMessageIndex, null);
+  assert.equal(restoredState?.lastActiveMessageIndex, 22);
+});
+
 test("listEntityRegistryOwnersForMessage returns visible owners for a given message index", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

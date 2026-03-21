@@ -1,3 +1,7 @@
+## [2.2.4.16-exp37] - 2026-03-21
+### Changed
+- Experimental multi-character entity registry now stores lifecycle changes as a timeline, so archived aliases can reactivate later without corrupting earlier archived message windows.
+
 ## [2.2.4.16-exp36] - 2026-03-21
 ### Changed
 - Injection Prompt settings now explain each built-in placeholder more explicitly, including which blocks are static, which block is runtime-dynamic, and that the outer injection wrapper is added automatically.
