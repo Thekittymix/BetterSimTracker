@@ -31,6 +31,20 @@ function createEmptyStatistics(): Statistics {
   };
 }
 
+function normalizeStatistics(raw: unknown): Statistics {
+  const record = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? raw as Partial<Statistics>
+    : {};
+  return {
+    affection: { ...(record.affection ?? {}) },
+    trust: { ...(record.trust ?? {}) },
+    desire: { ...(record.desire ?? {}) },
+    connection: { ...(record.connection ?? {}) },
+    mood: { ...(record.mood ?? {}) },
+    lastThought: { ...(record.lastThought ?? {}) },
+  };
+}
+
 export function getTrackerDataFromMessage(message: ChatMessage): TrackerData | null {
   const raw = message.extra?.[EXTENSION_KEY];
   const data = resolveTrackerDataForSwipe(message, raw);
@@ -50,8 +64,11 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
       ...createEmptyStatistics(),
       ...(data.statistics as Statistics)
     },
+    statisticsByEntityId: normalizeStatistics(data.statisticsByEntityId),
     customStatistics: normalizeCustomStatistics(data.customStatistics),
+    customStatisticsByEntityId: normalizeCustomStatistics(data.customStatisticsByEntityId),
     customNonNumericStatistics: normalizeCustomNonNumericStatistics(data.customNonNumericStatistics),
+    customNonNumericStatisticsByEntityId: normalizeCustomNonNumericStatistics(data.customNonNumericStatisticsByEntityId),
     clearedStatistics: pruneClearedStatistics(clearedStatistics),
     clearedCustomStatistics: pruneClearedOwnerBuckets(clearedCustomStatistics),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(clearedCustomNonNumericStatistics),
@@ -192,6 +209,61 @@ function remapOwnerRecord<T>(
   return Object.keys(out).length ? out : undefined;
 }
 
+function buildEntityScopedRecord<T>(
+  byOwner: Record<string, T> | undefined,
+  targetToEntity: Record<string, string>,
+): Record<string, T> | undefined {
+  if (!byOwner || typeof byOwner !== "object") return undefined;
+  const out: Record<string, T> = {};
+  for (const [owner, value] of Object.entries(byOwner)) {
+    const entityId = targetToEntity[owner];
+    if (!entityId) continue;
+    out[entityId] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function buildEntityScopedStatistics(
+  statistics: Statistics,
+  targetToEntity: Record<string, string>,
+): Statistics | undefined {
+  const next: Statistics = {
+    affection: buildEntityScopedRecord(statistics.affection ?? {}, targetToEntity) ?? {},
+    trust: buildEntityScopedRecord(statistics.trust ?? {}, targetToEntity) ?? {},
+    desire: buildEntityScopedRecord(statistics.desire ?? {}, targetToEntity) ?? {},
+    connection: buildEntityScopedRecord(statistics.connection ?? {}, targetToEntity) ?? {},
+    mood: buildEntityScopedRecord(statistics.mood ?? {}, targetToEntity) ?? {},
+    lastThought: buildEntityScopedRecord(statistics.lastThought ?? {}, targetToEntity) ?? {},
+  };
+  return Object.values(next).some(bucket => Object.keys(bucket).length) ? next : undefined;
+}
+
+function buildEntityScopedCustomStatistics(
+  customStatistics: CustomStatistics | undefined,
+  targetToEntity: Record<string, string>,
+): CustomStatistics | undefined {
+  if (!customStatistics) return undefined;
+  const out: CustomStatistics = {};
+  for (const [statId, bucket] of Object.entries(customStatistics)) {
+    const nextBucket = buildEntityScopedRecord(bucket, targetToEntity);
+    if (nextBucket && Object.keys(nextBucket).length) out[statId] = nextBucket;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function buildEntityScopedCustomNonNumericStatistics(
+  customNonNumericStatistics: CustomNonNumericStatistics | undefined,
+  targetToEntity: Record<string, string>,
+): CustomNonNumericStatistics | undefined {
+  if (!customNonNumericStatistics) return undefined;
+  const out: CustomNonNumericStatistics = {};
+  for (const [statId, bucket] of Object.entries(customNonNumericStatistics)) {
+    const nextBucket = buildEntityScopedRecord(bucket, targetToEntity);
+    if (nextBucket && Object.keys(nextBucket).length) out[statId] = nextBucket;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function remapClearedOwnerBuckets<T extends ClearedCustomStatistics | ClearedCustomNonNumericStatistics>(
   raw: T | undefined,
   ownerToTarget: Record<string, string>,
@@ -209,9 +281,33 @@ function remapClearedOwnerBuckets<T extends ClearedCustomStatistics | ClearedCus
 }
 
 function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
-  const { ownerToTarget, mergedEntityOwnerMap } = buildEntityOwnerProjection(data.entityOwnerMap);
-  if (!Object.keys(ownerToTarget).length) return data;
+  const { ownerToTarget, targetToEntity, mergedEntityOwnerMap } = buildEntityOwnerProjection(data.entityOwnerMap);
+  if (!Object.keys(ownerToTarget).length) {
+    return {
+      ...data,
+      statisticsByEntityId: normalizeStatistics(data.statisticsByEntityId),
+      customStatisticsByEntityId: normalizeCustomStatistics(data.customStatisticsByEntityId),
+      customNonNumericStatisticsByEntityId: normalizeCustomNonNumericStatistics(data.customNonNumericStatisticsByEntityId),
+    };
+  }
   const remapStatBucket = (bucket: CharacterStatMap): CharacterStatMap => remapOwnerRecord(bucket, ownerToTarget) ?? {};
+  const remappedStatistics: Statistics = {
+    affection: remapStatBucket(data.statistics.affection ?? {}),
+    trust: remapStatBucket(data.statistics.trust ?? {}),
+    desire: remapStatBucket(data.statistics.desire ?? {}),
+    connection: remapStatBucket(data.statistics.connection ?? {}),
+    mood: remapStatBucket(data.statistics.mood ?? {}),
+    lastThought: remapStatBucket(data.statistics.lastThought ?? {}),
+  };
+  const remappedCustomStatistics = Object.fromEntries(
+    Object.entries(data.customStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
+  );
+  const remappedCustomNonNumericStatistics = Object.fromEntries(
+    Object.entries(data.customNonNumericStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
+  );
+  const statisticsByEntityId = buildEntityScopedStatistics(remappedStatistics, targetToEntity);
+  const customStatisticsByEntityId = buildEntityScopedCustomStatistics(remappedCustomStatistics, targetToEntity);
+  const customNonNumericStatisticsByEntityId = buildEntityScopedCustomNonNumericStatistics(remappedCustomNonNumericStatistics, targetToEntity);
   return {
     ...data,
     activeCharacters: Array.from(new Set((data.activeCharacters ?? []).map(owner => ownerToTarget[owner] || owner))),
@@ -224,20 +320,12 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
           source: data.entityResolution.source,
         }
       : undefined,
-    statistics: {
-      affection: remapStatBucket(data.statistics.affection ?? {}),
-      trust: remapStatBucket(data.statistics.trust ?? {}),
-      desire: remapStatBucket(data.statistics.desire ?? {}),
-      connection: remapStatBucket(data.statistics.connection ?? {}),
-      mood: remapStatBucket(data.statistics.mood ?? {}),
-      lastThought: remapStatBucket(data.statistics.lastThought ?? {}),
-    },
-    customStatistics: Object.fromEntries(
-      Object.entries(data.customStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
-    ),
-    customNonNumericStatistics: Object.fromEntries(
-      Object.entries(data.customNonNumericStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
-    ),
+    statistics: remappedStatistics,
+    statisticsByEntityId,
+    customStatistics: remappedCustomStatistics,
+    customStatisticsByEntityId,
+    customNonNumericStatistics: remappedCustomNonNumericStatistics,
+    customNonNumericStatisticsByEntityId,
     clearedStatistics: data.clearedStatistics
       ? Object.fromEntries(
           Object.entries(data.clearedStatistics).map(([statId, owners]) => [statId, remapOwnerRecord(owners, ownerToTarget) ?? {}]),
@@ -841,9 +929,9 @@ export function writeTrackerDataToMessage(
     ...data,
     entityOwnerMap: buildTrackerDataEntityOwnerMap(context, data) ?? data.entityOwnerMap,
   };
-  swipeStorage[swipeKey] = enriched;
+  swipeStorage[swipeKey] = normalizeTrackerData(enriched);
   message.extra[EXTENSION_KEY] = swipeStorage;
-  saveTrackerSnapshot(context, enriched, messageIndex);
+  saveTrackerSnapshot(context, swipeStorage[swipeKey], messageIndex);
 }
 
 export function mergeStatisticsWithFallback(

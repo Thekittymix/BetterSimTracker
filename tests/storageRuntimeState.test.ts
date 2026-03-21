@@ -90,7 +90,12 @@ test("getTrackerDataFromMessage respects swipe-specific payloads", () => {
       },
     },
   };
-  assert.deepEqual(getTrackerDataFromMessage(message), tracker);
+  const stored = getTrackerDataFromMessage(message);
+  assert.equal(stored?.timestamp, tracker.timestamp);
+  assert.deepEqual(stored?.activeCharacters, tracker.activeCharacters);
+  assert.deepEqual(stored?.statistics, tracker.statistics);
+  assert.deepEqual(stored?.customStatistics, tracker.customStatistics);
+  assert.deepEqual(stored?.customNonNumericStatistics, tracker.customNonNumericStatistics);
 });
 
 test("writeTrackerDataToMessage stores per-message tracker data and snapshot history", () => {
@@ -106,7 +111,12 @@ test("writeTrackerDataToMessage stores per-message tracker data and snapshot his
     },
   });
   writeTrackerDataToMessage(context, tracker, 2);
-  assert.deepEqual(getTrackerDataFromMessage(context.chat[2]), tracker);
+  const stored = getTrackerDataFromMessage(context.chat[2]);
+  assert.equal(stored?.timestamp, tracker.timestamp);
+  assert.deepEqual(stored?.activeCharacters, tracker.activeCharacters);
+  assert.deepEqual(stored?.statistics, tracker.statistics);
+  assert.deepEqual(stored?.customStatistics, tracker.customStatistics);
+  assert.deepEqual(stored?.customNonNumericStatistics, tracker.customNonNumericStatistics);
   const history = getRecentTrackerHistoryEntries(context, 10);
   assert.equal(history.length, 1);
   assert.equal(history[0].messageIndex, 2);
@@ -160,6 +170,56 @@ test("writeTrackerDataToMessage enriches tracker payloads with message-scoped en
   assert.ok(stored?.entityOwnerMap?.Ashley);
   assert.equal(stored?.entityOwnerMap?.Ashley.entityId, "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley");
   assert.equal(stored?.entityOwnerMap?.Ashley.kind, "multi_character_alias");
+  assert.deepEqual(stored?.statisticsByEntityId?.affection, {
+    "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley": 55,
+  });
+});
+
+test("getTrackerDataFromMessage materializes by-entity shadow projections from entityOwnerMap", () => {
+  const tracker = makeTracker(1001, {
+    activeCharacters: ["Ashley"],
+    statistics: {
+      affection: { Ashley: 55 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customNonNumericStatistics: {
+      clothes: { Ashley: ["hoodie"] },
+    },
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+  });
+  const message = {
+    mes: "Reply",
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    is_user: false,
+    is_system: false,
+    swipe_id: 1,
+    extra: {
+      [EXTENSION_KEY]: {
+        "1": tracker,
+      },
+    },
+  };
+
+  const stored = getTrackerDataFromMessage(message);
+  assert.deepEqual(stored?.statisticsByEntityId?.affection, {
+    "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley": 55,
+  });
+  assert.deepEqual(stored?.customNonNumericStatisticsByEntityId?.clothes, {
+    "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley": ["hoodie"],
+  });
 });
 
 test("getTrackerDataFromMessage preserves explicit entity resolution payload", () => {
@@ -529,7 +589,12 @@ test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () =
   const resolved = resolveLatestStoredTrackerData(context, 2);
   assert.equal(resolved.source, "message");
   assert.equal(resolved.messageIndex, 2);
-  assert.deepEqual(resolved.data, messageTracker);
+  assert.ok(resolved.data);
+  assert.equal(resolved.data.timestamp, messageTracker.timestamp);
+  assert.deepEqual(resolved.data.activeCharacters, messageTracker.activeCharacters);
+  assert.deepEqual(resolved.data.statistics, messageTracker.statistics);
+  assert.deepEqual(resolved.data.customStatistics, messageTracker.customStatistics);
+  assert.deepEqual(resolved.data.customNonNumericStatistics, messageTracker.customNonNumericStatistics);
 });
 
 test("clearTrackerDataForCurrentChat removes persisted tracker data", () => {

@@ -103,8 +103,11 @@ export interface TrackerData {
   activeCharacters: string[];
   entityResolution?: TrackerDataEntityResolution;
   statistics: Statistics;
+  statisticsByEntityId?: Statistics;
   customStatistics?: CustomStatistics;
+  customStatisticsByEntityId?: CustomStatistics;
   customNonNumericStatistics?: CustomNonNumericStatistics;
+  customNonNumericStatisticsByEntityId?: CustomNonNumericStatistics;
   clearedStatistics?: ClearedStatistics;
   clearedCustomStatistics?: ClearedCustomStatistics;
   clearedCustomNonNumericStatistics?: ClearedCustomNonNumericStatistics;

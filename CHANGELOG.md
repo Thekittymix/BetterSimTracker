@@ -1,3 +1,7 @@
+## [2.2.4.16-exp65] - 2026-03-21
+### Changed
+- Experimental multi-character tracker payloads now also materialize shadow `byEntityId` state projections alongside owner-keyed maps, giving the runtime a safer storage bridge toward true entity-keyed continuity.
+
 ## [2.2.4.16-exp64] - 2026-03-21
 ### Changed
 - Experimental multi-character model resolver now filters technical source-card owners out of its candidate owner set and feeds only concrete visible alias entities into the first extraction stage.
