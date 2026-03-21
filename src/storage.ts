@@ -1,5 +1,6 @@
 import { EXTENSION_KEY, STAT_KEYS } from "./constants";
 import { isTrackableMessage } from "./messageFilter";
+import { clearManualInactiveCharacters } from "./activity";
 import type {
   BetterSimTrackerSettings,
   CharacterStatMap,
@@ -16,7 +17,7 @@ import type {
   TrackerDataEntityOwner,
 } from "./types";
 import { normalizeCustomNonNumericValue } from "./customStatRuntime";
-import { buildTrackerDataEntityOwnerMap } from "./entityRegistry";
+import { buildTrackerDataEntityOwnerMap, clearEntityRegistry } from "./entityRegistry";
 const CHAT_STATE_KEY = `${EXTENSION_KEY}:chat`;
 
 function createEmptyStatistics(): Statistics {
@@ -1010,6 +1011,8 @@ export function clearTrackerDataForCurrentChat(context: STContext): void {
     delete context.chatMetadata[EXTENSION_KEY];
     context.saveMetadataDebounced?.();
   }
+  clearEntityRegistry(context);
+  clearManualInactiveCharacters(context);
 
   const scopeKey = getStoreKey(context);
   try {

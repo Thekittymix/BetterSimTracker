@@ -202,6 +202,13 @@ function writeRegistry(context: STContext, registry: TrackerEntityRegistry): voi
   context.saveMetadataDebounced?.();
 }
 
+export function clearEntityRegistry(context: STContext | null): void {
+  if (!context?.chatMetadata || typeof context.chatMetadata !== "object") return;
+  if (!Object.prototype.hasOwnProperty.call(context.chatMetadata, ENTITY_REGISTRY_METADATA_KEY)) return;
+  delete context.chatMetadata[ENTITY_REGISTRY_METADATA_KEY];
+  context.saveMetadataDebounced?.();
+}
+
 function ensureEntry(
   registry: TrackerEntityRegistry,
   identity: ResolvedCharacterIdentity,

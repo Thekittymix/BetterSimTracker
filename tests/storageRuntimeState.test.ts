@@ -501,9 +501,41 @@ test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () =
 test("clearTrackerDataForCurrentChat removes persisted tracker data", () => {
   const context = makeContext();
   const tracker = makeTracker(1000);
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        e1: {
+          id: "e1",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 2,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [{ messageIndex: 2, state: "active" }],
+        },
+      },
+      ownerToEntityId: {
+        ashley: "e1",
+        ash: "e1",
+      },
+    },
+    bstManualInactiveCharacters: {
+      Ashley: 2,
+    },
+  } as typeof context.chatMetadata;
   writeTrackerDataToMessage(context, tracker, 2);
   assert.equal(isTrackableMessage(context.chat[2]), true);
   clearTrackerDataForCurrentChat(context);
   assert.equal(getTrackerDataFromMessage(context.chat[2]), null);
   assert.deepEqual(getRecentTrackerHistoryEntries(context, 10), []);
+  assert.equal(context.chatMetadata?.bstEntityRegistry, undefined);
+  assert.equal(context.chatMetadata?.bstManualInactiveCharacters, undefined);
 });

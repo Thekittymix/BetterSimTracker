@@ -198,6 +198,14 @@ export function readManualInactiveCharacters(context: STContext): string[] {
   return Object.keys(readManualInactiveOverrideMap(context));
 }
 
+export function clearManualInactiveCharacters(context: STContext | null): void {
+  if (!context?.chatMetadata || typeof context.chatMetadata !== "object") return;
+  if (!Object.prototype.hasOwnProperty.call(context.chatMetadata, MANUAL_INACTIVE_METADATA_KEY)) return;
+  delete context.chatMetadata[MANUAL_INACTIVE_METADATA_KEY];
+  context.saveMetadataDebounced?.();
+  context.saveChatDebounced?.();
+}
+
 export function setManualInactiveCharacter(
   context: STContext,
   character: string,

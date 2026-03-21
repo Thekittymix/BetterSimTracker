@@ -1,3 +1,7 @@
+## [2.2.4.16-exp45] - 2026-03-21
+### Fixed
+- Experimental multi-character chat reset now clears chat-scoped entity registry metadata and manual inactive overrides together with stored tracker snapshots, so fresh chat starts do not inherit stale entity lifecycle state.
+
 ## [2.2.4.16-exp44] - 2026-03-21
 ### Changed
 - Experimental multi-character activity resolution now keeps the full alias pool of a source-card reply active for scene continuity, instead of shrinking scene activity to only the alias named in one response.
