@@ -1,3 +1,7 @@
+## [2.2.4.16-exp66] - 2026-03-21
+### Changed
+- Experimental multi-character read paths now resolve tracker continuity through shadow `byEntityId` state first and only fall back to owner-name maps when no persisted entity-scoped value exists.
+
 ## [2.2.4.16-exp65] - 2026-03-21
 ### Changed
 - Experimental multi-character tracker payloads now also materialize shadow `byEntityId` state projections alongside owner-keyed maps, giving the runtime a safer storage bridge toward true entity-keyed continuity.

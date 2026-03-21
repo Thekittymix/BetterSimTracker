@@ -31,6 +31,7 @@ import {
   listTrackerDataLookupNamesForEntityIds,
   listTrackerDataLookupNamesForOwner,
   resolveEntityRegistryLookupValue,
+  resolveTrackerDataLookupValue,
   resolveTrackerEntityIdsForOwners,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
@@ -408,31 +409,60 @@ function buildSummaryTrackerStateLines(
   const lines = collectSummaryCharacters(data).map(name => {
     const displayName = name === USER_TRACKER_KEY ? userDisplayName : name;
     const parts: string[] = [];
-    const mood = String(resolveEntityRegistryLookupValue(context, data.statistics.mood, name) ?? "").trim().replace(/\s+/g, " ");
+    const mood = String(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.mood,
+      byEntityId: data.statisticsByEntityId?.mood,
+      ownerName: name,
+    }) ?? "").trim().replace(/\s+/g, " ");
     if (mood) {
       parts.push(`mood=${mood}`);
     }
-    const lastThought = String(resolveEntityRegistryLookupValue(context, data.statistics.lastThought, name) ?? "").trim().replace(/\s+/g, " ");
+    const lastThought = String(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.lastThought,
+      byEntityId: data.statisticsByEntityId?.lastThought,
+      ownerName: name,
+    }) ?? "").trim().replace(/\s+/g, " ");
     if (lastThought) {
       parts.push(`lastThought="${lastThought.slice(0, 180)}"`);
     }
 
     for (const { key, label } of builtInStats) {
-      const raw = resolveEntityRegistryLookupValue(context, data.statistics[key], name);
+      const raw = resolveTrackerDataLookupValue({
+        context,
+        data,
+        byOwner: data.statistics[key],
+        byEntityId: data.statisticsByEntityId?.[key],
+        ownerName: name,
+      });
       const value = Number(raw);
       if (raw === undefined || Number.isNaN(value)) continue;
       parts.push(`${label}=${Math.max(0, Math.min(100, Math.round(value)))}`);
     }
 
     for (const [statId, byCharacter] of Object.entries(data.customStatistics ?? {})) {
-      const raw = resolveEntityRegistryLookupValue(context, byCharacter, name);
+      const raw = resolveTrackerDataLookupValue({
+        context,
+        data,
+        byOwner: byCharacter,
+        ownerName: name,
+      });
       const value = Number(raw);
       if (raw === undefined || Number.isNaN(value)) continue;
       const label = (customLabelMap.get(statId) ?? statId).replace(/\s+/g, "_").toLowerCase();
       parts.push(`${label}=${Math.max(0, Math.min(100, Math.round(value)))}`);
     }
     for (const [statId, byCharacter] of Object.entries(data.customNonNumericStatistics ?? {})) {
-      const raw = resolveEntityRegistryLookupValue(context, byCharacter, name);
+      const raw = resolveTrackerDataLookupValue({
+        context,
+        data,
+        byOwner: byCharacter,
+        byEntityId: data.customNonNumericStatisticsByEntityId?.[statId],
+        ownerName: name,
+      });
       if (raw === undefined) continue;
       const label = (customLabelMap.get(statId) ?? statId).replace(/\s+/g, "_").toLowerCase();
       if (typeof raw === "boolean") {
@@ -489,11 +519,41 @@ function buildFallbackSummaryProse(
 
   const sentences = names.map(name => {
     const displayName = name === USER_TRACKER_KEY ? (currentSettings.enableUserTracking ? "User" : name) : name;
-    const affection = Number(resolveEntityRegistryLookupValue(context, data.statistics.affection, name) ?? currentSettings.defaultAffection);
-    const trust = Number(resolveEntityRegistryLookupValue(context, data.statistics.trust, name) ?? currentSettings.defaultTrust);
-    const desire = Number(resolveEntityRegistryLookupValue(context, data.statistics.desire, name) ?? currentSettings.defaultDesire);
-    const connection = Number(resolveEntityRegistryLookupValue(context, data.statistics.connection, name) ?? currentSettings.defaultConnection);
-    const mood = String(resolveEntityRegistryLookupValue(context, data.statistics.mood, name) ?? currentSettings.defaultMood).trim();
+    const affection = Number(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.affection,
+      byEntityId: data.statisticsByEntityId?.affection,
+      ownerName: name,
+    }) ?? currentSettings.defaultAffection);
+    const trust = Number(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.trust,
+      byEntityId: data.statisticsByEntityId?.trust,
+      ownerName: name,
+    }) ?? currentSettings.defaultTrust);
+    const desire = Number(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.desire,
+      byEntityId: data.statisticsByEntityId?.desire,
+      ownerName: name,
+    }) ?? currentSettings.defaultDesire);
+    const connection = Number(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.connection,
+      byEntityId: data.statisticsByEntityId?.connection,
+      ownerName: name,
+    }) ?? currentSettings.defaultConnection);
+    const mood = String(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.mood,
+      byEntityId: data.statisticsByEntityId?.mood,
+      ownerName: name,
+    }) ?? currentSettings.defaultMood).trim();
 
     const warmth = describeBand(affection, "guarded warmth", "measured warmth", "clear warmth");
     const safety = describeBand(trust, "careful trust", "steady trust", "strong trust");
@@ -502,7 +562,12 @@ function buildFallbackSummaryProse(
 
     const customBits: string[] = [];
     for (const [statId, byCharacter] of Object.entries(data.customStatistics ?? {})) {
-      const raw = Number(resolveEntityRegistryLookupValue(context, byCharacter, name));
+      const raw = Number(resolveTrackerDataLookupValue({
+        context,
+        data,
+        byOwner: byCharacter,
+        ownerName: name,
+      }));
       if (Number.isNaN(raw)) continue;
       const label = customLabelMap.get(statId) ?? statId;
       const tone = describeBand(raw, "low", "moderate", "high");
@@ -511,7 +576,13 @@ function buildFallbackSummaryProse(
     }
     if (customBits.length < 2) {
       for (const [statId, byCharacter] of Object.entries(data.customNonNumericStatistics ?? {})) {
-        const raw = resolveEntityRegistryLookupValue(context, byCharacter, name);
+        const raw = resolveTrackerDataLookupValue({
+          context,
+          data,
+          byOwner: byCharacter,
+          byEntityId: data.customNonNumericStatisticsByEntityId?.[statId],
+          ownerName: name,
+        });
         if (raw === undefined) continue;
         const label = customLabelMap.get(statId) ?? statId;
         if (typeof raw === "boolean") {
@@ -3711,6 +3782,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       activeCharacters,
       preferredCharacterName,
       contextText,
+      previousTrackerData: previousEntry?.data ?? null,
       previousStatistics: previousSeededStatistics,
       previousCustomStatistics: previousSeededCustomStatistics,
       previousCustomStatisticsRaw: previousEntry?.data?.customStatistics ?? null,

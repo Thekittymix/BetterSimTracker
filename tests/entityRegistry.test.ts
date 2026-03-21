@@ -16,6 +16,7 @@ import {
   listEntityRegistryOwnersForMessage,
   listTrackerDataLookupNamesForEntityIds,
   readEntityRegistry,
+  resolveTrackerDataLookupValue,
   resolveTrackerEntityIdsForOwners,
   resolveTrackerSceneEntityIds,
   resolveTrackerSceneOwners,
@@ -57,6 +58,9 @@ function makeTracker(overrides: Partial<TrackerData> = {}): TrackerData {
     },
     customStatistics: overrides.customStatistics ?? {},
     customNonNumericStatistics: overrides.customNonNumericStatistics ?? {},
+    statisticsByEntityId: overrides.statisticsByEntityId,
+    customStatisticsByEntityId: overrides.customStatisticsByEntityId,
+    customNonNumericStatisticsByEntityId: overrides.customNonNumericStatisticsByEntityId,
     entityResolution: overrides.entityResolution,
     entityOwnerMap: overrides.entityOwnerMap,
   };
@@ -492,6 +496,111 @@ test("resolveEntityRegistryLookupValue prefers the direct owner spelling before 
   );
 
   assert.deepEqual(clothes, ["scene hoodie"]);
+});
+
+test("resolveTrackerDataLookupValue prefers by-entity shadow values before owner-name fallback", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+      },
+    },
+  };
+
+  const data = makeTracker({
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "bst_mc_alias:test:ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "test-source",
+        kind: "multi_character_alias",
+      },
+    },
+    customNonNumericStatistics: {
+      clothes: { Ashley: ["default dress"] },
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: { "bst_mc_alias:test:ashley": ["scene hoodie"] },
+    },
+  });
+
+  const value = resolveTrackerDataLookupValue({
+    context,
+    data,
+    byOwner: data.customNonNumericStatistics?.clothes ?? {},
+    byEntityId: data.customNonNumericStatisticsByEntityId?.clothes,
+    ownerName: "Ash",
+  });
+
+  assert.deepEqual(value, ["scene hoodie"]);
+});
+
+test("resolveTrackerDataLookupValue falls back to owner-name lookup when no by-entity shadow exists", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+      },
+    },
+  };
+
+  const data = makeTracker({
+    customNonNumericStatistics: {
+      clothes: { Ashley: ["default dress"] },
+    },
+  });
+
+  const value = resolveTrackerDataLookupValue({
+    context,
+    data,
+    byOwner: data.customNonNumericStatistics?.clothes ?? {},
+    byEntityId: data.customNonNumericStatisticsByEntityId?.clothes,
+    ownerName: "Ash",
+  });
+
+  assert.deepEqual(value, ["default dress"]);
 });
 
 test("buildTrackerDataEntityOwnerMap captures registry-backed alias owners present in tracker data", () => {

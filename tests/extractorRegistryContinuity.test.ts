@@ -48,7 +48,7 @@ test("resolvePreviousCustomNonNumericValue resolves alias-owned previous values 
   };
 
   assert.equal(
-    resolvePreviousCustomNonNumericValue(context, previousByOwner, "Ash", false),
+    resolvePreviousCustomNonNumericValue(context, previousByOwner, null, null, "Ash", false),
     "standing near the door",
   );
 });
@@ -61,7 +61,46 @@ test("resolvePreviousCustomNonNumericValue prefers global value for global-scope
   };
 
   assert.equal(
-    resolvePreviousCustomNonNumericValue(context, previousByOwner, "Ash", true),
+    resolvePreviousCustomNonNumericValue(context, previousByOwner, null, null, "Ash", true),
     "Wednesday",
+  );
+});
+
+test("resolvePreviousCustomNonNumericValue prefers by-entity shadow continuity when available", () => {
+  const context = makeContext();
+  const previousByOwner = {
+    Ashley: "standing near the door",
+  };
+  const previousByEntityId = {
+    "bst_mc_alias:test:ashley": "leaning against the desk",
+  };
+
+  assert.equal(
+    resolvePreviousCustomNonNumericValue(context, previousByOwner, {
+      timestamp: 1,
+      activeCharacters: ["Ashley"],
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: { pose: previousByOwner },
+      customNonNumericStatisticsByEntityId: { pose: previousByEntityId },
+      entityOwnerMap: {
+        Ashley: {
+          entityId: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceKey: "test-source",
+          kind: "multi_character_alias",
+        },
+      },
+    }, previousByEntityId, "Ash", false),
+    "leaning against the desk",
   );
 });

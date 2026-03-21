@@ -374,6 +374,56 @@ export function resolveEntityRegistryLookupValue<T>(
   return undefined;
 }
 
+function listTrackerDataEntityIdsForOwner(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  ownerName: string,
+): string[] {
+  const entityIds: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    if (!value || seen.has(value)) return;
+    seen.add(value);
+    entityIds.push(value);
+  };
+
+  const directEntityId = normalizeToken(data?.entityOwnerMap?.[ownerName]?.entityId);
+  if (directEntityId) {
+    push(directEntityId);
+  }
+
+  if (data?.entityOwnerMap && typeof data.entityOwnerMap === "object") {
+    const fallbackEntityId = normalizeToken(getEntityRegistryEntryByOwnerName(context, ownerName)?.id);
+    const targetEntityId = directEntityId || fallbackEntityId;
+    if (targetEntityId) {
+      for (const snapshot of Object.values(data.entityOwnerMap)) {
+        if (normalizeToken(snapshot?.entityId) !== targetEntityId) continue;
+        push(snapshot?.entityId);
+      }
+    }
+  }
+
+  push(getEntityRegistryEntryByOwnerName(context, ownerName)?.id);
+  return entityIds;
+}
+
+export function resolveTrackerDataLookupValue<T>(input: {
+  context: STContext | null;
+  data: TrackerData | null | undefined;
+  byOwner: Record<string, T> | null | undefined;
+  byEntityId?: Record<string, T> | null | undefined;
+  ownerName: string;
+}): T | undefined {
+  if (input.byEntityId) {
+    for (const entityId of listTrackerDataEntityIdsForOwner(input.context, input.data, input.ownerName)) {
+      const direct = input.byEntityId[entityId];
+      if (direct !== undefined) return direct;
+    }
+  }
+  return resolveEntityRegistryLookupValue(input.context, input.byOwner, input.ownerName);
+}
+
 function collectTrackerDataOwnerNames(data: TrackerData): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
