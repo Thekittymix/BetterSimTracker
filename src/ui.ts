@@ -391,6 +391,13 @@ export function resolveCurrentBuiltInTextValue(
   return undefined;
 }
 
+export function shouldSuppressAliasNonNumericDefaultFallback(
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "kind"> | null,
+  globalScope = false,
+): boolean {
+  return Boolean(registryEntry?.kind === "multi_character_alias" && !globalScope);
+}
+
 function hasNumericValue(entry: TrackerData, key: string, name: string, globalScope = false): boolean {
   const raw = getNumericRawValue(entry, key, name, globalScope);
   return raw !== undefined && !Number.isNaN(raw);
@@ -5152,6 +5159,9 @@ export function renderTracker(
         const previousValue = resolvePreviousNonNumericValue(previous, def, name, entry.messageIndex);
         if (previousValue !== undefined) return previousValue;
       }
+      if (shouldSuppressAliasNonNumericDefaultFallback(registryEntry, def.globalScope)) {
+        return null;
+      }
       return current ?? resolveNonNumericValue(data, def, name);
     };
     const getEffectiveMoodText = (
@@ -5396,6 +5406,7 @@ export function renderTracker(
           `;
         }).join("")}
         ${enabledNonNumeric.map(def => {
+          if (!hasEffectiveNonNumericValue(def, name, registryEntry)) return "";
           const resolved = resolveEffectiveNonNumericValue(def, name, registryEntry);
           const color = def.color || "#9bd5ff";
           if (def.kind === "array") {

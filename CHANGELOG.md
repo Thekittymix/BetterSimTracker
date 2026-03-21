@@ -1,4 +1,8 @@
-﻿## [2.2.4.16-exp25] - 2026-03-21
+## [2.2.4.16-exp26] - 2026-03-21
+
+### Fixed
+- Experimental multi-character alias cards no longer render owner-scoped non-numeric custom stat default values as if they were current tracker state when the alias has no real current/history value.
+## [2.2.4.16-exp25] - 2026-03-21
 
 ### Changed
 - Experimental multi-character tracker cards now resolve current numeric, non-numeric, mood, and last-thought values through entity-registry alias lookup names instead of only the raw owner key for the current message snapshot.
@@ -941,7 +945,7 @@ And more...
 
 ## [1.0.3.4] - 2026-02-18
 
-- When a connection profile is selected in the extension, the generator now skips STĂ˘â‚¬â„˘s quiet pipeline so the chosen profile is always used.
+- When a connection profile is selected in the extension, the generator now skips STâ€™s quiet pipeline so the chosen profile is always used.
 
 ## [1.0.3.3] - 2026-02-18
 
@@ -959,7 +963,7 @@ And more...
 ## [1.0.3] - 2026-02-18
 
 - Connection profiles now always come from the extension settings by skipping the quiet-generation path when a profile is configured.
-- Retrack now loads the previous AI messageĂ˘â‚¬â„˘s tracker state before applying new deltas so values donĂ˘â‚¬â„˘t stack on themselves.
+- Retrack now loads the previous AI messageâ€™s tracker state before applying new deltas so values donâ€™t stack on themselves.
 - Parser delta clamping obeys `maxDeltaPerTurn`, and the README/workflow notes were refreshed to describe the exact behavior.
 
 ## [1.0.2] - 2026-02-18
@@ -983,6 +987,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

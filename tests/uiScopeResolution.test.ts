@@ -9,6 +9,7 @@ import {
   resolveCurrentNonNumericRawValue,
   resolveCurrentNumericRawValue,
   resolveNonNumericValue,
+  shouldSuppressAliasNonNumericDefaultFallback,
 } from "../src/ui";
 import type { TrackerData } from "../src/types";
 
@@ -172,6 +173,29 @@ test("registry-aware current built-in text lookup can read alias mood stored und
       kind: "multi_character_alias",
     }),
     "Hopeful",
+  );
+});
+
+test("alias non-numeric default fallback is suppressed for owner-scoped multi-character alias cards", () => {
+  assert.equal(
+    shouldSuppressAliasNonNumericDefaultFallback({
+      kind: "multi_character_alias",
+    }, false),
+    true,
+  );
+
+  assert.equal(
+    shouldSuppressAliasNonNumericDefaultFallback({
+      kind: "multi_character_alias",
+    }, true),
+    false,
+  );
+
+  assert.equal(
+    shouldSuppressAliasNonNumericDefaultFallback({
+      kind: "owner",
+    }, false),
+    false,
   );
 });
 
