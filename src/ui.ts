@@ -290,6 +290,27 @@ export function getNumericRawValue(entry: TrackerData, key: string, name: string
   return Number(customRaw);
 }
 
+export function resolveCurrentNumericRawValue(
+  entry: TrackerData,
+  key: string,
+  ownerName: string,
+  input?: {
+    globalScope?: boolean;
+    registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null;
+  },
+): number | undefined {
+  const globalScope = Boolean(input?.globalScope);
+  const lookupNames = globalScope
+    ? [GLOBAL_TRACKER_KEY]
+    : resolveRegistryLookupNamesForOwner(ownerName, input?.registryEntry ?? null);
+  for (const lookupName of lookupNames) {
+    const value = getNumericRawValue(entry, key, lookupName, globalScope);
+    if (value !== undefined && !Number.isNaN(value)) return value;
+    if (isNumericExplicitlyCleared(entry, key, lookupName, globalScope)) return undefined;
+  }
+  return undefined;
+}
+
 function isNumericExplicitlyCleared(entry: TrackerData, key: string, name: string, globalScope = false): boolean {
   if (BUILT_IN_NUMERIC_STAT_KEYS.has(key)) {
     const ownerKey = name;
@@ -320,6 +341,27 @@ function getNonNumericRawValue(
     : byOwner[name];
 }
 
+export function resolveCurrentNonNumericRawValue(
+  entry: TrackerData,
+  statId: string,
+  ownerName: string,
+  input?: {
+    globalScope?: boolean;
+    registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null;
+  },
+): CustomNonNumericValue | undefined {
+  const globalScope = Boolean(input?.globalScope);
+  const lookupNames = globalScope
+    ? [GLOBAL_TRACKER_KEY]
+    : resolveRegistryLookupNamesForOwner(ownerName, input?.registryEntry ?? null);
+  for (const lookupName of lookupNames) {
+    const value = getNonNumericRawValue(entry, statId, lookupName, globalScope);
+    if (value !== undefined) return value;
+    if (isNonNumericExplicitlyCleared(entry, statId, lookupName, globalScope)) return undefined;
+  }
+  return undefined;
+}
+
 function isNonNumericExplicitlyCleared(
   entry: TrackerData,
   statId: string,
@@ -334,9 +376,36 @@ function isTextStatExplicitlyCleared(entry: TrackerData, stat: "mood" | "lastTho
   return Boolean(entry.clearedStatistics?.[stat]?.[name]);
 }
 
+export function resolveCurrentBuiltInTextValue(
+  entry: TrackerData,
+  stat: "mood" | "lastThought",
+  ownerName: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+): string | undefined {
+  const lookupNames = resolveRegistryLookupNamesForOwner(ownerName, registryEntry ?? null);
+  const source = stat === "mood" ? entry.statistics.mood : entry.statistics.lastThought;
+  for (const lookupName of lookupNames) {
+    if (source?.[lookupName] !== undefined) return String(source[lookupName] ?? "");
+    if (isTextStatExplicitlyCleared(entry, stat, lookupName)) return undefined;
+  }
+  return undefined;
+}
+
 function hasNumericValue(entry: TrackerData, key: string, name: string, globalScope = false): boolean {
   const raw = getNumericRawValue(entry, key, name, globalScope);
   return raw !== undefined && !Number.isNaN(raw);
+}
+
+export function hasCurrentNonNumericValue(
+  entry: TrackerData,
+  def: UiNonNumericStatDefinition,
+  ownerName: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+): boolean {
+  return resolveCurrentNonNumericRawValue(entry, def.id, ownerName, {
+    globalScope: def.globalScope,
+    registryEntry,
+  }) !== undefined;
 }
 
 function getNumericStatsForCharacter(
@@ -5030,26 +5099,52 @@ export function renderTracker(
     const ownerCardNonNumericDefs = cardNonNumericDefs.filter(
       def => !(settings.sceneCardEnabled && def.globalScope),
     );
-  const getEffectiveNumericRawValue = (key: string, name: string): number | undefined => {
-      const current = getNumericRawValue(data, key, name, isNumericGlobalScope(key));
+  const getEffectiveNumericRawValue = (
+      key: string,
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): number | undefined => {
+      const current = resolveCurrentNumericRawValue(data, key, name, {
+        globalScope: isNumericGlobalScope(key),
+        registryEntry,
+      });
       if (current !== undefined && !Number.isNaN(current)) return current;
-      if (isNumericExplicitlyCleared(data, key, name, isNumericGlobalScope(key))) return undefined;
+      if (resolveCurrentNumericRawValue(data, key, name, {
+        globalScope: isNumericGlobalScope(key),
+        registryEntry,
+      }) === undefined && resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+        .some(lookupName => isNumericExplicitlyCleared(data, key, lookupName, isNumericGlobalScope(key)))) return undefined;
       const previous = findPreviousDataWithNumericStat(entry.messageIndex, key, name);
       if (previous) return previous.value;
       return undefined;
     };
-    const hasEffectiveNumericValue = (key: string, name: string): boolean =>
-      getEffectiveNumericRawValue(key, name) !== undefined;
-    const hasEffectiveNonNumericValue = (def: UiNonNumericStatDefinition, name: string): boolean =>
-      hasNonNumericValue(data, def, name)
-        || (!isNonNumericExplicitlyCleared(data, def.id, name, def.globalScope)
+    const hasEffectiveNumericValue = (
+      key: string,
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): boolean =>
+      getEffectiveNumericRawValue(key, name, registryEntry) !== undefined;
+    const hasEffectiveNonNumericValue = (
+      def: UiNonNumericStatDefinition,
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): boolean =>
+      hasCurrentNonNumericValue(data, def, name, registryEntry)
+        || (!resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+          .some(lookupName => isNonNumericExplicitlyCleared(data, def.id, lookupName, def.globalScope))
           && Boolean(findPreviousDataWithNonNumericStat(entry.messageIndex, def, name)));
     const resolveEffectiveNonNumericValue = (
       def: UiNonNumericStatDefinition,
       name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
     ): string | boolean | string[] | null => {
-      if (hasNonNumericValue(data, def, name)) return resolveNonNumericValue(data, def, name);
-      if (isNonNumericExplicitlyCleared(data, def.id, name, def.globalScope)) {
+      const current = resolveCurrentNonNumericRawValue(data, def.id, name, {
+        globalScope: def.globalScope,
+        registryEntry,
+      });
+      if (current !== undefined) return current;
+      if (resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+        .some(lookupName => isNonNumericExplicitlyCleared(data, def.id, lookupName, def.globalScope))) {
         return def.kind === "array" ? [] : null;
       }
       const previous = findPreviousDataWithNonNumericStat(entry.messageIndex, def, name);
@@ -5057,31 +5152,44 @@ export function renderTracker(
         const previousValue = resolvePreviousNonNumericValue(previous, def, name, entry.messageIndex);
         if (previousValue !== undefined) return previousValue;
       }
-      return resolveNonNumericValue(data, def, name);
+      return current ?? resolveNonNumericValue(data, def, name);
     };
-    const getEffectiveMoodText = (name: string): string => {
+    const getEffectiveMoodText = (
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): string => {
       if (!isBuiltInTextStatVisibleForOwner(settings, name, "mood", isOwnerStatEnabled)) return "";
-      if (data.statistics.mood?.[name] !== undefined) return String(data.statistics.mood?.[name] ?? "");
-      if (isTextStatExplicitlyCleared(data, "mood", name)) return "";
+      const current = resolveCurrentBuiltInTextValue(data, "mood", name, registryEntry);
+      if (current !== undefined) return current;
+      if (resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+        .some(lookupName => isTextStatExplicitlyCleared(data, "mood", lookupName))) return "";
       const previous = findPreviousDataWithMood(entry.messageIndex, name);
       const previousValue = previous ? resolvePreviousBuiltInTextValue(previous, "mood", name, entry.messageIndex) : undefined;
       if (previousValue !== undefined) return previousValue;
       return "";
     };
-    const getEffectiveLastThoughtText = (name: string): string => {
+    const getEffectiveLastThoughtText = (
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): string => {
       if (!isBuiltInTextStatVisibleForOwner(settings, name, "lastThought", isOwnerStatEnabled)) return "";
-      if (data.statistics.lastThought?.[name] !== undefined) return String(data.statistics.lastThought?.[name] ?? "");
-      if (isTextStatExplicitlyCleared(data, "lastThought", name)) return "";
+      const current = resolveCurrentBuiltInTextValue(data, "lastThought", name, registryEntry);
+      if (current !== undefined) return current;
+      if (resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+        .some(lookupName => isTextStatExplicitlyCleared(data, "lastThought", lookupName))) return "";
       const previous = findPreviousDataWithLastThought(entry.messageIndex, name);
       const previousValue = previous ? resolvePreviousBuiltInTextValue(previous, "lastThought", name, entry.messageIndex) : undefined;
       if (previousValue !== undefined) return previousValue;
       return "";
     };
-    const hasAnyStatFor = (name: string): boolean =>
-      cardNumericDefs.some(def => hasEffectiveNumericValue(def.key, name)) ||
-      ownerCardNonNumericDefs.some(def => hasEffectiveNonNumericValue(def, name)) ||
-      getEffectiveMoodText(name) !== "" ||
-      getEffectiveLastThoughtText(name) !== "";
+    const hasAnyStatFor = (
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): boolean =>
+      cardNumericDefs.some(def => hasEffectiveNumericValue(def.key, name, registryEntry)) ||
+      ownerCardNonNumericDefs.some(def => hasEffectiveNonNumericValue(def, name, registryEntry)) ||
+      getEffectiveMoodText(name, registryEntry) !== "" ||
+      getEffectiveLastThoughtText(name, registryEntry) !== "";
     const forceAllInGroup = isGroupChat;
     const dataCharacterNames = collectCharacterNamesFromTrackerData(data);
     const mergedCharacters: string[] = [];
@@ -5120,7 +5228,7 @@ export function renderTracker(
       ? scopedDisplayPool
       : scopedDisplayPool.filter(name => shouldKeepOwnerInRenderTargetPool({
         ownerName: name,
-        hasAnyStat: hasAnyStatFor(name),
+        hasAnyStat: hasAnyStatFor(name, resolveRegistryEntryForMessage?.(name, entry.messageIndex) ?? null),
         isActive: activeSet.has(normalizeName(name)),
         registryOwners: registryOwnerSet,
       }));
@@ -5205,7 +5313,7 @@ export function renderTracker(
         settings.characterCardStatOrder ?? [],
         def => String(def.id).trim().toLowerCase(),
       );
-      const moodText = getEffectiveMoodText(name);
+      const moodText = getEffectiveMoodText(name, registryEntry);
       const previousMoodData = findPreviousDataWithMood(entry.messageIndex, name);
       const prevMoodValue = previousMoodData
         ? resolvePreviousBuiltInTextValue(previousMoodData, "mood", name, entry.messageIndex)
@@ -5221,7 +5329,7 @@ export function renderTracker(
         : null;
       const moodImage = moodText ? getMoodImageUrl(settings, moodLookupName, moodText, characterAvatar, onRequestRerender) : null;
       const lastThoughtText = settings.showLastThought
-        ? getEffectiveLastThoughtText(name)
+        ? getEffectiveLastThoughtText(name, registryEntry)
         : "";
       const thoughtUiKey = thoughtKey(entry.messageIndex, ownerUiKey);
       const stExpressionImageStyle = (() => {
@@ -5231,11 +5339,11 @@ export function renderTracker(
         return ` style="object-position:${stExpressionImageOptions.positionX.toFixed(2)}% ${stExpressionImageOptions.positionY.toFixed(2)}% !important;transform:translate(${panX.toFixed(2)}%, ${panY.toFixed(2)}%) scale(${stExpressionImageOptions.zoom.toFixed(2)}) !important;transform-origin:center center !important;"`;
       })();
       const collapsedSummary = enabledNumeric.map(def => {
-        const value = toPercent(getEffectiveNumericRawValue(def.key, name) ?? def.defaultValue);
+        const value = toPercent(getEffectiveNumericRawValue(def.key, name, registryEntry) ?? def.defaultValue);
         return `<span>${def.short} ${value}%</span>`;
       }).join("");
       const collapsedNonNumeric = enabledNonNumeric.map(def => {
-        const value = resolveEffectiveNonNumericValue(def, name);
+        const value = resolveEffectiveNonNumericValue(def, name, registryEntry);
         if (value == null) return "";
         const text = formatNonNumericForDisplay(def, value);
         return `<span>${escapeHtml(shortLabelFrom(def.label))} ${escapeHtml(text)}</span>`;
@@ -5266,9 +5374,12 @@ export function renderTracker(
         <div class="bst-body"${cardCollapsed ? ` style="display:none"` : ""}>
         ${enabledNumeric.map(({ key, label, color, defaultValue }) => {
           const defDefault = defaultValue ?? 50;
-          const currentValueRaw = getNumericRawValue(data, key, name, isNumericGlobalScope(key));
+          const currentValueRaw = resolveCurrentNumericRawValue(data, key, name, {
+            globalScope: isNumericGlobalScope(key),
+            registryEntry,
+          });
           const hasCurrentValue = currentValueRaw !== undefined && !Number.isNaN(currentValueRaw);
-          const effectiveValueRaw = getEffectiveNumericRawValue(key, name);
+          const effectiveValueRaw = getEffectiveNumericRawValue(key, name, registryEntry);
           const value = toPercent(effectiveValueRaw ?? defDefault);
           const previousForStat = findPreviousDataWithNumericStat(entry.messageIndex, key, name);
           const hasPrevValue = Boolean(previousForStat);
@@ -5285,7 +5396,7 @@ export function renderTracker(
           `;
         }).join("")}
         ${enabledNonNumeric.map(def => {
-          const resolved = resolveEffectiveNonNumericValue(def, name);
+          const resolved = resolveEffectiveNonNumericValue(def, name, registryEntry);
           const color = def.color || "#9bd5ff";
           if (def.kind === "array") {
             const items = Array.isArray(resolved) ? resolved : normalizeNonNumericArrayItems(resolved, def.textMaxLength);
@@ -5352,7 +5463,7 @@ export function renderTracker(
       const ownerClass = `bst-owner-${toOwnerClassSuffix(displayName)}`;
       cardHtmlByName.push({ name, displayName, ownerClass, html: cardHtml, isActive, isCollapsed: cardCollapsed, cardKey, isNew, cardColor });
       const nonNumericSignature = enabledNonNumeric.map(def => {
-        const value = resolveEffectiveNonNumericValue(def, name);
+        const value = resolveEffectiveNonNumericValue(def, name, registryEntry);
         if (value == null) return `${def.id}:not_set`;
         if (Array.isArray(value)) return `${def.id}:[${value.join("|")}]`;
         return `${def.id}:${typeof value === "boolean" ? String(value) : value}`;
