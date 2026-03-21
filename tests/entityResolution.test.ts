@@ -209,6 +209,41 @@ test("resolveExtractionOwnerScopes keeps scene-active aliases broader than reque
   assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
 });
 
+test("resolveExtractionOwnerScopes narrows scene-active aliases when a recent user turn explicitly sends the others away", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Ashley answered softly while Blake hovered by the window and Garret paced behind Raleigh.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+      },
+      {
+        mes: "Only Ashley is still here with me now. Blake, Garret, and Raleigh already left the room. Ashley only.",
+        name: "User",
+        is_user: true,
+      },
+      {
+        mes: "Ashley fidgeted with the ends of her braids and answered under her breath.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+      },
+    ],
+  } as any;
+
+  const resolved = resolveExtractionOwnerScopes(
+    context,
+    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    context.chat[2],
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley"]);
+  assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
+});
+
 test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {
   const context = {
     characters: [

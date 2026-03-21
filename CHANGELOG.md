@@ -1,3 +1,7 @@
+## [2.2.4.16-exp46] - 2026-03-21
+### Fixed
+- Experimental multi-character scene continuity now respects fresh user departure cues when narrowing the current scene, so aliases explicitly sent away do not stay incorrectly active in the next reply.
+
 ## [2.2.4.16-exp45] - 2026-03-21
 ### Fixed
 - Experimental multi-character chat reset now clears chat-scoped entity registry metadata and manual inactive overrides together with stored tracker snapshots, so fresh chat starts do not inherit stale entity lifecycle state.

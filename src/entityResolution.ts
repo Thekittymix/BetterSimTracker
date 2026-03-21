@@ -119,6 +119,107 @@ function countAliasMentions(text: string, alias: string): number {
   return count;
 }
 
+function hasDepartureCue(text: string, name: string): boolean {
+  const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
+  const target = name.toLowerCase().trim();
+  if (!normalized || !target || !normalized.includes(target)) return false;
+  const departureVerbs = [
+    "went",
+    "goes",
+    "left",
+    "leaves",
+    "walked",
+    "walks",
+    "ran",
+    "returns",
+    "returned",
+    "headed",
+    "moved",
+    "retreated",
+    "stayed in",
+    "stays in",
+    "is in",
+  ];
+  const departurePlaces = [
+    "away",
+    "out",
+    "back",
+    "home",
+    "room",
+    "bedroom",
+    "upstairs",
+    "downstairs",
+    "outside",
+    "bathroom",
+    "hallway",
+    "kitchen",
+    "garden",
+    "her room",
+    "his room",
+    "their room",
+  ];
+  const hasVerb = departureVerbs.some(verb => normalized.includes(verb));
+  const hasPlace = departurePlaces.some(place => normalized.includes(place));
+  return hasVerb && hasPlace;
+}
+
+function resolveMessageIndex(context: STContext | null, message: ChatMessage | null | undefined): number {
+  if (!context || !Array.isArray(context.chat) || !message) return -1;
+  const directIndex = context.chat.lastIndexOf(message);
+  if (directIndex >= 0) return directIndex;
+  const messageName = normalizeToken(message.name);
+  const messageText = normalizeToken(message.mes);
+  for (let i = context.chat.length - 1; i >= 0; i -= 1) {
+    const candidate = context.chat[i];
+    if (normalizeToken(candidate?.name) !== messageName) continue;
+    if (normalizeToken(candidate?.mes) !== messageText) continue;
+    if (Boolean(candidate?.is_user) !== Boolean(message.is_user)) continue;
+    return i;
+  }
+  return context.chat.length - 1;
+}
+
+function filterSceneActiveCharactersByRecentDepartureCues(
+  context: STContext | null,
+  sceneActiveCharacters: string[],
+  requestCharacters: string[],
+  message: ChatMessage | null | undefined,
+): string[] {
+  if (!context || !Array.isArray(context.chat) || !sceneActiveCharacters.length) return sceneActiveCharacters;
+  if (!message || message.is_user || message.is_system) return sceneActiveCharacters;
+
+  const currentMessageIndex = resolveMessageIndex(context, message);
+  if (currentMessageIndex <= 0) return sceneActiveCharacters;
+
+  const preserved = new Set(requestCharacters.map(normalizeKey));
+  const currentMessageText = normalizeToken(message.mes).toLowerCase();
+  const maxDepartureScan = 8;
+  const scanStart = Math.max(0, currentMessageIndex - maxDepartureScan);
+  const excluded = new Set<string>();
+
+  for (const ownerName of sceneActiveCharacters) {
+    const ownerKey = normalizeKey(ownerName);
+    if (!ownerKey || preserved.has(ownerKey)) continue;
+    let lastDepartureIndex = -1;
+    for (let i = scanStart; i < currentMessageIndex; i += 1) {
+      const candidate = context.chat[i];
+      if (!candidate?.is_user || candidate.is_system) continue;
+      const text = normalizeToken(candidate.mes);
+      if (!text) continue;
+      if (hasDepartureCue(text, ownerName)) {
+        lastDepartureIndex = i;
+      }
+    }
+    if (lastDepartureIndex < 0) continue;
+    if (countAliasMentions(currentMessageText, ownerName.toLowerCase()) > 0) continue;
+    excluded.add(ownerKey);
+  }
+
+  if (!excluded.size) return sceneActiveCharacters;
+  const narrowed = sceneActiveCharacters.filter(ownerName => !excluded.has(normalizeKey(ownerName)));
+  return narrowed.length ? narrowed : sceneActiveCharacters;
+}
+
 function buildSourceKey(sourceName: string, sourceAvatar: string | null): string {
   return `${normalizeKey(sourceName)}::${normalizeKey(sourceAvatar ?? "")}`;
 }
@@ -379,8 +480,14 @@ export function resolveExtractionOwnerScopes(
     message,
     settings,
   );
-  return {
+  const narrowedSceneActiveCharacters = filterSceneActiveCharactersByRecentDepartureCues(
+    context,
     sceneActiveCharacters,
+    requestCharacters,
+    message,
+  );
+  return {
+    sceneActiveCharacters: narrowedSceneActiveCharacters,
     requestCharacters,
   };
 }
