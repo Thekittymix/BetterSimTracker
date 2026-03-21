@@ -10,6 +10,7 @@ import {
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveExtractionOwnerScopes,
+  resolveInitialExtractionOwners,
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
 } from "../src/entityResolution";
@@ -253,6 +254,36 @@ test("resolvePersistedActiveOwners excludes User by default for AI-side tracker 
 test("resolvePersistedActiveOwners can retain User for user-side tracker targets", () => {
   const refined = resolvePersistedActiveOwners(["__bst_user__"], { includeUserOwner: true });
   assert.deepEqual(refined, ["__bst_user__"]);
+});
+
+test("resolveInitialExtractionOwners keeps user extraction pinned to the user owner", () => {
+  const resolved = resolveInitialExtractionOwners({
+    userExtraction: true,
+    forceRetrack: true,
+    detectedActiveCharacters: ["Blake"],
+    existingActiveCharacters: ["Garret", "Raleigh"],
+  });
+  assert.deepEqual(resolved, ["__bst_user__"]);
+});
+
+test("resolveInitialExtractionOwners reuses existing tracker owners when retracking a message with saved data", () => {
+  const resolved = resolveInitialExtractionOwners({
+    userExtraction: false,
+    forceRetrack: true,
+    detectedActiveCharacters: ["Garret", "Raleigh"],
+    existingActiveCharacters: ["Blake", "__bst_user__"],
+  });
+  assert.deepEqual(resolved, ["Blake", "__bst_user__"]);
+});
+
+test("resolveInitialExtractionOwners uses fresh activity for first-pass extraction", () => {
+  const resolved = resolveInitialExtractionOwners({
+    userExtraction: false,
+    forceRetrack: false,
+    detectedActiveCharacters: ["Ashley", "Blake"],
+    existingActiveCharacters: ["Garret"],
+  });
+  assert.deepEqual(resolved, ["Ashley", "Blake"]);
 });
 
 test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {

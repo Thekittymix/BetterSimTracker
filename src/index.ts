@@ -8,11 +8,12 @@ import { resolveCharacterDefaultsEntry } from "./characterDefaults";
 import {
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
-  resolvePersistedActiveOwners,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
+  resolveInitialExtractionOwners,
+  resolvePersistedActiveOwners,
 } from "./entityResolution";
 import {
   buildEntitySourceKey,
@@ -3289,7 +3290,8 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     return;
   }
   const lastMessage = context.chat[lastIndex];
-  const hadTrackerAtStart = Boolean(getTrackerDataFromMessage(lastMessage));
+  const existingTrackerData = getTrackerDataFromMessage(lastMessage);
+  const hadTrackerAtStart = Boolean(existingTrackerData);
   clearTrackerRecovery(lastIndex);
   const isManualRefreshReason = reason === "manual_refresh" || reason === "manual_refresh_retry";
   const isBootstrapContinueReason = reason === BOOTSTRAP_CONTINUE_REASON;
@@ -3300,7 +3302,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     reason === "USER_MESSAGE_RENDERED" ||
     reason === "USER_MESSAGE_EDITED" ||
     (reason === "MESSAGE_EDITED" && typeof targetMessageIndex === "number");
-  if (!forceRetrack && getTrackerDataFromMessage(lastMessage)) {
+  if (!forceRetrack && existingTrackerData) {
     pushTrace("extract.skip", { reason: "tracker_already_present", trigger: reason, messageIndex: lastIndex });
     clearGeneratingUiIfStale("tracker_already_present");
     return;
@@ -3328,7 +3330,9 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
   queueRender();
 
   try {
-    const activity = resolveActiveCharacterAnalysis(context, activeSettings);
+    const activity = resolveActiveCharacterAnalysis(context, activeSettings, {
+      targetMessageIndex: lastIndex,
+    });
     lastActivityAnalysis = activity;
     allCharacterNames = activity.allCharacterNames.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
@@ -3338,7 +3342,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         allCharacterNames = [...allCharacterNames, USER_TRACKER_KEY];
       }
     }
-    const initialActiveCharacters = (userExtraction ? [USER_TRACKER_KEY] : activity.activeCharacters).filter(name =>
+    const initialActiveCharacters = resolveInitialExtractionOwners({
+      userExtraction,
+      forceRetrack,
+      detectedActiveCharacters: activity.activeCharacters,
+      existingActiveCharacters: existingTrackerData?.activeCharacters ?? null,
+    }).filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
     const ownerScopes = userExtraction
@@ -3519,7 +3528,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         pushTrace("lorebook.scan.skip", { runId, reason, detail: "internal_fallback_disabled" });
       }
     }
-    let contextText = buildRecentContext(context, settings.contextMessages);
+    let contextText = buildRecentContext(context, settings.contextMessages, lastIndex);
     if (activeSettings.includeCharacterCardsInPrompt) {
       contextText = `${contextText}${buildCharacterCardsContext(context, activeCharacters, resolveEntityTrackingMode(runScopedSettings))}`.trim();
     }

@@ -235,6 +235,9 @@ export function setManualInactiveCharacter(
 export function resolveActiveCharacterAnalysis(
   context: STContext,
   settings: BetterSimTrackerSettings,
+  input?: {
+    targetMessageIndex?: number;
+  },
 ): {
   allCharacterNames: string[];
   activeCharacters: string[];
@@ -242,15 +245,24 @@ export function resolveActiveCharacterAnalysis(
   lookback: number;
   manualInactiveCharacters: string[];
 } {
+  const targetMessageIndex = Math.min(
+    Math.max(0, Number.isFinite(input?.targetMessageIndex) ? Math.trunc(input!.targetMessageIndex as number) : context.chat.length - 1),
+    Math.max(0, context.chat.length - 1),
+  );
+  const scopedChat = context.chat.slice(0, targetMessageIndex + 1);
+  const scopedContext: STContext = {
+    ...context,
+    chat: scopedChat,
+  };
   const allNames = getAllTrackedCharacterNames(context, settings);
   const allNamesSet = new Set(allNames);
   const lookback = Math.max(1, settings.activityLookback);
   const reasons: Record<string, string> = {};
-  const manualInactiveOverrides = readManualInactiveOverrideMap(context);
+  const manualInactiveOverrides = readManualInactiveOverrideMap(scopedContext);
   const lastSpokeAtOverall = new Map<string, number>();
-  for (let i = 0; i < context.chat.length; i += 1) {
-    const message = context.chat[i];
-    for (const name of collectActivityNamesFromMessage(context, message, settings, allNamesSet)) {
+  for (let i = 0; i < scopedChat.length; i += 1) {
+    const message = scopedChat[i];
+    for (const name of collectActivityNamesFromMessage(scopedContext, message, settings, allNamesSet)) {
       lastSpokeAtOverall.set(name, i);
     }
   }
@@ -279,11 +291,11 @@ export function resolveActiveCharacterAnalysis(
     return { allCharacterNames: allNames, activeCharacters, reasons, lookback, manualInactiveCharacters };
   }
 
-  const recentMessages = context.chat.slice(-lookback);
+  const recentMessages = scopedChat.slice(-lookback);
   const seen = new Set<string>();
 
   for (const message of recentMessages) {
-    for (const name of collectActivityNamesFromMessage(context, message, settings, allNamesSet)) {
+    for (const name of collectActivityNamesFromMessage(scopedContext, message, settings, allNamesSet)) {
       seen.add(name);
       reasons[name] = `spoke in last ${lookback} messages`;
     }
@@ -293,11 +305,11 @@ export function resolveActiveCharacterAnalysis(
   // This prevents "off-screen" flips in scenes where one character is temporarily silent.
   const persistenceWindow = lookback + 2;
   if (persistenceWindow > lookback) {
-    const persistenceStart = Math.max(0, context.chat.length - persistenceWindow);
+    const persistenceStart = Math.max(0, scopedChat.length - persistenceWindow);
     const lastSpokeAt = new Map<string, number>();
-    for (let i = persistenceStart; i < context.chat.length; i += 1) {
-      const message = context.chat[i];
-      for (const name of collectActivityNamesFromMessage(context, message, settings, allNamesSet)) {
+    for (let i = persistenceStart; i < scopedChat.length; i += 1) {
+      const message = scopedChat[i];
+      for (const name of collectActivityNamesFromMessage(scopedContext, message, settings, allNamesSet)) {
         lastSpokeAt.set(name, i);
       }
     }
@@ -305,7 +317,7 @@ export function resolveActiveCharacterAnalysis(
       if (seen.has(name)) continue;
       const index = lastSpokeAt.get(name);
       if (index == null) continue;
-      const turnsAgo = Math.max(0, context.chat.length - 1 - index);
+      const turnsAgo = Math.max(0, scopedChat.length - 1 - index);
       const turnsWord = turnsAgo === 1 ? "message" : "messages";
       seen.add(name);
       reasons[name] = `activity persistence: spoke ${turnsAgo} ${turnsWord} ago`;
@@ -313,8 +325,8 @@ export function resolveActiveCharacterAnalysis(
   }
 
   const maxDepartureScan = Math.max(6, lookback * 3);
-  const scanStart = Math.max(0, context.chat.length - maxDepartureScan);
-  const scanSlice = context.chat.slice(scanStart);
+  const scanStart = Math.max(0, scopedChat.length - maxDepartureScan);
+  const scanSlice = scopedChat.slice(scanStart);
 
   const hasDepartureCue = (text: string, name: string): boolean => {
     const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
@@ -374,8 +386,8 @@ export function resolveActiveCharacterAnalysis(
     if (lastDepartureIndex < 0) continue;
 
     let spokeAfterDeparture = false;
-    for (let i = lastDepartureIndex + 1; i < context.chat.length; i += 1) {
-      const msg = context.chat[i];
+    for (let i = lastDepartureIndex + 1; i < scopedChat.length; i += 1) {
+      const msg = scopedChat[i];
       if (!isTrackableAiMessage(msg)) continue;
       if (String(msg.name ?? "").trim() === name) {
         spokeAfterDeparture = true;
@@ -403,8 +415,8 @@ export function resolveActiveCharacterAnalysis(
         }
       }
       if (lastDepartureIndex < 0) return true;
-      for (let i = lastDepartureIndex + 1; i < context.chat.length; i += 1) {
-        const msg = context.chat[i];
+      for (let i = lastDepartureIndex + 1; i < scopedChat.length; i += 1) {
+        const msg = scopedChat[i];
         if (!isTrackableAiMessage(msg)) continue;
         if (String(msg.name ?? "").trim() === name) {
           reasons[name] = `fallback visibility: spoke after departure cue at ${lastDepartureIndex}`;
@@ -438,8 +450,16 @@ export function resolveActiveCharacterAnalysis(
   return { allCharacterNames: allNames, activeCharacters, reasons, lookback, manualInactiveCharacters };
 }
 
-export function buildRecentContext(context: STContext, messageCount: number): string {
-  const chunk = context.chat.slice(-Math.max(1, messageCount));
+export function buildRecentContext(
+  context: STContext,
+  messageCount: number,
+  targetMessageIndex?: number,
+): string {
+  const safeTargetIndex = Number.isFinite(targetMessageIndex)
+    ? Math.min(Math.max(0, Math.trunc(targetMessageIndex as number)), Math.max(0, context.chat.length - 1))
+    : context.chat.length - 1;
+  const scopedChat = context.chat.slice(0, safeTargetIndex + 1);
+  const chunk = scopedChat.slice(-Math.max(1, messageCount));
   return chunk
     .map(message => {
       if (!message.is_user && !isTrackableAiMessage(message)) return null;

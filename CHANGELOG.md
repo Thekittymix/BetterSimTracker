@@ -1,3 +1,6 @@
+## [2.2.4.16-exp52] - 2026-03-21
+### Fixed
+- Experimental multi-character retrack now scopes activity detection and recent-message prompt context to the targeted message window, and reuses that message's saved owner set when retracking existing tracker data.
 ## [2.2.4.16-exp51] - 2026-03-21
 ### Fixed
 - Experimental multi-character no longer derives persisted AI-message owner targets from the extracted scene custom stat roster; saved `activeCharacters` now come from resolver-derived scene owners, which removes fake `User` tracker cards from AI replies.
@@ -1096,6 +1099,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

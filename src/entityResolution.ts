@@ -513,6 +513,24 @@ export function resolvePersistedActiveOwners(
   return out;
 }
 
+export function resolveInitialExtractionOwners(input: {
+  userExtraction: boolean;
+  forceRetrack: boolean;
+  detectedActiveCharacters: string[];
+  existingActiveCharacters?: string[] | null;
+}): string[] {
+  if (input.userExtraction) {
+    return [USER_TRACKER_KEY];
+  }
+  const existingActiveCharacters = Array.isArray(input.existingActiveCharacters)
+    ? input.existingActiveCharacters
+    : [];
+  if (input.forceRetrack && existingActiveCharacters.length) {
+    return existingActiveCharacters;
+  }
+  return input.detectedActiveCharacters;
+}
+
 export function resolveMessageScopedOwnerName(
   context: STContext | null,
   ownerName: string,
