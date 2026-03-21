@@ -253,6 +253,18 @@ export function getEntityRegistryEntryByOwnerName(
   return registry.entities[entityId] ?? null;
 }
 
+export function getEntityRegistryEntryForMessage(
+  context: STContext | null,
+  ownerName: string,
+  messageIndex: number,
+): TrackerEntityRegistryEntry | null {
+  const entry = getEntityRegistryEntryByOwnerName(context, ownerName);
+  if (!entry) return null;
+  if (entry.introducedAtMessageIndex > messageIndex) return null;
+  if (entry.archivedAtMessageIndex != null && entry.archivedAtMessageIndex <= messageIndex) return null;
+  return entry;
+}
+
 export function listEntityRegistryEntriesForMessage(
   context: STContext | null,
   messageIndex: number,

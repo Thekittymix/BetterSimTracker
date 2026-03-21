@@ -16,7 +16,7 @@ import {
 } from "./entityResolution";
 import {
   buildEntitySourceKey,
-  getEntityRegistryEntryByOwnerName,
+  getEntityRegistryEntryForMessage,
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
@@ -1695,10 +1695,7 @@ function queueRender(): void {
         return listEntityRegistryEntriesForMessage(liveContext, messageIndex);
     }, (characterName, messageIndex) => {
         const liveContext = getSafeContext();
-        const entry = getEntityRegistryEntryByOwnerName(liveContext, characterName);
-        if (!entry || entry.introducedAtMessageIndex > messageIndex) return null;
-        if (entry.archivedAtMessageIndex != null && entry.archivedAtMessageIndex <= messageIndex) return null;
-        return entry;
+        return getEntityRegistryEntryForMessage(liveContext, characterName, messageIndex);
     }, characterName => {
       const context = getSafeContext();
       if (!context || !settings) return;

@@ -5,6 +5,7 @@ import {
   buildEntitySourceKey,
   buildTrackerEntityId,
   getEntityRegistryEntryByOwnerName,
+  getEntityRegistryEntryForMessage,
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
@@ -177,6 +178,29 @@ test("listEntityRegistryEntriesForMessage returns visible entities in introducti
   const entries = listEntityRegistryEntriesForMessage(context, 8);
   assert.deepEqual(entries.map(entry => entry.ownerName), ["Ashley", "Blake"]);
   assert.deepEqual(entries.map(entry => entry.kind), ["multi_character_alias", "multi_character_alias"]);
+});
+
+test("getEntityRegistryEntryForMessage hides pre-introduction and archived entries outside their visible window", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
+  });
+
+  assert.equal(getEntityRegistryEntryForMessage(context, "Ashley", 7), null);
+  assert.equal(getEntityRegistryEntryForMessage(context, "Ashley", 8)?.ownerName, "Ashley");
+  assert.equal(getEntityRegistryEntryForMessage(context, "Blake", 14)?.ownerName, "Blake");
+  assert.equal(getEntityRegistryEntryForMessage(context, "Blake", 15), null);
 });
 
 test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the requested message index", () => {

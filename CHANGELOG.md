@@ -1,3 +1,7 @@
+## [2.2.4.16-exp27] - 2026-03-21
+
+### Changed
+- Experimental multi-character registry now exposes a shared message-scoped entity lookup helper, so visible alias/source entity resolution no longer depends on duplicated introduction/archive checks outside the registry layer.
 ## [2.2.4.16-exp26] - 2026-03-21
 
 ### Fixed
@@ -987,6 +991,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 
