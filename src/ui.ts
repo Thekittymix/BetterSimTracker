@@ -57,7 +57,12 @@ import { renderThoughtMarkup } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
 import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
-import { buildLifecycleHistorySnapshotsFromTrackerEntries, resolveTrackerSceneEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
+import {
+  buildLifecycleHistorySnapshotsFromTrackerEntries,
+  resolveTrackerDataLookupValue,
+  resolveTrackerSceneEntityIds,
+  resolveTrackerSceneOwners,
+} from "./entityRegistry";
 import {
   buildLastPointCircle,
   buildPointCircles,
@@ -106,6 +111,10 @@ type UiNonNumericStatDefinition = {
   showOnCard: boolean;
   includeInInjection: boolean;
   color: string;
+};
+
+type UiRegistryLookupEntry = Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> & {
+  id?: string;
 };
 
 export const BUILT_IN_NUMERIC_STAT_KEYS = new Set(["affection", "trust", "desire", "connection"]);
@@ -297,17 +306,49 @@ export function resolveCurrentNumericRawValue(
   ownerName: string,
   input?: {
     globalScope?: boolean;
-    registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null;
+    registryEntry?: UiRegistryLookupEntry | null;
   },
 ): number | undefined {
   const globalScope = Boolean(input?.globalScope);
-  const lookupNames = globalScope
-    ? [GLOBAL_TRACKER_KEY]
-    : resolveRegistryLookupNamesForOwner(ownerName, input?.registryEntry ?? null);
+  if (globalScope) {
+    const value = getNumericRawValue(entry, key, GLOBAL_TRACKER_KEY, true);
+    return value !== undefined && !Number.isNaN(value) ? value : undefined;
+  }
+  const byOwner = BUILT_IN_NUMERIC_STAT_KEYS.has(key)
+    ? entry.statistics[key as "affection" | "trust" | "desire" | "connection"]
+    : entry.customStatistics?.[key];
+  const byEntityId = BUILT_IN_NUMERIC_STAT_KEYS.has(key)
+    ? entry.statisticsByEntityId?.[key as "affection" | "trust" | "desire" | "connection"]
+    : entry.customStatisticsByEntityId?.[key];
+  const byEntityValue = resolveTrackerDataLookupValue({
+    context: null,
+    data: input?.registryEntry?.id ? {
+      ...entry,
+      entityOwnerMap: {
+        ...(entry.entityOwnerMap ?? {}),
+        [ownerName]: {
+          entityId: input.registryEntry.id,
+          ownerName: input.registryEntry.ownerName,
+          canonicalName: input.registryEntry.canonicalName,
+          aliases: [...(input.registryEntry.aliases ?? [])],
+          sourceKey: "",
+          kind: input.registryEntry.kind,
+        },
+      },
+    } : entry,
+    ownerName,
+    byOwner,
+    byEntityId,
+  });
+  if (byEntityValue !== undefined) {
+    const parsed = Number(byEntityValue);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+  const lookupNames = resolveRegistryLookupNamesForOwner(ownerName, input?.registryEntry ?? null);
   for (const lookupName of lookupNames) {
-    const value = getNumericRawValue(entry, key, lookupName, globalScope);
+    const value = getNumericRawValue(entry, key, lookupName, false);
     if (value !== undefined && !Number.isNaN(value)) return value;
-    if (isNumericExplicitlyCleared(entry, key, lookupName, globalScope)) return undefined;
+    if (isNumericExplicitlyCleared(entry, key, lookupName, false)) return undefined;
   }
   return undefined;
 }
@@ -348,17 +389,39 @@ export function resolveCurrentNonNumericRawValue(
   ownerName: string,
   input?: {
     globalScope?: boolean;
-    registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null;
+    registryEntry?: UiRegistryLookupEntry | null;
   },
 ): CustomNonNumericValue | undefined {
   const globalScope = Boolean(input?.globalScope);
-  const lookupNames = globalScope
-    ? [GLOBAL_TRACKER_KEY]
-    : resolveRegistryLookupNamesForOwner(ownerName, input?.registryEntry ?? null);
+  if (globalScope) {
+    return getNonNumericRawValue(entry, statId, GLOBAL_TRACKER_KEY, true);
+  }
+  const byEntityValue = resolveTrackerDataLookupValue({
+    context: null,
+    data: input?.registryEntry?.id ? {
+      ...entry,
+      entityOwnerMap: {
+        ...(entry.entityOwnerMap ?? {}),
+        [ownerName]: {
+          entityId: input.registryEntry.id,
+          ownerName: input.registryEntry.ownerName,
+          canonicalName: input.registryEntry.canonicalName,
+          aliases: [...(input.registryEntry.aliases ?? [])],
+          sourceKey: "",
+          kind: input.registryEntry.kind,
+        },
+      },
+    } : entry,
+    ownerName,
+    byOwner: entry.customNonNumericStatistics?.[statId],
+    byEntityId: entry.customNonNumericStatisticsByEntityId?.[statId],
+  });
+  if (byEntityValue !== undefined) return byEntityValue;
+  const lookupNames = resolveRegistryLookupNamesForOwner(ownerName, input?.registryEntry ?? null);
   for (const lookupName of lookupNames) {
-    const value = getNonNumericRawValue(entry, statId, lookupName, globalScope);
+    const value = getNonNumericRawValue(entry, statId, lookupName, false);
     if (value !== undefined) return value;
-    if (isNonNumericExplicitlyCleared(entry, statId, lookupName, globalScope)) return undefined;
+    if (isNonNumericExplicitlyCleared(entry, statId, lookupName, false)) return undefined;
   }
   return undefined;
 }
@@ -381,8 +444,29 @@ export function resolveCurrentBuiltInTextValue(
   entry: TrackerData,
   stat: "mood" | "lastThought",
   ownerName: string,
-  registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+  registryEntry?: UiRegistryLookupEntry | null,
 ): string | undefined {
+  const value = resolveTrackerDataLookupValue({
+    context: null,
+    data: registryEntry?.id ? {
+      ...entry,
+      entityOwnerMap: {
+        ...(entry.entityOwnerMap ?? {}),
+        [ownerName]: {
+          entityId: registryEntry.id,
+          ownerName: registryEntry.ownerName,
+          canonicalName: registryEntry.canonicalName,
+          aliases: [...(registryEntry.aliases ?? [])],
+          sourceKey: "",
+          kind: registryEntry.kind,
+        },
+      },
+    } : entry,
+    ownerName,
+    byOwner: stat === "mood" ? entry.statistics.mood : entry.statistics.lastThought,
+    byEntityId: entry.statisticsByEntityId?.[stat],
+  });
+  if (value !== undefined) return String(value ?? "");
   const lookupNames = resolveRegistryLookupNamesForOwner(ownerName, registryEntry ?? null);
   const source = stat === "mood" ? entry.statistics.mood : entry.statistics.lastThought;
   for (const lookupName of lookupNames) {

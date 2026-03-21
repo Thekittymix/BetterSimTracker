@@ -1,3 +1,7 @@
+## [2.2.4.16-exp67] - 2026-03-21
+### Changed
+- Experimental multi-character UI continuity lookups now prefer persisted `byEntityId` shadow state for current alias-backed values before falling back to owner-name maps, while preserving canonical/alias owner fallback when no entity-scoped state exists.
+
 ## [2.2.4.16-exp66] - 2026-03-21
 ### Changed
 - Experimental multi-character read paths now resolve tracker continuity through shadow `byEntityId` state first and only fall back to owner-name maps when no persisted entity-scoped value exists.

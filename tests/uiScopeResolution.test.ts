@@ -137,6 +137,32 @@ test("registry-aware current numeric lookup can read alias state stored under ca
   );
 });
 
+test("registry-aware current numeric lookup prefers by-entity shadow state", () => {
+  const data = makeTracker();
+  data.customStatistics = {
+    owner_score: {},
+  };
+  data.customStatisticsByEntityId = {
+    owner_score: {
+      "ent-ashley": 73,
+    },
+  };
+
+  assert.equal(
+    resolveCurrentNumericRawValue(data, "owner_score", "Ash", {
+      globalScope: false,
+      registryEntry: {
+        id: "ent-ashley",
+        ownerName: "Ash",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        kind: "multi_character_alias",
+      },
+    }),
+    73,
+  );
+});
+
 test("registry-aware current non-numeric lookup can read alias state stored under canonical owner", () => {
   const data = makeTracker();
   data.customNonNumericStatistics = {
@@ -159,6 +185,32 @@ test("registry-aware current non-numeric lookup can read alias state stored unde
   );
 });
 
+test("registry-aware current non-numeric lookup prefers by-entity shadow state", () => {
+  const data = makeTracker();
+  data.customNonNumericStatistics = {
+    clothes: {},
+  };
+  data.customNonNumericStatisticsByEntityId = {
+    clothes: {
+      "ent-ashley": ["camp hoodie", "shorts"],
+    },
+  };
+
+  assert.deepEqual(
+    resolveCurrentNonNumericRawValue(data, "clothes", "Ash", {
+      globalScope: false,
+      registryEntry: {
+        id: "ent-ashley",
+        ownerName: "Ash",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        kind: "multi_character_alias",
+      },
+    }),
+    ["camp hoodie", "shorts"],
+  );
+});
+
 test("registry-aware current built-in text lookup can read alias mood stored under canonical owner", () => {
   const data = makeTracker();
   data.statistics.mood = {
@@ -167,6 +219,32 @@ test("registry-aware current built-in text lookup can read alias mood stored und
 
   assert.equal(
     resolveCurrentBuiltInTextValue(data, "mood", "Ash", {
+      ownerName: "Ash",
+      canonicalName: "Ashley",
+      aliases: ["Ash"],
+      kind: "multi_character_alias",
+    }),
+    "Hopeful",
+  );
+});
+
+test("registry-aware current built-in text lookup prefers by-entity shadow state", () => {
+  const data = makeTracker();
+  data.statistics.mood = {};
+  data.statisticsByEntityId = {
+    affection: {},
+    trust: {},
+    desire: {},
+    connection: {},
+    mood: {
+      "ent-ashley": "Hopeful",
+    },
+    lastThought: {},
+  };
+
+  assert.equal(
+    resolveCurrentBuiltInTextValue(data, "mood", "Ash", {
+      id: "ent-ashley",
       ownerName: "Ash",
       canonicalName: "Ashley",
       aliases: ["Ash"],
