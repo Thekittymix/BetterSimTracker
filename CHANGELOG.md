@@ -1,3 +1,7 @@
+## [2.2.4.16-exp28] - 2026-03-21
+
+### Changed
+- Experimental multi-character tracker display pools now merge registry-backed owners by entity identity when possible, reducing remaining owner-name-only dedupe paths during card target assembly.
 ## [2.2.4.16-exp27] - 2026-03-21
 
 ### Changed
@@ -991,6 +995,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

@@ -606,6 +606,38 @@ export function mergeRegistryOwnersIntoTargets(
   return merged;
 }
 
+export function mergeRegistryEntitiesIntoTargets(input: {
+  targets: string[];
+  registryEntries: TrackerEntityRegistryEntry[];
+  resolveRegistryEntry?: (ownerName: string) => TrackerEntityRegistryEntry | null;
+}): string[] {
+  const merged: string[] = [];
+  const seenNames = new Set<string>();
+  const seenEntityIds = new Set<string>();
+  const pushOwner = (ownerName: string, registryEntry?: TrackerEntityRegistryEntry | null): void => {
+    const normalized = normalizeName(ownerName);
+    const entityId = String(registryEntry?.id ?? "").trim();
+    if (!normalized) return;
+    if (entityId) {
+      if (seenEntityIds.has(entityId)) return;
+      seenEntityIds.add(entityId);
+    } else if (seenNames.has(normalized)) {
+      return;
+    }
+    seenNames.add(normalized);
+    merged.push(ownerName);
+  };
+  for (const ownerName of input.targets) {
+    pushOwner(ownerName, input.resolveRegistryEntry?.(ownerName) ?? null);
+  }
+  for (const entry of input.registryEntries) {
+    const ownerName = String(entry?.ownerName ?? "").trim();
+    if (!ownerName) continue;
+    pushOwner(ownerName, entry);
+  }
+  return merged;
+}
+
 export function resolveRegistryOwnersFromEntries(
   entries: TrackerEntityRegistryEntry[],
 ): string[] {
@@ -5218,10 +5250,16 @@ export function renderTracker(
       ? resolveRegistryOwnersFromEntries(registryEntriesForMessage)
       : (resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? []);
     const registryOwnerSet = new Set(registryOwnersForMessage.map(name => normalizeName(name)));
-    const mergedWithRegistryOwners = mergeRegistryOwnersIntoTargets(
-      mergedCharacters,
-      registryOwnersForMessage,
-    );
+    const mergedWithRegistryOwners = registryEntriesForMessage.length > 0
+      ? mergeRegistryEntitiesIntoTargets({
+        targets: mergedCharacters,
+        registryEntries: registryEntriesForMessage,
+        resolveRegistryEntry: ownerName => resolveRegistryEntryForMessage?.(ownerName, entry.messageIndex) ?? null,
+      })
+      : mergeRegistryOwnersIntoTargets(
+        mergedCharacters,
+        registryOwnersForMessage,
+      );
     const displayPool = buildDisplayPoolWithRegistry({
       entityTrackingMode: settings.entityTrackingMode,
       includeAllTargets: forceAllInGroup || settings.showInactive,

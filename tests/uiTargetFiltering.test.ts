@@ -5,6 +5,7 @@ import {
   buildDisplayPoolWithRegistry,
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
+  mergeRegistryEntitiesIntoTargets,
   mergeRegistryOwnersIntoTargets,
   applyTrackerCardCollapsed,
   resolveRegistryLookupNamesForOwner,
@@ -60,6 +61,24 @@ test("mergeRegistryOwnersIntoTargets backfills registry owners without duplicati
   );
 
   assert.deepEqual(merged, ["Ashley", "Blake", "Garret", "Raleigh"]);
+});
+
+test("mergeRegistryEntitiesIntoTargets deduplicates entity-backed targets by registry id, not just owner spelling", () => {
+  const registryEntries = [
+    { id: "ent-ashley", ownerName: "Ashley" },
+    { id: "ent-blake", ownerName: "Blake" },
+  ] as never[];
+  const merged = mergeRegistryEntitiesIntoTargets({
+    targets: ["Ash", "Blake"],
+    registryEntries,
+    resolveRegistryEntry: ownerName => {
+      if (ownerName === "Ash") return { id: "ent-ashley", ownerName: "Ashley" } as never;
+      if (ownerName === "Blake") return { id: "ent-blake", ownerName: "Blake" } as never;
+      return null;
+    },
+  });
+
+  assert.deepEqual(merged, ["Ash", "Blake"]);
 });
 
 test("resolveRegistryOwnersFromEntries preserves introduction order and deduplicates names", () => {
