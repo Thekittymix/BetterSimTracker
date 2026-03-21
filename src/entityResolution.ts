@@ -504,20 +504,22 @@ export function refineSceneActiveCharactersFromExtractedSceneRoster(
   const rawRoster = extractedCustomNonNumericStatistics?.characters_in_scene?.[GLOBAL_TRACKER_KEY];
   if (!Array.isArray(rawRoster) || !rawRoster.length) return [...sceneActiveCharacters];
 
-  const merged: string[] = [];
+  const refined: string[] = [];
   const seen = new Set<string>();
   const pushOwner = (raw: unknown): void => {
     const value = normalizeToken(raw);
     if (!value) return;
-    if (normalizeKey(value) === normalizeKey(USER_TRACKER_KEY)) return;
+    if (normalizeKey(value) === normalizeKey(USER_TRACKER_KEY)) {
+      pushUniqueString(refined, seen, USER_TRACKER_KEY);
+      return;
+    }
     const resolved = resolveCharacterIdentity(context, value, mode);
     const nextOwner = resolved?.matchedBy === "alias" ? resolved.resolvedName : value;
-    pushUniqueString(merged, seen, nextOwner);
+    pushUniqueString(refined, seen, nextOwner);
   };
 
-  for (const ownerName of sceneActiveCharacters) pushOwner(ownerName);
   for (const ownerName of rawRoster) pushOwner(ownerName);
-  return merged.length ? merged : [...sceneActiveCharacters];
+  return refined.length ? refined : [...sceneActiveCharacters];
 }
 
 export function resolveMessageScopedOwnerName(

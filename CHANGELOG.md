@@ -1,3 +1,7 @@
+## [2.2.4.16-exp50] - 2026-03-21
+### Fixed
+- Experimental multi-character saves now treat the extracted `Characters in Scene` roster as the authoritative persisted active set for that message, instead of re-expanding unrelated source-card aliases back into `activeCharacters`.
+
 ## [2.2.4.16-exp49] - 2026-03-21
 ### Changed
 - Experimental multi-character manual tracker edits now sync entity registry lifecycle through the same tracker-data pipeline as extraction, reducing another render-only dependency in alias continuity updates.

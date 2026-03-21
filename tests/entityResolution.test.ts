@@ -263,7 +263,28 @@ test("refineSceneActiveCharactersFromExtractedSceneRoster restores scene-present
     { entityTrackingMode: "multi_character" },
   );
 
-  assert.deepEqual(refined, ["Blake", "Ashley"]);
+  assert.deepEqual(refined, ["Ashley", "Blake"]);
+});
+
+test("refineSceneActiveCharactersFromExtractedSceneRoster narrows away unrelated expanded aliases when extracted roster is specific", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const refined = refineSceneActiveCharactersFromExtractedSceneRoster(
+    context,
+    ["Ashley", "Blake", "Garret", "Raleigh", "__bst_user__"],
+    {
+      characters_in_scene: {
+        __bst_global__: ["User", "Blake"],
+      },
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(refined, ["User", "Blake"]);
 });
 
 test("refineSceneActiveCharactersFromExtractedSceneRoster ignores extracted scene roster in standard mode", () => {
