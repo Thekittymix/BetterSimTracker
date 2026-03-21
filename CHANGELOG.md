@@ -1,3 +1,7 @@
+## [2.2.4.16-exp48] - 2026-03-21
+### Changed
+- Experimental multi-character extraction now syncs entity registry lifecycle directly from the saved tracker payload after extraction, so alias continuity no longer depends on a later render pass to keep inactive scene members registered.
+
 ## [2.2.4.16-exp47] - 2026-03-21
 ### Fixed
 - Experimental multi-character extraction now lets the extracted scene roster broaden persisted active aliases before saving tracker state, so scene-present aliases do not get archived just because the narrow request target focused on one speaker.

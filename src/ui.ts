@@ -826,7 +826,7 @@ function pushUniqueCharacterName(target: string[], seen: Set<string>, raw: unkno
   target.push(name);
 }
 
-function collectCharacterNamesFromTrackerData(data: TrackerData): string[] {
+export function collectCharacterNamesFromTrackerData(data: TrackerData): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
   for (const name of data.activeCharacters ?? []) {

@@ -24,6 +24,7 @@ import {
   resolveEntityRegistryLookupValue,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
+import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
@@ -3699,6 +3700,13 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     refreshPromptMacroData(context);
 
     writeTrackerDataToMessage(context, latestData, lastIndex);
+    syncEntityRegistryFromTrackerData({
+      context,
+      messageIndex: lastIndex,
+      data: latestData,
+      settings: activeSettings,
+      allKnownCharacters: allCharacterNames.filter(name => isTrackerEnabledForOwner(context, activeSettings, name)),
+    });
     clearTrackerRecovery(lastIndex);
     context.saveChatDebounced?.();
     await context.saveChat?.();
