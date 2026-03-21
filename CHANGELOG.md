@@ -1,3 +1,7 @@
+## [2.2.4.16-exp41] - 2026-03-21
+### Changed
+- Experimental multi-character custom non-numeric sanitizer now resolves previous alias-owner values through entity lookup names before placeholder cleanup and carry-forward comparisons, removing another raw owner-name continuity path in extractor post-processing.
+
 ## [2.2.4.16-exp40] - 2026-03-21
 ### Changed
 - Experimental multi-character graph/history summaries now resolve alias-owner numeric series through per-snapshot entity lookup names, reducing another owner-name-only continuity path in graph state.

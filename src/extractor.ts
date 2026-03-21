@@ -38,6 +38,7 @@ import {
   formatCustomProgressLabel,
 } from "./extractorProgress";
 import { resolveEntityRegistryLookupValue } from "./entityRegistry";
+import { resolvePreviousCustomNonNumericValue } from "./extractorRegistry";
 import type {
   BetterSimTrackerSettings,
   CustomNonNumericValue,
@@ -891,7 +892,12 @@ export async function extractStatisticsParallel(input: {
     ): boolean => {
       if (settings.sequentialExtraction) return false;
       if ((statDef.kind ?? "numeric") !== "text_short") return false;
-      const previousValue = previousCustomNonNumericStatistics?.[statDef.id]?.[characterName];
+      const previousValue = resolvePreviousCustomNonNumericValue(
+        registryContext,
+        previousCustomNonNumericStatistics?.[statDef.id] ?? null,
+        characterName,
+        Boolean(statDef.globalScope),
+      );
       if (typeof previousValue !== "string") return false;
 
       const nextNorm = normalizeTextForComparison(value);
@@ -953,9 +959,12 @@ export async function extractStatisticsParallel(input: {
           if (candidateRaw === undefined) continue;
           const candidate = toArrayItems(candidateRaw);
           const previousByOwner = previousCustomNonNumericStatistics?.[statDef.id];
-          const previousRaw = statDef.globalScope
-            ? (previousByOwner?.[GLOBAL_TRACKER_KEY] ?? previousByOwner?.[name])
-            : previousByOwner?.[name];
+          const previousRaw = resolvePreviousCustomNonNumericValue(
+            registryContext,
+            previousByOwner ?? null,
+            name,
+            Boolean(statDef.globalScope),
+          );
           const previous = toArrayItems(previousRaw);
           const confidenceRaw = Number(next.confidence[name]);
           const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 0.8;
@@ -984,9 +993,12 @@ export async function extractStatisticsParallel(input: {
         for (const name of requestCharacters) {
           const candidate = next.value[name];
           const previousByOwner = previousCustomNonNumericStatistics?.[statDef.id];
-          const previous = statDef.globalScope
-            ? (previousByOwner?.[GLOBAL_TRACKER_KEY] ?? previousByOwner?.[name])
-            : previousByOwner?.[name];
+          const previous = resolvePreviousCustomNonNumericValue(
+            registryContext,
+            previousByOwner ?? null,
+            name,
+            Boolean(statDef.globalScope),
+          );
           const normalized = normalizeDateTimeWithMode(candidate, mode, previous);
           if (!normalized) {
             delete next.value[name];
