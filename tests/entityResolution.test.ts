@@ -6,7 +6,7 @@ import {
   extractMultiCharacterAliases,
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
-  refineSceneActiveCharactersFromExtractedSceneRoster,
+  resolvePersistedActiveOwners,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveExtractionOwnerScopes,
@@ -245,67 +245,14 @@ test("resolveExtractionOwnerScopes narrows scene-active aliases when a recent us
   assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
 });
 
-test("refineSceneActiveCharactersFromExtractedSceneRoster restores scene-present aliases from extracted roster", () => {
-  const context = {
-    characters: [
-      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
-    ],
-  } as any;
-
-  const refined = refineSceneActiveCharactersFromExtractedSceneRoster(
-    context,
-    ["Blake"],
-    {
-      characters_in_scene: {
-        __bst_global__: ["Ashley", "Blake"],
-      },
-    } as any,
-    { entityTrackingMode: "multi_character" },
-  );
-
+test("resolvePersistedActiveOwners excludes User by default for AI-side tracker targets", () => {
+  const refined = resolvePersistedActiveOwners(["Ashley", "Blake", "__bst_user__"]);
   assert.deepEqual(refined, ["Ashley", "Blake"]);
 });
 
-test("refineSceneActiveCharactersFromExtractedSceneRoster narrows away unrelated expanded aliases when extracted roster is specific", () => {
-  const context = {
-    characters: [
-      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
-    ],
-  } as any;
-
-  const refined = refineSceneActiveCharactersFromExtractedSceneRoster(
-    context,
-    ["Ashley", "Blake", "Garret", "Raleigh", "__bst_user__"],
-    {
-      characters_in_scene: {
-        __bst_global__: ["User", "Blake"],
-      },
-    } as any,
-    { entityTrackingMode: "multi_character" },
-  );
-
-  assert.deepEqual(refined, ["User", "Blake"]);
-});
-
-test("refineSceneActiveCharactersFromExtractedSceneRoster ignores extracted scene roster in standard mode", () => {
-  const context = {
-    characters: [
-      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
-    ],
-  } as any;
-
-  const refined = refineSceneActiveCharactersFromExtractedSceneRoster(
-    context,
-    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
-    {
-      characters_in_scene: {
-        __bst_global__: ["Ashley", "Blake"],
-      },
-    } as any,
-    { entityTrackingMode: "standard" },
-  );
-
-  assert.deepEqual(refined, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"]);
+test("resolvePersistedActiveOwners can retain User for user-side tracker targets", () => {
+  const refined = resolvePersistedActiveOwners(["__bst_user__"], { includeUserOwner: true });
+  assert.deepEqual(refined, ["__bst_user__"]);
 });
 
 test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {

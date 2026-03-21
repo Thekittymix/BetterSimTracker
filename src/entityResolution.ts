@@ -11,7 +11,7 @@ import type {
   Statistics,
   TrackerData,
 } from "./types";
-import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
+import { USER_TRACKER_KEY } from "./constants";
 
 export type EntityTrackingMode = "standard" | "multi_character";
 
@@ -493,33 +493,24 @@ export function resolveExtractionOwnerScopes(
   };
 }
 
-export function refineSceneActiveCharactersFromExtractedSceneRoster(
-  context: STContext | null,
+export function resolvePersistedActiveOwners(
   sceneActiveCharacters: string[],
-  extractedCustomNonNumericStatistics: TrackerData["customNonNumericStatistics"] | null | undefined,
-  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+  input: { includeUserOwner?: boolean } = {},
 ): string[] {
-  const mode = resolveEntityTrackingMode(settings);
-  if (mode !== "multi_character") return [...sceneActiveCharacters];
-  const rawRoster = extractedCustomNonNumericStatistics?.characters_in_scene?.[GLOBAL_TRACKER_KEY];
-  if (!Array.isArray(rawRoster) || !rawRoster.length) return [...sceneActiveCharacters];
-
-  const refined: string[] = [];
+  const includeUserOwner = input.includeUserOwner === true;
+  const out: string[] = [];
   const seen = new Set<string>();
-  const pushOwner = (raw: unknown): void => {
-    const value = normalizeToken(raw);
-    if (!value) return;
-    if (normalizeKey(value) === normalizeKey(USER_TRACKER_KEY)) {
-      pushUniqueString(refined, seen, USER_TRACKER_KEY);
-      return;
+  for (const rawOwner of sceneActiveCharacters) {
+    const ownerName = normalizeToken(rawOwner);
+    if (!ownerName) continue;
+    if (normalizeKey(ownerName) === normalizeKey(USER_TRACKER_KEY)) {
+      if (!includeUserOwner) continue;
+      pushUniqueString(out, seen, USER_TRACKER_KEY);
+      continue;
     }
-    const resolved = resolveCharacterIdentity(context, value, mode);
-    const nextOwner = resolved?.matchedBy === "alias" ? resolved.resolvedName : value;
-    pushUniqueString(refined, seen, nextOwner);
-  };
-
-  for (const ownerName of rawRoster) pushOwner(ownerName);
-  return refined.length ? refined : [...sceneActiveCharacters];
+    pushUniqueString(out, seen, ownerName);
+  }
+  return out;
 }
 
 export function resolveMessageScopedOwnerName(

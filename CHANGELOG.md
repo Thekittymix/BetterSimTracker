@@ -1,3 +1,7 @@
+## [2.2.4.16-exp51] - 2026-03-21
+### Fixed
+- Experimental multi-character no longer derives persisted AI-message owner targets from the extracted scene custom stat roster; saved `activeCharacters` now come from resolver-derived scene owners, which removes fake `User` tracker cards from AI replies.
+
 ## [2.2.4.16-exp50] - 2026-03-21
 ### Fixed
 - Experimental multi-character saves now treat the extracted `Characters in Scene` roster as the authoritative persisted active set for that message, instead of re-expanding unrelated source-card aliases back into `activeCharacters`.
