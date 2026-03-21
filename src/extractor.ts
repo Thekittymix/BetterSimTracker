@@ -45,6 +45,7 @@ import type {
   CustomStatistics,
   DeltaDebugRecord,
   GenerateRequestMeta,
+  STContext,
   StatKey,
   Statistics,
   TrackerData
@@ -259,6 +260,7 @@ function resolveLegacyNonNumericFallback(
 }
 
 export async function extractStatisticsParallel(input: {
+  context?: STContext | null;
   settings: BetterSimTrackerSettings;
   userName: string;
   activeCharacters: string[];
@@ -281,6 +283,7 @@ export async function extractStatisticsParallel(input: {
   debug: DeltaDebugRecord | null;
 }> {
   const {
+    context,
     settings,
     userName,
     activeCharacters,
@@ -1010,6 +1013,7 @@ export async function extractStatisticsParallel(input: {
               trackConnection: settings.trackConnection,
               trackMood: settings.trackMood,
             },
+            context,
           )
         : buildUnifiedPrompt(
             statList,
@@ -1024,6 +1028,7 @@ export async function extractStatisticsParallel(input: {
             preferredCharacterName,
             settings.includeCharacterCardsInPrompt,
             settings.includeLorebookInExtraction,
+            context,
           );
       const prompt = applyPromptCharacterAliases(builtPrompt);
       tickProgress(buildProgressRequest(progressLabel));
@@ -1119,6 +1124,7 @@ export async function extractStatisticsParallel(input: {
       const kind = statDef.kind ?? "numeric";
       const builtPrompt = kind === "numeric"
         ? buildSequentialCustomNumericPrompt({
+          context,
           statId,
           statLabel: label,
           statDescription: statDef.description,
@@ -1146,6 +1152,7 @@ export async function extractStatisticsParallel(input: {
           },
         })
         : buildSequentialCustomNonNumericPrompt({
+          context,
           statId,
           statKind: kind,
           globalScope: statDef.globalScope,
@@ -1361,6 +1368,7 @@ export async function extractStatisticsParallel(input: {
           ...batchCustomStats.map(stat => stat.id),
         ];
         const builtPrompt = buildUnifiedAllStatsPrompt({
+          context,
           stats: batchBuiltInStats,
           customStats: batchCustomStats,
           userName,
@@ -1529,6 +1537,7 @@ export async function extractStatisticsParallel(input: {
         const statsForRequest = group.map(stat => stat.id);
         const requestTemplate = buildGroupedCustomTemplate(group);
         const builtPrompt = buildUnifiedAllStatsPrompt({
+          context,
           stats: [],
           customStats: group,
           userName,

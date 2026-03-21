@@ -1,7 +1,7 @@
 import { DEFAULT_INJECTION_PROMPT_TEMPLATE } from "./prompts";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
-import { getEntityRegistryEntryByOwnerName } from "./entityRegistry";
+import { listEntityRegistryLookupNames } from "./entityRegistry";
 import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
 import { buildMergedPromptMacroData } from "./runtimeState";
 import {
@@ -209,27 +209,6 @@ function renderTemplate(template: string, values: Record<string, string>): strin
   return output;
 }
 
-function resolveOwnerLookupNames(context: STContext, ownerName: string): string[] {
-  const names: string[] = [];
-  const seen = new Set<string>();
-  const push = (raw: unknown): void => {
-    const value = String(raw ?? "").trim();
-    const key = normalizeOwnerName(value);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    names.push(value);
-  };
-  push(ownerName);
-  const entry = getEntityRegistryEntryByOwnerName(context, ownerName);
-  if (!entry) return names;
-  push(entry.ownerName);
-  push(entry.canonicalName);
-  for (const alias of entry.aliases ?? []) {
-    push(alias);
-  }
-  return names;
-}
-
 function bstTagBlock(tag: string, content: string): string {
   const inner = String(content ?? "").trim();
   return [`<${tag}>`, inner, `</${tag}>`].join("\n");
@@ -371,7 +350,7 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
     const lines = filteredScopedNames.map(name => {
       const isUser = name === USER_TRACKER_KEY;
       const displayName = isUser ? (String(context.name1 ?? "").trim() || "User") : name;
-      const ownerLookupNames = isUser ? [USER_TRACKER_KEY] : resolveOwnerLookupNames(context, name);
+      const ownerLookupNames = isUser ? [USER_TRACKER_KEY] : listEntityRegistryLookupNames(context, name);
       const parts: string[] = [];
       const ownerMatch = Boolean(targetOwnerKey) && normalizeOwnerName(name) === targetOwnerKey;
       for (const stat of enabledBuiltIns) {

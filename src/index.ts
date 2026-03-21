@@ -3594,6 +3594,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     }
 
     const extractedResult = await extractStatisticsParallel({
+      context,
       settings: extractionSettings,
       userName,
       activeCharacters,

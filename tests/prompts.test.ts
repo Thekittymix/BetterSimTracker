@@ -74,6 +74,60 @@ test("buildUnifiedPrompt includes current state, history, instruction, and proto
   assert.match(prompt, /-12\.\.12/);
 });
 
+test("buildUnifiedPrompt resolves alias owner built-in state through registry lookup names", () => {
+  const prompt = buildUnifiedPrompt(
+    ["affection", "mood"],
+    "User",
+    ["Ash"],
+    "Ashley glances over.",
+    {
+      affection: { Ashley: 61 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Hopeful" },
+      lastThought: {},
+    },
+    [],
+    12,
+    undefined,
+    undefined,
+    undefined,
+    true,
+    true,
+    {
+      chatMetadata: {
+        bstEntityRegistry: {
+          version: 1,
+          entities: {
+            "bst_mc_alias:test:ashley": {
+              id: "bst_mc_alias:test:ashley",
+              ownerName: "Ashley",
+              canonicalName: "Ashley",
+              aliases: ["Ash"],
+              sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+              sourceAvatar: "camp.png",
+              sourceKey: "camp",
+              kind: "multi_character_alias",
+              introducedAtMessageIndex: 1,
+              lastSeenMessageIndex: 1,
+              lastActiveMessageIndex: 1,
+              lifecycleState: "active",
+              archivedAtMessageIndex: null,
+            },
+          },
+          ownerToEntityId: {
+            ash: "bst_mc_alias:test:ashley",
+            ashley: "bst_mc_alias:test:ashley",
+          },
+        },
+      },
+    } as never,
+  );
+
+  assert.match(prompt, /- Ash: affection=61, trust=50, desire=50, connection=50, mood=Hopeful/);
+});
+
 test("buildUnifiedAllStatsPrompt includes custom numeric and non-numeric values", () => {
   const prompt = buildUnifiedAllStatsPrompt({
     stats: ["affection", "mood"],
@@ -244,6 +298,78 @@ test("buildUnifiedAllStatsPrompt preserves explicit empty owner-scoped non-numer
 
   assert.match(prompt, /clothes=\[\]/);
   assert.doesNotMatch(prompt, /black sundress/);
+});
+
+test("buildUnifiedAllStatsPrompt resolves alias owner custom stats through registry lookup names", () => {
+  const prompt = buildUnifiedAllStatsPrompt({
+    context: {
+      chatMetadata: {
+        bstEntityRegistry: {
+          version: 1,
+          entities: {
+            "bst_mc_alias:test:ashley": {
+              id: "bst_mc_alias:test:ashley",
+              ownerName: "Ashley",
+              canonicalName: "Ashley",
+              aliases: ["Ash"],
+              sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+              sourceAvatar: "camp.png",
+              sourceKey: "camp",
+              kind: "multi_character_alias",
+              introducedAtMessageIndex: 1,
+              lastSeenMessageIndex: 1,
+              lastActiveMessageIndex: 1,
+              lifecycleState: "active",
+              archivedAtMessageIndex: null,
+            },
+          },
+          ownerToEntityId: {
+            ash: "bst_mc_alias:test:ashley",
+            ashley: "bst_mc_alias:test:ashley",
+          },
+        },
+      },
+    } as never,
+    stats: [],
+    customStats: [
+      {
+        id: "clothes",
+        kind: "array",
+        label: "Clothes",
+        defaultValue: [],
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+    userName: "User",
+    characters: ["Ash"],
+    contextText: "Scene text",
+    current: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    currentCustom: {},
+    currentCustomNonNumeric: {
+      clothes: { Ashley: ["worn hoodie"] },
+    },
+    history: [],
+    maxDeltaPerTurn: 8,
+    includeCharacterCardsInPrompt: true,
+    includeLorebookInExtraction: false,
+  });
+
+  assert.match(prompt, /- Ash: clothes=\["worn hoodie"\]/);
 });
 
 test("buildSequentialPrompt respects built-in tracking and source priority wording", () => {

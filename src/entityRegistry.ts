@@ -253,6 +253,30 @@ export function getEntityRegistryEntryByOwnerName(
   return registry.entities[entityId] ?? null;
 }
 
+export function listEntityRegistryLookupNames(
+  context: STContext | null,
+  ownerName: string,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    const key = normalizeKey(value);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+  push(ownerName);
+  const entry = getEntityRegistryEntryByOwnerName(context, ownerName);
+  if (!entry) return names;
+  push(entry.ownerName);
+  push(entry.canonicalName);
+  for (const alias of entry.aliases ?? []) {
+    push(alias);
+  }
+  return names;
+}
+
 export function getEntityRegistryEntryForMessage(
   context: STContext | null,
   ownerName: string,

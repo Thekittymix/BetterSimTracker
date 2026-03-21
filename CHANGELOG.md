@@ -1,3 +1,8 @@
+## [2.2.4.16-exp31] - 2026-03-21
+
+### Changed
+- Experimental multi-character extraction prompts now resolve alias-owner built-in and custom baseline/history values through registry-backed lookup names, keeping extraction context aligned with the same entity-centric lookup layer used by tracker rendering and prompt injection.
+
 ## [2.2.4.16-exp30] - 2026-03-21
 
 ### Changed

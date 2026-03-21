@@ -1,9 +1,10 @@
-import type { CustomStatDefinition, CustomStatKind, CustomNonNumericStatistics, CustomStatistics, StatKey } from "./types";
+import type { CustomStatDefinition, CustomStatKind, CustomNonNumericStatistics, CustomStatistics, STContext, StatKey } from "./types";
 import type { Statistics } from "./types";
 import type { TrackerData } from "./types";
 import { GLOBAL_TRACKER_KEY } from "./constants";
 import { normalizeDateTimeValue } from "./dateTime";
 import { MAX_CUSTOM_ARRAY_ITEMS, MAX_CUSTOM_ENUM_OPTIONS, normalizeNonNumericArrayItems } from "./customStatRuntime";
+import { listEntityRegistryLookupNames } from "./entityRegistry";
 
 export const moodOptions = [
   "Happy",
@@ -291,6 +292,50 @@ function buildSourcePriorityRule(includeCharacterCards: boolean, includeLorebook
   return "";
 }
 
+function uniqueLookupOwners(ownerNames: string | string[]): string[] {
+  const values = Array.isArray(ownerNames) ? ownerNames : [ownerNames];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const value = String(raw ?? "").trim();
+    const key = value.toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function resolveOwnerLookupNames(context: STContext | null | undefined, ownerName: string): string[] {
+  return context ? listEntityRegistryLookupNames(context, ownerName) : [ownerName];
+}
+
+function resolveBuiltInNumericValue(
+  byOwner: Record<string, unknown> | null | undefined,
+  ownerNames: string | string[],
+): number | undefined {
+  if (!byOwner) return undefined;
+  for (const ownerName of uniqueLookupOwners(ownerNames)) {
+    const ownerValue = byOwner[ownerName];
+    if (ownerValue === undefined) continue;
+    const numeric = Number(ownerValue);
+    if (!Number.isNaN(numeric)) return numeric;
+  }
+  return undefined;
+}
+
+function resolveBuiltInTextValue(
+  byOwner: Record<string, unknown> | null | undefined,
+  ownerNames: string | string[],
+): string | undefined {
+  if (!byOwner) return undefined;
+  for (const ownerName of uniqueLookupOwners(ownerNames)) {
+    const ownerValue = byOwner[ownerName];
+    if (typeof ownerValue === "string") return ownerValue;
+  }
+  return undefined;
+}
+
 function applySourcePriorityRule(
   instruction: string,
   includeCharacterCards: boolean,
@@ -407,11 +452,13 @@ Return JSON object only, keys must be exact character names, values must be plai
 function resolveScopedCustomNumericValue(
   byStat: CustomStatistics | Record<string, Record<string, number>> | null | undefined,
   statId: string,
-  ownerName: string,
+  ownerNames: string | string[],
   globalScope?: boolean,
 ): number | undefined {
   const byOwner = byStat?.[statId];
   if (!byOwner) return undefined;
+  const lookupOwners = uniqueLookupOwners(ownerNames);
+  if (!lookupOwners.length) return undefined;
   const legacyFallback = (): number | undefined => {
     for (const [owner, value] of Object.entries(byOwner)) {
       if (owner === GLOBAL_TRACKER_KEY) continue;
@@ -423,24 +470,30 @@ function resolveScopedCustomNumericValue(
   if (globalScope) {
     const globalValue = byOwner[GLOBAL_TRACKER_KEY];
     if (globalValue !== undefined) return Number(globalValue);
-    const ownerValue = byOwner[ownerName];
-    if (ownerValue !== undefined) return Number(ownerValue);
+    for (const ownerName of lookupOwners) {
+      const ownerValue = byOwner[ownerName];
+      if (ownerValue !== undefined) return Number(ownerValue);
+    }
     const fallback = legacyFallback();
     if (fallback !== undefined) return fallback;
   }
-  const ownerValue = byOwner[ownerName];
-  if (ownerValue !== undefined) return Number(ownerValue);
+  for (const ownerName of lookupOwners) {
+    const ownerValue = byOwner[ownerName];
+    if (ownerValue !== undefined) return Number(ownerValue);
+  }
   return undefined;
 }
 
 function resolveScopedCustomNonNumericValue(
   byStat: CustomNonNumericStatistics | null | undefined,
   statId: string,
-  ownerName: string,
+  ownerNames: string | string[],
   globalScope?: boolean,
 ): unknown {
   const byOwner = byStat?.[statId];
   if (!byOwner) return undefined;
+  const lookupOwners = uniqueLookupOwners(ownerNames);
+  if (!lookupOwners.length) return undefined;
   const legacyFallback = (): unknown => {
     for (const [owner, value] of Object.entries(byOwner)) {
       if (owner === GLOBAL_TRACKER_KEY) continue;
@@ -451,13 +504,17 @@ function resolveScopedCustomNonNumericValue(
   if (globalScope) {
     const globalValue = byOwner[GLOBAL_TRACKER_KEY];
     if (globalValue !== undefined) return globalValue;
-    const ownerValue = byOwner[ownerName];
-    if (ownerValue !== undefined) return ownerValue;
+    for (const ownerName of lookupOwners) {
+      const ownerValue = byOwner[ownerName];
+      if (ownerValue !== undefined) return ownerValue;
+    }
     const fallback = legacyFallback();
     if (fallback !== undefined) return fallback;
   }
-  const ownerValue = byOwner[ownerName];
-  if (ownerValue !== undefined) return ownerValue;
+  for (const ownerName of lookupOwners) {
+    const ownerValue = byOwner[ownerName];
+    if (ownerValue !== undefined) return ownerValue;
+  }
   return undefined;
 }
 
@@ -474,6 +531,7 @@ export function buildUnifiedPrompt(
   preferredCharacterName?: string,
   includeCharacterCardsInPrompt = true,
   includeLorebookInExtraction = true,
+  context?: STContext | null,
 ): string {
   const envelope = commonEnvelope(userName, characters, contextText);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
@@ -483,22 +541,24 @@ export function buildUnifiedPrompt(
   const textStats = stats.filter(stat => stat === "mood" || stat === "lastThought");
 
   const currentLines = characters.map(name => {
-    const affection = Number(current?.affection?.[name] ?? 50);
-    const trust = Number(current?.trust?.[name] ?? 50);
-    const desire = Number(current?.desire?.[name] ?? 50);
-    const connection = Number(current?.connection?.[name] ?? 50);
-    const mood = String(current?.mood?.[name] ?? "Neutral");
+    const ownerLookupNames = resolveOwnerLookupNames(context, name);
+    const affection = Number(resolveBuiltInNumericValue(current?.affection, ownerLookupNames) ?? 50);
+    const trust = Number(resolveBuiltInNumericValue(current?.trust, ownerLookupNames) ?? 50);
+    const desire = Number(resolveBuiltInNumericValue(current?.desire, ownerLookupNames) ?? 50);
+    const connection = Number(resolveBuiltInNumericValue(current?.connection, ownerLookupNames) ?? 50);
+    const mood = String(resolveBuiltInTextValue(current?.mood, ownerLookupNames) ?? "Neutral");
     return `- ${name}: affection=${Math.max(0, Math.min(100, Math.round(affection)))}, trust=${Math.max(0, Math.min(100, Math.round(trust)))}, desire=${Math.max(0, Math.min(100, Math.round(desire)))}, connection=${Math.max(0, Math.min(100, Math.round(connection)))}, mood=${mood}`;
   }).join("\n");
 
   const historyLines = history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = characters.map(name => {
-      const affection = Number(entry.statistics.affection?.[name] ?? 50);
-      const trust = Number(entry.statistics.trust?.[name] ?? 50);
-      const desire = Number(entry.statistics.desire?.[name] ?? 50);
-      const connection = Number(entry.statistics.connection?.[name] ?? 50);
-      const mood = String(entry.statistics.mood?.[name] ?? "Neutral");
+      const ownerLookupNames = resolveOwnerLookupNames(context, name);
+      const affection = Number(resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames) ?? 50);
+      const trust = Number(resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames) ?? 50);
+      const desire = Number(resolveBuiltInNumericValue(entry.statistics.desire, ownerLookupNames) ?? 50);
+      const connection = Number(resolveBuiltInNumericValue(entry.statistics.connection, ownerLookupNames) ?? 50);
+      const mood = String(resolveBuiltInTextValue(entry.statistics.mood, ownerLookupNames) ?? "Neutral");
       return `  - ${name}: affection=${Math.round(affection)}, trust=${Math.round(trust)}, desire=${Math.round(desire)}, connection=${Math.round(connection)}, mood=${mood}`;
     }).join("\n");
     return `${header}\n${rows}`;
@@ -553,6 +613,7 @@ export function buildUnifiedPrompt(
 }
 
 export function buildUnifiedAllStatsPrompt(input: {
+  context?: STContext | null;
   stats: StatKey[];
   customStats: CustomStatDefinition[];
   userName: string;
@@ -587,17 +648,18 @@ export function buildUnifiedAllStatsPrompt(input: {
   const numericDeltaKeys = [...builtInNumeric, ...customNumeric.map(stat => stat.id)];
 
   const currentLines = input.characters.map(name => {
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
     const chunks: string[] = [];
     const builtInChunk = renderBuiltInSnapshotChunk({
-      affection: Number(input.current?.affection?.[name]),
-      trust: Number(input.current?.trust?.[name]),
-      desire: Number(input.current?.desire?.[name]),
-      connection: Number(input.current?.connection?.[name]),
-      mood: typeof input.current?.mood?.[name] === "string" ? String(input.current?.mood?.[name]) : undefined,
+      affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
+      trust: resolveBuiltInNumericValue(input.current?.trust, ownerLookupNames),
+      desire: resolveBuiltInNumericValue(input.current?.desire, ownerLookupNames),
+      connection: resolveBuiltInNumericValue(input.current?.connection, ownerLookupNames),
+      mood: resolveBuiltInTextValue(input.current?.mood, ownerLookupNames),
     }, input.builtInTracking);
     if (builtInChunk) chunks.push(builtInChunk);
     for (const stat of customNumeric) {
-      const customRaw = Number(resolveScopedCustomNumericValue(input.currentCustom, stat.id, name, stat.globalScope) ?? stat.defaultValue);
+      const customRaw = Number(resolveScopedCustomNumericValue(input.currentCustom, stat.id, ownerLookupNames, stat.globalScope) ?? stat.defaultValue);
       const customValue = Math.max(0, Math.min(100, Math.round(customRaw)));
       chunks.push(`${stat.id}=${customValue}`);
     }
@@ -608,7 +670,7 @@ export function buildUnifiedAllStatsPrompt(input: {
         : kind === "array"
           ? (Array.isArray(stat.defaultValue) ? stat.defaultValue : [])
           : String(stat.defaultValue ?? "");
-      const customRaw = resolveScopedCustomNonNumericValue(input.currentCustomNonNumeric ?? undefined, stat.id, name, stat.globalScope);
+      const customRaw = resolveScopedCustomNonNumericValue(input.currentCustomNonNumeric ?? undefined, stat.id, ownerLookupNames, stat.globalScope);
       const customValue = formatCustomNonNumericValue(
         kind,
         customRaw,
@@ -625,17 +687,18 @@ export function buildUnifiedAllStatsPrompt(input: {
   const historyLines = input.history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
+      const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
       const chunks: string[] = [];
       const builtInChunk = renderBuiltInSnapshotChunk({
-        affection: Number(entry.statistics.affection?.[name]),
-        trust: Number(entry.statistics.trust?.[name]),
-        desire: Number(entry.statistics.desire?.[name]),
-        connection: Number(entry.statistics.connection?.[name]),
-        mood: typeof entry.statistics.mood?.[name] === "string" ? String(entry.statistics.mood?.[name]) : undefined,
+        affection: resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames),
+        trust: resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames),
+        desire: resolveBuiltInNumericValue(entry.statistics.desire, ownerLookupNames),
+        connection: resolveBuiltInNumericValue(entry.statistics.connection, ownerLookupNames),
+        mood: resolveBuiltInTextValue(entry.statistics.mood, ownerLookupNames),
       }, input.builtInTracking);
       if (builtInChunk) chunks.push(builtInChunk);
       for (const stat of customNumeric) {
-        const customRaw = Number(resolveScopedCustomNumericValue(entry.customStatistics ?? undefined, stat.id, name, stat.globalScope) ?? stat.defaultValue);
+        const customRaw = Number(resolveScopedCustomNumericValue(entry.customStatistics ?? undefined, stat.id, ownerLookupNames, stat.globalScope) ?? stat.defaultValue);
         const customValue = Math.max(0, Math.min(100, Math.round(customRaw)));
         chunks.push(`${stat.id}=${customValue}`);
       }
@@ -646,7 +709,7 @@ export function buildUnifiedAllStatsPrompt(input: {
           : kind === "array"
             ? (Array.isArray(stat.defaultValue) ? stat.defaultValue : [])
             : String(stat.defaultValue ?? "");
-        const customRaw = resolveScopedCustomNonNumericValue(entry.customNonNumericStatistics ?? undefined, stat.id, name, stat.globalScope);
+        const customRaw = resolveScopedCustomNonNumericValue(entry.customNonNumericStatistics ?? undefined, stat.id, ownerLookupNames, stat.globalScope);
         const customValue = formatCustomNonNumericValue(
           kind,
           customRaw,
@@ -801,6 +864,7 @@ export function buildSequentialPrompt(
   includeCharacterCardsInPrompt = true,
   includeLorebookInExtraction = true,
   builtInTracking?: BuiltInTrackingFlags,
+  context?: STContext | null,
 ): string {
   const envelope = commonEnvelope(userName, characters, contextText);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
@@ -810,12 +874,13 @@ export function buildSequentialPrompt(
   const textStats = stat === "mood" || stat === "lastThought" ? [stat] : [];
 
   const currentLines = characters.map(name => {
+    const ownerLookupNames = resolveOwnerLookupNames(context, name);
     const chunk = renderBuiltInSnapshotChunk({
-      affection: Number(current?.affection?.[name]),
-      trust: Number(current?.trust?.[name]),
-      desire: Number(current?.desire?.[name]),
-      connection: Number(current?.connection?.[name]),
-      mood: typeof current?.mood?.[name] === "string" ? String(current?.mood?.[name]) : undefined,
+      affection: resolveBuiltInNumericValue(current?.affection, ownerLookupNames),
+      trust: resolveBuiltInNumericValue(current?.trust, ownerLookupNames),
+      desire: resolveBuiltInNumericValue(current?.desire, ownerLookupNames),
+      connection: resolveBuiltInNumericValue(current?.connection, ownerLookupNames),
+      mood: resolveBuiltInTextValue(current?.mood, ownerLookupNames),
     }, builtInTracking);
     return `- ${name}: ${chunk || "no built-in stats tracked"}`;
   }).join("\n");
@@ -823,12 +888,13 @@ export function buildSequentialPrompt(
   const historyLines = history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = characters.map(name => {
+      const ownerLookupNames = resolveOwnerLookupNames(context, name);
       const chunk = renderBuiltInSnapshotChunk({
-        affection: Number(entry.statistics.affection?.[name]),
-        trust: Number(entry.statistics.trust?.[name]),
-        desire: Number(entry.statistics.desire?.[name]),
-        connection: Number(entry.statistics.connection?.[name]),
-        mood: typeof entry.statistics.mood?.[name] === "string" ? String(entry.statistics.mood?.[name]) : undefined,
+        affection: resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames),
+        trust: resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames),
+        desire: resolveBuiltInNumericValue(entry.statistics.desire, ownerLookupNames),
+        connection: resolveBuiltInNumericValue(entry.statistics.connection, ownerLookupNames),
+        mood: resolveBuiltInTextValue(entry.statistics.mood, ownerLookupNames),
       }, builtInTracking);
       return `  - ${name}: ${chunk || "no built-in stats tracked"}`;
     }).join("\n");
@@ -891,6 +957,7 @@ export function buildSequentialPrompt(
 }
 
 export function buildSequentialCustomNumericPrompt(input: {
+  context?: STContext | null;
   statId: string;
   statLabel: string;
   statDescription?: string;
@@ -918,14 +985,15 @@ export function buildSequentialCustomNumericPrompt(input: {
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
 
   const currentLines = input.characters.map(name => {
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
     const builtInChunk = renderBuiltInSnapshotChunk({
-      affection: Number(input.current?.affection?.[name]),
-      trust: Number(input.current?.trust?.[name]),
-      desire: Number(input.current?.desire?.[name]),
-      connection: Number(input.current?.connection?.[name]),
-      mood: typeof input.current?.mood?.[name] === "string" ? String(input.current?.mood?.[name]) : undefined,
+      affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
+      trust: resolveBuiltInNumericValue(input.current?.trust, ownerLookupNames),
+      desire: resolveBuiltInNumericValue(input.current?.desire, ownerLookupNames),
+      connection: resolveBuiltInNumericValue(input.current?.connection, ownerLookupNames),
+      mood: resolveBuiltInTextValue(input.current?.mood, ownerLookupNames),
     }, input.builtInTracking);
-    const customValueRaw = Number(resolveScopedCustomNumericValue(input.currentCustom, statId, name, false) ?? defaultValue);
+    const customValueRaw = Number(resolveScopedCustomNumericValue(input.currentCustom, statId, ownerLookupNames, false) ?? defaultValue);
     const customValue = Math.max(0, Math.min(100, Math.round(customValueRaw)));
     const chunks = [builtInChunk, `${statId}=${customValue}`].filter(Boolean).join(", ");
     return `- ${name}: ${chunks}`;
@@ -934,14 +1002,15 @@ export function buildSequentialCustomNumericPrompt(input: {
   const historyLines = input.history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
+      const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
       const builtInChunk = renderBuiltInSnapshotChunk({
-        affection: Number(entry.statistics.affection?.[name]),
-        trust: Number(entry.statistics.trust?.[name]),
-        desire: Number(entry.statistics.desire?.[name]),
-        connection: Number(entry.statistics.connection?.[name]),
-        mood: typeof entry.statistics.mood?.[name] === "string" ? String(entry.statistics.mood?.[name]) : undefined,
+        affection: resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames),
+        trust: resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames),
+        desire: resolveBuiltInNumericValue(entry.statistics.desire, ownerLookupNames),
+        connection: resolveBuiltInNumericValue(entry.statistics.connection, ownerLookupNames),
+        mood: resolveBuiltInTextValue(entry.statistics.mood, ownerLookupNames),
       }, input.builtInTracking);
-      const customValueRaw = Number(resolveScopedCustomNumericValue(entry.customStatistics ?? undefined, statId, name, false) ?? defaultValue);
+      const customValueRaw = Number(resolveScopedCustomNumericValue(entry.customStatistics ?? undefined, statId, ownerLookupNames, false) ?? defaultValue);
       const customValue = Math.max(0, Math.min(100, Math.round(customValueRaw)));
       const chunks = [builtInChunk, `${statId}=${customValue}`].filter(Boolean).join(", ");
       return `  - ${name}: ${chunks}`;
@@ -1149,6 +1218,7 @@ function customNonNumericProtocol(input: {
 }
 
 export function buildSequentialCustomNonNumericPrompt(input: {
+  context?: STContext | null;
   statId: string;
   statKind: Exclude<CustomStatKind, "numeric">;
   globalScope?: boolean;
@@ -1206,17 +1276,18 @@ export function buildSequentialCustomNonNumericPrompt(input: {
           : `text<=${textMaxLen}`;
 
   const currentLines = input.characters.map(name => {
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
     const builtInChunk = renderBuiltInSnapshotChunk({
-      affection: Number(input.current?.affection?.[name]),
-      trust: Number(input.current?.trust?.[name]),
-      desire: Number(input.current?.desire?.[name]),
-      connection: Number(input.current?.connection?.[name]),
-      mood: typeof input.current?.mood?.[name] === "string" ? String(input.current?.mood?.[name]) : undefined,
+      affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
+      trust: resolveBuiltInNumericValue(input.current?.trust, ownerLookupNames),
+      desire: resolveBuiltInNumericValue(input.current?.desire, ownerLookupNames),
+      connection: resolveBuiltInNumericValue(input.current?.connection, ownerLookupNames),
+      mood: resolveBuiltInTextValue(input.current?.mood, ownerLookupNames),
     }, input.builtInTracking);
     const customRaw = resolveScopedCustomNonNumericValue(
       input.currentCustomNonNumeric ?? undefined,
       statId,
-      name,
+      ownerLookupNames,
       input.globalScope,
     );
     const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue, textMaxLen, {
@@ -1230,17 +1301,18 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   const historyLines = input.history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
+      const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
       const builtInChunk = renderBuiltInSnapshotChunk({
-        affection: Number(entry.statistics.affection?.[name]),
-        trust: Number(entry.statistics.trust?.[name]),
-        desire: Number(entry.statistics.desire?.[name]),
-        connection: Number(entry.statistics.connection?.[name]),
-        mood: typeof entry.statistics.mood?.[name] === "string" ? String(entry.statistics.mood?.[name]) : undefined,
+        affection: resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames),
+        trust: resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames),
+        desire: resolveBuiltInNumericValue(entry.statistics.desire, ownerLookupNames),
+        connection: resolveBuiltInNumericValue(entry.statistics.connection, ownerLookupNames),
+        mood: resolveBuiltInTextValue(entry.statistics.mood, ownerLookupNames),
       }, input.builtInTracking);
       const customRaw = resolveScopedCustomNonNumericValue(
         entry.customNonNumericStatistics ?? undefined,
         statId,
-        name,
+        ownerLookupNames,
         input.globalScope,
       );
       const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue, textMaxLen, {
