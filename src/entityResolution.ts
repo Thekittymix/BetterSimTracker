@@ -513,20 +513,67 @@ export function resolvePersistedActiveOwners(
   return out;
 }
 
+function normalizeOwnerForTracking(
+  context: STContext | null | undefined,
+  ownerName: unknown,
+): string {
+  const normalizedOwner = normalizeToken(ownerName);
+  if (!normalizedOwner) return "";
+  if (normalizeKey(normalizedOwner) === normalizeKey(USER_TRACKER_KEY)) {
+    return USER_TRACKER_KEY;
+  }
+  const userDisplayName = normalizeToken(context?.name1);
+  if (userDisplayName && normalizeKey(normalizedOwner) === normalizeKey(userDisplayName)) {
+    return USER_TRACKER_KEY;
+  }
+  return normalizedOwner;
+}
+
+function collectStoredBuiltInOwnerNames(
+  context: STContext | null | undefined,
+  data: TrackerData | null | undefined,
+  includeUserOwner: boolean,
+): string[] {
+  if (!data?.statistics || typeof data.statistics !== "object") return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const pushOwner = (rawOwner: unknown): void => {
+    const ownerName = normalizeOwnerForTracking(context, rawOwner);
+    if (!ownerName) return;
+    if (!includeUserOwner && normalizeKey(ownerName) === normalizeKey(USER_TRACKER_KEY)) return;
+    pushUniqueString(out, seen, ownerName);
+  };
+  for (const bucket of Object.values(data.statistics ?? {})) {
+    if (!bucket || typeof bucket !== "object") continue;
+    for (const ownerName of Object.keys(bucket)) {
+      pushOwner(ownerName);
+    }
+  }
+  return out;
+}
+
 export function resolveInitialExtractionOwners(input: {
+  context?: STContext | null;
   userExtraction: boolean;
   forceRetrack: boolean;
   detectedActiveCharacters: string[];
+  existingTrackerData?: TrackerData | null;
   existingActiveCharacters?: string[] | null;
 }): string[] {
   if (input.userExtraction) {
     return [USER_TRACKER_KEY];
   }
+  const storedBuiltInOwners = collectStoredBuiltInOwnerNames(input.context, input.existingTrackerData, false);
+  if (input.forceRetrack && storedBuiltInOwners.length) {
+    return storedBuiltInOwners;
+  }
   const existingActiveCharacters = Array.isArray(input.existingActiveCharacters)
     ? input.existingActiveCharacters
+        .map(ownerName => normalizeOwnerForTracking(input.context, ownerName))
+        .filter(Boolean)
     : [];
   if (input.forceRetrack && existingActiveCharacters.length) {
-    return existingActiveCharacters;
+    return resolvePersistedActiveOwners(existingActiveCharacters, { includeUserOwner: false });
   }
   return input.detectedActiveCharacters;
 }

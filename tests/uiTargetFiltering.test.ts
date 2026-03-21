@@ -5,6 +5,7 @@ import {
   buildDisplayPoolWithRegistry,
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
+  isUserOwnerToken,
   mergeRegistryEntitiesIntoTargets,
   mergeRegistryOwnersIntoTargets,
   applyTrackerCardCollapsed,
@@ -128,6 +129,15 @@ test("buildDisplayPoolWithRegistry keeps standard mode focused on current active
   });
 
   assert.deepEqual(displayPool, ["Ashley"]);
+});
+
+test("isUserOwnerToken recognizes both the internal user key and legacy visible user labels", () => {
+  const resolveDisplayName = (ownerName: string): string =>
+    ownerName === "__bst_user__" ? "User" : ownerName;
+
+  assert.equal(isUserOwnerToken("__bst_user__", resolveDisplayName), true);
+  assert.equal(isUserOwnerToken("User", resolveDisplayName), true);
+  assert.equal(isUserOwnerToken("Blake", resolveDisplayName), false);
 });
 
 test("shouldKeepOwnerInRenderTargetPool keeps registry-visible owners even without current stat payload", () => {

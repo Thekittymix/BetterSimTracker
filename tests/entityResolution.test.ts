@@ -268,22 +268,49 @@ test("resolveInitialExtractionOwners keeps user extraction pinned to the user ow
 
 test("resolveInitialExtractionOwners reuses existing tracker owners when retracking a message with saved data", () => {
   const resolved = resolveInitialExtractionOwners({
+    context: null,
     userExtraction: false,
     forceRetrack: true,
     detectedActiveCharacters: ["Garret", "Raleigh"],
     existingActiveCharacters: ["Blake", "__bst_user__"],
   });
-  assert.deepEqual(resolved, ["Blake", "__bst_user__"]);
+  assert.deepEqual(resolved, ["Blake"]);
 });
 
 test("resolveInitialExtractionOwners uses fresh activity for first-pass extraction", () => {
   const resolved = resolveInitialExtractionOwners({
+    context: null,
     userExtraction: false,
     forceRetrack: false,
     detectedActiveCharacters: ["Ashley", "Blake"],
     existingActiveCharacters: ["Garret"],
   });
   assert.deepEqual(resolved, ["Ashley", "Blake"]);
+});
+
+test("resolveInitialExtractionOwners prefers built-in stat owners from saved tracker data when retracking", () => {
+  const resolved = resolveInitialExtractionOwners({
+    context: { name1: "User" } as never,
+    userExtraction: false,
+    forceRetrack: true,
+    detectedActiveCharacters: ["Garret", "Raleigh"],
+    existingTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Garret", "Raleigh"],
+      statistics: {
+        affection: { Blake: 49 },
+        trust: { Blake: 49 },
+        desire: {},
+        connection: {},
+        mood: { __bst_user__: "Neutral", Blake: "Neutral" },
+        lastThought: { __bst_user__: "x", Blake: "y" },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    existingActiveCharacters: ["Garret", "Raleigh"],
+  });
+  assert.deepEqual(resolved, ["Blake"]);
 });
 
 test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {

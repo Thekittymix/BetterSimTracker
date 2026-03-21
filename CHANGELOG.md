@@ -1,3 +1,6 @@
+## [2.2.4.16-exp53] - 2026-03-21
+### Fixed
+- Experimental multi-character retrack now seeds owners from saved built-in tracker owners before stale ctiveCharacters, and AI-message rendering suppresses legacy visible user-label owner tokens so fake user cards stop leaking under AI replies.
 ## [2.2.4.16-exp52] - 2026-03-21
 ### Fixed
 - Experimental multi-character retrack now scopes activity detection and recent-message prompt context to the targeted message window, and reuses that message's saved owner set when retracking existing tracker data.
@@ -1099,6 +1102,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

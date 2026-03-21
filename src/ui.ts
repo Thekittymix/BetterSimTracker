@@ -699,6 +699,20 @@ export function buildDisplayPoolWithRegistry(input: {
       : input.dataCharacterNames;
 }
 
+export function isUserOwnerToken(
+  ownerName: string,
+  resolveDisplayName?: (ownerName: string) => string | null | undefined,
+): boolean {
+  const normalizedOwner = normalizeName(ownerName);
+  if (!normalizedOwner) return false;
+  if (normalizedOwner === normalizeName(USER_TRACKER_KEY)) return true;
+  if (!resolveDisplayName) return false;
+  const normalizedUserDisplayName = normalizeName(resolveDisplayName(USER_TRACKER_KEY) ?? "User");
+  if (!normalizedUserDisplayName) return false;
+  const displayName = resolveDisplayName(ownerName) ?? ownerName;
+  return normalizeName(displayName) === normalizedUserDisplayName;
+}
+
 export function shouldKeepOwnerInRenderTargetPool(input: {
   ownerName: string;
   hasAnyStat: boolean;
@@ -5326,9 +5340,10 @@ export function renderTracker(
       dataCharacterNames,
       mergedWithRegistryOwners,
     });
+    const isRenderedUserOwner = (name: string): boolean => isUserOwnerToken(name, resolveDisplayName);
     const scopedDisplayPool = userMessageEntry
-      ? displayPool.filter(name => normalizeName(name) === normalizeName(USER_TRACKER_KEY))
-      : displayPool.filter(name => normalizeName(name) !== normalizeName(USER_TRACKER_KEY));
+      ? displayPool.filter(name => isRenderedUserOwner(name))
+      : displayPool.filter(name => !isRenderedUserOwner(name));
     const displayOrder = new Map(scopedDisplayPool.map((name, index) => [normalizeName(name), index]));
     const includeAllTargets = forceAllInGroup || settings.showInactive;
     const targetSource = includeAllTargets
@@ -5395,7 +5410,7 @@ export function renderTracker(
         ?? (name === USER_TRACKER_KEY ? "User" : name);
       const registryEntry = resolveRegistryEntryForMessage?.(name, entry.messageIndex) ?? null;
       const ownerUiKey = resolveOwnerUiKey(name, registryEntry);
-      const isUserCard = name === USER_TRACKER_KEY;
+      const isUserCard = isRenderedUserOwner(name);
       const moodLookupName = isUserCard ? displayName : name;
       const characterAvatar = resolveCharacterAvatar?.(name) ?? undefined;
       const cardKey = `${entry.messageIndex}:${ownerUiKey}`;

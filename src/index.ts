@@ -3343,9 +3343,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       }
     }
     const initialActiveCharacters = resolveInitialExtractionOwners({
+      context,
       userExtraction,
       forceRetrack,
       detectedActiveCharacters: activity.activeCharacters,
+      existingTrackerData,
       existingActiveCharacters: existingTrackerData?.activeCharacters ?? null,
     }).filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
