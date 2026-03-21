@@ -1,5 +1,6 @@
 import { GLOBAL_TRACKER_KEY } from "./constants";
-import type { BetterSimTrackerSettings, TrackerData } from "./types";
+import { listTrackerDataLookupNamesForOwner } from "./entityRegistry";
+import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
 export type TrackerHistoryEntry = {
   data: TrackerData;
@@ -11,13 +12,18 @@ export function hasCharacterOwnedTrackedValueForCharacter(
   data: TrackerData,
   characterName: string,
   settingsInput: BetterSimTrackerSettings,
+  context: STContext | null = null,
 ): boolean {
-  if (settingsInput.trackAffection && data.statistics.affection[characterName] !== undefined) return true;
-  if (settingsInput.trackTrust && data.statistics.trust[characterName] !== undefined) return true;
-  if (settingsInput.trackDesire && data.statistics.desire[characterName] !== undefined) return true;
-  if (settingsInput.trackConnection && data.statistics.connection[characterName] !== undefined) return true;
-  if (settingsInput.trackMood && data.statistics.mood[characterName] !== undefined) return true;
-  if (settingsInput.trackLastThought && data.statistics.lastThought[characterName] !== undefined) return true;
+  const lookupNames = listTrackerDataLookupNamesForOwner(context, data, characterName);
+  const hasOwnerValue = <T>(bucket: Record<string, T> | null | undefined): boolean =>
+    lookupNames.some(name => bucket?.[name] !== undefined);
+
+  if (settingsInput.trackAffection && hasOwnerValue(data.statistics.affection)) return true;
+  if (settingsInput.trackTrust && hasOwnerValue(data.statistics.trust)) return true;
+  if (settingsInput.trackDesire && hasOwnerValue(data.statistics.desire)) return true;
+  if (settingsInput.trackConnection && hasOwnerValue(data.statistics.connection)) return true;
+  if (settingsInput.trackMood && hasOwnerValue(data.statistics.mood)) return true;
+  if (settingsInput.trackLastThought && hasOwnerValue(data.statistics.lastThought)) return true;
 
   const customDefs = Array.isArray(settingsInput.customStats) ? settingsInput.customStats : [];
   for (const def of customDefs) {
@@ -27,10 +33,10 @@ export function hasCharacterOwnedTrackedValueForCharacter(
     if (!statId) continue;
     const kind = def.kind ?? "numeric";
     if (kind === "numeric") {
-      if (data.customStatistics?.[statId]?.[characterName] !== undefined) return true;
+      if (hasOwnerValue(data.customStatistics?.[statId])) return true;
       continue;
     }
-    if (data.customNonNumericStatistics?.[statId]?.[characterName] !== undefined) return true;
+    if (hasOwnerValue(data.customNonNumericStatistics?.[statId])) return true;
   }
 
   return false;

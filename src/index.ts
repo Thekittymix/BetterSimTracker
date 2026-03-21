@@ -20,6 +20,7 @@ import {
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
+  listTrackerDataLookupNamesForOwner,
   resolveEntityRegistryLookupValue,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
@@ -886,13 +887,18 @@ function hasTrackedValueForCharacter(
   data: TrackerData,
   characterName: string,
   settingsInput: BetterSimTrackerSettings,
+  context: STContext | null = null,
 ): boolean {
-  if (settingsInput.trackAffection && data.statistics.affection[characterName] !== undefined) return true;
-  if (settingsInput.trackTrust && data.statistics.trust[characterName] !== undefined) return true;
-  if (settingsInput.trackDesire && data.statistics.desire[characterName] !== undefined) return true;
-  if (settingsInput.trackConnection && data.statistics.connection[characterName] !== undefined) return true;
-  if (settingsInput.trackMood && data.statistics.mood[characterName] !== undefined) return true;
-  if (settingsInput.trackLastThought && data.statistics.lastThought[characterName] !== undefined) return true;
+  const lookupNames = listTrackerDataLookupNamesForOwner(context, data, characterName);
+  const hasOwnerValue = <T>(bucket: Record<string, T> | null | undefined): boolean =>
+    lookupNames.some(name => bucket?.[name] !== undefined);
+
+  if (settingsInput.trackAffection && hasOwnerValue(data.statistics.affection)) return true;
+  if (settingsInput.trackTrust && hasOwnerValue(data.statistics.trust)) return true;
+  if (settingsInput.trackDesire && hasOwnerValue(data.statistics.desire)) return true;
+  if (settingsInput.trackConnection && hasOwnerValue(data.statistics.connection)) return true;
+  if (settingsInput.trackMood && hasOwnerValue(data.statistics.mood)) return true;
+  if (settingsInput.trackLastThought && hasOwnerValue(data.statistics.lastThought)) return true;
 
   const customDefs = Array.isArray(settingsInput.customStats) ? settingsInput.customStats : [];
   for (const def of customDefs) {
@@ -903,11 +909,11 @@ function hasTrackedValueForCharacter(
     const globalScope = Boolean(def.globalScope);
     if (kind === "numeric") {
       if (globalScope && data.customStatistics?.[statId]?.[GLOBAL_TRACKER_KEY] !== undefined) return true;
-      if (data.customStatistics?.[statId]?.[characterName] !== undefined) return true;
+      if (hasOwnerValue(data.customStatistics?.[statId])) return true;
       continue;
     }
     if (globalScope && data.customNonNumericStatistics?.[statId]?.[GLOBAL_TRACKER_KEY] !== undefined) return true;
-    if (data.customNonNumericStatistics?.[statId]?.[characterName] !== undefined) return true;
+    if (hasOwnerValue(data.customNonNumericStatistics?.[statId])) return true;
   }
 
   return false;
@@ -948,7 +954,7 @@ function getLatestRelevantTrackerDataWithIndexBefore(
     const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
       projectOwnerScopedCustomNonNumeric: false,
     });
-    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(projected, name, settingsInput));
+    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(projected, name, settingsInput, context));
     if (hasRelevantValue) {
       return { data: projected, messageIndex: i };
     }
@@ -963,7 +969,7 @@ function getLatestRelevantTrackerDataWithIndexBefore(
     const projected = getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
       projectOwnerScopedCustomNonNumeric: false,
     });
-    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(projected, name, settingsInput));
+    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(projected, name, settingsInput, context));
     if (!hasRelevantValue) continue;
     if (!best || entry.messageIndex > best.messageIndex) {
       best = { data: projected, messageIndex: entry.messageIndex };
@@ -993,7 +999,7 @@ function getMergedRelevantTrackerDataWithIndexBefore(
         projectOwnerScopedCustomNonNumeric: false,
       }),
     }))
-    .filter(entry => activeCharacters.some(name => hasTrackedValueForCharacter(entry.data, name, settingsInput)))
+    .filter(entry => activeCharacters.some(name => hasTrackedValueForCharacter(entry.data, name, settingsInput, context)))
     .map(entry => ({
       data: entry.data,
       messageIndex: entry.messageIndex,
@@ -1030,7 +1036,7 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
       projectOwnerScopedCustomNonNumeric: false,
     });
     const hasRelevantValue = activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput),
+      hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput, context),
     );
     if (hasRelevantValue) {
       return { data: projected, messageIndex: i };
@@ -1048,7 +1054,7 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
     })),
     beforeIndex,
     data => activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(data, name, settingsInput),
+      hasCharacterOwnedTrackedValueForCharacter(data, name, settingsInput, context),
     ),
   );
   if (!latestEntry) return null;
@@ -1071,7 +1077,7 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
       projectOwnerScopedCustomNonNumeric: false,
     });
     const hasRelevantValue = activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput),
+      hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput, context),
     );
     if (hasRelevantValue) {
       return { data: projected, messageIndex: i };
@@ -1089,7 +1095,7 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
     })),
     beforeIndex,
     data => activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(data, name, settingsInput),
+      hasCharacterOwnedTrackedValueForCharacter(data, name, settingsInput, context),
     ),
     messageIndex => isTrackableUserMessage(context.chat[messageIndex]),
   );
@@ -3536,8 +3542,8 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const relevantHistory = boundedHistoryEntries
       .filter(entry => activeCharacters.some(name => (
         userExtraction
-          ? hasTrackedValueForCharacter(entry.data, name, runScopedSettings)
-          : hasCharacterOwnedTrackedValueForCharacter(entry.data, name, runScopedSettings)
+          ? hasTrackedValueForCharacter(entry.data, name, runScopedSettings, context)
+          : hasCharacterOwnedTrackedValueForCharacter(entry.data, name, runScopedSettings, context)
       )))
       .map(entry => entry.data);
     if (relevantHistory.length !== rawHistoryEntries.length) {

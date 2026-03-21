@@ -1,3 +1,7 @@
+## [2.2.4.16-exp39] - 2026-03-21
+### Changed
+- Experimental multi-character baseline/history filtering now resolves owner-scoped tracked-value checks through tracker entity lookup names, reducing another owner-name-only continuity path in current-state reads.
+
 ## [2.2.4.16-exp38] - 2026-03-21
 ### Changed
 - Experimental multi-character history merges now canonicalize alias-owner buckets through message-scoped entity mappings and merge `entityOwnerMap` by `entityId`, reducing another owner-name-only continuity path in merged tracker state.
