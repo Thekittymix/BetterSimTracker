@@ -41,6 +41,7 @@ function makeTracker(timestamp: number, overrides: Partial<TrackerData> = {}): T
   return {
     timestamp,
     activeCharacters: ["Seraphina"],
+    entityResolution: overrides.entityResolution,
     statistics: {
       affection: {},
       trust: {},
@@ -159,6 +160,35 @@ test("writeTrackerDataToMessage enriches tracker payloads with message-scoped en
   assert.ok(stored?.entityOwnerMap?.Ashley);
   assert.equal(stored?.entityOwnerMap?.Ashley.entityId, "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley");
   assert.equal(stored?.entityOwnerMap?.Ashley.kind, "multi_character_alias");
+});
+
+test("getTrackerDataFromMessage preserves explicit entity resolution payload", () => {
+  const tracker = makeTracker(1001, {
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      source: "model",
+    },
+  });
+  const message = {
+    mes: "Reply",
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    is_user: false,
+    is_system: false,
+    swipe_id: 1,
+    extra: {
+      [EXTENSION_KEY]: {
+        "1": tracker,
+      },
+    },
+  };
+  const stored = getTrackerDataFromMessage(message);
+  assert.deepEqual(stored?.entityResolution, {
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    source: "model",
+  });
 });
 
 test("mergeStatisticsWithFallback and custom merges preserve previous missing values", () => {

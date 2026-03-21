@@ -3351,6 +3351,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       | {
           sceneActiveCharacters: string[];
           requestCharacters: string[];
+          source: "model" | "fallback";
         }
       | null = null;
     if (!userExtraction && activeSettings.entityTrackingMode === "multi_character" && isTrackableAiMessage(lastMessage)) {
@@ -3371,6 +3372,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               requestCharacters: parsedResolver.messageOwners.length
                 ? parsedResolver.messageOwners
                 : parsedResolver.sceneOwners,
+              source: "model",
             };
             pushTrace("entity.resolve", {
               source: "model",
@@ -3403,8 +3405,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       ? {
           sceneActiveCharacters: initialActiveCharacters,
           requestCharacters: initialActiveCharacters,
+          source: "fallback" as const,
         }
-      : (resolvedOwnerScopes ?? resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings));
+      : (resolvedOwnerScopes ?? {
+          ...resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings),
+          source: "fallback" as const,
+        });
     const sceneActiveCharacters = ownerScopes.sceneActiveCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
@@ -3755,6 +3761,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     latestData = {
       timestamp: Date.now(),
       activeCharacters: persistedSceneActiveCharacters,
+      entityResolution: {
+        sceneOwners: persistedSceneActiveCharacters,
+        messageOwners: activeCharacters,
+        source: ownerScopes.source,
+      },
       statistics: merged,
       customStatistics: mergedCustom,
       customNonNumericStatistics: mergedCustomNonNumeric,

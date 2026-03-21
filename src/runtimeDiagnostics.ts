@@ -47,6 +47,13 @@ function summarizeTrackerData(data: TrackerData | null): Record<string, unknown>
   return {
     timestamp: Number(data.timestamp ?? 0),
     activeCharacters: Array.isArray(data.activeCharacters) ? [...data.activeCharacters] : [],
+    entityResolution: data.entityResolution
+      ? {
+          sceneOwners: [...(data.entityResolution.sceneOwners ?? [])],
+          messageOwners: [...(data.entityResolution.messageOwners ?? [])],
+          source: data.entityResolution.source,
+        }
+      : null,
     statistics: {
       affection: data.statistics.affection ?? {},
       trust: data.statistics.trust ?? {},

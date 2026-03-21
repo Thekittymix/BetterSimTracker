@@ -1,3 +1,7 @@
+## [2.2.4.16-exp58] - 2026-03-21
+### Changed
+- Experimental multi-character tracker payloads now persist explicit resolver output (`sceneOwners` / `messageOwners`) and registry sync prefers that stored resolver state over inferring everything back from `activeCharacters`.
+
 ## [2.2.4.16-exp57] - 2026-03-21
 ### Changed
 - Experimental multi-character extraction now runs a dedicated model resolver step before stat extraction and uses its `sceneOwners` / `messageOwners` output as the primary owner-scope input, with the old activity heuristics kept only as fallback.

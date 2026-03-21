@@ -45,6 +45,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   return normalizeTrackerDataEntityBuckets({
     timestamp: Number(data.timestamp ?? Date.now()),
     activeCharacters: Array.isArray(data.activeCharacters) ? data.activeCharacters : [],
+    entityResolution: normalizeEntityResolution(data.entityResolution),
     statistics: {
       ...createEmptyStatistics(),
       ...(data.statistics as Statistics)
@@ -56,6 +57,24 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(clearedCustomNonNumericStatistics),
     entityOwnerMap: normalizeEntityOwnerMap(data.entityOwnerMap),
   });
+}
+
+function normalizeEntityResolution(raw: unknown): TrackerData["entityResolution"] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  const sceneOwners = Array.isArray(record.sceneOwners)
+    ? Array.from(new Set(record.sceneOwners.map(item => String(item ?? "").trim()).filter(Boolean)))
+    : [];
+  const messageOwners = Array.isArray(record.messageOwners)
+    ? Array.from(new Set(record.messageOwners.map(item => String(item ?? "").trim()).filter(Boolean)))
+    : [];
+  const source = record.source === "model" ? "model" : "fallback";
+  if (!sceneOwners.length && !messageOwners.length) return undefined;
+  return {
+    sceneOwners,
+    messageOwners: messageOwners.length ? messageOwners : sceneOwners,
+    source,
+  };
 }
 
 function normalizeEntityOwnerMap(raw: unknown): TrackerData["entityOwnerMap"] {
@@ -188,6 +207,13 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
   return {
     ...data,
     activeCharacters: Array.from(new Set((data.activeCharacters ?? []).map(owner => ownerToTarget[owner] || owner))),
+    entityResolution: data.entityResolution
+      ? {
+          sceneOwners: Array.from(new Set((data.entityResolution.sceneOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
+          messageOwners: Array.from(new Set((data.entityResolution.messageOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
+          source: data.entityResolution.source,
+        }
+      : undefined,
     statistics: {
       affection: remapStatBucket(data.statistics.affection ?? {}),
       trust: remapStatBucket(data.statistics.trust ?? {}),

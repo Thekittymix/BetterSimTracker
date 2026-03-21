@@ -13,6 +13,11 @@ function makeTracker(timestamp: number): TrackerData {
   return {
     timestamp,
     activeCharacters: ["Seraphina"],
+    entityResolution: {
+      sceneOwners: ["Seraphina"],
+      messageOwners: ["Seraphina"],
+      source: "model",
+    },
     statistics: {
       affection: { Seraphina: 55 },
       trust: { Seraphina: 52 },
@@ -288,6 +293,14 @@ test("buildDiagnosticsReport produces expected core fields", () => {
   assert.equal(
     (report.promptInjection as { latestDataMessageIndex: number }).latestDataMessageIndex,
     2,
+  );
+  assert.deepEqual(
+    ((report.promptInjection as { latestStoredTrackerData: { entityResolution: unknown } }).latestStoredTrackerData.entityResolution),
+    {
+      sceneOwners: ["Seraphina"],
+      messageOwners: ["Seraphina"],
+      source: "model",
+    },
   );
   assert.equal(
     (report.promptInjection as { currentPromptMatchesLatestDataMessage: boolean }).currentPromptMatchesLatestDataMessage,

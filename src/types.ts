@@ -101,6 +101,7 @@ export type BuiltInNumericStatUiSettings = Record<NumericStatKey, BuiltInNumeric
 export interface TrackerData {
   timestamp: number;
   activeCharacters: string[];
+  entityResolution?: TrackerDataEntityResolution;
   statistics: Statistics;
   customStatistics?: CustomStatistics;
   customNonNumericStatistics?: CustomNonNumericStatistics;
@@ -108,6 +109,12 @@ export interface TrackerData {
   clearedCustomStatistics?: ClearedCustomStatistics;
   clearedCustomNonNumericStatistics?: ClearedCustomNonNumericStatistics;
   entityOwnerMap?: Record<string, TrackerDataEntityOwner>;
+}
+
+export interface TrackerDataEntityResolution {
+  sceneOwners: string[];
+  messageOwners: string[];
+  source: "model" | "fallback";
 }
 
 export interface TrackerDataEntityOwner {

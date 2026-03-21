@@ -28,6 +28,9 @@ export function syncEntityRegistryFromTrackerData(input: {
   if (resolveEntityTrackingMode(input.settings) !== "multi_character") return false;
 
   const userMessageEntry = Boolean(input.context.chat[input.messageIndex]?.is_user);
+  const sceneOwners = input.data.entityResolution?.sceneOwners?.length
+    ? input.data.entityResolution.sceneOwners
+    : input.data.activeCharacters;
   const dataCharacterNames = collectCharacterNamesFromTrackerData(input.data);
   const registryEntriesForMessage = listEntityRegistryEntriesForMessage(input.context, input.messageIndex);
   const registryOwnersForMessage = registryEntriesForMessage.length > 0
@@ -44,7 +47,7 @@ export function syncEntityRegistryFromTrackerData(input: {
   const displayPool = buildDisplayPoolWithRegistry({
     entityTrackingMode: input.settings.entityTrackingMode,
     includeAllTargets: Boolean(input.context.groupId) || input.settings.showInactive,
-    activeCharacters: input.data.activeCharacters,
+    activeCharacters: sceneOwners,
     dataCharacterNames,
     mergedWithRegistryOwners,
   });
@@ -72,7 +75,7 @@ export function syncEntityRegistryFromTrackerData(input: {
     getLifecycleState: ownerName => resolveCardLifecycleState({
       ownerName,
       currentMessageIndex: input.messageIndex,
-      currentActiveCharacters: input.data.activeCharacters,
+      currentActiveCharacters: sceneOwners,
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: input.settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: input.settings.archiveInactiveAfterTurns,
