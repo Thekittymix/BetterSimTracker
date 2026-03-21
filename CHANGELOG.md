@@ -1,3 +1,10 @@
+## [2.2.4.16-exp35] - 2026-03-21
+### Added
+- Prompt Injection settings now include a live preview for the non-dynamic placeholder blocks, so template editing no longer requires guessing what the static placeholders expand to.
+
+### Fixed
+- Injection wrapper markup is now assembled in code instead of being split across the {{header}} placeholder and a hardcoded closing tag, so {{header}} stays a pure guidance block.
+
 ## [2.2.4.16-exp34] - 2026-03-21
 ### Changed
 - Experimental multi-character tracker messages now persist message-scoped entity owner metadata and use it in history/UI continuity lookups, reducing dependence on live owner-name-only registry fallback for older messages.
@@ -1022,6 +1029,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

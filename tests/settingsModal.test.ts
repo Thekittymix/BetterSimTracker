@@ -78,3 +78,10 @@ test("settings modal exposes entity tracking mode control in Extraction", () => 
   assert.match(source, /Entity Tracking Mode/);
   assert.match(source, /Multi-Character \(Experimental\)/);
 });
+
+test("settings modal exposes live preview for non-dynamic injection placeholders", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Placeholder Preview \(live\)/);
+  assert.match(source, /data-bst-row="injectPromptPreview"/);
+  assert.match(source, /Preview below shows non-dynamic placeholder content only/);
+});

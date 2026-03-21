@@ -213,6 +213,29 @@ test("buildPrompt keeps BST tags when using custom injection template", () => {
   assert.match(prompt, /<BST_SUMMARIZATION_NOTE>/);
 });
 
+test("buildPrompt keeps bst_inject_block wrapper outside the header placeholder content", () => {
+  const settings = makeSettings({
+    trackMood: true,
+    promptTemplateInjection: "{{header}}\n\n{{lines}}",
+  });
+  const data = makeTracker({
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Seraphina: "Hopeful" },
+      lastThought: {},
+    },
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, makeContext());
+  assert.match(prompt, /^<bst_inject_block>\n\[Relationship State - internal guidance\]/);
+  assert.match(prompt, /- Seraphina: mood=Hopeful/);
+  assert.match(prompt, /<\/bst_inject_block>$/);
+  assert.equal((prompt.match(/<bst_inject_block>/g) ?? []).length, 1);
+});
+
 test("buildPrompt includes target character owner line even when active list is partial", () => {
   const settings = makeSettings({
     trackMood: true,

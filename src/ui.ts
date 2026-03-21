@@ -2962,6 +2962,28 @@ export function ensureStyles(): void {
 .bst-prompt-body {
   margin-top: 6px;
 }
+.bst-prompt-preview-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.bst-prompt-preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bst-prompt-preview-value {
+  margin: 0;
+  white-space: pre-wrap;
+  background: #0b1020;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  padding: 8px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(243,245,249,0.78);
+}
 .bst-prompt-title {
   font-weight: 600;
   letter-spacing: 0.2px;
