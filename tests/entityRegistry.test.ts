@@ -250,6 +250,44 @@ test("resolveEntityRegistryLookupValue reads alias state stored under a canonica
   assert.deepEqual(clothes, ["worn hoodie"]);
 });
 
+test("resolveEntityRegistryLookupValue prefers the direct owner spelling before falling back to canonical alias names", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+      },
+    },
+  };
+
+  const clothes = resolveEntityRegistryLookupValue(
+    context,
+    { Ash: ["scene hoodie"], Ashley: ["default dress"] },
+    "Ash",
+  );
+
+  assert.deepEqual(clothes, ["scene hoodie"]);
+});
+
 test("listEntityRegistryEntriesForMessage returns visible entities in introduction order", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

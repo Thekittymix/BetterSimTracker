@@ -20,6 +20,7 @@ import {
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
+  resolveEntityRegistryLookupValue,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
 import type { Character } from "./types";
@@ -372,6 +373,7 @@ function cacheLorebookActivatedEntries(context: STContext, payload: unknown): nu
 }
 
 function buildSummaryTrackerStateLines(
+  context: STContext | null,
   data: TrackerData,
   currentSettings: BetterSimTrackerSettings,
   userDisplayName = "User",
@@ -393,31 +395,31 @@ function buildSummaryTrackerStateLines(
   const lines = collectSummaryCharacters(data).map(name => {
     const displayName = name === USER_TRACKER_KEY ? userDisplayName : name;
     const parts: string[] = [];
-    const mood = String(data.statistics.mood?.[name] ?? "").trim().replace(/\s+/g, " ");
+    const mood = String(resolveEntityRegistryLookupValue(context, data.statistics.mood, name) ?? "").trim().replace(/\s+/g, " ");
     if (mood) {
       parts.push(`mood=${mood}`);
     }
-    const lastThought = String(data.statistics.lastThought?.[name] ?? "").trim().replace(/\s+/g, " ");
+    const lastThought = String(resolveEntityRegistryLookupValue(context, data.statistics.lastThought, name) ?? "").trim().replace(/\s+/g, " ");
     if (lastThought) {
       parts.push(`lastThought="${lastThought.slice(0, 180)}"`);
     }
 
     for (const { key, label } of builtInStats) {
-      const raw = data.statistics[key]?.[name];
+      const raw = resolveEntityRegistryLookupValue(context, data.statistics[key], name);
       const value = Number(raw);
       if (raw === undefined || Number.isNaN(value)) continue;
       parts.push(`${label}=${Math.max(0, Math.min(100, Math.round(value)))}`);
     }
 
     for (const [statId, byCharacter] of Object.entries(data.customStatistics ?? {})) {
-      const raw = byCharacter?.[name];
+      const raw = resolveEntityRegistryLookupValue(context, byCharacter, name);
       const value = Number(raw);
       if (raw === undefined || Number.isNaN(value)) continue;
       const label = (customLabelMap.get(statId) ?? statId).replace(/\s+/g, "_").toLowerCase();
       parts.push(`${label}=${Math.max(0, Math.min(100, Math.round(value)))}`);
     }
     for (const [statId, byCharacter] of Object.entries(data.customNonNumericStatistics ?? {})) {
-      const raw = byCharacter?.[name];
+      const raw = resolveEntityRegistryLookupValue(context, byCharacter, name);
       if (raw === undefined) continue;
       const label = (customLabelMap.get(statId) ?? statId).replace(/\s+/g, "_").toLowerCase();
       if (typeof raw === "boolean") {
@@ -456,7 +458,11 @@ function describeBand(value: number, low: string, medium: string, high: string):
   return high;
 }
 
-function buildFallbackSummaryProse(data: TrackerData, currentSettings: BetterSimTrackerSettings): string {
+function buildFallbackSummaryProse(
+  context: STContext | null,
+  data: TrackerData,
+  currentSettings: BetterSimTrackerSettings,
+): string {
   const names = collectSummaryCharacters(data);
   if (!names.length) {
     return "The current relationship state is quiet and there are no meaningful tracked shifts yet.";
@@ -470,11 +476,11 @@ function buildFallbackSummaryProse(data: TrackerData, currentSettings: BetterSim
 
   const sentences = names.map(name => {
     const displayName = name === USER_TRACKER_KEY ? (currentSettings.enableUserTracking ? "User" : name) : name;
-    const affection = Number(data.statistics.affection?.[name] ?? currentSettings.defaultAffection);
-    const trust = Number(data.statistics.trust?.[name] ?? currentSettings.defaultTrust);
-    const desire = Number(data.statistics.desire?.[name] ?? currentSettings.defaultDesire);
-    const connection = Number(data.statistics.connection?.[name] ?? currentSettings.defaultConnection);
-    const mood = String(data.statistics.mood?.[name] ?? currentSettings.defaultMood).trim();
+    const affection = Number(resolveEntityRegistryLookupValue(context, data.statistics.affection, name) ?? currentSettings.defaultAffection);
+    const trust = Number(resolveEntityRegistryLookupValue(context, data.statistics.trust, name) ?? currentSettings.defaultTrust);
+    const desire = Number(resolveEntityRegistryLookupValue(context, data.statistics.desire, name) ?? currentSettings.defaultDesire);
+    const connection = Number(resolveEntityRegistryLookupValue(context, data.statistics.connection, name) ?? currentSettings.defaultConnection);
+    const mood = String(resolveEntityRegistryLookupValue(context, data.statistics.mood, name) ?? currentSettings.defaultMood).trim();
 
     const warmth = describeBand(affection, "guarded warmth", "measured warmth", "clear warmth");
     const safety = describeBand(trust, "careful trust", "steady trust", "strong trust");
@@ -483,7 +489,7 @@ function buildFallbackSummaryProse(data: TrackerData, currentSettings: BetterSim
 
     const customBits: string[] = [];
     for (const [statId, byCharacter] of Object.entries(data.customStatistics ?? {})) {
-      const raw = Number(byCharacter?.[name]);
+      const raw = Number(resolveEntityRegistryLookupValue(context, byCharacter, name));
       if (Number.isNaN(raw)) continue;
       const label = customLabelMap.get(statId) ?? statId;
       const tone = describeBand(raw, "low", "moderate", "high");
@@ -492,7 +498,7 @@ function buildFallbackSummaryProse(data: TrackerData, currentSettings: BetterSim
     }
     if (customBits.length < 2) {
       for (const [statId, byCharacter] of Object.entries(data.customNonNumericStatistics ?? {})) {
-        const raw = byCharacter?.[name];
+        const raw = resolveEntityRegistryLookupValue(context, byCharacter, name);
         if (raw === undefined) continue;
         const label = customLabelMap.get(statId) ?? statId;
         if (typeof raw === "boolean") {
@@ -539,7 +545,7 @@ async function generateTrackerSummaryProse(input: {
     trackedDimensions.push(`custom cues (${trackedCustomLabels.join(", ")})`);
   }
   const contextText = buildRecentContextUpToMessageIndex(context, messageIndex, settings.contextMessages);
-  const trackerStateLines = buildSummaryTrackerStateLines(data, settings, userDisplayName);
+  const trackerStateLines = buildSummaryTrackerStateLines(context, data, settings, userDisplayName);
   const prompt = buildTrackerSummaryGenerationPrompt({
     userName: userDisplayName,
     activeCharacters: (data.activeCharacters ?? []).map(normalizeSummaryName),
@@ -2287,22 +2293,22 @@ function buildSeededStatisticsForActiveCharacters(
 
   for (const name of activeCharacters) {
     const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
-    if (seeded.affection[name] === undefined) {
+    if (resolveEntityRegistryLookupValue(context, seeded.affection, name) === undefined) {
       seeded.affection[name] = configured.affection ?? settingsInput.defaultAffection;
     }
-    if (seeded.trust[name] === undefined) {
+    if (resolveEntityRegistryLookupValue(context, seeded.trust, name) === undefined) {
       seeded.trust[name] = configured.trust ?? settingsInput.defaultTrust;
     }
-    if (seeded.desire[name] === undefined) {
+    if (resolveEntityRegistryLookupValue(context, seeded.desire, name) === undefined) {
       seeded.desire[name] = configured.desire ?? settingsInput.defaultDesire;
     }
-    if (seeded.connection[name] === undefined) {
+    if (resolveEntityRegistryLookupValue(context, seeded.connection, name) === undefined) {
       seeded.connection[name] = configured.connection ?? settingsInput.defaultConnection;
     }
-    if (seeded.mood[name] === undefined) {
+    if (resolveEntityRegistryLookupValue(context, seeded.mood, name) === undefined) {
       seeded.mood[name] = configured.mood ?? settingsInput.defaultMood;
     }
-    if (seeded.lastThought[name] === undefined) {
+    if (resolveEntityRegistryLookupValue(context, seeded.lastThought, name) === undefined) {
       seeded.lastThought[name] = configured.lastThought ?? "";
     }
   }
@@ -2329,7 +2335,7 @@ function buildSeededCustomStatisticsForActiveCharacters(
     if (!statId) continue;
     if (!seeded[statId]) seeded[statId] = {};
     for (const name of activeCharacters) {
-      if (seeded[statId][name] !== undefined) continue;
+      if (resolveEntityRegistryLookupValue(context, seeded[statId], name) !== undefined) continue;
       const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
       const configuredValue = configured.customStatDefaults?.[statId];
       const fallback = Number(def.defaultValue);
@@ -2373,8 +2379,9 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
       }) ?? (kind === "boolean" ? false : kind === "array" ? [] : "");
     };
     for (const name of activeCharacters) {
-      if (seeded[statId][name] !== undefined) {
-        seeded[statId][name] = normalizeValue(seeded[statId][name]);
+      const existingValue = resolveEntityRegistryLookupValue(context, seeded[statId], name);
+      if (existingValue !== undefined) {
+        seeded[statId][name] = normalizeValue(existingValue);
         continue;
       }
       const shouldForceUnknownForAliasOwner =
@@ -3184,7 +3191,7 @@ async function sendTrackerSummaryToChat(messageIndex: number): Promise<void> {
         messageIndex,
         error: errorMessage,
       });
-      summaryBody = buildFallbackSummaryProse(data, settings);
+      summaryBody = buildFallbackSummaryProse(context, data, settings);
     }
 
     const normalizedBody = normalizeSummaryProse(summaryBody) || "The current relationship state remains steady with no major shifts to report.";

@@ -1,3 +1,8 @@
+## [2.2.4.16-exp33] - 2026-03-21
+
+### Changed
+- Experimental multi-character summary fallback, prose fallback, and seeded tracker baseline reads now resolve alias-owner values through registry-backed lookup names, removing another owner-name-only continuity path from src/index.ts.
+
 ## [2.2.4.16-exp32] - 2026-03-21
 
 ### Changed
@@ -1013,6 +1018,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 
