@@ -428,6 +428,62 @@ test("mergeTrackerDataChronologically preserves newer character manual edit over
   assert.equal(merged?.customNonNumericStatistics?.physicality?.Seraphina, "Edited physicality");
 });
 
+test("mergeTrackerDataChronologically canonicalizes alias-owner buckets by entity identity across snapshots", () => {
+  const olderAliasSnapshot = makeTracker(1000, {
+    statistics: {
+      affection: { Ash: 58 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ash: "Hopeful" },
+      lastThought: {},
+    },
+    entityOwnerMap: {
+      Ash: {
+        entityId: "bst_mc_alias:test:ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines",
+        kind: "multi_character_alias",
+      },
+    },
+  });
+  olderAliasSnapshot.activeCharacters = ["Ash"];
+  const newerCanonicalSnapshot = makeTracker(2000, {
+    statistics: {
+      affection: {},
+      trust: { Ashley: 61 },
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "bst_mc_alias:test:ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines",
+        kind: "multi_character_alias",
+      },
+    },
+  });
+  newerCanonicalSnapshot.activeCharacters = ["Ashley"];
+
+  const merged = mergeTrackerDataChronologically([olderAliasSnapshot, newerCanonicalSnapshot]);
+  assert.ok(merged);
+  assert.deepEqual(merged?.activeCharacters, ["Ashley"]);
+  assert.equal(merged?.statistics.affection.Ashley, 58);
+  assert.equal(merged?.statistics.affection.Ash, undefined);
+  assert.equal(merged?.statistics.trust.Ashley, 61);
+  assert.equal(merged?.statistics.mood.Ashley, "Hopeful");
+  assert.ok(merged?.entityOwnerMap?.Ashley);
+  assert.equal(merged?.entityOwnerMap?.Ash, undefined);
+  assert.deepEqual(merged?.entityOwnerMap?.Ashley.aliases, ["Ash"]);
+});
+
 test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () => {
   const context = makeContext();
   const chatStateTracker = makeTracker(1000);

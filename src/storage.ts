@@ -2,6 +2,7 @@ import { EXTENSION_KEY, STAT_KEYS } from "./constants";
 import { isTrackableMessage } from "./messageFilter";
 import type {
   BetterSimTrackerSettings,
+  CharacterStatMap,
   ChatMessage,
   ClearedCustomNonNumericStatistics,
   ClearedCustomStatistics,
@@ -11,7 +12,8 @@ import type {
   STContext,
   StatKey,
   Statistics,
-  TrackerData
+  TrackerData,
+  TrackerDataEntityOwner,
 } from "./types";
 import { normalizeCustomNonNumericValue } from "./customStatRuntime";
 import { buildTrackerDataEntityOwnerMap } from "./entityRegistry";
@@ -39,7 +41,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   const clearedStatistics = normalizeClearedStatistics(data.clearedStatistics);
   const clearedCustomStatistics = normalizeClearedOwnerBuckets(data.clearedCustomStatistics);
   const clearedCustomNonNumericStatistics = normalizeClearedOwnerBuckets(data.clearedCustomNonNumericStatistics);
-  return {
+  return normalizeTrackerDataEntityBuckets({
     timestamp: Number(data.timestamp ?? Date.now()),
     activeCharacters: Array.isArray(data.activeCharacters) ? data.activeCharacters : [],
     statistics: {
@@ -52,7 +54,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
     clearedCustomStatistics: pruneClearedOwnerBuckets(clearedCustomStatistics),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(clearedCustomNonNumericStatistics),
     entityOwnerMap: normalizeEntityOwnerMap(data.entityOwnerMap),
-  };
+  });
 }
 
 function normalizeEntityOwnerMap(raw: unknown): TrackerData["entityOwnerMap"] {
@@ -92,6 +94,145 @@ function normalizeClearedOwnerMap(raw: unknown): Record<string, true> {
     out[key] = true;
   }
   return out;
+}
+
+function buildEntityOwnerProjection(
+  entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
+): {
+  ownerToTarget: Record<string, string>;
+  targetToEntity: Record<string, string>;
+  mergedEntityOwnerMap?: TrackerData["entityOwnerMap"];
+} {
+  if (!entityOwnerMap || typeof entityOwnerMap !== "object") {
+    return { ownerToTarget: {}, targetToEntity: {}, mergedEntityOwnerMap: undefined };
+  }
+  const ownerToTarget: Record<string, string> = {};
+  const targetToEntity: Record<string, string> = {};
+  const byEntityId = new Map<string, NonNullable<TrackerData["entityOwnerMap"]>[string]>();
+  for (const [snapshotOwner, snapshot] of Object.entries(entityOwnerMap)) {
+    if (!snapshot) continue;
+    const entityId = String(snapshot.entityId ?? "").trim();
+    const ownerName = String(snapshot.ownerName ?? snapshotOwner).trim();
+    const canonicalName = String(snapshot.canonicalName ?? ownerName).trim() || ownerName;
+    if (!entityId || !ownerName) continue;
+    const targetOwner = ownerName;
+    targetToEntity[targetOwner] = entityId;
+    ownerToTarget[snapshotOwner] = targetOwner;
+    ownerToTarget[ownerName] = targetOwner;
+    ownerToTarget[canonicalName] = targetOwner;
+    for (const alias of snapshot.aliases ?? []) {
+      if (alias) ownerToTarget[alias] = targetOwner;
+    }
+    const existing = byEntityId.get(entityId);
+    if (!existing) {
+      byEntityId.set(entityId, {
+        entityId,
+        ownerName: targetOwner,
+        canonicalName,
+        aliases: Array.from(new Set((snapshot.aliases ?? []).filter(Boolean))),
+        sourceKey: snapshot.sourceKey,
+        kind: snapshot.kind,
+      });
+      continue;
+    }
+    existing.ownerName = targetOwner;
+    existing.canonicalName = canonicalName || existing.canonicalName;
+    existing.aliases = Array.from(new Set([...(existing.aliases ?? []), ...(snapshot.aliases ?? [])].filter(Boolean)));
+    existing.sourceKey = snapshot.sourceKey || existing.sourceKey;
+    existing.kind = snapshot.kind;
+  }
+  const mergedEntityOwnerMap = Object.fromEntries(
+    Array.from(byEntityId.values()).map(snapshot => [snapshot.ownerName, snapshot]),
+  );
+  return {
+    ownerToTarget,
+    targetToEntity,
+    mergedEntityOwnerMap: Object.keys(mergedEntityOwnerMap).length ? mergedEntityOwnerMap : undefined,
+  };
+}
+
+function remapOwnerRecord<T>(
+  byOwner: Record<string, T> | undefined,
+  ownerToTarget: Record<string, string>,
+): Record<string, T> | undefined {
+  if (!byOwner || typeof byOwner !== "object") return undefined;
+  const out: Record<string, T> = {};
+  for (const [owner, value] of Object.entries(byOwner)) {
+    const targetOwner = ownerToTarget[owner] || owner;
+    out[targetOwner] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function remapClearedOwnerBuckets<T extends ClearedCustomStatistics | ClearedCustomNonNumericStatistics>(
+  raw: T | undefined,
+  ownerToTarget: Record<string, string>,
+): T | undefined {
+  if (!raw) return undefined;
+  const out: Record<string, Record<string, true>> = {};
+  for (const [statId, owners] of Object.entries(raw)) {
+    const nextOwners: Record<string, true> = {};
+    for (const owner of Object.keys(owners ?? {})) {
+      nextOwners[ownerToTarget[owner] || owner] = true;
+    }
+    if (Object.keys(nextOwners).length) out[statId] = nextOwners;
+  }
+  return Object.keys(out).length ? (out as T) : undefined;
+}
+
+function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
+  const { ownerToTarget, mergedEntityOwnerMap } = buildEntityOwnerProjection(data.entityOwnerMap);
+  if (!Object.keys(ownerToTarget).length) return data;
+  const remapStatBucket = (bucket: CharacterStatMap): CharacterStatMap => remapOwnerRecord(bucket, ownerToTarget) ?? {};
+  return {
+    ...data,
+    activeCharacters: Array.from(new Set((data.activeCharacters ?? []).map(owner => ownerToTarget[owner] || owner))),
+    statistics: {
+      affection: remapStatBucket(data.statistics.affection ?? {}),
+      trust: remapStatBucket(data.statistics.trust ?? {}),
+      desire: remapStatBucket(data.statistics.desire ?? {}),
+      connection: remapStatBucket(data.statistics.connection ?? {}),
+      mood: remapStatBucket(data.statistics.mood ?? {}),
+      lastThought: remapStatBucket(data.statistics.lastThought ?? {}),
+    },
+    customStatistics: Object.fromEntries(
+      Object.entries(data.customStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
+    ),
+    customNonNumericStatistics: Object.fromEntries(
+      Object.entries(data.customNonNumericStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
+    ),
+    clearedStatistics: data.clearedStatistics
+      ? Object.fromEntries(
+          Object.entries(data.clearedStatistics).map(([statId, owners]) => [statId, remapOwnerRecord(owners, ownerToTarget) ?? {}]),
+        ) as ClearedStatistics
+      : undefined,
+    clearedCustomStatistics: remapClearedOwnerBuckets(data.clearedCustomStatistics, ownerToTarget),
+    clearedCustomNonNumericStatistics: remapClearedOwnerBuckets(data.clearedCustomNonNumericStatistics, ownerToTarget),
+    entityOwnerMap: mergedEntityOwnerMap,
+  };
+}
+
+function mergeEntityOwnerMapsChronologically(
+  entries: TrackerData[],
+): TrackerData["entityOwnerMap"] | undefined {
+  const byEntityId = new Map<string, TrackerDataEntityOwner>();
+  for (const entry of entries) {
+    const { mergedEntityOwnerMap } = buildEntityOwnerProjection(entry.entityOwnerMap);
+    for (const snapshot of Object.values(mergedEntityOwnerMap ?? {})) {
+      const existing = byEntityId.get(snapshot.entityId);
+      if (!existing) {
+        byEntityId.set(snapshot.entityId, { ...snapshot, aliases: [...(snapshot.aliases ?? [])] });
+        continue;
+      }
+      byEntityId.set(snapshot.entityId, {
+        ...existing,
+        ...snapshot,
+        aliases: Array.from(new Set([...(existing.aliases ?? []), ...(snapshot.aliases ?? [])].filter(Boolean))),
+      });
+    }
+  }
+  const out = Object.fromEntries(Array.from(byEntityId.values()).map(snapshot => [snapshot.ownerName, snapshot]));
+  return Object.keys(out).length ? out : undefined;
 }
 
 function normalizeClearedStatistics(raw: unknown): ClearedStatistics {
@@ -804,7 +945,9 @@ function pruneClearedOwnerBuckets<T extends ClearedCustomStatistics | ClearedCus
 
 export function mergeTrackerDataChronologically(entries: TrackerData[]): TrackerData | null {
   if (!entries.length) return null;
-  const sorted = [...entries].sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0));
+  const sorted = [...entries]
+    .map(entry => normalizeTrackerDataEntityBuckets(entry))
+    .sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0));
   let mergedStatistics: Statistics | null = null;
   let mergedCustomStatistics: CustomStatistics | null = null;
   let mergedCustomNonNumericStatistics: CustomNonNumericStatistics | null = null;
@@ -848,7 +991,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     clearedStatistics: pruneClearedStatistics(mergedClearedStatistics ?? undefined),
     clearedCustomStatistics: pruneClearedOwnerBuckets(mergedClearedCustomStatistics ?? undefined),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(mergedClearedCustomNonNumericStatistics ?? undefined),
-    entityOwnerMap: sorted[sorted.length - 1]?.entityOwnerMap,
+    entityOwnerMap: mergeEntityOwnerMapsChronologically(sorted),
   };
 }
 

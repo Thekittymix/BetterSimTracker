@@ -1,3 +1,7 @@
+## [2.2.4.16-exp38] - 2026-03-21
+### Changed
+- Experimental multi-character history merges now canonicalize alias-owner buckets through message-scoped entity mappings and merge `entityOwnerMap` by `entityId`, reducing another owner-name-only continuity path in merged tracker state.
+
 ## [2.2.4.16-exp37] - 2026-03-21
 ### Changed
 - Experimental multi-character entity registry now stores lifecycle changes as a timeline, so archived aliases can reactivate later without corrupting earlier archived message windows.
