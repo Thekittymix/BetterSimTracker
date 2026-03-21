@@ -8,6 +8,7 @@ import { resolveCharacterDefaultsEntry } from "./characterDefaults";
 import {
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
+  refineSceneActiveCharactersFromExtractedSceneRoster,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveExtractionOwnerScopes,
@@ -3680,9 +3681,16 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       mergedCustomNonNumeric = filterCustomNonNumericStatisticsToCharacters(mergedCustomNonNumeric, [USER_TRACKER_KEY], globalNonNumericStatIds);
     }
 
+    const persistedSceneActiveCharacters = refineSceneActiveCharactersFromExtractedSceneRoster(
+      context,
+      sceneActiveCharacters,
+      mergedCustomNonNumeric,
+      runScopedSettings,
+    ).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+
     latestData = {
       timestamp: Date.now(),
-      activeCharacters: sceneActiveCharacters,
+      activeCharacters: persistedSceneActiveCharacters,
       statistics: merged,
       customStatistics: mergedCustom,
       customNonNumericStatistics: mergedCustomNonNumeric,

@@ -11,6 +11,7 @@ import type {
   Statistics,
   TrackerData,
 } from "./types";
+import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 
 export type EntityTrackingMode = "standard" | "multi_character";
 
@@ -490,6 +491,33 @@ export function resolveExtractionOwnerScopes(
     sceneActiveCharacters: narrowedSceneActiveCharacters,
     requestCharacters,
   };
+}
+
+export function refineSceneActiveCharactersFromExtractedSceneRoster(
+  context: STContext | null,
+  sceneActiveCharacters: string[],
+  extractedCustomNonNumericStatistics: TrackerData["customNonNumericStatistics"] | null | undefined,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): string[] {
+  const mode = resolveEntityTrackingMode(settings);
+  if (mode !== "multi_character") return [...sceneActiveCharacters];
+  const rawRoster = extractedCustomNonNumericStatistics?.characters_in_scene?.[GLOBAL_TRACKER_KEY];
+  if (!Array.isArray(rawRoster) || !rawRoster.length) return [...sceneActiveCharacters];
+
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  const pushOwner = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    if (!value) return;
+    if (normalizeKey(value) === normalizeKey(USER_TRACKER_KEY)) return;
+    const resolved = resolveCharacterIdentity(context, value, mode);
+    const nextOwner = resolved?.matchedBy === "alias" ? resolved.resolvedName : value;
+    pushUniqueString(merged, seen, nextOwner);
+  };
+
+  for (const ownerName of sceneActiveCharacters) pushOwner(ownerName);
+  for (const ownerName of rawRoster) pushOwner(ownerName);
+  return merged.length ? merged : [...sceneActiveCharacters];
 }
 
 export function resolveMessageScopedOwnerName(

@@ -6,6 +6,7 @@ import {
   extractMultiCharacterAliases,
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
+  refineSceneActiveCharactersFromExtractedSceneRoster,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveExtractionOwnerScopes,
@@ -242,6 +243,48 @@ test("resolveExtractionOwnerScopes narrows scene-active aliases when a recent us
 
   assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley"]);
   assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
+});
+
+test("refineSceneActiveCharactersFromExtractedSceneRoster restores scene-present aliases from extracted roster", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const refined = refineSceneActiveCharactersFromExtractedSceneRoster(
+    context,
+    ["Blake"],
+    {
+      characters_in_scene: {
+        __bst_global__: ["Ashley", "Blake"],
+      },
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(refined, ["Blake", "Ashley"]);
+});
+
+test("refineSceneActiveCharactersFromExtractedSceneRoster ignores extracted scene roster in standard mode", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const refined = refineSceneActiveCharactersFromExtractedSceneRoster(
+    context,
+    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    {
+      characters_in_scene: {
+        __bst_global__: ["Ashley", "Blake"],
+      },
+    } as any,
+    { entityTrackingMode: "standard" },
+  );
+
+  assert.deepEqual(refined, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"]);
 });
 
 test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {
