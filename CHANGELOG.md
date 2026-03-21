@@ -1,3 +1,7 @@
+## [2.2.4.16-exp44] - 2026-03-21
+### Changed
+- Experimental multi-character activity resolution now keeps the full alias pool of a source-card reply active for scene continuity, instead of shrinking scene activity to only the alias named in one response.
+
 ## [2.2.4.16-exp43] - 2026-03-21
 ### Changed
 - Experimental multi-character scene resolution now expands source-card owners into their alias pool for scene continuity, while keeping extraction requests narrowed to the aliases actually participating in the current reply.

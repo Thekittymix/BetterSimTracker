@@ -117,7 +117,7 @@ test("getAllTrackedCharacterNames expands multi-character source cards into alia
   );
 });
 
-test("activity analysis credits mentioned aliases from a multi-character source-card reply", () => {
+test("activity analysis keeps the full alias pool active for a multi-character source-card reply", () => {
   const context = {
     groupId: undefined,
     characterId: 0,
@@ -138,7 +138,7 @@ test("activity analysis credits mentioned aliases from a multi-character source-
     entityTrackingMode: "multi_character",
   });
 
-  assert.deepEqual(result.activeCharacters, ["Ashley", "Blake"]);
+  assert.deepEqual(result.activeCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
   assert.match(result.reasons.Ashley, /spoke in last 5 messages/i);
   assert.match(result.reasons.Blake, /spoke in last 5 messages/i);
 });
@@ -178,5 +178,5 @@ test("manual inactive alias override clears when a later source-card reply expli
 
   assert.deepEqual(result.manualInactiveCharacters, []);
   assert.deepEqual(readManualInactiveCharacters(context), []);
-  assert.deepEqual(result.activeCharacters, ["Ashley"]);
+  assert.deepEqual(result.activeCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
 });

@@ -76,10 +76,12 @@ function collectActivityNamesFromMessage(
     { ...context, characters: [source] },
     { entityTrackingMode: mode },
   ).filter(name => name.toLowerCase() !== resolved.sourceName.toLowerCase());
+  const visibleAliases = aliases.filter(alias => allNamesSet.has(alias));
+  if (visibleAliases.length >= 2) return visibleAliases;
   const text = String(message.mes ?? "").trim().toLowerCase();
-  const mentionedAliases = aliases.filter(alias =>
+  const mentionedAliases = visibleAliases.filter(alias =>
     countAliasMentions(text, alias.toLowerCase()) > 0,
-  ).filter(alias => allNamesSet.has(alias));
+  );
   if (mentionedAliases.length) return mentionedAliases;
   return allNamesSet.has(speaker) ? [speaker] : [];
 }
