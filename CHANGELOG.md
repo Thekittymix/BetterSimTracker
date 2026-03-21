@@ -1,3 +1,7 @@
+## [2.2.4.16-exp62] - 2026-03-21
+### Changed
+- Experimental multi-character lifecycle continuity now tracks prior activity by persisted entityId as well as owner name, reducing alias drift in inactive/archive/reactivation decisions.
+
 ## [2.2.4.16-exp61] - 2026-03-21
 ### Changed
 - Experimental multi-character baseline/history relevance lookups now also resolve through persisted `entityId` owner snapshots, reducing more continuity drift when the same entity appears under different owner spellings across messages.
@@ -1133,6 +1137,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

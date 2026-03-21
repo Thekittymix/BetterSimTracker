@@ -57,7 +57,7 @@ import { renderThoughtMarkup } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
 import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
-import { buildLifecycleHistorySnapshotsFromTrackerEntries, resolveTrackerSceneOwners } from "./entityRegistry";
+import { buildLifecycleHistorySnapshotsFromTrackerEntries, resolveTrackerSceneEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
 import {
   buildLastPointCircle,
   buildPointCircles,
@@ -5202,6 +5202,7 @@ export function renderTracker(
     const userMessageEntry = Boolean(isUserMessageIndex?.(entry.messageIndex));
     const collapsed = isMessageCollapsed(entry.messageIndex);
     const resolvedSceneOwners = resolveTrackerSceneOwners(null, data);
+    const resolvedSceneEntityIds = resolveTrackerSceneEntityIds(null, data);
     const activeSet = new Set(resolvedSceneOwners.map(normalizeName));
     const allNumericDefs = getNumericStatDefinitions(settings);
     const cardNumericDefs = allNumericDefs.filter(def => def.showOnCard);
@@ -5357,8 +5358,10 @@ export function renderTracker(
     const uniqueTargets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)));
     const getLifecycleState = (name: string) => resolveCardLifecycleState({
       ownerName: name,
+      entityId: resolveRegistryEntryForMessage?.(name, entry.messageIndex)?.id ?? null,
       currentMessageIndex: entry.messageIndex,
       currentActiveCharacters: resolvedSceneOwners,
+      currentActiveEntityIds: resolvedSceneEntityIds,
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,

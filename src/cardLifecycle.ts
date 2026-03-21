@@ -3,6 +3,7 @@ export type CardLifecycleState = "active" | "inactive" | "archived";
 export interface CardLifecycleSnapshot {
   messageIndex: number;
   activeCharacters: string[];
+  activeEntityIds?: string[];
 }
 
 export interface CardLifecycleRegistryState {
@@ -16,16 +17,25 @@ function normalizeName(value: string): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function normalizeEntityId(value: string | null | undefined): string {
+  return String(value ?? "").trim();
+}
+
 export function findLastActiveMessageIndex(
   snapshots: CardLifecycleSnapshot[],
   currentMessageIndex: number,
   ownerName: string,
+  entityId?: string | null,
 ): number | null {
   const needle = normalizeName(ownerName);
+  const entityNeedle = normalizeEntityId(entityId);
   if (!needle) return null;
   for (let i = snapshots.length - 1; i >= 0; i -= 1) {
     const snapshot = snapshots[i];
     if (snapshot.messageIndex >= currentMessageIndex) continue;
+    if (entityNeedle && (snapshot.activeEntityIds ?? []).some(id => normalizeEntityId(id) === entityNeedle)) {
+      return snapshot.messageIndex;
+    }
     if ((snapshot.activeCharacters ?? []).some(name => normalizeName(name) === needle)) {
       return snapshot.messageIndex;
     }
@@ -35,15 +45,21 @@ export function findLastActiveMessageIndex(
 
 export function resolveCardLifecycleState(input: {
   ownerName: string;
+  entityId?: string | null;
   currentMessageIndex: number;
   currentActiveCharacters: string[];
+  currentActiveEntityIds?: string[];
   history: CardLifecycleSnapshot[];
   autoArchiveInactiveCards: boolean;
   archiveInactiveAfterTurns: number;
   registryState?: CardLifecycleRegistryState | null;
 }): CardLifecycleState {
   const needle = normalizeName(input.ownerName);
+  const entityNeedle = normalizeEntityId(input.entityId);
   if (!needle) return "inactive";
+  if (entityNeedle && (input.currentActiveEntityIds ?? []).some(id => normalizeEntityId(id) === entityNeedle)) {
+    return "active";
+  }
   if ((input.currentActiveCharacters ?? []).some(name => normalizeName(name) === needle)) {
     return "active";
   }
@@ -57,6 +73,7 @@ export function resolveCardLifecycleState(input: {
     input.history,
     input.currentMessageIndex,
     input.ownerName,
+    input.entityId,
   );
   const registryLastActive = Number.isFinite(Number(registryState?.lastActiveMessageIndex))
     ? Number(registryState?.lastActiveMessageIndex)

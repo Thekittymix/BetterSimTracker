@@ -6,6 +6,7 @@ import {
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
+  resolveTrackerSceneEntityIds,
   resolveTrackerSceneOwners,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
@@ -31,6 +32,7 @@ export function syncEntityRegistryFromTrackerData(input: {
 
   const userMessageEntry = Boolean(input.context.chat[input.messageIndex]?.is_user);
   const sceneOwners = resolveTrackerSceneOwners(input.context, input.data);
+  const sceneEntityIds = resolveTrackerSceneEntityIds(input.context, input.data);
   const dataCharacterNames = collectCharacterNamesFromTrackerData(input.data);
   const registryEntriesForMessage = listEntityRegistryEntriesForMessage(input.context, input.messageIndex);
   const registryOwnersForMessage = registryEntriesForMessage.length > 0
@@ -72,8 +74,10 @@ export function syncEntityRegistryFromTrackerData(input: {
     owners: uniqueTargets,
     getLifecycleState: ownerName => resolveCardLifecycleState({
       ownerName,
+      entityId: getEntityRegistryEntryForMessage(input.context, ownerName, input.messageIndex)?.id ?? null,
       currentMessageIndex: input.messageIndex,
       currentActiveCharacters: sceneOwners,
+      currentActiveEntityIds: sceneEntityIds,
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: input.settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: input.settings.archiveInactiveAfterTurns,

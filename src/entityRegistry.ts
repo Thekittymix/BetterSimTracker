@@ -477,6 +477,21 @@ export function resolveTrackerSceneOwners(
   return uniqueStrings(Array.isArray(data.activeCharacters) ? data.activeCharacters : []);
 }
 
+export function resolveTrackerSceneEntityIds(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+): string[] {
+  if (!data) return [];
+  const explicit = uniqueStrings(data.entityResolution?.sceneEntityIds ?? []);
+  if (explicit.length) return explicit;
+  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
+    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
+    : [];
+  if (sceneOwners.length) return resolveTrackerEntityIdsForOwners(context, sceneOwners);
+  const activeCharacters = Array.isArray(data.activeCharacters) ? uniqueStrings(data.activeCharacters) : [];
+  return resolveTrackerEntityIdsForOwners(context, activeCharacters);
+}
+
 export function buildLifecycleHistorySnapshotsFromTrackerEntries(
   context: STContext | null,
   entries: TrackerHistoryEntryWithMessageIndex[],
@@ -487,6 +502,7 @@ export function buildLifecycleHistorySnapshotsFromTrackerEntries(
     .map(item => ({
       messageIndex: item.messageIndex,
       activeCharacters: resolveTrackerSceneOwners(context, item.data),
+      activeEntityIds: resolveTrackerSceneEntityIds(context, item.data),
     }));
 }
 

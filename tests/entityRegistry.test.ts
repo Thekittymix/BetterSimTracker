@@ -15,6 +15,7 @@ import {
   listTrackerDataLookupNamesForEntityIds,
   readEntityRegistry,
   resolveTrackerEntityIdsForOwners,
+  resolveTrackerSceneEntityIds,
   resolveTrackerSceneOwners,
   resolveTrackerOwnersForEntityIds,
   resolveEntityRegistryLookupValue,
@@ -223,6 +224,19 @@ test("resolveTrackerSceneOwners prefers scene entity ids over stale owner-name a
   }));
 
   assert.deepEqual(resolved, ["Blake"]);
+  assert.deepEqual(
+    resolveTrackerSceneEntityIds(context, makeTracker({
+      activeCharacters: ["Garret"],
+      entityResolution: {
+        sceneOwners: ["Garret"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: [blakeEntityId],
+        messageEntityIds: [blakeEntityId],
+        source: "model",
+      },
+    })),
+    [blakeEntityId],
+  );
 });
 
 test("buildLifecycleHistorySnapshotsFromTrackerEntries uses resolved scene owners for continuity history", () => {
@@ -261,6 +275,7 @@ test("buildLifecycleHistorySnapshotsFromTrackerEntries uses resolved scene owner
     {
       messageIndex: 8,
       activeCharacters: ["Blake"],
+      activeEntityIds: [blakeEntityId],
     },
   ]);
 });

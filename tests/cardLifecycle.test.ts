@@ -109,3 +109,25 @@ test("card lifecycle ignores pre-introduction active history for registry-backed
     },
   }), "inactive");
 });
+
+test("card lifecycle prefers entity ids over owner spellings when tracking alias continuity", () => {
+  const history = [
+    {
+      messageIndex: 4,
+      activeCharacters: ["Ash"],
+      activeEntityIds: ["bst_mc_alias:test:ashley"],
+    },
+  ];
+
+  assert.equal(findLastActiveMessageIndex(history, 8, "Ashley", "bst_mc_alias:test:ashley"), 4);
+  assert.equal(resolveCardLifecycleState({
+    ownerName: "Ashley",
+    entityId: "bst_mc_alias:test:ashley",
+    currentMessageIndex: 5,
+    currentActiveCharacters: ["Blake"],
+    currentActiveEntityIds: ["bst_mc_alias:test:ashley"],
+    history,
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 2,
+  }), "active");
+});
