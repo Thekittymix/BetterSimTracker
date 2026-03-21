@@ -525,6 +525,50 @@ export function listTrackerDataLookupNamesForOwner(
   return names;
 }
 
+export function listTrackerDataLookupNamesForEntityIds(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  entityIds: string[],
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    const key = normalizeKey(value);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+
+  const registry = readRegistry(context);
+  const wanted = new Set(
+    (entityIds ?? [])
+      .map(normalizeToken)
+      .filter(Boolean),
+  );
+  if (!wanted.size) return names;
+
+  if (data?.entityOwnerMap && typeof data.entityOwnerMap === "object") {
+    for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
+      if (!snapshot || !wanted.has(normalizeToken(snapshot.entityId))) continue;
+      push(snapshotOwner);
+      push(snapshot.ownerName);
+      push(snapshot.canonicalName);
+      for (const alias of snapshot.aliases ?? []) push(alias);
+    }
+  }
+
+  for (const entityId of wanted) {
+    const entry = registry.entities[entityId];
+    if (!entry) continue;
+    push(entry.ownerName);
+    push(entry.canonicalName);
+    for (const alias of entry.aliases ?? []) push(alias);
+  }
+
+  return names;
+}
+
 export function getEntityRegistryEntryForMessage(
   context: STContext | null,
   ownerName: string,

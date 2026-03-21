@@ -1,3 +1,7 @@
+## [2.2.4.16-exp61] - 2026-03-21
+### Changed
+- Experimental multi-character baseline/history relevance lookups now also resolve through persisted `entityId` owner snapshots, reducing more continuity drift when the same entity appears under different owner spellings across messages.
+
 ## [2.2.4.16-exp60] - 2026-03-21
 ### Changed
 - Experimental multi-character render/lifecycle read paths now prefer resolver-derived scene owners (including `sceneEntityIds` when available) over raw `activeCharacters`, reducing more owner-name drift in registry-backed continuity.

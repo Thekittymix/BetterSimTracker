@@ -1,5 +1,9 @@
 import { GLOBAL_TRACKER_KEY } from "./constants";
-import { listTrackerDataLookupNamesForOwner } from "./entityRegistry";
+import {
+  listTrackerDataLookupNamesForEntityIds,
+  listTrackerDataLookupNamesForOwner,
+  resolveTrackerEntityIdsForOwners,
+} from "./entityRegistry";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
 export type TrackerHistoryEntry = {
@@ -14,7 +18,14 @@ export function hasCharacterOwnedTrackedValueForCharacter(
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null = null,
 ): boolean {
-  const lookupNames = listTrackerDataLookupNamesForOwner(context, data, characterName);
+  const lookupNames = [
+    ...listTrackerDataLookupNamesForOwner(context, data, characterName),
+    ...listTrackerDataLookupNamesForEntityIds(
+      context,
+      data,
+      resolveTrackerEntityIdsForOwners(context, [characterName]),
+    ),
+  ].filter((value, index, array) => array.indexOf(value) === index);
   const hasOwnerValue = <T>(bucket: Record<string, T> | null | undefined): boolean =>
     lookupNames.some(name => bucket?.[name] !== undefined);
 
