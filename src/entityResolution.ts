@@ -587,6 +587,7 @@ export function resolveInitialExtractionOwners(input: {
   context?: STContext | null;
   userExtraction: boolean;
   forceRetrack: boolean;
+  preferExistingOwnersOnRetrack?: boolean;
   detectedActiveCharacters: string[];
   existingTrackerData?: TrackerData | null;
   existingActiveCharacters?: string[] | null;
@@ -594,8 +595,9 @@ export function resolveInitialExtractionOwners(input: {
   if (input.userExtraction) {
     return [USER_TRACKER_KEY];
   }
+  const preferExistingOwnersOnRetrack = input.preferExistingOwnersOnRetrack !== false;
   const storedBuiltInOwners = collectStoredBuiltInOwnerNames(input.context, input.existingTrackerData, false);
-  if (input.forceRetrack && storedBuiltInOwners.length) {
+  if (input.forceRetrack && preferExistingOwnersOnRetrack && storedBuiltInOwners.length) {
     return storedBuiltInOwners;
   }
   const existingActiveCharacters = Array.isArray(input.existingActiveCharacters)
@@ -603,7 +605,7 @@ export function resolveInitialExtractionOwners(input: {
         .map(ownerName => normalizeOwnerForTracking(input.context, ownerName))
         .filter(Boolean)
     : [];
-  if (input.forceRetrack && existingActiveCharacters.length) {
+  if (input.forceRetrack && preferExistingOwnersOnRetrack && existingActiveCharacters.length) {
     return resolvePersistedActiveOwners(existingActiveCharacters, { includeUserOwner: false });
   }
   return input.detectedActiveCharacters;

@@ -3347,6 +3347,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       context,
       userExtraction,
       forceRetrack,
+      preferExistingOwnersOnRetrack: reason !== "SWIPE_GENERATION_ENDED",
       detectedActiveCharacters: activity.activeCharacters,
       existingTrackerData,
       existingActiveCharacters: existingTrackerData?.activeCharacters ?? null,

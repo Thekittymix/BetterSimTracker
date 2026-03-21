@@ -1,3 +1,7 @@
+## [2.2.4.16-exp56] - 2026-03-21
+### Fixed
+- Experimental multi-character swipe retracks now resolve fresh owners from the newly generated swipe content instead of reusing the previous swipe's saved tracker owners for the same message.
+
 ## [2.2.4.16-exp55] - 2026-03-21
 ### Fixed
 - Experimental multi-character scene resolution now honors explicit single-remaining-character cues like `X stays here alone now`, so the next AI reply can persist the speaking alias as the only active scene owner instead of keeping unrelated aliases active.

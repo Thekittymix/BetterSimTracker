@@ -277,6 +277,32 @@ test("resolveInitialExtractionOwners reuses existing tracker owners when retrack
   assert.deepEqual(resolved, ["Blake"]);
 });
 
+test("resolveInitialExtractionOwners can ignore existing tracker owners on swipe retracks", () => {
+  const resolved = resolveInitialExtractionOwners({
+    context: { name1: "User" } as never,
+    userExtraction: false,
+    forceRetrack: true,
+    preferExistingOwnersOnRetrack: false,
+    detectedActiveCharacters: ["Blake"],
+    existingTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Garret", "Raleigh"],
+      statistics: {
+        affection: { Garret: 50, Raleigh: 50 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    existingActiveCharacters: ["Garret", "Raleigh"],
+  });
+  assert.deepEqual(resolved, ["Blake"]);
+});
+
 test("resolveInitialExtractionOwners uses fresh activity for first-pass extraction", () => {
   const resolved = resolveInitialExtractionOwners({
     context: null,
