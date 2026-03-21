@@ -10,9 +10,8 @@ import {
   projectTrackerDataToMessageScopedOwners,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
+  resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
-  resolveMessageScopedActiveCharacters,
-  resolveMessageScopedParticipants,
 } from "./entityResolution";
 import {
   buildEntitySourceKey,
@@ -3333,17 +3332,22 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const initialActiveCharacters = (userExtraction ? [USER_TRACKER_KEY] : activity.activeCharacters).filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
-    const scopedActiveCharacters = userExtraction
-      ? initialActiveCharacters
-      : resolveMessageScopedActiveCharacters(context, initialActiveCharacters, lastMessage, activeSettings);
-    const activeCharacters = userExtraction
-      ? scopedActiveCharacters
-      : resolveMessageScopedParticipants(context, scopedActiveCharacters, lastMessage, activeSettings).filter(name =>
-          isTrackerEnabledForOwner(context, activeSettings, name),
-        );
+    const ownerScopes = userExtraction
+      ? {
+          sceneActiveCharacters: initialActiveCharacters,
+          requestCharacters: initialActiveCharacters,
+        }
+      : resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings);
+    const sceneActiveCharacters = ownerScopes.sceneActiveCharacters.filter(name =>
+      isTrackerEnabledForOwner(context, activeSettings, name),
+    );
+    const activeCharacters = ownerScopes.requestCharacters.filter(name =>
+      isTrackerEnabledForOwner(context, activeSettings, name),
+    );
     pushTrace("activity.resolve", {
       allCharacterNames,
       activeCharacters,
+      sceneActiveCharacters,
       lookback: activity.lookback,
       autoDetectActive: settings.autoDetectActive,
       reasons: activity.reasons
@@ -3678,7 +3682,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
 
     latestData = {
       timestamp: Date.now(),
-      activeCharacters,
+      activeCharacters: sceneActiveCharacters,
       statistics: merged,
       customStatistics: mergedCustom,
       customNonNumericStatistics: mergedCustomNonNumeric,

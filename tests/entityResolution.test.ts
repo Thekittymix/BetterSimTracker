@@ -8,6 +8,7 @@ import {
   projectTrackerDataToMessageScopedOwners,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
+  resolveExtractionOwnerScopes,
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
 } from "../src/entityResolution";
@@ -184,6 +185,28 @@ test("resolveMessageScopedParticipants keeps a non-multi speaker even if the mes
   );
 
   assert.deepEqual(resolved, ["Billie"]);
+});
+
+test("resolveExtractionOwnerScopes keeps scene-active aliases broader than request targets for focused multi-character replies", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const resolved = resolveExtractionOwnerScopes(
+    context,
+    ["Ashley", "Blake", "Garret", "Raleigh"],
+    {
+      mes: "Ashley lowered her voice and answered without looking up.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
+  assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
 });
 
 test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload to the inferred alias owner", () => {

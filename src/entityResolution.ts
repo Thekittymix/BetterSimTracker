@@ -330,6 +330,33 @@ export function resolveMessageScopedParticipants(
   return appended.length ? appended : [...activeCharacters];
 }
 
+export function resolveExtractionOwnerScopes(
+  context: STContext | null,
+  activeCharacters: string[],
+  message: ChatMessage | null | undefined,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+} {
+  const sceneActiveCharacters = resolveMessageScopedActiveCharacters(
+    context,
+    activeCharacters,
+    message,
+    settings,
+  );
+  const requestCharacters = resolveMessageScopedParticipants(
+    context,
+    sceneActiveCharacters,
+    message,
+    settings,
+  );
+  return {
+    sceneActiveCharacters,
+    requestCharacters,
+  };
+}
+
 export function resolveMessageScopedOwnerName(
   context: STContext | null,
   ownerName: string,
