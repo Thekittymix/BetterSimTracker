@@ -413,6 +413,18 @@ export function resolveMessageScopedActiveCharacters(
   return expanded;
 }
 
+export function resolveEntityResolverCandidateOwners(
+  context: STContext | null,
+  ownerNames: string[],
+  message: ChatMessage | null | undefined,
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+): string[] {
+  const mode = resolveEntityTrackingMode(settings);
+  const normalizedOwners = uniqueStrings(ownerNames.map(normalizeToken));
+  if (mode !== "multi_character") return normalizedOwners;
+  return resolveMessageScopedActiveCharacters(context, normalizedOwners, message, settings);
+}
+
 export function resolveMessageScopedParticipants(
   context: STContext | null,
   activeCharacters: string[],

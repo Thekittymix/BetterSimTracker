@@ -1,3 +1,7 @@
+## [2.2.4.16-exp64] - 2026-03-21
+### Changed
+- Experimental multi-character model resolver now filters technical source-card owners out of its candidate owner set and feeds only concrete visible alias entities into the first extraction stage.
+
 ## [2.2.4.16-exp63] - 2026-03-21
 ### Changed
 - Experimental multi-character registry read paths now expose message-scoped `entityId` entry helpers, and UI tracker lookups prefer those persisted entity references over owner-name fallback when resolving alias continuity data.

@@ -10,6 +10,7 @@ import {
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveExtractionOwnerScopes,
+  resolveEntityResolverCandidateOwners,
   resolveInitialExtractionOwners,
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
@@ -187,6 +188,28 @@ test("resolveMessageScopedParticipants keeps a non-multi speaker even if the mes
   );
 
   assert.deepEqual(resolved, ["Billie"]);
+});
+
+test("resolveEntityResolverCandidateOwners strips a technical multi-character source owner down to concrete alias candidates", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+      { name: "Billie", avatar: "billie.png" },
+    ],
+  } as any;
+
+  const resolved = resolveEntityResolverCandidateOwners(
+    context,
+    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "Billie"],
+    {
+      mes: "Blake watched the door click shut while Billie stayed quiet.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(resolved, ["Ashley", "Blake", "Garret", "Raleigh", "Billie"]);
 });
 
 test("resolveExtractionOwnerScopes keeps scene-active aliases broader than request targets for focused multi-character replies", () => {

@@ -11,6 +11,7 @@ import {
   projectTrackerDataToMessageScopedOwners,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
+  resolveEntityResolverCandidateOwners,
   resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
   resolveInitialExtractionOwners,
@@ -3368,7 +3369,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         }
       | null = null;
     if (!userExtraction && activeSettings.entityTrackingMode === "multi_character" && isTrackableAiMessage(lastMessage)) {
-      const candidateOwners = allCharacterNames.filter(name => name !== USER_TRACKER_KEY);
+      const candidateOwners = resolveEntityResolverCandidateOwners(
+        context,
+        allCharacterNames.filter(name => name !== USER_TRACKER_KEY),
+        lastMessage,
+        activeSettings,
+      );
       if (candidateOwners.length) {
         try {
           const resolverContextText = buildRecentContext(context, settings.contextMessages, lastIndex);
