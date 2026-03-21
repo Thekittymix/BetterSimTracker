@@ -1,3 +1,7 @@
+## [2.2.4.16-exp49] - 2026-03-21
+### Changed
+- Experimental multi-character manual tracker edits now sync entity registry lifecycle through the same tracker-data pipeline as extraction, reducing another render-only dependency in alias continuity updates.
+
 ## [2.2.4.16-exp48] - 2026-03-21
 ### Changed
 - Experimental multi-character extraction now syncs entity registry lifecycle directly from the saved tracker payload after extraction, so alias continuity no longer depends on a later render pass to keep inactive scene members registered.

@@ -3083,6 +3083,13 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
   }
 
   writeTrackerDataToMessage(context, next, messageIndex);
+  syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex,
+    data: next,
+    settings: settings!,
+    allKnownCharacters: allCharacterNames.filter(name => isTrackerEnabledForOwner(context, settings!, name)),
+  });
   context.saveChatDebounced?.();
   void context.saveChat?.();
   pushTrace("tracker.edit", { messageIndex, character, active: payload.active ?? null });
