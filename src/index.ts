@@ -28,6 +28,7 @@ import {
   listEntityRegistryOwnersForMessage,
   listTrackerDataLookupNamesForOwner,
   resolveEntityRegistryLookupValue,
+  resolveTrackerEntityIdsForOwners,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
@@ -3764,6 +3765,8 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       entityResolution: {
         sceneOwners: persistedSceneActiveCharacters,
         messageOwners: activeCharacters,
+        sceneEntityIds: resolveTrackerEntityIdsForOwners(context, persistedSceneActiveCharacters),
+        messageEntityIds: resolveTrackerEntityIdsForOwners(context, activeCharacters),
         source: ownerScopes.source,
       },
       statistics: merged,

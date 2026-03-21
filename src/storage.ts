@@ -68,11 +68,19 @@ function normalizeEntityResolution(raw: unknown): TrackerData["entityResolution"
   const messageOwners = Array.isArray(record.messageOwners)
     ? Array.from(new Set(record.messageOwners.map(item => String(item ?? "").trim()).filter(Boolean)))
     : [];
+  const sceneEntityIds = Array.isArray(record.sceneEntityIds)
+    ? Array.from(new Set(record.sceneEntityIds.map(item => String(item ?? "").trim()).filter(Boolean)))
+    : [];
+  const messageEntityIds = Array.isArray(record.messageEntityIds)
+    ? Array.from(new Set(record.messageEntityIds.map(item => String(item ?? "").trim()).filter(Boolean)))
+    : [];
   const source = record.source === "model" ? "model" : "fallback";
-  if (!sceneOwners.length && !messageOwners.length) return undefined;
+  if (!sceneOwners.length && !messageOwners.length && !sceneEntityIds.length && !messageEntityIds.length) return undefined;
   return {
     sceneOwners,
     messageOwners: messageOwners.length ? messageOwners : sceneOwners,
+    sceneEntityIds: sceneEntityIds.length ? sceneEntityIds : undefined,
+    messageEntityIds: messageEntityIds.length ? messageEntityIds : (sceneEntityIds.length ? sceneEntityIds : undefined),
     source,
   };
 }
@@ -211,6 +219,8 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
       ? {
           sceneOwners: Array.from(new Set((data.entityResolution.sceneOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
           messageOwners: Array.from(new Set((data.entityResolution.messageOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
+          sceneEntityIds: Array.from(new Set(data.entityResolution.sceneEntityIds ?? [])),
+          messageEntityIds: Array.from(new Set(data.entityResolution.messageEntityIds ?? [])),
           source: data.entityResolution.source,
         }
       : undefined,

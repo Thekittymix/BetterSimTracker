@@ -168,6 +168,8 @@ test("getTrackerDataFromMessage preserves explicit entity resolution payload", (
     entityResolution: {
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model",
     },
   });
@@ -187,6 +189,8 @@ test("getTrackerDataFromMessage preserves explicit entity resolution payload", (
   assert.deepEqual(stored?.entityResolution, {
     sceneOwners: ["Blake"],
     messageOwners: ["Blake"],
+    sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+    messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
     source: "model",
   });
 });

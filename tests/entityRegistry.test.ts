@@ -12,6 +12,8 @@ import {
   listEntityRegistryLookupNames,
   listEntityRegistryOwnersForMessage,
   readEntityRegistry,
+  resolveTrackerEntityIdsForOwners,
+  resolveTrackerOwnersForEntityIds,
   resolveEntityRegistryLookupValue,
   syncEntityRegistryFromRender,
 } from "../src/entityRegistry";
@@ -136,6 +138,27 @@ test("syncEntityRegistryFromRender marks archived aliases without deleting them"
   assert.equal(registry.entities[ashleyId]?.lifecycleState, "archived");
   assert.equal(registry.entities[ashleyId]?.archivedAtMessageIndex, 15);
   assert.equal(registry.entities[ashleyId]?.lastActiveMessageIndex, 8);
+});
+
+test("entity registry resolves owner names to stable entity ids and back", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const entityIds = resolveTrackerEntityIdsForOwners(context, ["Blake", "Ashley", "Blake"]);
+  assert.deepEqual(entityIds, [
+    "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+    "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+  ]);
+  assert.deepEqual(resolveTrackerOwnersForEntityIds(context, [entityIds[1], entityIds[0], entityIds[1]]), [
+    "Ashley",
+    "Blake",
+  ]);
 });
 
 test("entity registry reactivation restores archived aliases for later messages without reviving them in archived history windows", () => {

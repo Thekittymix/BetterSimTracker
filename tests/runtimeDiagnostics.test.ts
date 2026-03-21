@@ -16,6 +16,8 @@ function makeTracker(timestamp: number): TrackerData {
     entityResolution: {
       sceneOwners: ["Seraphina"],
       messageOwners: ["Seraphina"],
+      sceneEntityIds: ["bst_owner:seraphina.png|seraphina"],
+      messageEntityIds: ["bst_owner:seraphina.png|seraphina"],
       source: "model",
     },
     statistics: {
@@ -296,11 +298,13 @@ test("buildDiagnosticsReport produces expected core fields", () => {
   );
   assert.deepEqual(
     ((report.promptInjection as { latestStoredTrackerData: { entityResolution: unknown } }).latestStoredTrackerData.entityResolution),
-    {
-      sceneOwners: ["Seraphina"],
-      messageOwners: ["Seraphina"],
-      source: "model",
-    },
+      {
+        sceneOwners: ["Seraphina"],
+        messageOwners: ["Seraphina"],
+        sceneEntityIds: ["bst_owner:seraphina.png|seraphina"],
+        messageEntityIds: ["bst_owner:seraphina.png|seraphina"],
+        source: "model",
+      },
   );
   assert.equal(
     (report.promptInjection as { currentPromptMatchesLatestDataMessage: boolean }).currentPromptMatchesLatestDataMessage,

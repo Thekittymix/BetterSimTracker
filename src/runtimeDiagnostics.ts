@@ -51,6 +51,8 @@ function summarizeTrackerData(data: TrackerData | null): Record<string, unknown>
       ? {
           sceneOwners: [...(data.entityResolution.sceneOwners ?? [])],
           messageOwners: [...(data.entityResolution.messageOwners ?? [])],
+          sceneEntityIds: [...(data.entityResolution.sceneEntityIds ?? [])],
+          messageEntityIds: [...(data.entityResolution.messageEntityIds ?? [])],
           source: data.entityResolution.source,
         }
       : null,

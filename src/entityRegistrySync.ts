@@ -5,6 +5,7 @@ import {
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
+  resolveTrackerOwnersForEntityIds,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
 import { resolveEntityTrackingMode } from "./entityResolution";
@@ -28,7 +29,13 @@ export function syncEntityRegistryFromTrackerData(input: {
   if (resolveEntityTrackingMode(input.settings) !== "multi_character") return false;
 
   const userMessageEntry = Boolean(input.context.chat[input.messageIndex]?.is_user);
-  const sceneOwners = input.data.entityResolution?.sceneOwners?.length
+  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(
+    input.context,
+    input.data.entityResolution?.sceneEntityIds ?? [],
+  );
+  const sceneOwners = sceneOwnersFromEntityIds.length
+    ? sceneOwnersFromEntityIds
+    : input.data.entityResolution?.sceneOwners?.length
     ? input.data.entityResolution.sceneOwners
     : input.data.activeCharacters;
   const dataCharacterNames = collectCharacterNamesFromTrackerData(input.data);

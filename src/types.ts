@@ -114,6 +114,8 @@ export interface TrackerData {
 export interface TrackerDataEntityResolution {
   sceneOwners: string[];
   messageOwners: string[];
+  sceneEntityIds?: string[];
+  messageEntityIds?: string[];
   source: "model" | "fallback";
 }
 

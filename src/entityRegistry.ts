@@ -416,6 +416,45 @@ export function buildTrackerDataEntityOwnerMap(
   return Object.keys(out).length ? out : undefined;
 }
 
+export function resolveTrackerEntityIdsForOwners(
+  context: STContext | null,
+  ownerNames: string[],
+): string[] {
+  if (!context || !Array.isArray(ownerNames) || !ownerNames.length) return [];
+  const registry = readRegistry(context);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const rawOwnerName of ownerNames) {
+    const ownerName = normalizeToken(rawOwnerName);
+    if (!ownerName) continue;
+    const entityId = registry.ownerToEntityId[normalizeKey(ownerName)];
+    if (!entityId || seen.has(entityId) || !registry.entities[entityId]) continue;
+    seen.add(entityId);
+    out.push(entityId);
+  }
+  return out;
+}
+
+export function resolveTrackerOwnersForEntityIds(
+  context: STContext | null,
+  entityIds: string[],
+): string[] {
+  if (!context || !Array.isArray(entityIds) || !entityIds.length) return [];
+  const registry = readRegistry(context);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const rawEntityId of entityIds) {
+    const entityId = normalizeToken(rawEntityId);
+    const entry = entityId ? registry.entities[entityId] : null;
+    const ownerName = normalizeToken(entry?.ownerName);
+    const ownerKey = normalizeKey(ownerName);
+    if (!ownerKey || seen.has(ownerKey)) continue;
+    seen.add(ownerKey);
+    out.push(ownerName);
+  }
+  return out;
+}
+
 export function listTrackerDataLookupNamesForOwner(
   context: STContext | null,
   data: TrackerData | null | undefined,

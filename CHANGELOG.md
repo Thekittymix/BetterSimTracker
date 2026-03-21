@@ -1,3 +1,7 @@
+## [2.2.4.16-exp59] - 2026-03-21
+### Changed
+- Experimental multi-character resolver payloads now persist runtime-assigned `sceneEntityIds` / `messageEntityIds`, and registry sync can prefer those durable entity references over raw owner-name arrays.
+
 ## [2.2.4.16-exp58] - 2026-03-21
 ### Changed
 - Experimental multi-character tracker payloads now persist explicit resolver output (`sceneOwners` / `messageOwners`) and registry sync prefers that stored resolver state over inferring everything back from `activeCharacters`.

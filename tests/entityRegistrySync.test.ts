@@ -81,6 +81,47 @@ test("syncEntityRegistryFromTrackerData prefers explicit resolver scene owners o
     entityResolution: {
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      source: "model" as const,
+    },
+  };
+  writeTrackerDataToMessage(context, current, 1);
+
+  syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake", "Garret"],
+  });
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "active");
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "inactive");
+  assert.equal(registry.entities[registry.ownerToEntityId.garret]?.lifecycleState, "inactive");
+});
+
+test("syncEntityRegistryFromTrackerData prefers resolver scene entity ids over stale scene owner names", () => {
+  const context = makeContext();
+  const settings = makeSettings();
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 0,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const current = {
+    ...makeTrackerData(["Garret"]),
+    entityResolution: {
+      sceneOwners: ["Garret"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model" as const,
     },
   };
