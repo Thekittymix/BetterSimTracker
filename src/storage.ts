@@ -14,6 +14,7 @@ import type {
   TrackerData
 } from "./types";
 import { normalizeCustomNonNumericValue } from "./customStatRuntime";
+import { buildTrackerDataEntityOwnerMap } from "./entityRegistry";
 const CHAT_STATE_KEY = `${EXTENSION_KEY}:chat`;
 
 function createEmptyStatistics(): Statistics {
@@ -50,7 +51,35 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
     clearedStatistics: pruneClearedStatistics(clearedStatistics),
     clearedCustomStatistics: pruneClearedOwnerBuckets(clearedCustomStatistics),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(clearedCustomNonNumericStatistics),
+    entityOwnerMap: normalizeEntityOwnerMap(data.entityOwnerMap),
   };
+}
+
+function normalizeEntityOwnerMap(raw: unknown): TrackerData["entityOwnerMap"] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: NonNullable<TrackerData["entityOwnerMap"]> = {};
+  for (const [ownerName, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const record = value as Record<string, unknown>;
+    const entityId = String(record.entityId ?? "").trim();
+    const normalizedOwnerName = String(record.ownerName ?? ownerName).trim();
+    const canonicalName = String(record.canonicalName ?? "").trim() || normalizedOwnerName;
+    const sourceKey = String(record.sourceKey ?? "").trim();
+    const kind = record.kind === "multi_character_alias" ? "multi_character_alias" : "owner";
+    if (!entityId || !normalizedOwnerName || !canonicalName || !sourceKey) continue;
+    const aliases = Array.isArray(record.aliases)
+      ? Array.from(new Set(record.aliases.map(item => String(item ?? "").trim()).filter(Boolean)))
+      : [];
+    out[ownerName] = {
+      entityId,
+      ownerName: normalizedOwnerName,
+      canonicalName,
+      aliases,
+      sourceKey,
+      kind,
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function normalizeClearedOwnerMap(raw: unknown): Record<string, true> {
@@ -630,9 +659,13 @@ export function writeTrackerDataToMessage(
     }
   }
 
-  swipeStorage[swipeKey] = data;
+  const enriched: TrackerData = {
+    ...data,
+    entityOwnerMap: buildTrackerDataEntityOwnerMap(context, data) ?? data.entityOwnerMap,
+  };
+  swipeStorage[swipeKey] = enriched;
   message.extra[EXTENSION_KEY] = swipeStorage;
-  saveTrackerSnapshot(context, data, messageIndex);
+  saveTrackerSnapshot(context, enriched, messageIndex);
 }
 
 export function mergeStatisticsWithFallback(
@@ -815,6 +848,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     clearedStatistics: pruneClearedStatistics(mergedClearedStatistics ?? undefined),
     clearedCustomStatistics: pruneClearedOwnerBuckets(mergedClearedCustomStatistics ?? undefined),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(mergedClearedCustomNonNumericStatistics ?? undefined),
+    entityOwnerMap: sorted[sorted.length - 1]?.entityOwnerMap,
   };
 }
 

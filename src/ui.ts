@@ -4530,13 +4530,45 @@ export function renderTracker(
   );
   const isNumericGlobalScope = (key: string): boolean =>
     Boolean(numericGlobalScopeById.get(String(key ?? "").trim().toLowerCase()));
+  const resolveLookupNamesForOwnerInData = (
+    data: TrackerData | null | undefined,
+    ownerName: string,
+    messageIndex: number,
+  ): string[] => {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    const push = (raw: unknown): void => {
+      const value = String(raw ?? "").trim();
+      const key = value.toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      names.push(value);
+    };
+    push(ownerName);
+    const targetEntityId = data?.entityOwnerMap?.[ownerName]?.entityId
+      ?? resolveRegistryEntryForMessage?.(ownerName, messageIndex)?.id
+      ?? null;
+    if (targetEntityId && data?.entityOwnerMap) {
+      for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
+        if (snapshot?.entityId !== targetEntityId) continue;
+        push(snapshotOwner);
+        push(snapshot.ownerName);
+        push(snapshot.canonicalName);
+        for (const alias of snapshot.aliases ?? []) push(alias);
+      }
+    }
+    for (const lookupName of resolveRegistryLookupNamesForOwner(
+      ownerName,
+      resolveRegistryEntryForMessage?.(ownerName, messageIndex) ?? null,
+    )) {
+      push(lookupName);
+    }
+    return names;
+  };
   const resolveLookupNamesForOwner = (
     ownerName: string,
     messageIndex: number,
-  ): string[] => resolveRegistryLookupNamesForOwner(
-    ownerName,
-    resolveRegistryEntryForMessage?.(ownerName, messageIndex) ?? null,
-  );
+  ): string[] => resolveLookupNamesForOwnerInData(null, ownerName, messageIndex);
   const resolvePreviousNonNumericValue = (
     data: TrackerData,
     def: UiNonNumericStatDefinition,
@@ -4545,7 +4577,7 @@ export function renderTracker(
   ): CustomNonNumericValue | undefined => {
     const byOwner = data.customNonNumericStatistics?.[def.id];
     if (!byOwner) return undefined;
-    const lookupNames = def.globalScope ? [GLOBAL_TRACKER_KEY] : resolveLookupNamesForOwner(ownerName, messageIndex);
+    const lookupNames = def.globalScope ? [GLOBAL_TRACKER_KEY] : resolveLookupNamesForOwnerInData(data, ownerName, messageIndex);
     for (const lookupName of lookupNames) {
       const value = byOwner[lookupName];
       if (value !== undefined) return value;
@@ -4558,7 +4590,7 @@ export function renderTracker(
     ownerName: string,
     messageIndex: number,
   ): string | undefined => {
-    const lookupNames = resolveLookupNamesForOwner(ownerName, messageIndex);
+    const lookupNames = resolveLookupNamesForOwnerInData(data, ownerName, messageIndex);
     const source = stat === "mood" ? data.statistics.mood : data.statistics.lastThought;
     for (const lookupName of lookupNames) {
       if (source?.[lookupName] !== undefined) return String(source[lookupName] ?? "");
@@ -4570,10 +4602,10 @@ export function renderTracker(
     key: string,
     name: string,
   ): { data: TrackerData; value: number } | null => {
-    const lookupNames = resolveLookupNamesForOwner(name, messageIndex);
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
+      const lookupNames = resolveLookupNamesForOwnerInData(candidate.data, name, messageIndex);
       for (const lookupName of lookupNames) {
         const value = getNumericRawValue(candidate.data, key, lookupName, isNumericGlobalScope(key));
         if (value === undefined || Number.isNaN(value)) continue;
@@ -4587,11 +4619,11 @@ export function renderTracker(
     def: UiNonNumericStatDefinition,
     name: string,
   ): TrackerData | null => {
-    const lookupNames = resolveLookupNamesForOwner(name, messageIndex);
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
       const candidateData = candidate.data;
+      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
       for (const lookupName of lookupNames) {
         if (hasNonNumericValue(candidateData, def, lookupName)) return candidateData;
       }
@@ -4599,21 +4631,21 @@ export function renderTracker(
     return null;
   };
   const findPreviousDataWithMood = (messageIndex: number, name: string): TrackerData | null => {
-    const lookupNames = resolveLookupNamesForOwner(name, messageIndex);
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
       const candidateData = candidate.data;
+      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
       if (lookupNames.some(lookupName => candidateData.statistics.mood?.[lookupName] !== undefined)) return candidateData;
     }
     return null;
   };
   const findPreviousDataWithLastThought = (messageIndex: number, name: string): TrackerData | null => {
-    const lookupNames = resolveLookupNamesForOwner(name, messageIndex);
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
       const candidateData = candidate.data;
+      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
       if (lookupNames.some(lookupName => candidateData.statistics.lastThought?.[lookupName] !== undefined)) return candidateData;
     }
     return null;
@@ -4650,6 +4682,9 @@ export function renderTracker(
       },
       customStatistics: cloneCustomNumeric,
       customNonNumericStatistics: cloneCustomNonNumeric,
+      entityOwnerMap: data.entityOwnerMap
+        ? Object.fromEntries(Object.entries(data.entityOwnerMap).map(([owner, snapshot]) => [owner, { ...snapshot, aliases: [...(snapshot.aliases ?? [])] }]))
+        : undefined,
     };
   };
   const buildEffectiveEditModalData = (

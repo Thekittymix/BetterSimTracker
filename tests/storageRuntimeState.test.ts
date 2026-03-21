@@ -55,6 +55,7 @@ function makeTracker(timestamp: number, overrides: Partial<TrackerData> = {}): T
     clearedStatistics: overrides.clearedStatistics,
     clearedCustomStatistics: overrides.clearedCustomStatistics,
     clearedCustomNonNumericStatistics: overrides.clearedCustomNonNumericStatistics,
+    entityOwnerMap: overrides.entityOwnerMap,
   };
 }
 
@@ -108,6 +109,56 @@ test("writeTrackerDataToMessage stores per-message tracker data and snapshot his
   const history = getRecentTrackerHistoryEntries(context, 10);
   assert.equal(history.length, 1);
   assert.equal(history[0].messageIndex, 2);
+});
+
+test("writeTrackerDataToMessage enriches tracker payloads with message-scoped entityOwnerMap from registry", () => {
+  const context = makeContext();
+  context.characters = [
+    { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+  ];
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley": {
+          id: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: [],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 2,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ashley: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+      },
+    },
+  };
+
+  const tracker = makeTracker(1001, {
+    activeCharacters: ["Ashley"],
+    statistics: {
+      affection: { Ashley: 55 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+  });
+
+  writeTrackerDataToMessage(context, tracker, 2);
+  const stored = getTrackerDataFromMessage(context.chat[2]);
+  assert.ok(stored?.entityOwnerMap?.Ashley);
+  assert.equal(stored?.entityOwnerMap?.Ashley.entityId, "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley");
+  assert.equal(stored?.entityOwnerMap?.Ashley.kind, "multi_character_alias");
 });
 
 test("mergeStatisticsWithFallback and custom merges preserve previous missing values", () => {

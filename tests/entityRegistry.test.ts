@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildTrackerDataEntityOwnerMap,
   buildEntitySourceKey,
   buildTrackerEntityId,
   getEntityRegistryEntryByOwnerName,
@@ -14,7 +15,7 @@ import {
   resolveEntityRegistryLookupValue,
   syncEntityRegistryFromRender,
 } from "../src/entityRegistry";
-import type { STContext } from "../src/types";
+import type { STContext, TrackerData } from "../src/types";
 
 function makeContext(): STContext {
   return {
@@ -30,6 +31,25 @@ function makeContext(): STContext {
         avatar: "billie.png",
       },
     ],
+  };
+}
+
+function makeTracker(overrides: Partial<TrackerData> = {}): TrackerData {
+  return {
+    timestamp: 1,
+    activeCharacters: [],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+      ...overrides.statistics,
+    },
+    customStatistics: overrides.customStatistics ?? {},
+    customNonNumericStatistics: overrides.customNonNumericStatistics ?? {},
+    entityOwnerMap: overrides.entityOwnerMap,
   };
 }
 
@@ -286,6 +306,39 @@ test("resolveEntityRegistryLookupValue prefers the direct owner spelling before 
   );
 
   assert.deepEqual(clothes, ["scene hoodie"]);
+});
+
+test("buildTrackerDataEntityOwnerMap captures registry-backed alias owners present in tracker data", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
+  });
+
+  const tracker = makeTracker({
+    activeCharacters: ["Ashley"],
+    statistics: {
+      affection: { Ashley: 61, Blake: 50 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customNonNumericStatistics: {
+      clothes: { Ashley: ["hoodie"] },
+    },
+  });
+
+  const map = buildTrackerDataEntityOwnerMap(context, tracker);
+  assert.ok(map);
+  assert.equal(map?.Ashley?.canonicalName, "Ashley");
+  assert.equal(map?.Ashley?.kind, "multi_character_alias");
+  assert.equal(map?.Blake?.canonicalName, "Blake");
+  assert.equal(map?.Blake?.kind, "multi_character_alias");
 });
 
 test("listEntityRegistryEntriesForMessage returns visible entities in introduction order", () => {

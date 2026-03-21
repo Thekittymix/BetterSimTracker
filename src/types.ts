@@ -107,6 +107,16 @@ export interface TrackerData {
   clearedStatistics?: ClearedStatistics;
   clearedCustomStatistics?: ClearedCustomStatistics;
   clearedCustomNonNumericStatistics?: ClearedCustomNonNumericStatistics;
+  entityOwnerMap?: Record<string, TrackerDataEntityOwner>;
+}
+
+export interface TrackerDataEntityOwner {
+  entityId: string;
+  ownerName: string;
+  canonicalName: string;
+  aliases: string[];
+  sourceKey: string;
+  kind: "owner" | "multi_character_alias";
 }
 
 export type TrackerEntityLifecycleState = "active" | "inactive" | "archived";

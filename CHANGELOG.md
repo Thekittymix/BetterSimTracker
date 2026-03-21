@@ -1,3 +1,7 @@
+## [2.2.4.16-exp34] - 2026-03-21
+### Changed
+- Experimental multi-character tracker messages now persist message-scoped entity owner metadata and use it in history/UI continuity lookups, reducing dependence on live owner-name-only registry fallback for older messages.
+
 ## [2.2.4.16-exp33] - 2026-03-21
 
 ### Changed
@@ -1018,6 +1022,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

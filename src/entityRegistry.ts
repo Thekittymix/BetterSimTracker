@@ -1,5 +1,7 @@
 import type {
   STContext,
+  TrackerData,
+  TrackerDataEntityOwner,
   TrackerEntityLifecycleState,
   TrackerEntityRegistry,
   TrackerEntityRegistryEntry,
@@ -288,6 +290,88 @@ export function resolveEntityRegistryLookupValue<T>(
     if (value !== undefined) return value;
   }
   return undefined;
+}
+
+function collectTrackerDataOwnerNames(data: TrackerData): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    const key = normalizeKey(value);
+    if (!key || key === "global" || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+  for (const name of data.activeCharacters ?? []) push(name);
+  for (const bucket of Object.values(data.statistics ?? {})) {
+    for (const owner of Object.keys(bucket ?? {})) push(owner);
+  }
+  for (const bucket of Object.values(data.customStatistics ?? {})) {
+    for (const owner of Object.keys(bucket ?? {})) push(owner);
+  }
+  for (const bucket of Object.values(data.customNonNumericStatistics ?? {})) {
+    for (const owner of Object.keys(bucket ?? {})) push(owner);
+  }
+  return names;
+}
+
+export function buildTrackerDataEntityOwnerMap(
+  context: STContext | null,
+  data: TrackerData,
+): Record<string, TrackerDataEntityOwner> | undefined {
+  if (!context) return undefined;
+  const registry = readRegistry(context);
+  const out: Record<string, TrackerDataEntityOwner> = {};
+  for (const ownerName of collectTrackerDataOwnerNames(data)) {
+    const entityId = registry.ownerToEntityId[normalizeKey(ownerName)];
+    if (!entityId) continue;
+    const entry = registry.entities[entityId];
+    if (!entry) continue;
+    out[ownerName] = {
+      entityId: entry.id,
+      ownerName: entry.ownerName,
+      canonicalName: entry.canonicalName,
+      aliases: [...(entry.aliases ?? [])],
+      sourceKey: entry.sourceKey,
+      kind: entry.kind,
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+export function listTrackerDataLookupNamesForOwner(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  ownerName: string,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    const key = normalizeKey(value);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+  push(ownerName);
+  if (data?.entityOwnerMap && typeof data.entityOwnerMap === "object") {
+    const direct = data.entityOwnerMap[ownerName];
+    const fallbackEntityId = getEntityRegistryEntryByOwnerName(context, ownerName)?.id ?? null;
+    const targetEntityId = direct?.entityId ?? fallbackEntityId;
+    if (targetEntityId) {
+      for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
+        if (snapshot?.entityId !== targetEntityId) continue;
+        push(snapshotOwner);
+        push(snapshot.ownerName);
+        push(snapshot.canonicalName);
+        for (const alias of snapshot.aliases ?? []) push(alias);
+      }
+    }
+  }
+  for (const lookupName of listEntityRegistryLookupNames(context, ownerName)) {
+    push(lookupName);
+  }
+  return names;
 }
 
 export function getEntityRegistryEntryForMessage(
