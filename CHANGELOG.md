@@ -2,6 +2,17 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16.1] - 2026-03-21
+### Added
+- Prompt Injection settings now include a live preview for the non-dynamic placeholder blocks, so template editing no longer requires guessing what the static placeholders expand to.
+
+### Changed
+- Injection Prompt settings now explain each built-in placeholder more explicitly, including which blocks are static, which block is runtime-dynamic, and that the outer injection wrapper is added automatically.
+
+### Fixed
+- Injection wrapper markup is now assembled in code instead of being split across the `{{header}}` placeholder and a hardcoded closing tag, so `{{header}}` stays a pure guidance block.
+- Settings checkboxes now keep a visible checked state even when the browser does not support the `color-mix(...)` styling path used by newer browsers.
+
 ## [2.2.4.16] - 2026-03-20
 ### Fixed
 - Fixed character cards so disabled built-in text stats no longer leak stale mood or inner-thought values from stored tracker history when character-side mood or last-thought tracking is turned off.
@@ -887,4 +898,19 @@ And more...
 
 - First stable public release.
 
+
+<<<<<<< HEAD
+=======
+
+
+
+
+
+
+
+
+
+
+
+>>>>>>> 94eede0 (Preview injection placeholders in settings)
 

@@ -2159,8 +2159,8 @@ export function ensureStyles(): void {
   display: block;
   width: 5px;
   height: 9px;
-  border-right: 2px solid #0b1020;
-  border-bottom: 2px solid #0b1020;
+  border-right: 2px solid rgba(247, 250, 255, 0.96);
+  border-bottom: 2px solid rgba(247, 250, 255, 0.96);
   transform: translate(-0.5px, -1px) rotate(45deg) scale(0);
   transform-origin: center;
   opacity: 0;
@@ -2175,6 +2175,8 @@ export function ensureStyles(): void {
   outline-offset: 2px;
 }
 .bst-check input[type="checkbox"]:checked {
+  border-color: #78c9ff;
+  background: linear-gradient(180deg, #76c9ff, #2f87d7);
   border-color: color-mix(in srgb, var(--bst-accent) 66%, #d7edff 34%);
   background: linear-gradient(
     180deg,
@@ -2633,6 +2635,28 @@ export function ensureStyles(): void {
 }
 .bst-prompt-body {
   margin-top: 6px;
+}
+.bst-prompt-preview-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.bst-prompt-preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bst-prompt-preview-value {
+  margin: 0;
+  white-space: pre-wrap;
+  background: #0b1020;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 8px;
+  padding: 8px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.35;
+  color: rgba(243,245,249,0.78);
 }
 .bst-prompt-title {
   font-weight: 600;

@@ -63,3 +63,17 @@ test("settings modal exposes mood symbol chip display controls in Card Appearanc
   assert.match(source, /Mood Symbol Radius/);
   assert.match(source, /Mood Symbol Font Size/);
 });
+
+test("settings modal exposes live preview for non-dynamic injection placeholders", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Static Placeholder Preview \(live\)/);
+  assert.match(source, /data-bst-row="injectPromptPreview"/);
+  assert.match(source, /Static preview below shows the non-dynamic placeholder blocks only/);
+  assert.match(source, /\{\{statSemantics\}\}.*enabled built-in stat meanings plus enabled custom-stat descriptions/s);
+});
+
+test("settings checkbox checked state keeps a visible non-color-mix fallback", () => {
+  const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
+  assert.match(source, /\.bst-check input\[type="checkbox"\]::before \{[\s\S]*border-right: 2px solid rgba\(247, 250, 255, 0\.96\);/);
+  assert.match(source, /\.bst-check input\[type="checkbox"\]:checked \{[\s\S]*border-color: #78c9ff;[\s\S]*background: linear-gradient\(180deg, #76c9ff, #2f87d7\);/);
+});

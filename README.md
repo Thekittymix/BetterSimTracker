@@ -275,7 +275,12 @@ Numeric scaling formula used by runtime:
 - `Injection Depth`: depth value passed to ST extension prompt injection (`0` = nearest/top in-chat insertion, max `8`).
 - `Summarization Note Visible for AI`: when enabled, newly generated Summarize notes (prose summaries of current tracked stats) are AI-visible in the current chat; when disabled, newly generated notes are hidden system notes. Existing notes are not changed retroactively.
 - `Inject Summarization Note`: when enabled, the latest Summarize note (prose summary of current tracked stats) is added to prompt injection guidance.
-- `Injection Prompt Template`: editable template that defines the injected guidance block (shown only when injection is enabled). Supports `{{summarizationNote}}` for the latest summary note text.
+- `Injection Prompt Template`: editable template that defines the injected guidance block (shown only when injection is enabled).
+  - Settings now show a live static preview for the non-dynamic placeholder blocks.
+  - `{{header}}` is the hidden privacy/usage guidance text only; BST adds the outer `<bst_inject_block>...</bst_inject_block>` wrapper automatically.
+  - `{{statSemantics}}` contains enabled built-in stat meanings plus enabled custom-stat descriptions allowed into injection.
+  - `{{lines}}` is the dynamic per-owner state block for the current scene/message, so it is not fully previewable statically.
+  - `{{summarizationNote}}` inserts the latest summary note only when summary-note injection is enabled and a note exists.
 - `Auto Detect Active`: in group chat, tries to determine which characters are currently active in the scene.
 - `Activity Lookback`: recent-message window used for active character detection.
 - `Prompt Templates`: unified prompt instruction for one-shot extraction, per-stat instructions for sequential mode, and global default templates for custom numeric + custom non-numeric sequential extraction.
