@@ -72,6 +72,7 @@ import {
 } from "./ui";
 import { getGraphPreferences } from "./graphPreferences";
 import { closeGraphModal, openGraphModal } from "./graphModal";
+import { buildStatSeries, hasNumericSnapshot } from "./graphTimeline";
 import { closeSettingsModal, openSettingsModal } from "./settingsModal";
 import { cancelActiveGenerations, generateJson } from "./generator";
 import { registerSlashCommands } from "./slashCommands";
@@ -1715,7 +1716,7 @@ function queueRender(): void {
       if (history.length === 0 && latestData) {
         history.push(latestData);
       }
-      const graphSummary = summarizeGraphSeries(history, characterName);
+      const graphSummary = summarizeGraphSeries(context, history, characterName);
       pushTrace("graph.open", {
         character: characterName,
         historySnapshots: history.length,
@@ -3087,7 +3088,7 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
   refreshFromStoredData();
 }
 
-function summarizeGraphSeries(history: TrackerData[], characterName: string): {
+function summarizeGraphSeries(context: STContext, history: TrackerData[], characterName: string): {
   snapshots: number;
   fromTs: number | null;
   toTs: number | null;
@@ -3097,34 +3098,34 @@ function summarizeGraphSeries(history: TrackerData[], characterName: string): {
   customSeries: Record<string, number[]>;
 } {
   const allNumericDefs = settings ? getAllNumericStatDefinitions(settings) : [];
+  const customNumericGlobalScopeById = new Map<string, boolean>(
+    (settings?.customStats ?? [])
+      .filter(def => (def.kind ?? "numeric") === "numeric")
+      .map(def => [String(def.id ?? "").trim(), Boolean(def.globalScope)] as const),
+  );
   const numericStatIds = new Set<string>(allNumericDefs.map(def => def.id));
   const builtInKeys = new Set(["affection", "trust", "desire", "connection"]);
   const sorted = [...history]
     .filter(item => Number.isFinite(item.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp)
-    .filter(item =>
-      Array.from(numericStatIds).some(statId =>
-        builtInKeys.has(statId)
-          ? (item.statistics[statId as "affection" | "trust" | "desire" | "connection"]?.[characterName] !== undefined)
-          : (item.customStatistics?.[statId]?.[characterName] !== undefined),
-      ) ||
-      item.statistics.mood?.[characterName] !== undefined ||
-      item.statistics.lastThought?.[characterName] !== undefined,
-    );
-  const build = (key: string, defaultValue = 50): number[] => {
-    let carry = Math.max(0, Math.min(100, Math.round(defaultValue)));
-    return sorted.map(item => {
-      const raw = builtInKeys.has(key)
-        ? item.statistics[key as "affection" | "trust" | "desire" | "connection"]?.[characterName]
-        : item.customStatistics?.[key]?.[characterName];
-      if (raw !== undefined) {
-        const value = Number(raw);
-        if (!Number.isNaN(value)) {
-          carry = Math.max(0, Math.min(100, value));
-        }
-      }
-      return carry;
+    .filter(item => {
+      const lookupNames = listTrackerDataLookupNamesForOwner(context, item, characterName);
+      const numericDefs = allNumericDefs.map(def => ({
+        key: def.id,
+        defaultValue: def.defaultValue,
+        globalScope: def.builtIn ? false : Boolean(customNumericGlobalScopeById.get(def.id)),
+      }));
+      const hasNumeric = hasNumericSnapshot(item, lookupNames, numericDefs);
+      const hasMood = lookupNames.some(name => item.statistics.mood?.[name] !== undefined);
+      const hasThought = lookupNames.some(name => item.statistics.lastThought?.[name] !== undefined);
+      return hasNumeric || hasMood || hasThought;
     });
+  const build = (key: string, defaultValue = 50, globalScope = false): number[] => {
+    return buildStatSeries(
+      sorted,
+      item => listTrackerDataLookupNamesForOwner(context, item, characterName),
+      { key, defaultValue, globalScope },
+    );
   };
   const affection = build("affection");
   const trust = build("trust");
@@ -3135,7 +3136,7 @@ function summarizeGraphSeries(history: TrackerData[], characterName: string): {
   const customSeries: Record<string, number[]> = {};
   const customLatest: Record<string, number> = {};
   for (const def of customDefs) {
-    const seriesValues = build(def.id, def.defaultValue);
+    const seriesValues = build(def.id, def.defaultValue, Boolean(customNumericGlobalScopeById.get(def.id)));
     customSeries[def.id] = seriesValues;
     customLatest[def.id] = seriesValues.length ? seriesValues[seriesValues.length - 1] : Math.max(0, Math.min(100, Math.round(def.defaultValue)));
   }

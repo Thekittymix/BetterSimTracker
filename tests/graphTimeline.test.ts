@@ -57,3 +57,30 @@ test("buildStatSeries carries previous value and clamps range", () => {
   const series = buildStatSeries([t1, t2, t3, t4], "Seraphina", def);
   assert.deepEqual(series, [50, 65, 65, 100]);
 });
+
+test("graph timeline helpers can resolve alias-owned values through per-entry lookup names", () => {
+  const entry = makeTracker(1);
+  entry.statistics.affection.Ashley = 62;
+  entry.customStatistics = {
+    owner_score: {
+      Ashley: 71,
+    },
+  };
+
+  const defs: GraphNumericStatDefinition[] = [
+    { key: "affection", defaultValue: 50, globalScope: false },
+    { key: "owner_score", defaultValue: 50, globalScope: false },
+  ];
+
+  assert.equal(
+    hasNumericSnapshot(entry, current => (current.timestamp === 1 ? ["Ash", "Ashley"] : ["Ash"]), defs),
+    true,
+  );
+
+  const series = buildStatSeries(
+    [entry],
+    () => ["Ash", "Ashley"],
+    { key: "owner_score", defaultValue: 50, globalScope: false },
+  );
+  assert.deepEqual(series, [71]);
+});

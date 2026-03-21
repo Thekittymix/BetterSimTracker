@@ -1,3 +1,7 @@
+## [2.2.4.16-exp40] - 2026-03-21
+### Changed
+- Experimental multi-character graph/history summaries now resolve alias-owner numeric series through per-snapshot entity lookup names, reducing another owner-name-only continuity path in graph state.
+
 ## [2.2.4.16-exp39] - 2026-03-21
 ### Changed
 - Experimental multi-character baseline/history filtering now resolves owner-scoped tracked-value checks through tracker entity lookup names, reducing another owner-name-only continuity path in current-state reads.

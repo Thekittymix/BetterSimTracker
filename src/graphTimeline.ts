@@ -9,16 +9,45 @@ export type GraphNumericStatDefinition = {
 
 const BUILT_IN_NUMERIC_STAT_KEYS = new Set(["affection", "trust", "desire", "connection"]);
 
+function normalizeLookupNames(nameOrNames: string | string[]): string[] {
+  const values = Array.isArray(nameOrNames) ? nameOrNames : [nameOrNames];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const trimmed = String(value ?? "").trim();
+    if (!trimmed) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+function resolveLookupNames(
+  entry: TrackerData,
+  nameOrNames: string | string[] | ((entry: TrackerData) => string | string[]),
+): string[] {
+  const resolved = typeof nameOrNames === "function" ? nameOrNames(entry) : nameOrNames;
+  return normalizeLookupNames(resolved);
+}
+
 function getNumericRawValue(
   entry: TrackerData,
   key: string,
-  name: string,
+  nameOrNames: string | string[] | ((entry: TrackerData) => string | string[]),
   globalScope = false,
 ): number | undefined {
+  const lookupNames = resolveLookupNames(entry, nameOrNames);
+  if (!lookupNames.length) return undefined;
   if (BUILT_IN_NUMERIC_STAT_KEYS.has(key)) {
-    const raw = entry.statistics[key as "affection" | "trust" | "desire" | "connection"]?.[name];
-    if (raw === undefined) return undefined;
-    return Number(raw);
+    const byOwner = entry.statistics[key as "affection" | "trust" | "desire" | "connection"];
+    if (!byOwner) return undefined;
+    for (const name of lookupNames) {
+      const raw = byOwner[name];
+      if (raw === undefined) continue;
+      return Number(raw);
+    }
+    return undefined;
   }
 
   const byOwner = entry.customStatistics?.[key];
@@ -33,15 +62,15 @@ function getNumericRawValue(
   };
 
   const customRaw = globalScope
-    ? (byOwner[GLOBAL_TRACKER_KEY] ?? byOwner[name] ?? legacyFallback())
-    : byOwner[name];
+    ? (byOwner[GLOBAL_TRACKER_KEY] ?? lookupNames.map(name => byOwner[name]).find(value => value !== undefined) ?? legacyFallback())
+    : lookupNames.map(name => byOwner[name]).find(value => value !== undefined);
   if (customRaw === undefined) return undefined;
   return Number(customRaw);
 }
 
 export function hasNumericSnapshot(
   entry: TrackerData,
-  character: string,
+  character: string | string[] | ((entry: TrackerData) => string | string[]),
   defs: GraphNumericStatDefinition[],
 ): boolean {
   for (const def of defs) {
@@ -53,7 +82,7 @@ export function hasNumericSnapshot(
 
 export function buildStatSeries(
   timeline: TrackerData[],
-  character: string,
+  character: string | string[] | ((entry: TrackerData) => string | string[]),
   def: GraphNumericStatDefinition,
 ): number[] {
   let carry = Math.max(0, Math.min(100, Math.round(def.defaultValue)));
