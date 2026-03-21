@@ -1,3 +1,7 @@
+## [2.2.4.16-exp57] - 2026-03-21
+### Changed
+- Experimental multi-character extraction now runs a dedicated model resolver step before stat extraction and uses its `sceneOwners` / `messageOwners` output as the primary owner-scope input, with the old activity heuristics kept only as fallback.
+
 ## [2.2.4.16-exp56] - 2026-03-21
 ### Fixed
 - Experimental multi-character swipe retracks now resolve fresh owners from the newly generated swipe content instead of reusing the previous swipe's saved tracker owners for the same message.

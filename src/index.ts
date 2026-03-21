@@ -17,6 +17,10 @@ import {
   resolvePersistedActiveOwners,
 } from "./entityResolution";
 import {
+  buildMultiCharacterResolverPrompt,
+  parseMultiCharacterResolverResponse,
+} from "./entityResolver";
+import {
   buildEntitySourceKey,
   getEntityRegistryEntryForMessage,
   getEntityRegistryLifecycleStateForMessage,
@@ -3335,7 +3339,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       targetMessageIndex: lastIndex,
     });
     lastActivityAnalysis = activity;
-    allCharacterNames = activity.allCharacterNames.filter(name =>
+    allCharacterNames = getAllTrackedCharacterNames(context, activeSettings).filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
     if (activeSettings.enableUserTracking && !allCharacterNames.includes(USER_TRACKER_KEY)) {
@@ -3343,23 +3347,64 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         allCharacterNames = [...allCharacterNames, USER_TRACKER_KEY];
       }
     }
-    const initialActiveCharacters = resolveInitialExtractionOwners({
-      context,
-      userExtraction,
-      forceRetrack,
-      preferExistingOwnersOnRetrack: reason !== "SWIPE_GENERATION_ENDED",
-      detectedActiveCharacters: activity.activeCharacters,
-      existingTrackerData,
-      existingActiveCharacters: existingTrackerData?.activeCharacters ?? null,
-    }).filter(name =>
-      isTrackerEnabledForOwner(context, activeSettings, name),
-    );
+    let resolvedOwnerScopes:
+      | {
+          sceneActiveCharacters: string[];
+          requestCharacters: string[];
+        }
+      | null = null;
+    if (!userExtraction && activeSettings.entityTrackingMode === "multi_character" && isTrackableAiMessage(lastMessage)) {
+      const candidateOwners = allCharacterNames.filter(name => name !== USER_TRACKER_KEY);
+      if (candidateOwners.length) {
+        try {
+          const resolverContextText = buildRecentContext(context, settings.contextMessages, lastIndex);
+          const resolverPrompt = buildMultiCharacterResolverPrompt({
+            candidateOwners,
+            contextText: resolverContextText,
+            message: lastMessage,
+          });
+          const resolverResponse = await generateJson(resolverPrompt, activeSettings);
+          const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateOwners);
+          if (parsedResolver?.sceneOwners.length) {
+            resolvedOwnerScopes = {
+              sceneActiveCharacters: parsedResolver.sceneOwners,
+              requestCharacters: parsedResolver.messageOwners.length
+                ? parsedResolver.messageOwners
+                : parsedResolver.sceneOwners,
+            };
+            pushTrace("entity.resolve", {
+              source: "model",
+              sceneActiveCharacters: resolvedOwnerScopes.sceneActiveCharacters,
+              requestCharacters: resolvedOwnerScopes.requestCharacters,
+            });
+          }
+        } catch (error) {
+          pushTrace("entity.resolve", {
+            source: "model_error",
+            error: error instanceof Error ? error.message : String(error ?? "unknown"),
+          });
+        }
+      }
+    }
+    const initialActiveCharacters = resolvedOwnerScopes?.sceneActiveCharacters.length
+      ? resolvedOwnerScopes.sceneActiveCharacters
+      : resolveInitialExtractionOwners({
+          context,
+          userExtraction,
+          forceRetrack,
+          preferExistingOwnersOnRetrack: reason !== "SWIPE_GENERATION_ENDED",
+          detectedActiveCharacters: activity.activeCharacters,
+          existingTrackerData,
+          existingActiveCharacters: existingTrackerData?.activeCharacters ?? null,
+        }).filter(name =>
+          isTrackerEnabledForOwner(context, activeSettings, name),
+        );
     const ownerScopes = userExtraction
       ? {
           sceneActiveCharacters: initialActiveCharacters,
           requestCharacters: initialActiveCharacters,
         }
-      : resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings);
+      : (resolvedOwnerScopes ?? resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings));
     const sceneActiveCharacters = ownerScopes.sceneActiveCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
@@ -3370,6 +3415,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       allCharacterNames,
       activeCharacters,
       sceneActiveCharacters,
+      entityResolverUsed: Boolean(resolvedOwnerScopes),
       lookback: activity.lookback,
       autoDetectActive: settings.autoDetectActive,
       reasons: activity.reasons
