@@ -8,8 +8,10 @@ import {
   getEntityRegistryEntryForMessage,
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
+  listEntityRegistryLookupNames,
   listEntityRegistryOwnersForMessage,
   readEntityRegistry,
+  resolveEntityRegistryLookupValue,
   syncEntityRegistryFromRender,
 } from "../src/entityRegistry";
 import type { STContext } from "../src/types";
@@ -163,6 +165,89 @@ test("getEntityRegistryEntryByOwnerName is case-insensitive and resolves canonic
   assert.equal(byLower?.ownerName, "Ashley");
   assert.equal(byCanonical?.ownerName, "Ashley");
   assert.equal(byLower?.id, byCanonical?.id);
+});
+
+test("listEntityRegistryLookupNames includes owner, canonical name, and aliases for a registry-backed entity", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+      },
+    },
+  };
+
+  assert.deepEqual(
+    listEntityRegistryLookupNames(context, "Ashley"),
+    ["Ashley", "Ash"],
+  );
+  assert.deepEqual(
+    listEntityRegistryLookupNames(context, "Ash"),
+    ["Ash", "Ashley"],
+  );
+});
+
+test("resolveEntityRegistryLookupValue reads alias state stored under a canonical owner spelling", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+      },
+    },
+  };
+
+  const affection = resolveEntityRegistryLookupValue(
+    context,
+    { Ashley: 61 },
+    "Ash",
+  );
+  const clothes = resolveEntityRegistryLookupValue(
+    context,
+    { Ashley: ["worn hoodie"] },
+    "Ash",
+  );
+
+  assert.equal(affection, 61);
+  assert.deepEqual(clothes, ["worn hoodie"]);
 });
 
 test("listEntityRegistryEntriesForMessage returns visible entities in introduction order", () => {

@@ -277,6 +277,19 @@ export function listEntityRegistryLookupNames(
   return names;
 }
 
+export function resolveEntityRegistryLookupValue<T>(
+  context: STContext | null,
+  byOwner: Record<string, T> | null | undefined,
+  ownerName: string,
+): T | undefined {
+  if (!byOwner) return undefined;
+  for (const lookupName of listEntityRegistryLookupNames(context, ownerName)) {
+    const value = byOwner[lookupName];
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
 export function getEntityRegistryEntryForMessage(
   context: STContext | null,
   ownerName: string,

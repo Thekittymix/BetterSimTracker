@@ -1,3 +1,8 @@
+## [2.2.4.16-exp32] - 2026-03-21
+
+### Changed
+- Experimental multi-character extractor seeding and previous-state reads now resolve alias owners through registry-backed lookup names, reducing another raw owner-name dependency in baseline and carry-forward logic.
+
 ## [2.2.4.16-exp31] - 2026-03-21
 
 ### Changed
