@@ -447,3 +447,50 @@ test("syncBstMacros does not fall back to global values for owner-scoped charact
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "");
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_seraphina")?.(), "");
 });
+
+test("syncBstMacros deduplicates character macro targets by registry entity id", () => {
+  const { context } = makeContext();
+  context.characters = [{ name: "Ashley", avatar: "camp.png" } as any];
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "ent-ashley": {
+          id: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ashley: "ent-ashley",
+        ash: "ent-ashley",
+      },
+    },
+  } as any;
+  const tracker = makeTracker();
+  tracker.statistics.affection = { Ashley: 42 };
+  tracker.activeCharacters = ["Ashley"];
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Ash", "Ashley"],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const debug = getBstMacroDebugSnapshot();
+  const characterTargets = Array.isArray(debug?.["characterTargets"]) ? debug?.["characterTargets"] as Array<Record<string, unknown>> : [];
+  assert.equal(characterTargets.length, 1);
+  assert.equal(characterTargets[0]?.ownerName, "Ashley");
+});

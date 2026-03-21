@@ -1,4 +1,5 @@
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
+import { getEntityRegistryEntryByOwnerName } from "./entityRegistry";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
 const BST_INJECTION_MACRO = "bst_injection";
@@ -63,11 +64,19 @@ type ImageMacroStatDef = {
 };
 
 function buildCharacterMacroTargets(context: STContext, allCharacterNames: string[]): CharacterMacroTarget[] {
-  const ownerNameSet = new Set(
-    (allCharacterNames ?? [])
-      .map(name => String(name ?? "").trim())
-      .filter(name => name && name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY),
-  );
+  const ownerNameSet = new Set<string>();
+  const seenEntityIds = new Set<string>();
+  for (const rawName of allCharacterNames ?? []) {
+    const ownerName = String(rawName ?? "").trim();
+    if (!ownerName || ownerName === USER_TRACKER_KEY || ownerName === GLOBAL_TRACKER_KEY) continue;
+    const registryEntry = getEntityRegistryEntryByOwnerName(context, ownerName);
+    const entityId = String(registryEntry?.id ?? "").trim();
+    if (entityId) {
+      if (seenEntityIds.has(entityId)) continue;
+      seenEntityIds.add(entityId);
+    }
+    ownerNameSet.add(String(registryEntry?.ownerName ?? ownerName).trim() || ownerName);
+  }
   const ownerNameKeySet = new Set(Array.from(ownerNameSet, normalizeName));
 
   const candidates: Array<{ ownerName: string; displayName: string; avatar: string | null; baseSlug: string }> = [];

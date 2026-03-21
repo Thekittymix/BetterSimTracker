@@ -1,3 +1,7 @@
+## [2.2.4.16-exp29] - 2026-03-21
+
+### Changed
+- Experimental multi-character macro target generation now deduplicates registry-backed owners by entity identity, so BST macro aliases and image-state targets do not fan out from duplicate owner-name spellings for the same tracked entity.
 ## [2.2.4.16-exp28] - 2026-03-21
 
 ### Changed
@@ -995,6 +999,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 
