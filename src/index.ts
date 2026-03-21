@@ -23,6 +23,7 @@ import {
 import {
   buildEntitySourceKey,
   getEntityRegistryEntryForMessage,
+  getEntityRegistryEntryByEntityIdForMessage,
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
@@ -1725,6 +1726,9 @@ function queueRender(): void {
     }, (characterName, messageIndex) => {
         const liveContext = getSafeContext();
         return getEntityRegistryEntryForMessage(liveContext, characterName, messageIndex);
+    }, (entityId, messageIndex) => {
+        const liveContext = getSafeContext();
+        return getEntityRegistryEntryByEntityIdForMessage(liveContext, entityId, messageIndex);
     }, characterName => {
       const context = getSafeContext();
       if (!context || !settings) return;

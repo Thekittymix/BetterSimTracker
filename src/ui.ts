@@ -4524,6 +4524,7 @@ export function renderTracker(
   resolveRegistryOwnersForMessage?: (messageIndex: number) => string[],
   resolveRegistryEntriesForMessage?: (messageIndex: number) => TrackerEntityRegistryEntry[],
   resolveRegistryEntryForMessage?: (ownerName: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
+  resolveRegistryEntryByEntityIdForMessage?: (entityId: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
   onOpenGraph?: (characterName: string) => void,
   onRetrackMessage?: (messageIndex: number) => void,
   onSendSummaryMessage?: (messageIndex: number) => void,
@@ -4587,6 +4588,9 @@ export function renderTracker(
     const targetEntityId = data?.entityOwnerMap?.[ownerName]?.entityId
       ?? resolveRegistryEntryForMessage?.(ownerName, messageIndex)?.id
       ?? null;
+    const registryEntryForEntityId = targetEntityId
+      ? resolveRegistryEntryByEntityIdForMessage?.(targetEntityId, messageIndex) ?? null
+      : null;
     if (targetEntityId && data?.entityOwnerMap) {
       for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
         if (snapshot?.entityId !== targetEntityId) continue;
@@ -4598,7 +4602,7 @@ export function renderTracker(
     }
     for (const lookupName of resolveRegistryLookupNamesForOwner(
       ownerName,
-      resolveRegistryEntryForMessage?.(ownerName, messageIndex) ?? null,
+      registryEntryForEntityId ?? resolveRegistryEntryForMessage?.(ownerName, messageIndex) ?? null,
     )) {
       push(lookupName);
     }

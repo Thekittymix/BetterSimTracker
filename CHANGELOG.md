@@ -1,3 +1,7 @@
+## [2.2.4.16-exp63] - 2026-03-21
+### Changed
+- Experimental multi-character registry read paths now expose message-scoped `entityId` entry helpers, and UI tracker lookups prefer those persisted entity references over owner-name fallback when resolving alias continuity data.
+
 ## [2.2.4.16-exp62] - 2026-03-21
 ### Changed
 - Experimental multi-character lifecycle continuity now tracks prior activity by persisted entityId as well as owner name, reducing alias drift in inactive/archive/reactivation decisions.

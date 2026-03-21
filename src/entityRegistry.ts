@@ -597,6 +597,21 @@ export function getEntityRegistryEntryForMessage(
   return entry;
 }
 
+export function getEntityRegistryEntryByEntityIdForMessage(
+  context: STContext | null,
+  entityId: string,
+  messageIndex: number,
+): TrackerEntityRegistryEntry | null {
+  const registry = readRegistry(context);
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return null;
+  const entry = registry.entities[normalizedEntityId];
+  if (!entry) return null;
+  if (entry.introducedAtMessageIndex > messageIndex) return null;
+  if (resolveLifecycleStateAtMessage(entry, messageIndex).state === "archived") return null;
+  return entry;
+}
+
 export function listEntityRegistryEntriesForMessage(
   context: STContext | null,
   messageIndex: number,
@@ -623,6 +638,20 @@ export function getEntityRegistryLifecycleStateForMessage(
 ): CardLifecycleRegistryState | null {
   const entry = getEntityRegistryEntryByOwnerName(context, ownerName);
   if (!entry) return null;
+  return getEntityRegistryLifecycleStateForEntityIdForMessage(context, entry.id, messageIndex);
+}
+
+export function getEntityRegistryLifecycleStateForEntityIdForMessage(
+  context: STContext | null,
+  entityId: string,
+  messageIndex: number,
+): CardLifecycleRegistryState | null {
+  const registry = readRegistry(context);
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return null;
+  const entry = registry.entities[normalizedEntityId];
+  if (!entry) return null;
+  if (entry.introducedAtMessageIndex > messageIndex) return null;
   const lifecycleAtMessage = resolveLifecycleStateAtMessage(entry, messageIndex);
   const archivedAtMessageIndex = lifecycleAtMessage.state === "archived"
     ? lifecycleAtMessage.stateChangedAtMessageIndex

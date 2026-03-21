@@ -6,8 +6,10 @@ import {
   buildTrackerDataEntityOwnerMap,
   buildEntitySourceKey,
   buildTrackerEntityId,
+  getEntityRegistryEntryByEntityIdForMessage,
   getEntityRegistryEntryByOwnerName,
   getEntityRegistryEntryForMessage,
+  getEntityRegistryLifecycleStateForEntityIdForMessage,
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryLookupNames,
@@ -563,6 +565,42 @@ test("getEntityRegistryEntryForMessage hides pre-introduction and archived entri
   assert.equal(getEntityRegistryEntryForMessage(context, "Blake", 15), null);
 });
 
+test("getEntityRegistryEntryByEntityIdForMessage resolves visible windows without owner-name lookup", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
+  });
+
+  const ashleyId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Ashley",
+    matchedBy: "alias",
+  });
+  const blakeId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Blake",
+    matchedBy: "alias",
+  });
+
+  assert.equal(getEntityRegistryEntryByEntityIdForMessage(context, ashleyId, 7), null);
+  assert.equal(getEntityRegistryEntryByEntityIdForMessage(context, ashleyId, 8)?.ownerName, "Ashley");
+  assert.equal(getEntityRegistryEntryByEntityIdForMessage(context, blakeId, 14)?.ownerName, "Blake");
+  assert.equal(getEntityRegistryEntryByEntityIdForMessage(context, blakeId, 15), null);
+});
+
 test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the requested message index", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
@@ -590,6 +628,46 @@ test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the
   );
   assert.deepEqual(
     getEntityRegistryLifecycleStateForMessage(context, "Blake", 15),
+    { lastActiveMessageIndex: null, lifecycleState: "archived", archivedAtMessageIndex: 15, introducedAtMessageIndex: 8 },
+  );
+});
+
+test("getEntityRegistryLifecycleStateForEntityIdForMessage clamps lifecycle without owner-name lookup", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
+  });
+
+  const ashleyId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Ashley",
+    matchedBy: "alias",
+  });
+  const blakeId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Blake",
+    matchedBy: "alias",
+  });
+
+  assert.deepEqual(
+    getEntityRegistryLifecycleStateForEntityIdForMessage(context, ashleyId, 8),
+    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
+  );
+  assert.deepEqual(
+    getEntityRegistryLifecycleStateForEntityIdForMessage(context, blakeId, 15),
     { lastActiveMessageIndex: null, lifecycleState: "archived", archivedAtMessageIndex: 15, introducedAtMessageIndex: 8 },
   );
 });
