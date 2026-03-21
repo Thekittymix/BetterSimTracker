@@ -1,11 +1,12 @@
-import { resolveCardLifecycleState, type CardLifecycleSnapshot } from "./cardLifecycle";
+import { resolveCardLifecycleState } from "./cardLifecycle";
 import { USER_TRACKER_KEY } from "./constants";
 import {
+  buildLifecycleHistorySnapshotsFromTrackerEntries,
   getEntityRegistryEntryForMessage,
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
-  resolveTrackerOwnersForEntityIds,
+  resolveTrackerSceneOwners,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
 import { resolveEntityTrackingMode } from "./entityResolution";
@@ -29,15 +30,7 @@ export function syncEntityRegistryFromTrackerData(input: {
   if (resolveEntityTrackingMode(input.settings) !== "multi_character") return false;
 
   const userMessageEntry = Boolean(input.context.chat[input.messageIndex]?.is_user);
-  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(
-    input.context,
-    input.data.entityResolution?.sceneEntityIds ?? [],
-  );
-  const sceneOwners = sceneOwnersFromEntityIds.length
-    ? sceneOwnersFromEntityIds
-    : input.data.entityResolution?.sceneOwners?.length
-    ? input.data.entityResolution.sceneOwners
-    : input.data.activeCharacters;
+  const sceneOwners = resolveTrackerSceneOwners(input.context, input.data);
   const dataCharacterNames = collectCharacterNamesFromTrackerData(input.data);
   const registryEntriesForMessage = listEntityRegistryEntriesForMessage(input.context, input.messageIndex);
   const registryOwnersForMessage = registryEntriesForMessage.length > 0
@@ -64,15 +57,13 @@ export function syncEntityRegistryFromTrackerData(input: {
   const uniqueTargets = Array.from(new Set(scopedDisplayPool));
   if (!uniqueTargets.length) return false;
 
-  const lifecycleSnapshots: CardLifecycleSnapshot[] = getRecentTrackerHistoryEntries(
+  const lifecycleSnapshots = buildLifecycleHistorySnapshotsFromTrackerEntries(
     input.context,
-    Math.max(120, input.context.chat.length + 8),
-  )
-    .sort((a, b) => a.messageIndex - b.messageIndex)
-    .map(item => ({
-      messageIndex: item.messageIndex,
-      activeCharacters: [...(item.data?.activeCharacters ?? [])],
-    }));
+    getRecentTrackerHistoryEntries(
+      input.context,
+      Math.max(120, input.context.chat.length + 8),
+    ),
+  );
 
   return syncEntityRegistryFromRender({
     context: input.context,

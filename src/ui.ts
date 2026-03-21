@@ -57,6 +57,7 @@ import { renderThoughtMarkup } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
 import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
+import { buildLifecycleHistorySnapshotsFromTrackerEntries, resolveTrackerSceneOwners } from "./entityRegistry";
 import {
   buildLastPointCircle,
   buildPointCircles,
@@ -4688,12 +4689,10 @@ export function renderTracker(
     }
     return null;
   };
-  const lifecycleSnapshots: CardLifecycleSnapshot[] = sortedEntries
-    .filter(item => item.data)
-    .map(item => ({
-      messageIndex: item.messageIndex,
-      activeCharacters: [...(item.data?.activeCharacters ?? [])],
-    }));
+  const lifecycleSnapshots: CardLifecycleSnapshot[] = buildLifecycleHistorySnapshotsFromTrackerEntries(
+    null,
+    sortedEntries.filter(item => item.data),
+  );
   const cloneTrackerDataForEdit = (data: TrackerData): TrackerData => {
     const cloneCustomNumeric: TrackerData["customStatistics"] = {};
     for (const [statId, byOwner] of Object.entries(data.customStatistics ?? {})) {
@@ -5202,7 +5201,8 @@ export function renderTracker(
     const summaryBusy = Boolean(showSummaryAction && summaryBusyMessageIndices?.has(entry.messageIndex));
     const userMessageEntry = Boolean(isUserMessageIndex?.(entry.messageIndex));
     const collapsed = isMessageCollapsed(entry.messageIndex);
-    const activeSet = new Set(data.activeCharacters.map(normalizeName));
+    const resolvedSceneOwners = resolveTrackerSceneOwners(null, data);
+    const activeSet = new Set(resolvedSceneOwners.map(normalizeName));
     const allNumericDefs = getNumericStatDefinitions(settings);
     const cardNumericDefs = allNumericDefs.filter(def => def.showOnCard);
     const allNonNumericDefs = getNonNumericStatDefinitions(settings);
@@ -5336,7 +5336,7 @@ export function renderTracker(
     const displayPool = buildDisplayPoolWithRegistry({
       entityTrackingMode: settings.entityTrackingMode,
       includeAllTargets: forceAllInGroup || settings.showInactive,
-      activeCharacters: data.activeCharacters,
+      activeCharacters: resolvedSceneOwners,
       dataCharacterNames,
       mergedWithRegistryOwners,
     });
@@ -5358,7 +5358,7 @@ export function renderTracker(
     const getLifecycleState = (name: string) => resolveCardLifecycleState({
       ownerName: name,
       currentMessageIndex: entry.messageIndex,
-      currentActiveCharacters: data.activeCharacters,
+      currentActiveCharacters: resolvedSceneOwners,
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,

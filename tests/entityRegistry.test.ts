@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildLifecycleHistorySnapshotsFromTrackerEntries,
   buildTrackerDataEntityOwnerMap,
   buildEntitySourceKey,
   buildTrackerEntityId,
@@ -13,6 +14,7 @@ import {
   listEntityRegistryOwnersForMessage,
   readEntityRegistry,
   resolveTrackerEntityIdsForOwners,
+  resolveTrackerSceneOwners,
   resolveTrackerOwnersForEntityIds,
   resolveEntityRegistryLookupValue,
   syncEntityRegistryFromRender,
@@ -51,6 +53,7 @@ function makeTracker(overrides: Partial<TrackerData> = {}): TrackerData {
     },
     customStatistics: overrides.customStatistics ?? {},
     customNonNumericStatistics: overrides.customNonNumericStatistics ?? {},
+    entityResolution: overrides.entityResolution,
     entityOwnerMap: overrides.entityOwnerMap,
   };
 }
@@ -158,6 +161,76 @@ test("entity registry resolves owner names to stable entity ids and back", () =>
   assert.deepEqual(resolveTrackerOwnersForEntityIds(context, [entityIds[1], entityIds[0], entityIds[1]]), [
     "Ashley",
     "Blake",
+  ]);
+});
+
+test("resolveTrackerSceneOwners prefers scene entity ids over stale owner-name arrays", () => {
+  const context = makeContext();
+  const blakeEntityId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Blake",
+    matchedBy: "alias",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const resolved = resolveTrackerSceneOwners(context, makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: ["Garret"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: [blakeEntityId],
+      messageEntityIds: [blakeEntityId],
+      source: "model",
+    },
+  }));
+
+  assert.deepEqual(resolved, ["Blake"]);
+});
+
+test("buildLifecycleHistorySnapshotsFromTrackerEntries uses resolved scene owners for continuity history", () => {
+  const context = makeContext();
+  const blakeEntityId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Blake",
+    matchedBy: "alias",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const snapshots = buildLifecycleHistorySnapshotsFromTrackerEntries(context, [
+    {
+      messageIndex: 8,
+      data: makeTracker({
+        activeCharacters: ["Garret"],
+        entityResolution: {
+          sceneOwners: ["Garret"],
+          messageOwners: ["Blake"],
+          sceneEntityIds: [blakeEntityId],
+          messageEntityIds: [blakeEntityId],
+          source: "model",
+        },
+      }),
+    } as never,
+  ]);
+
+  assert.deepEqual(snapshots, [
+    {
+      messageIndex: 8,
+      activeCharacters: ["Blake"],
+    },
   ]);
 });
 

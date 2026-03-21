@@ -1,3 +1,7 @@
+## [2.2.4.16-exp60] - 2026-03-21
+### Changed
+- Experimental multi-character render/lifecycle read paths now prefer resolver-derived scene owners (including `sceneEntityIds` when available) over raw `activeCharacters`, reducing more owner-name drift in registry-backed continuity.
+
 ## [2.2.4.16-exp59] - 2026-03-21
 ### Changed
 - Experimental multi-character resolver payloads now persist runtime-assigned `sceneEntityIds` / `messageEntityIds`, and registry sync can prefer those durable entity references over raw owner-name arrays.

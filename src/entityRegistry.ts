@@ -7,7 +7,12 @@ import type {
   TrackerEntityRegistryEntry,
 } from "./types";
 import { resolveCharacterIdentity, type EntityTrackingMode, type ResolvedCharacterIdentity } from "./entityResolution";
-import type { CardLifecycleRegistryState } from "./cardLifecycle";
+import type { CardLifecycleRegistryState, CardLifecycleSnapshot } from "./cardLifecycle";
+
+type TrackerHistoryEntryWithMessageIndex = {
+  data: TrackerData | null;
+  messageIndex: number;
+};
 
 const ENTITY_REGISTRY_METADATA_KEY = "bstEntityRegistry";
 
@@ -453,6 +458,36 @@ export function resolveTrackerOwnersForEntityIds(
     out.push(ownerName);
   }
   return out;
+}
+
+export function resolveTrackerSceneOwners(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+): string[] {
+  if (!data) return [];
+  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(
+    context,
+    data.entityResolution?.sceneEntityIds ?? [],
+  );
+  if (sceneOwnersFromEntityIds.length) return sceneOwnersFromEntityIds;
+  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
+    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
+    : [];
+  if (sceneOwners.length) return sceneOwners;
+  return uniqueStrings(Array.isArray(data.activeCharacters) ? data.activeCharacters : []);
+}
+
+export function buildLifecycleHistorySnapshotsFromTrackerEntries(
+  context: STContext | null,
+  entries: TrackerHistoryEntryWithMessageIndex[],
+): CardLifecycleSnapshot[] {
+  return entries
+    .filter((item): item is TrackerHistoryEntryWithMessageIndex & { data: TrackerData } => Boolean(item.data))
+    .sort((a, b) => a.messageIndex - b.messageIndex)
+    .map(item => ({
+      messageIndex: item.messageIndex,
+      activeCharacters: resolveTrackerSceneOwners(context, item.data),
+    }));
 }
 
 export function listTrackerDataLookupNamesForOwner(
