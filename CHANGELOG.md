@@ -1,3 +1,6 @@
+## [2.2.4.16-exp54] - 2026-03-21
+### Fixed
+- Experimental auto-bootstrap now prioritizes missing AI greeting tracker messages before later AI turns, so fresh multi-character chats can backfill opening-state continuity instead of leaving later inactive aliases stuck on empty baseline cards.
 ## [2.2.4.16-exp53] - 2026-03-21
 ### Fixed
 - Experimental multi-character retrack now seeds owners from saved built-in tracker owners before stale ctiveCharacters, and AI-message rendering suppresses legacy visible user-label owner tokens so fake user cards stop leaking under AI replies.
@@ -1102,6 +1105,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

@@ -5,6 +5,7 @@ import {
   setManualInactiveCharacter,
 } from "./activity";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
+import { resolveAutoBootstrapTarget } from "./bootstrapTargets";
 import {
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
@@ -3837,49 +3838,44 @@ function refreshFromStoredData(): void {
   } else if (latestData && lastTrackableIndex == null) {
     scheduleRefresh(300);
   }
-  const latestTrackableHasTracker = Boolean(
-    lastTrackableIndex != null &&
-    lastTrackableIndex >= 0 &&
-    lastTrackableIndex < context.chat.length &&
-    getTrackerDataFromMessage(context.chat[lastTrackableIndex]),
-  );
-  const shouldBootstrapAiExtraction = Boolean(
-    settings.enabled &&
-    !isExtracting &&
-    !chatGenerationInFlight &&
-    !pendingLateRenderExtraction &&
-    lastTrackableIndex != null &&
-    lastTrackableIndex >= 0 &&
-    lastTrackableIndex < context.chat.length &&
-    isTrackableAiMessage(context.chat[lastTrackableIndex]) &&
-    !latestTrackableHasTracker &&
-    (latestDataMessageIndex == null || latestDataMessageIndex < lastTrackableIndex),
-  );
-  const hasPriorUserForBootstrap = lastTrackableIndex != null
-    ? hasTrackableUserMessageBeforeIndex(context, lastTrackableIndex)
-    : false;
-  const skipGreetingBootstrap = Boolean(
-    shouldBootstrapAiExtraction &&
-    settings.generateOnGreetingMessages === false &&
-    !hasPriorUserForBootstrap,
-  );
-  if (skipGreetingBootstrap && lastTrackableIndex != null) {
+  const bootstrapDecision = resolveAutoBootstrapTarget({
+    enabled: settings.enabled,
+    isExtracting,
+    chatGenerationInFlight,
+    pendingLateRenderExtraction,
+    latestTrackableIndex: lastTrackableIndex,
+    latestDataMessageIndex,
+    generateOnGreetingMessages: settings.generateOnGreetingMessages,
+    chatLength: context.chat.length,
+    isTrackableAiAt: index => (
+      index >= 0 &&
+      index < context.chat.length &&
+      isTrackableAiMessage(context.chat[index])
+    ),
+    hasTrackerAt: index => (
+      index >= 0 &&
+      index < context.chat.length &&
+      Boolean(getTrackerDataFromMessage(context.chat[index]))
+    ),
+    hasPriorTrackableUserAt: index => hasTrackableUserMessageBeforeIndex(context, index),
+  });
+  if (bootstrapDecision.skippedGreetingBootstrap && lastTrackableIndex != null) {
     pushTrace("extract.bootstrap.skip", {
       reason: "greeting_generation_disabled",
       targetMessageIndex: lastTrackableIndex,
     });
   }
-  if (shouldBootstrapAiExtraction && !skipGreetingBootstrap && lastTrackableIndex != null) {
-    const bootstrapKey = `${getDebugScopeKey(context)}|ai:${lastTrackableIndex}`;
+  if (bootstrapDecision.targetMessageIndex != null) {
+    const bootstrapKey = `${getDebugScopeKey(context)}|ai:${bootstrapDecision.targetMessageIndex}`;
     if (autoBootstrapExtractionKey !== bootstrapKey) {
       autoBootstrapExtractionKey = bootstrapKey;
       pushTrace("extract.bootstrap.schedule", {
-        reason: "missing_tracker_on_latest_ai",
-        targetMessageIndex: lastTrackableIndex,
+        reason: bootstrapDecision.reason,
+        targetMessageIndex: bootstrapDecision.targetMessageIndex,
       });
-      scheduleExtraction("AUTO_BOOTSTRAP_MISSING_TRACKER", lastTrackableIndex, 140);
+      scheduleExtraction("AUTO_BOOTSTRAP_MISSING_TRACKER", bootstrapDecision.targetMessageIndex, 140);
     }
-  } else if (latestTrackableHasTracker) {
+  } else {
     autoBootstrapExtractionKey = null;
   }
   if (trackerUiState.phase === "idle") {
