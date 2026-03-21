@@ -2487,8 +2487,8 @@ export function ensureStyles(): void {
   display: block;
   width: 5px;
   height: 9px;
-  border-right: 2px solid #0b1020;
-  border-bottom: 2px solid #0b1020;
+  border-right: 2px solid rgba(247, 250, 255, 0.96);
+  border-bottom: 2px solid rgba(247, 250, 255, 0.96);
   transform: translate(-0.5px, -1px) rotate(45deg) scale(0);
   transform-origin: center;
   opacity: 0;
@@ -2503,6 +2503,8 @@ export function ensureStyles(): void {
   outline-offset: 2px;
 }
 .bst-check input[type="checkbox"]:checked {
+  border-color: #78c9ff;
+  background: linear-gradient(180deg, #76c9ff, #2f87d7);
   border-color: color-mix(in srgb, var(--bst-accent) 66%, #d7edff 34%);
   background: linear-gradient(
     180deg,

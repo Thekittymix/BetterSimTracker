@@ -1,3 +1,10 @@
+## [2.2.4.16-exp36] - 2026-03-21
+### Changed
+- Injection Prompt settings now explain each built-in placeholder more explicitly, including which blocks are static, which block is runtime-dynamic, and that the outer injection wrapper is added automatically.
+
+### Fixed
+- Settings checkboxes now keep a visible checked state even when the browser does not support the `color-mix(...)` styling path used by newer browsers.
+
 ## [2.2.4.16-exp35] - 2026-03-21
 ### Added
 - Prompt Injection settings now include a live preview for the non-dynamic placeholder blocks, so template editing no longer requires guessing what the static placeholders expand to.

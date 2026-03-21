@@ -390,16 +390,16 @@ export function openSettingsModal(input: {
         <div class="bst-help-line bst-toggle-help"><code>Include Latest BST Summary Note In Prompt Injection</code> affects only hidden tracker prompt guidance and does not edit chat messages.</div>
         <div class="bst-section-divider" data-bst-row="injectPromptDivider">Injection Prompt</div>
         <div class="bst-injection-prompt" data-bst-row="injectPromptBlock">
-          <div class="bst-help-line">Shown only when Inject Tracker Into Prompt is enabled.</div>
-          <div class="bst-help-line">Placeholders you can use:</div>
+          <div class="bst-help-line">Used only when <code>Inject Tracker Into Prompt</code> is enabled.</div>
+          <div class="bst-help-line">Available template placeholders:</div>
           <ul class="bst-help-list">
-            <li><code>{{header}}</code> - privacy + usage rules block</li>
-            <li><code>{{statSemantics}}</code> - enabled stat meanings</li>
-            <li><code>{{behaviorBands}}</code> - low/medium/high behavior bands</li>
-            <li><code>{{reactRules}}</code> - how-to-react rules</li>
-            <li><code>{{priorityRules}}</code> - priority rules block</li>
-            <li><code>{{lines}}</code> - per-character state lines</li>
-            <li><code>{{summarizationNote}}</code> - optional latest tracker summary note (when enabled)</li>
+            <li><code>{{header}}</code> - hidden privacy/usage guidance text only. The outer <code>&lt;bst_inject_block&gt;...&lt;/bst_inject_block&gt;</code> wrapper is added automatically.</li>
+            <li><code>{{statSemantics}}</code> - enabled built-in stat meanings plus enabled custom-stat descriptions that are allowed into injection.</li>
+            <li><code>{{behaviorBands}}</code> - low/medium/high numeric behavior-band reference text.</li>
+            <li><code>{{reactRules}}</code> - built-in/custom behavior guidance lines for how replies should react to tracked state.</li>
+            <li><code>{{priorityRules}}</code> - static conflict-resolution and consistency rules for the hidden guidance block.</li>
+            <li><code>{{lines}}</code> - dynamic owner/state lines for the current scene/message. This is the only placeholder below that is not previewed statically.</li>
+            <li><code>{{summarizationNote}}</code> - optional latest BST summary note block when summary-note injection is enabled and a note exists.</li>
           </ul>
           <div class="bst-prompt-group bst-prompt-inline">
             <div class="bst-prompt-head">
@@ -409,8 +409,8 @@ export function openSettingsModal(input: {
             <div class="bst-prompt-body">
               <div class="bst-prompt-caption">Template (editable)</div>
               <textarea data-k="promptTemplateInjection" rows="8"></textarea>
-              <div class="bst-help-line">Preview below shows non-dynamic placeholder content only. <code>{{lines}}</code> stays scene/message-dependent.</div>
-              <div class="bst-prompt-caption">Placeholder Preview (live)</div>
+              <div class="bst-help-line">Static preview below shows the non-dynamic placeholder blocks only. <code>{{lines}}</code> remains scene/message-dependent and is generated at runtime.</div>
+              <div class="bst-prompt-caption">Static Placeholder Preview (live)</div>
               <div class="bst-prompt-preview-list" data-bst-row="injectPromptPreview">${renderInjectionPlaceholderPreviewHtml(input.settings)}</div>
             </div>
           </div>
