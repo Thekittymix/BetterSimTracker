@@ -1,6 +1,7 @@
 import { GLOBAL_TRACKER_KEY } from "./constants";
 import {
   listTrackerDataLookupNamesForOwnerWithEntityFallback,
+  resolveTrackerDataLookupValue,
 } from "./entityRegistry";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
@@ -17,15 +18,28 @@ export function hasCharacterOwnedTrackedValueForCharacter(
   context: STContext | null = null,
 ): boolean {
   const lookupNames = listTrackerDataLookupNamesForOwnerWithEntityFallback(context, data, characterName);
-  const hasOwnerValue = <T>(bucket: Record<string, T> | null | undefined): boolean =>
-    lookupNames.some(name => bucket?.[name] !== undefined);
+  const hasOwnerValue = <T>(input: {
+    byOwner: Record<string, T> | null | undefined;
+    byEntityId?: Record<string, T> | null | undefined;
+  }): boolean => {
+    if (resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: input.byOwner,
+      byEntityId: input.byEntityId,
+      ownerName: characterName,
+    }) !== undefined) {
+      return true;
+    }
+    return lookupNames.some(name => input.byOwner?.[name] !== undefined);
+  };
 
-  if (settingsInput.trackAffection && hasOwnerValue(data.statistics.affection)) return true;
-  if (settingsInput.trackTrust && hasOwnerValue(data.statistics.trust)) return true;
-  if (settingsInput.trackDesire && hasOwnerValue(data.statistics.desire)) return true;
-  if (settingsInput.trackConnection && hasOwnerValue(data.statistics.connection)) return true;
-  if (settingsInput.trackMood && hasOwnerValue(data.statistics.mood)) return true;
-  if (settingsInput.trackLastThought && hasOwnerValue(data.statistics.lastThought)) return true;
+  if (settingsInput.trackAffection && hasOwnerValue({ byOwner: data.statistics.affection, byEntityId: data.statisticsByEntityId?.affection })) return true;
+  if (settingsInput.trackTrust && hasOwnerValue({ byOwner: data.statistics.trust, byEntityId: data.statisticsByEntityId?.trust })) return true;
+  if (settingsInput.trackDesire && hasOwnerValue({ byOwner: data.statistics.desire, byEntityId: data.statisticsByEntityId?.desire })) return true;
+  if (settingsInput.trackConnection && hasOwnerValue({ byOwner: data.statistics.connection, byEntityId: data.statisticsByEntityId?.connection })) return true;
+  if (settingsInput.trackMood && hasOwnerValue({ byOwner: data.statistics.mood, byEntityId: data.statisticsByEntityId?.mood })) return true;
+  if (settingsInput.trackLastThought && hasOwnerValue({ byOwner: data.statistics.lastThought, byEntityId: data.statisticsByEntityId?.lastThought })) return true;
 
   const customDefs = Array.isArray(settingsInput.customStats) ? settingsInput.customStats : [];
   for (const def of customDefs) {
@@ -35,10 +49,10 @@ export function hasCharacterOwnedTrackedValueForCharacter(
     if (!statId) continue;
     const kind = def.kind ?? "numeric";
     if (kind === "numeric") {
-      if (hasOwnerValue(data.customStatistics?.[statId])) return true;
+      if (hasOwnerValue({ byOwner: data.customStatistics?.[statId], byEntityId: data.customStatisticsByEntityId?.[statId] })) return true;
       continue;
     }
-    if (hasOwnerValue(data.customNonNumericStatistics?.[statId])) return true;
+    if (hasOwnerValue({ byOwner: data.customNonNumericStatistics?.[statId], byEntityId: data.customNonNumericStatisticsByEntityId?.[statId] })) return true;
   }
 
   return false;

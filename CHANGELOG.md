@@ -1,3 +1,7 @@
+## [2.2.4.16-exp90] - 2026-03-22
+### Changed
+- Experimental multi-character extraction baseline relevance checks now resolve alias-backed built-in and custom owner values through tracker payload `entityOwnerMap` and persisted `byEntityId` state, reducing another owner-name-only continuity path during history selection.
+
 ## [2.2.4.16-exp89] - 2026-03-22
 ### Changed
 - Experimental multi-character prompt injection now prefers resolver-backed `messageEntityIds` / `messageOwners` before source-card fallback names when choosing the current target owner, reducing another source-card-name drift path.

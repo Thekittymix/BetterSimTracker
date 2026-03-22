@@ -160,3 +160,59 @@ test("hasCharacterOwnedTrackedValueForCharacter resolves alias-owned history thr
     true,
   );
 });
+
+test("hasCharacterOwnedTrackedValueForCharacter resolves alias-owned history through byEntityId buckets", () => {
+  const data = makeTracker(1, []);
+  data.customNonNumericStatistics = {
+    clothes: {},
+  };
+  data.customNonNumericStatisticsByEntityId = {
+    clothes: {
+      "bst_mc_alias:test:ashley": ["camp hoodie"],
+    },
+  };
+  data.entityOwnerMap = {
+    Ash: {
+      entityId: "bst_mc_alias:test:ashley",
+      ownerName: "Ashley",
+      canonicalName: "Ashley",
+      aliases: ["Ash"],
+      sourceKey: "|camp",
+      kind: "multi_character_alias",
+    },
+  };
+  const context = {
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "bst_mc_alias:test:ashley": {
+            id: "bst_mc_alias:test:ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            aliases: ["Ash"],
+            sourceName: "Camp",
+            sourceAvatar: null,
+            sourceKey: "|camp",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          ashley: "bst_mc_alias:test:ashley",
+          ash: "bst_mc_alias:test:ashley",
+        },
+      },
+    },
+  } as unknown as STContext;
+
+  assert.equal(
+    hasCharacterOwnedTrackedValueForCharacter(data, "Ash", makeSettings(), context),
+    true,
+  );
+});
