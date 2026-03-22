@@ -1,7 +1,7 @@
 import { DEFAULT_INJECTION_PROMPT_TEMPLATE } from "./prompts";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
-import { listEntityRegistryLookupNames, resolveTrackerSceneOwners } from "./entityRegistry";
+import { listTrackerDataLookupNamesForOwnerWithEntityFallback, resolveTrackerSceneOwners } from "./entityRegistry";
 import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
 import { buildMergedPromptMacroData } from "./runtimeState";
 import {
@@ -351,7 +351,9 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
     const lines = filteredScopedNames.map(name => {
       const isUser = name === USER_TRACKER_KEY;
       const displayName = isUser ? (String(context.name1 ?? "").trim() || "User") : name;
-      const ownerLookupNames = isUser ? [USER_TRACKER_KEY] : listEntityRegistryLookupNames(context, name);
+      const ownerLookupNames = isUser
+        ? [USER_TRACKER_KEY]
+        : listTrackerDataLookupNamesForOwnerWithEntityFallback(context, data, name);
       const parts: string[] = [];
       const ownerMatch = Boolean(targetOwnerKey) && normalizeOwnerName(name) === targetOwnerKey;
       for (const stat of enabledBuiltIns) {

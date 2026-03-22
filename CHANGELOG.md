@@ -1,3 +1,7 @@
+## [2.2.4.16-exp81] - 2026-03-22
+### Changed
+- Experimental multi-character injection prompt owner lookups now prefer tracker payload entityOwnerMap identity before falling back to registry-only alias resolution, reducing another owner-name drift path in injected continuity state.
+
 ## [2.2.4.16-exp80] - 2026-03-22
 ### Changed
 - Experimental multi-character extraction prompt state lookups now use tracker entityOwnerMap data when available, so prompt continuity follows persisted entityId mappings instead of falling back too early to raw owner-name spellings.
@@ -1198,6 +1202,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

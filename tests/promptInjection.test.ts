@@ -458,3 +458,97 @@ test("buildPrompt prefers resolved scene owners over request-only activeCharacte
   assert.match(prompt, /- Ashley: mood=Neutral/);
   assert.match(prompt, /- Blake: mood=Hopeful/);
 });
+
+test("buildPrompt resolves owner lines through tracker entityOwnerMap before raw owner-name lookup", () => {
+  const settings = makeSettings({
+    trackMood: true,
+    includeUserTrackerInInjection: false,
+    customStats: [
+      {
+        id: "clothes",
+        kind: "array",
+        label: "Clothes",
+        defaultValue: [],
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+  });
+  const data: TrackerData = {
+    timestamp: Date.now(),
+    activeCharacters: ["Ash"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Ash"],
+      messageOwners: ["Ash"],
+      sceneEntityIds: ["ent-ashley"],
+      messageEntityIds: ["ent-ashley"],
+    },
+    entityOwnerMap: {
+      Ash: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Hopeful" },
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: {
+        Ashley: ["worn hoodie"],
+      },
+    },
+  };
+  const context = makeContext({
+    name2: "Ash",
+    groupId: "group-1",
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-ashley": {
+            id: "ent-ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            aliases: ["Ash"],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 1,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 1, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          ashley: "ent-ashley",
+          ash: "ent-ashley",
+        },
+      },
+    } as any,
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Ashley: clothes=\["worn hoodie"\]; mood=Hopeful/);
+});
