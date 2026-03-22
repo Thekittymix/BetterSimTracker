@@ -1,3 +1,6 @@
+## [2.2.4.16-exp75] - 2026-03-22
+### Changed
+- Experimental multi-character tracker payload normalization now keeps `activeCharacters` aligned with resolver `sceneOwners` whenever a payload already carries explicit entity resolution, preventing another write-path fallback to stale owner arrays during message storage normalization.
 ## [2.2.4.16-exp74] - 2026-03-22
 ### Changed
 - Experimental multi-character `entityOwnerMap` enrichment now seeds owner identity from resolver `sceneOwners`/`messageOwners` before falling back to raw `activeCharacters`, preserving alias/entity mapping even when legacy owner arrays lag behind the resolver.

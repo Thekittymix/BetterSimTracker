@@ -308,18 +308,22 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
   const statisticsByEntityId = buildEntityScopedStatistics(remappedStatistics, targetToEntity);
   const customStatisticsByEntityId = buildEntityScopedCustomStatistics(remappedCustomStatistics, targetToEntity);
   const customNonNumericStatisticsByEntityId = buildEntityScopedCustomNonNumericStatistics(remappedCustomNonNumericStatistics, targetToEntity);
+  const remappedEntityResolution = data.entityResolution
+    ? {
+        sceneOwners: Array.from(new Set((data.entityResolution.sceneOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
+        messageOwners: Array.from(new Set((data.entityResolution.messageOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
+        sceneEntityIds: Array.from(new Set(data.entityResolution.sceneEntityIds ?? [])),
+        messageEntityIds: Array.from(new Set(data.entityResolution.messageEntityIds ?? [])),
+        source: data.entityResolution.source,
+      }
+    : undefined;
+  const remappedActiveCharacters = remappedEntityResolution?.sceneOwners?.length
+    ? remappedEntityResolution.sceneOwners
+    : Array.from(new Set((data.activeCharacters ?? []).map(owner => ownerToTarget[owner] || owner)));
   return {
     ...data,
-    activeCharacters: Array.from(new Set((data.activeCharacters ?? []).map(owner => ownerToTarget[owner] || owner))),
-    entityResolution: data.entityResolution
-      ? {
-          sceneOwners: Array.from(new Set((data.entityResolution.sceneOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
-          messageOwners: Array.from(new Set((data.entityResolution.messageOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
-          sceneEntityIds: Array.from(new Set(data.entityResolution.sceneEntityIds ?? [])),
-          messageEntityIds: Array.from(new Set(data.entityResolution.messageEntityIds ?? [])),
-          source: data.entityResolution.source,
-        }
-      : undefined,
+    activeCharacters: remappedActiveCharacters,
+    entityResolution: remappedEntityResolution,
     statistics: remappedStatistics,
     statisticsByEntityId,
     customStatistics: remappedCustomStatistics,

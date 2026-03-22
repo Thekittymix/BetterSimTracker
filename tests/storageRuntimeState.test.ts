@@ -255,6 +255,59 @@ test("getTrackerDataFromMessage preserves explicit entity resolution payload", (
   });
 });
 
+test("getTrackerDataFromMessage prefers resolver scene owners over stale activeCharacters during entity normalization", () => {
+  const tracker = makeTracker(1001, {
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      source: "model",
+    },
+    entityOwnerMap: {
+      Blake: {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+  });
+  const message = {
+    mes: "Reply",
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    is_user: false,
+    is_system: false,
+    swipe_id: 1,
+    extra: {
+      [EXTENSION_KEY]: {
+        "1": tracker,
+      },
+    },
+  };
+
+  const stored = getTrackerDataFromMessage(message);
+  assert.deepEqual(stored?.activeCharacters, ["Blake"]);
+  assert.deepEqual(stored?.entityResolution, {
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+    messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+    source: "model",
+  });
+});
+
 test("mergeStatisticsWithFallback and custom merges preserve previous missing values", () => {
   const mergedStats = mergeStatisticsWithFallback(
     {
