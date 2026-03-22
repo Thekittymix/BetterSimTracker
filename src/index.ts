@@ -33,6 +33,7 @@ import {
   resolveEntityRegistryLookupValue,
   resolveTrackerDataLookupValue,
   resolveTrackerEntityIdsForOwners,
+  resolveTrackerSceneOwners,
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
@@ -417,6 +418,7 @@ async function generateTrackerSummaryProse(input: {
   const userDisplayName = context.name1 ?? "User";
   const normalizeSummaryName = (name: string): string => (name === USER_TRACKER_KEY ? userDisplayName : name);
   const characters = collectSummaryCharacters(data).map(normalizeSummaryName);
+  const summaryActiveCharacters = resolveTrackerSceneOwners(context, data).map(normalizeSummaryName);
   const trackedDimensions: string[] = [];
   if (settings.trackAffection) trackedDimensions.push("warmth/care");
   if (settings.trackTrust) trackedDimensions.push("trust/safety");
@@ -435,7 +437,7 @@ async function generateTrackerSummaryProse(input: {
   const trackerStateLines = buildSummaryTrackerStateLines(context, data, settings, userDisplayName);
   const prompt = buildTrackerSummaryGenerationPrompt({
     userName: userDisplayName,
-    activeCharacters: (data.activeCharacters ?? []).map(normalizeSummaryName),
+    activeCharacters: summaryActiveCharacters,
     characters,
     contextText,
     trackerStateLines,

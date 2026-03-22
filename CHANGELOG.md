@@ -1,3 +1,7 @@
+## [2.2.4.16-exp92] - 2026-03-22
+### Changed
+- Experimental multi-character tracker summaries now prefer resolver-backed scene owners when assembling summary character lists and active-owner summary prompts, reducing another stale owner-name path in summary generation.
+
 ## [2.2.4.16-exp91] - 2026-03-22
 ### Changed
 - Experimental multi-character extractor prompt-state seeding now carries the current resolver `entityResolution` into `promptCurrentData`, so prompt builders do not fall back to stale previous owner-name resolution when a fresh resolver result already exists for the current AI message.

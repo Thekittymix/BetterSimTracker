@@ -122,10 +122,11 @@ function makeTracker(): TrackerData {
 
 test("buildSummaryTrackerStateLines resolves alias-backed numeric custom stats through byEntityId", () => {
   const output = buildSummaryTrackerStateLines(makeContext(), makeTracker(), makeSettings());
-  assert.match(output, /- Ash: mood=Hopeful, stress=82/);
+  assert.match(output, /- Ashley: mood=Hopeful, stress=82/);
 });
 
 test("buildFallbackSummaryProse resolves alias-backed numeric custom stats through byEntityId", () => {
   const output = buildFallbackSummaryProse(makeContext(), makeTracker(), makeSettings());
   assert.match(output, /Stress feels high/);
+  assert.match(output, /Ashley/);
 });

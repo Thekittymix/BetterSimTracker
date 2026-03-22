@@ -1,10 +1,18 @@
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
-import { resolveTrackerDataLookupValue } from "./entityRegistry";
+import { resolveTrackerDataLookupValue, resolveTrackerSceneOwners } from "./entityRegistry";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
-export function collectSummaryCharacters(data: TrackerData): string[] {
+export function collectSummaryCharacters(context: STContext | null, data: TrackerData): string[];
+export function collectSummaryCharacters(data: TrackerData): string[];
+export function collectSummaryCharacters(
+  contextOrData: STContext | null | TrackerData,
+  maybeData?: TrackerData,
+): string[] {
+  const context = maybeData ? (contextOrData as STContext | null) : null;
+  const data = maybeData ?? (contextOrData as TrackerData);
   const names = new Set<string>();
-  for (const name of data.activeCharacters ?? []) {
+  const preferredOwners = context ? resolveTrackerSceneOwners(context, data) : [];
+  for (const name of preferredOwners.length ? preferredOwners : (data.activeCharacters ?? [])) {
     if (typeof name === "string" && name.trim()) names.add(name.trim());
   }
   const addKeys = (map: Record<string, unknown> | undefined): void => {
@@ -60,7 +68,7 @@ export function buildSummaryTrackerStateLines(
     { key: "connection", label: "connection" },
   ];
 
-  const lines = collectSummaryCharacters(data).map(name => {
+  const lines = collectSummaryCharacters(context, data).map(name => {
     const displayName = name === USER_TRACKER_KEY ? userDisplayName : name;
     const parts: string[] = [];
     const mood = String(resolveTrackerDataLookupValue({
@@ -140,7 +148,7 @@ export function buildFallbackSummaryProse(
   data: TrackerData,
   currentSettings: BetterSimTrackerSettings,
 ): string {
-  const names = collectSummaryCharacters(data);
+  const names = collectSummaryCharacters(context, data);
   if (!names.length) {
     return "The current relationship state is quiet and there are no meaningful tracked shifts yet.";
   }
