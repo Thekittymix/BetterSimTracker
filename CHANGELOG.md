@@ -1,3 +1,7 @@
+## [2.2.4.16-exp83] - 2026-03-22
+### Changed
+- Experimental multi-character relevance/baseline presence checks now resolve alias-backed values through tracker payload `entityOwnerMap` and persisted `byEntityId` state instead of relying only on owner-name lookup lists, reducing more alias drift in extraction-time continuity selection.
+
 ## [2.2.4.16-exp82] - 2026-03-22
 ### Changed
 - Experimental multi-character runtime macros and `{{bst_image_state}}` now resolve alias-backed values through tracker payload `entityOwnerMap` and persisted `byEntityId` state before falling back to raw owner-name buckets, reducing more owner-name drift in macro/injection continuity reads.
@@ -1206,6 +1210,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 
