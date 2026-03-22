@@ -1,4 +1,5 @@
 import { getChatStateLatestTrackerData, getLatestTrackerDataWithIndex, getLocalLatestTrackerData, getMetadataLatestTrackerData, getRecentTrackerHistoryEntries, mergeTrackerDataChronologically } from "./storage";
+import { resolveTrackerOwnersForEntityIds } from "./entityRegistry";
 import { isTrackableMessage } from "./messageFilter";
 import type { STContext, TrackerData } from "./types";
 
@@ -49,9 +50,14 @@ export function buildMergedPromptMacroData(
     return preferred ? { ...preferred } : null;
   }
 
-  const preferredResolvedSceneOwners = Array.isArray(preferred?.entityResolution?.sceneOwners)
-    ? preferred.entityResolution.sceneOwners.map(name => String(name ?? "").trim()).filter(Boolean)
+  const preferredResolvedSceneOwnersFromEntityIds = Array.isArray(preferred?.entityResolution?.sceneEntityIds)
+    ? resolveTrackerOwnersForEntityIds(context, preferred.entityResolution.sceneEntityIds)
     : [];
+  const preferredResolvedSceneOwners = preferredResolvedSceneOwnersFromEntityIds.length
+    ? preferredResolvedSceneOwnersFromEntityIds
+    : (Array.isArray(preferred?.entityResolution?.sceneOwners)
+    ? preferred.entityResolution.sceneOwners.map(name => String(name ?? "").trim()).filter(Boolean)
+    : []);
   const preferredActiveCharacters = preferredResolvedSceneOwners.length
     ? preferredResolvedSceneOwners
     : (Array.isArray(preferred?.activeCharacters)

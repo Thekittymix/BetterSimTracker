@@ -5,6 +5,7 @@ import { USER_TRACKER_KEY } from "../src/constants";
 import { EXTENSION_KEY } from "../src/constants";
 import { isTrackableMessage } from "../src/messageFilter";
 import { buildMergedPromptMacroData, resolveLatestStoredTrackerData } from "../src/runtimeState";
+import { resolveTrackerEntityIdsForOwners, syncEntityRegistryFromRender } from "../src/entityRegistry";
 import {
   clearTrackerDataForCurrentChat,
   getRecentTrackerHistoryEntries,
@@ -758,6 +759,44 @@ test("buildMergedPromptMacroData prefers preferred resolver scene owners over st
     sceneEntityIds: ["ent-blake"],
     messageEntityIds: ["ent-blake"],
   });
+});
+
+test("buildMergedPromptMacroData prefers preferred resolver scene entity ids over stale preferred scene owners", () => {
+  const context = {
+    ...makeContext(),
+    groupId: "group-1",
+    characters: [
+      {
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        avatar: "camp.png",
+        description: "Camp card.",
+      },
+    ],
+  } as STContext;
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    owners: ["Ashley", "Blake"],
+    messageIndex: 2,
+    getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
+  });
+  const blakeEntityId = resolveTrackerEntityIdsForOwners(context, ["Blake"])[0];
+  assert.equal(typeof blakeEntityId, "string");
+  assert.ok(blakeEntityId);
+
+  const preferred = makeTracker(1100, {
+    activeCharacters: ["Garret", "Raleigh"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Garret", "Raleigh"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: [blakeEntityId],
+      messageEntityIds: [blakeEntityId],
+    },
+  });
+
+  const merged = buildMergedPromptMacroData(context, preferred);
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
 });
 
 test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () => {

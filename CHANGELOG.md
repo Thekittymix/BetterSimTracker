@@ -1,3 +1,7 @@
+## [2.2.4.16-exp87] - 2026-03-22
+### Changed
+- Experimental multi-character merged prompt/runtime state now prefers preferred resolver `sceneEntityIds` over stale preferred scene owner names, reducing another owner-name drift path in merged continuity reads.
+
 ## [2.2.4.16-exp86] - 2026-03-22
 ### Changed
 - Experimental multi-character model resolver now works on candidate entity refs and persists resolved `sceneEntityIds` / `messageEntityIds` directly from the resolver result, reducing another owner-name drift path between resolution and tracker write storage.
