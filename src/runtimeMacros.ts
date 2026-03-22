@@ -1,5 +1,5 @@
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
-import { getEntityRegistryEntryByOwnerName } from "./entityRegistry";
+import { getEntityRegistryEntryByOwnerName, resolveTrackerSceneOwners } from "./entityRegistry";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
 const BST_INJECTION_MACRO = "bst_injection";
@@ -198,6 +198,7 @@ function toImageFieldLabel(value: string): string {
 }
 
 function formatImageStateBlock(
+  context: STContext,
   data: TrackerData | null,
   settings: BetterSimTrackerSettings,
   allCharacterNames: string[],
@@ -208,7 +209,7 @@ function formatImageStateBlock(
   const imageStatDefs = buildImageMacroStatDefs(settings);
 
   const preferredSceneRoster = resolveMacroStatValue(data, settings, "characters_in_scene", BST_MACRO_STAT_SCOPE_SCENE);
-  const activeOwners = (data.activeCharacters ?? [])
+  const activeOwners = resolveTrackerSceneOwners(context as STContext, data)
     .map(name => String(name ?? "").trim())
     .filter(name => name && name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY);
   const fallbackOwners = allCharacterNames
@@ -494,7 +495,7 @@ export function syncBstMacros(input: {
     context,
     BST_IMAGE_STATE_MACRO,
     "BetterSimTracker compact scene/user/character state block for image-generation prompts.",
-    () => formatImageStateBlock(getLatestPromptMacroData(), settings, allCharacterNames, characterTargets, currentCharacterTarget),
+    () => formatImageStateBlock(context, getLatestPromptMacroData(), settings, allCharacterNames, characterTargets, currentCharacterTarget),
   );
 
   const statIds = [

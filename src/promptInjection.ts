@@ -1,7 +1,7 @@
 import { DEFAULT_INJECTION_PROMPT_TEMPLATE } from "./prompts";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
-import { listEntityRegistryLookupNames } from "./entityRegistry";
+import { listEntityRegistryLookupNames, resolveTrackerSceneOwners } from "./entityRegistry";
 import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
 import { buildMergedPromptMacroData } from "./runtimeState";
 import {
@@ -152,6 +152,7 @@ function isOwnerStatEnabled(
 }
 
 function resolveInjectionTargetOwner(context: STContext, data: TrackerData): string | null {
+  const sceneOwners = resolveTrackerSceneOwners(context, data);
   const userName = String(context.name1 ?? "").trim();
   const userAliases = new Set(
     [userName, USER_TRACKER_KEY, "user"]
@@ -180,8 +181,8 @@ function resolveInjectionTargetOwner(context: STContext, data: TrackerData): str
     }
   }
 
-  if (data.activeCharacters.length === 1) {
-    candidates.push(String(data.activeCharacters[0] ?? "").trim());
+  if (sceneOwners.length === 1) {
+    candidates.push(String(sceneOwners[0] ?? "").trim());
   }
 
   let hasUserCandidate = false;
@@ -267,7 +268,7 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
   const buildWithCustom = (customStatCount: number, verbosity: InjectionVerbosityMode): string => {
     const enabledCustom = allEnabledCustom.slice(0, customStatCount);
     const allowUserInjection = Boolean(settings.includeUserTrackerInInjection && settings.enableUserTracking);
-    const names = [...data.activeCharacters];
+    const names = [...resolveTrackerSceneOwners(context, data)];
     if (targetOwner && targetOwner !== USER_TRACKER_KEY && !names.includes(targetOwner)) {
       names.push(targetOwner);
     }

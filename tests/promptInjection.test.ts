@@ -422,3 +422,39 @@ test("buildPrompt resolves alias owner lines through registry-backed lookup name
   const prompt = __testables.buildPrompt(data, settings, context);
   assert.match(prompt, /- Ash: clothes=\["worn hoodie"\]; mood=Hopeful/);
 });
+
+test("buildPrompt prefers resolved scene owners over request-only activeCharacters", () => {
+  const settings = makeSettings({
+    trackMood: true,
+    includeUserTrackerInInjection: false,
+    enableUserTracking: false,
+  });
+  const data = makeTracker({
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: [],
+      messageEntityIds: [],
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Neutral", Blake: "Hopeful" },
+      lastThought: {},
+    },
+  });
+  const context = makeContext({
+    name2: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    groupId: "group-1",
+    characterId: 0,
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Ashley: mood=Neutral/);
+  assert.match(prompt, /- Blake: mood=Hopeful/);
+});

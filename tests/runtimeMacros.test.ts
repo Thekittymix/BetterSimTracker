@@ -277,6 +277,49 @@ test("syncBstMacros exposes compact bst_image_state using configured owner-scope
   assert.equal(block.includes("scene date/time"), false);
 });
 
+test("syncBstMacros uses resolved scene owners for bst_image_state instead of request-only activeCharacters", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+  tracker.activeCharacters = ["Blake"];
+  tracker.entityResolution = {
+    source: "model",
+    sceneOwners: ["Ashley", "Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: [],
+    messageEntityIds: [],
+  };
+  tracker.customNonNumericStatistics = {
+    ...tracker.customNonNumericStatistics,
+    clothes: {
+      Ashley: ["worn hoodie"],
+      Blake: ["oversized baggy dark emo goth clothes"],
+      [USER_TRACKER_KEY]: ["hoodie"],
+    },
+    pose: {
+      Ashley: "fidgeting near the door",
+      Blake: "leaning against the filing cabinet",
+      [USER_TRACKER_KEY]: "standing nearby",
+    },
+    physicality: {
+      Ashley: "bushy brown braided pigtails, hazel eyes",
+      Blake: "black mullet, heavy charcoal eyeliner",
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Ashley", "Blake", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
+  assert.match(block, /^Scene: Ashley, Blake/m);
+  assert.match(block, /^Ashley: clothes=worn hoodie; pose=fidgeting near the door; physicality=bushy brown braided pigtails, hazel eyes/m);
+  assert.match(block, /^Blake: clothes=oversized baggy dark emo goth clothes; pose=leaning against the filing cabinet; physicality=black mullet, heavy charcoal eyeliner/m);
+});
+
 test("syncBstMacros falls back to legacy registration only when new engine is unavailable", () => {
   const { context, registered, registeredNewEngine } = makeContext({ includeNewEngine: false });
   syncBstMacros({
