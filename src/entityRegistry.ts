@@ -434,6 +434,8 @@ function collectTrackerDataOwnerNames(data: TrackerData): string[] {
     seen.add(key);
     names.push(value);
   };
+  for (const name of data.entityResolution?.sceneOwners ?? []) push(name);
+  for (const name of data.entityResolution?.messageOwners ?? []) push(name);
   for (const name of data.activeCharacters ?? []) push(name);
   for (const bucket of Object.values(data.statistics ?? {})) {
     for (const owner of Object.keys(bucket ?? {})) push(owner);

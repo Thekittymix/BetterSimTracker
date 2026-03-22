@@ -1,3 +1,6 @@
+## [2.2.4.16-exp74] - 2026-03-22
+### Changed
+- Experimental multi-character `entityOwnerMap` enrichment now seeds owner identity from resolver `sceneOwners`/`messageOwners` before falling back to raw `activeCharacters`, preserving alias/entity mapping even when legacy owner arrays lag behind the resolver.
 ## [2.2.4.16-exp73] - 2026-03-22
 ### Changed
 - Experimental multi-character chronological tracker merges now treat resolver `sceneOwners` as the preferred source for merged active-owner state whenever a snapshot already carries explicit entity resolution, removing another stale fallback to raw `activeCharacters`.
