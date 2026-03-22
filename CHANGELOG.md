@@ -1,3 +1,7 @@
+## [2.2.4.16-exp69] - 2026-03-22
+### Changed
+- Experimental multi-character baseline/relevance history checks now reuse the same owner-plus-`entityId` lookup contract as the newer graph/UI reads, reducing another source of continuity drift from duplicated lookup logic.
+
 ## [2.2.4.16-exp68] - 2026-03-22
 ### Changed
 - Experimental multi-character graph/history summaries now resolve alias continuity through persisted `entityId` lookup names as well as owner names, reducing more owner-name drift in registry-backed historical reads.
