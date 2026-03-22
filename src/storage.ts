@@ -1079,6 +1079,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
   let mergedClearedStatistics: ClearedStatistics | null = null;
   let mergedClearedCustomStatistics: ClearedCustomStatistics | null = null;
   let mergedClearedCustomNonNumericStatistics: ClearedCustomNonNumericStatistics | null = null;
+  let mergedEntityResolution: TrackerData["entityResolution"];
   let mergedTimestamp = 0;
   let fallbackActiveCharacters: string[] = [];
 
@@ -1105,11 +1106,21 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     if (Array.isArray(entry.activeCharacters) && entry.activeCharacters.length) {
       fallbackActiveCharacters = entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean);
     }
+    if (entry.entityResolution) {
+      mergedEntityResolution = {
+        source: entry.entityResolution.source,
+        sceneOwners: [...(entry.entityResolution.sceneOwners ?? [])],
+        messageOwners: [...(entry.entityResolution.messageOwners ?? [])],
+        sceneEntityIds: [...(entry.entityResolution.sceneEntityIds ?? [])],
+        messageEntityIds: [...(entry.entityResolution.messageEntityIds ?? [])],
+      };
+    }
   }
 
   return {
     timestamp: mergedTimestamp || Date.now(),
     activeCharacters: fallbackActiveCharacters,
+    entityResolution: mergedEntityResolution,
     statistics: mergedStatistics ?? createEmptyStatistics(),
     customStatistics: mergedCustomStatistics ?? {},
     customNonNumericStatistics: mergedCustomNonNumericStatistics ?? {},

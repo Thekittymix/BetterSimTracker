@@ -1,3 +1,6 @@
+## [2.2.4.16-exp71] - 2026-03-22
+### Changed
+- Experimental multi-character merged prompt/runtime snapshots now preserve the latest resolver `entityResolution` payload instead of dropping back to owner-name-only continuity during chronological merge.
 ## [2.2.4.16-exp70] - 2026-03-22
 ### Changed
 - Experimental multi-character injection prompt state and `{{bst_image_state}}` now prefer entity-aware resolved scene owners over request-only `activeCharacters`, reducing more downstream owner-name drift after resolver-first extraction.
@@ -1168,6 +1171,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

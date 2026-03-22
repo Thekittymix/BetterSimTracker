@@ -578,6 +578,74 @@ test("mergeTrackerDataChronologically canonicalizes alias-owner buckets by entit
   assert.deepEqual(merged?.entityOwnerMap?.Ashley.aliases, ["Ash"]);
 });
 
+test("mergeTrackerDataChronologically preserves the latest entityResolution payload", () => {
+  const older = makeTracker(1000, {
+    activeCharacters: ["Ashley", "Blake"],
+    entityResolution: {
+      source: "fallback",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Ashley", "Blake"],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: ["ent-ashley", "ent-blake"],
+    },
+  });
+  const newer = makeTracker(1100, {
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: ["ent-blake"],
+    },
+  });
+
+  const merged = mergeTrackerDataChronologically([older, newer]);
+  assert.deepEqual(merged?.entityResolution, {
+    source: "model",
+    sceneOwners: ["Ashley", "Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["ent-ashley", "ent-blake"],
+    messageEntityIds: ["ent-blake"],
+  });
+});
+
+test("buildMergedPromptMacroData preserves the latest entityResolution for merged prompt/runtime reads", () => {
+  const context = makeContext();
+  const older = makeTracker(1000, {
+    activeCharacters: ["Ashley", "Blake"],
+    entityResolution: {
+      source: "fallback",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Ashley", "Blake"],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: ["ent-ashley", "ent-blake"],
+    },
+  });
+  const newer = makeTracker(1100, {
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: ["ent-blake"],
+    },
+  });
+
+  writeTrackerDataToMessage(context, older, 0);
+  writeTrackerDataToMessage(context, newer, 2);
+
+  const merged = buildMergedPromptMacroData(context, newer);
+  assert.deepEqual(merged?.entityResolution, {
+    source: "model",
+    sceneOwners: ["Ashley", "Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["ent-ashley", "ent-blake"],
+    messageEntityIds: ["ent-blake"],
+  });
+});
+
 test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () => {
   const context = makeContext();
   const chatStateTracker = makeTracker(1000);
