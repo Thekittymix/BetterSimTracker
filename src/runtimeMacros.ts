@@ -1,5 +1,9 @@
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
-import { getEntityRegistryEntryByOwnerName, resolveTrackerSceneOwners } from "./entityRegistry";
+import {
+  getEntityRegistryEntryByOwnerName,
+  resolveTrackerDataLookupValue,
+  resolveTrackerSceneOwners,
+} from "./entityRegistry";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
 const BST_INJECTION_MACRO = "bst_injection";
@@ -208,7 +212,7 @@ function formatImageStateBlock(
   if (!data) return "";
   const imageStatDefs = buildImageMacroStatDefs(settings);
 
-  const preferredSceneRoster = resolveMacroStatValue(data, settings, "characters_in_scene", BST_MACRO_STAT_SCOPE_SCENE);
+  const preferredSceneRoster = resolveMacroStatValue(context, data, settings, "characters_in_scene", BST_MACRO_STAT_SCOPE_SCENE);
   const activeOwners = resolveTrackerSceneOwners(context as STContext, data)
     .map(name => String(name ?? "").trim())
     .filter(name => name && name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY);
@@ -241,7 +245,7 @@ function formatImageStateBlock(
 
   const userEntries = imageStatDefs
     .filter(def => def.includeForUser)
-    .map(def => [toImageFieldLabel(def.label), resolveMacroStatValue(data, settings, def.id, BST_MACRO_STAT_SCOPE_USER)] as const)
+    .map(def => [toImageFieldLabel(def.label), resolveMacroStatValue(context, data, settings, def.id, BST_MACRO_STAT_SCOPE_USER)] as const)
     .filter(([, value]) => value);
   if (userEntries.length) {
     lines.push(`User: ${userEntries.map(([label, value]) => `${label}=${value}`).join("; ")}`);
@@ -250,7 +254,7 @@ function formatImageStateBlock(
   for (const owner of uniqueOwners) {
     const ownerEntries = imageStatDefs
       .filter(def => def.includeForCharacter)
-      .map(def => [toImageFieldLabel(def.label), resolveMacroStatValue(data, settings, def.id, "char_target", owner)] as const)
+      .map(def => [toImageFieldLabel(def.label), resolveMacroStatValue(context, data, settings, def.id, "char_target", owner)] as const)
       .filter(([, value]) => value);
     if (!ownerEntries.length) continue;
     lines.push(`${owner}: ${ownerEntries.map(([label, value]) => `${label}=${value}`).join("; ")}`);
@@ -260,6 +264,7 @@ function formatImageStateBlock(
 }
 
 function resolveMacroStatValue(
+  context: STContext,
   data: TrackerData | null,
   currentSettings: BetterSimTrackerSettings | null,
   statId: string,
@@ -279,25 +284,49 @@ function resolveMacroStatValue(
   if (normalized === "affection" || normalized === "trust" || normalized === "desire" || normalized === "connection") {
     if (owner === GLOBAL_TRACKER_KEY) return "";
     const bucket = data.statistics[normalized];
-    const value = Number(bucket?.[owner]);
+    const value = Number(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: bucket,
+      byEntityId: data.statisticsByEntityId?.[normalized],
+      ownerName: owner,
+    }));
     if (Number.isNaN(value)) return "";
     return String(Math.max(0, Math.min(100, Math.round(value))));
   }
 
   if (normalized === "mood") {
     if (owner === GLOBAL_TRACKER_KEY) return "";
-    return String(data.statistics.mood?.[owner] ?? "").trim();
+    return String(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.mood,
+      byEntityId: data.statisticsByEntityId?.mood,
+      ownerName: owner,
+    }) ?? "").trim();
   }
   if (normalized === "lastthought" || normalized === "last_thought") {
     if (owner === GLOBAL_TRACKER_KEY) return "";
-    return String(data.statistics.lastThought?.[owner] ?? "").trim();
+    return String(resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: data.statistics.lastThought,
+      byEntityId: data.statisticsByEntityId?.lastThought,
+      ownerName: owner,
+    }) ?? "").trim();
   }
   if (!customDef) return "";
 
   if ((customDef.kind ?? "numeric") === "numeric") {
     const bucket = data.customStatistics?.[normalized];
     if (!bucket) return "";
-    let raw = bucket[owner];
+    let raw = resolveTrackerDataLookupValue({
+      context,
+      data,
+      byOwner: bucket,
+      byEntityId: data.customStatisticsByEntityId?.[normalized],
+      ownerName: owner,
+    });
     if (raw === undefined && owner !== GLOBAL_TRACKER_KEY && customDef.globalScope) {
       raw = bucket[GLOBAL_TRACKER_KEY];
     }
@@ -308,7 +337,13 @@ function resolveMacroStatValue(
 
   const bucket = data.customNonNumericStatistics?.[normalized];
   if (!bucket) return "";
-  let raw: unknown = bucket[owner];
+  let raw: unknown = resolveTrackerDataLookupValue({
+    context,
+    data,
+    byOwner: bucket,
+    byEntityId: data.customNonNumericStatisticsByEntityId?.[normalized],
+    ownerName: owner,
+  });
   if (raw === undefined && owner !== GLOBAL_TRACKER_KEY && customDef.globalScope) {
     raw = bucket[GLOBAL_TRACKER_KEY];
   }
@@ -544,7 +579,7 @@ export function syncBstMacros(input: {
         context,
         macroName,
         `BetterSimTracker stat macro for "${statId}" (${BST_MACRO_STAT_SCOPE_USER} scope).`,
-        () => resolveMacroStatValue(getLatestPromptMacroData(), settings, statId, BST_MACRO_STAT_SCOPE_USER),
+        () => resolveMacroStatValue(context, getLatestPromptMacroData(), settings, statId, BST_MACRO_STAT_SCOPE_USER),
       );
     }
     if (allowsScene) {
@@ -553,7 +588,7 @@ export function syncBstMacros(input: {
         context,
         macroName,
         `BetterSimTracker stat macro for "${statId}" (${BST_MACRO_STAT_SCOPE_SCENE} scope).`,
-        () => resolveMacroStatValue(getLatestPromptMacroData(), settings, statId, BST_MACRO_STAT_SCOPE_SCENE),
+        () => resolveMacroStatValue(context, getLatestPromptMacroData(), settings, statId, BST_MACRO_STAT_SCOPE_SCENE),
       );
     }
     if (allowsCharacter) {
@@ -562,7 +597,7 @@ export function syncBstMacros(input: {
           context,
           `bst_stat_char_${segment}`,
           `BetterSimTracker stat macro for "${statId}" (current chat character).`,
-          () => resolveMacroStatValue(getLatestPromptMacroData(), settings, statId, "char_target", currentCharacterTarget.ownerName),
+          () => resolveMacroStatValue(context, getLatestPromptMacroData(), settings, statId, "char_target", currentCharacterTarget.ownerName),
         );
       }
       for (const target of characterTargets) {
@@ -570,14 +605,14 @@ export function syncBstMacros(input: {
           context,
           `bst_stat_char_${segment}_${target.macroSlug}`,
           `BetterSimTracker stat macro for "${statId}" (character "${target.displayName}").`,
-          () => resolveMacroStatValue(getLatestPromptMacroData(), settings, statId, "char_target", target.ownerName),
+          () => resolveMacroStatValue(context, getLatestPromptMacroData(), settings, statId, "char_target", target.ownerName),
         );
         if (target.legacyNameSlug) {
           registerBstMacro(
             context,
             `bst_stat_char_${segment}_${target.legacyNameSlug}`,
             `BetterSimTracker legacy stat macro alias for "${statId}" (character "${target.displayName}").`,
-            () => resolveMacroStatValue(getLatestPromptMacroData(), settings, statId, "char_target", target.ownerName),
+            () => resolveMacroStatValue(context, getLatestPromptMacroData(), settings, statId, "char_target", target.ownerName),
           );
         }
       }

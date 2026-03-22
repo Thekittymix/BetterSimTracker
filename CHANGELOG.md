@@ -1,6 +1,10 @@
+## [2.2.4.16-exp82] - 2026-03-22
+### Changed
+- Experimental multi-character runtime macros and `{{bst_image_state}}` now resolve alias-backed values through tracker payload `entityOwnerMap` and persisted `byEntityId` state before falling back to raw owner-name buckets, reducing more owner-name drift in macro/injection continuity reads.
+
 ## [2.2.4.16-exp81] - 2026-03-22
 ### Changed
-- Experimental multi-character injection prompt owner lookups now prefer tracker payload entityOwnerMap identity before falling back to registry-only alias resolution, reducing another owner-name drift path in injected continuity state.
+- Experimental multi-character injection prompt owner lookups now prefer tracker payload `entityOwnerMap` identity before falling back to registry-only alias resolution, reducing another owner-name drift path in injected continuity state.
 
 ## [2.2.4.16-exp80] - 2026-03-22
 ### Changed
@@ -1202,6 +1206,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 
