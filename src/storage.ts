@@ -1103,9 +1103,6 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
       mergedClearedCustomNonNumericStatistics,
     );
     mergedTimestamp = Math.max(mergedTimestamp, Number(entry.timestamp ?? 0));
-    if (Array.isArray(entry.activeCharacters) && entry.activeCharacters.length) {
-      fallbackActiveCharacters = entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean);
-    }
     if (entry.entityResolution) {
       mergedEntityResolution = {
         source: entry.entityResolution.source,
@@ -1114,6 +1111,12 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
         sceneEntityIds: [...(entry.entityResolution.sceneEntityIds ?? [])],
         messageEntityIds: [...(entry.entityResolution.messageEntityIds ?? [])],
       };
+      const sceneOwners = (entry.entityResolution.sceneOwners ?? []).map(name => String(name ?? "").trim()).filter(Boolean);
+      if (sceneOwners.length) {
+        fallbackActiveCharacters = sceneOwners;
+      }
+    } else if (Array.isArray(entry.activeCharacters) && entry.activeCharacters.length) {
+      fallbackActiveCharacters = entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean);
     }
   }
 

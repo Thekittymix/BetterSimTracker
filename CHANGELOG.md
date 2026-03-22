@@ -1,3 +1,6 @@
+## [2.2.4.16-exp73] - 2026-03-22
+### Changed
+- Experimental multi-character chronological tracker merges now treat resolver `sceneOwners` as the preferred source for merged active-owner state whenever a snapshot already carries explicit entity resolution, removing another stale fallback to raw `activeCharacters`.
 ## [2.2.4.16-exp72] - 2026-03-22
 ### Changed
 - Experimental multi-character merged prompt/runtime snapshots now prefer resolver-derived `sceneOwners` from the preferred tracker snapshot before falling back to raw `activeCharacters`, removing another read-path regression back to the old owner-array model.

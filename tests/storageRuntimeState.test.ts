@@ -608,6 +608,31 @@ test("mergeTrackerDataChronologically preserves the latest entityResolution payl
     sceneEntityIds: ["ent-ashley", "ent-blake"],
     messageEntityIds: ["ent-blake"],
   });
+  assert.deepEqual(merged?.activeCharacters, ["Ashley", "Blake"]);
+});
+
+test("mergeTrackerDataChronologically prefers resolver scene owners over stale activeCharacters", () => {
+  const merged = mergeTrackerDataChronologically([
+    makeTracker(1000, {
+      activeCharacters: ["Garret", "Raleigh"],
+      entityResolution: {
+        source: "model",
+        sceneOwners: ["Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-blake"],
+        messageEntityIds: ["ent-blake"],
+      },
+    }),
+  ]);
+
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
+  assert.deepEqual(merged?.entityResolution, {
+    source: "model",
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["ent-blake"],
+    messageEntityIds: ["ent-blake"],
+  });
 });
 
 test("buildMergedPromptMacroData preserves the latest entityResolution for merged prompt/runtime reads", () => {
