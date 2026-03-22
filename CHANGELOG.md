@@ -1,3 +1,6 @@
+## [2.2.4.16-exp78] - 2026-03-22
+### Changed
+- Experimental multi-character render lookups now resolve registry entries through persisted tracker `entityId` references before falling back to owner-name matches, reducing more alias drift in card continuity and lifecycle reads.
 ## [2.2.4.16-exp77] - 2026-03-22
 ### Changed
 - Experimental multi-character entityOwnerMap collection now ignores stale raw ctiveCharacters whenever explicit resolver sceneOwners or messageOwners are already present, preventing another alias-owner fallback leak back into registry-backed owner maps.

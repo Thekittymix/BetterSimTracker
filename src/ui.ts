@@ -761,6 +761,23 @@ export function resolveRegistryLookupNamesForOwner(
   return names;
 }
 
+export function resolveRegistryEntryForOwnerInMessageData(input: {
+  ownerName: string;
+  messageIndex: number;
+  data?: TrackerData | null;
+  resolveRegistryEntryForMessage?: (ownerName: string, messageIndex: number) => TrackerEntityRegistryEntry | null;
+  resolveRegistryEntryByEntityIdForMessage?: (entityId: string, messageIndex: number) => TrackerEntityRegistryEntry | null;
+}): TrackerEntityRegistryEntry | null {
+  const ownerName = String(input.ownerName ?? "").trim();
+  if (!ownerName) return null;
+  const targetEntityId = String(input.data?.entityOwnerMap?.[ownerName]?.entityId ?? "").trim();
+  if (targetEntityId) {
+    const byEntityId = input.resolveRegistryEntryByEntityIdForMessage?.(targetEntityId, input.messageIndex) ?? null;
+    if (byEntityId) return byEntityId;
+  }
+  return input.resolveRegistryEntryForMessage?.(ownerName, input.messageIndex) ?? null;
+}
+
 export function buildDisplayPoolWithRegistry(input: {
   entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
   includeAllTargets: boolean;
@@ -4669,8 +4686,15 @@ export function renderTracker(
       names.push(value);
     };
     push(ownerName);
+    const resolvedRegistryEntry = resolveRegistryEntryForOwnerInMessageData({
+      ownerName,
+      messageIndex,
+      data,
+      resolveRegistryEntryForMessage,
+      resolveRegistryEntryByEntityIdForMessage,
+    });
     const targetEntityId = data?.entityOwnerMap?.[ownerName]?.entityId
-      ?? resolveRegistryEntryForMessage?.(ownerName, messageIndex)?.id
+      ?? resolvedRegistryEntry?.id
       ?? null;
     const registryEntryForEntityId = targetEntityId
       ? resolveRegistryEntryByEntityIdForMessage?.(targetEntityId, messageIndex) ?? null
@@ -4686,7 +4710,7 @@ export function renderTracker(
     }
     for (const lookupName of resolveRegistryLookupNamesForOwner(
       ownerName,
-      registryEntryForEntityId ?? resolveRegistryEntryForMessage?.(ownerName, messageIndex) ?? null,
+      registryEntryForEntityId ?? resolvedRegistryEntry,
     )) {
       push(lookupName);
     }
@@ -5439,14 +5463,26 @@ export function renderTracker(
       ? scopedDisplayPool
       : scopedDisplayPool.filter(name => shouldKeepOwnerInRenderTargetPool({
         ownerName: name,
-        hasAnyStat: hasAnyStatFor(name, resolveRegistryEntryForMessage?.(name, entry.messageIndex) ?? null),
+        hasAnyStat: hasAnyStatFor(name, resolveRegistryEntryForOwnerInMessageData({
+          ownerName: name,
+          messageIndex: entry.messageIndex,
+          data,
+          resolveRegistryEntryForMessage,
+          resolveRegistryEntryByEntityIdForMessage,
+        })),
         isActive: activeSet.has(normalizeName(name)),
         registryOwners: registryOwnerSet,
       }));
     const uniqueTargets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)));
     const getLifecycleState = (name: string) => resolveCardLifecycleState({
       ownerName: name,
-      entityId: resolveRegistryEntryForMessage?.(name, entry.messageIndex)?.id ?? null,
+      entityId: resolveRegistryEntryForOwnerInMessageData({
+        ownerName: name,
+        messageIndex: entry.messageIndex,
+        data,
+        resolveRegistryEntryForMessage,
+        resolveRegistryEntryByEntityIdForMessage,
+      })?.id ?? null,
       currentMessageIndex: entry.messageIndex,
       currentActiveCharacters: resolvedSceneOwners,
       currentActiveEntityIds: resolvedSceneEntityIds,
@@ -5499,7 +5535,13 @@ export function renderTracker(
       if (!isActive && !settings.showInactive) continue;
       const displayName = resolveDisplayName?.(name)
         ?? (name === USER_TRACKER_KEY ? "User" : name);
-      const registryEntry = resolveRegistryEntryForMessage?.(name, entry.messageIndex) ?? null;
+      const registryEntry = resolveRegistryEntryForOwnerInMessageData({
+        ownerName: name,
+        messageIndex: entry.messageIndex,
+        data,
+        resolveRegistryEntryForMessage,
+        resolveRegistryEntryByEntityIdForMessage,
+      });
       const ownerUiKey = resolveOwnerUiKey(name, registryEntry);
       const isUserCard = isRenderedUserOwner(name);
       const moodLookupName = isUserCard ? displayName : name;

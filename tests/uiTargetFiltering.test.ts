@@ -10,6 +10,7 @@ import {
   mergeRegistryOwnersIntoTargets,
   applyTrackerCardCollapsed,
   resolveRegistryLookupNamesForOwner,
+  resolveRegistryEntryForOwnerInMessageData,
   resolveRegistryOwnersFromEntries,
   resolveTrackerCardCollapsed,
   resolveOwnerUiKey,
@@ -105,6 +106,37 @@ test("resolveRegistryLookupNamesForOwner includes entity aliases without falling
   );
 
   assert.deepEqual(names, ["Ashley", "Ash"]);
+});
+
+test("resolveRegistryEntryForOwnerInMessageData prefers tracker data entity ids over stale owner-name registry matches", () => {
+  const resolved = resolveRegistryEntryForOwnerInMessageData({
+    ownerName: "Ash",
+    messageIndex: 2,
+    data: {
+      activeCharacters: ["Ash"],
+      entityOwnerMap: {
+        Ash: {
+          entityId: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceKey: "camp",
+          kind: "multi_character_alias",
+        },
+      },
+    } as never,
+    resolveRegistryEntryForMessage: ownerName =>
+      ownerName === "Ash"
+        ? ({ id: "ent-stale", ownerName: "Ash", canonicalName: "Ash", aliases: [], kind: "multi_character_alias" } as never)
+        : null,
+    resolveRegistryEntryByEntityIdForMessage: entityId =>
+      entityId === "ent-ashley"
+        ? ({ id: "ent-ashley", ownerName: "Ashley", canonicalName: "Ashley", aliases: ["Ash"], kind: "multi_character_alias" } as never)
+        : null,
+  });
+
+  assert.equal(resolved?.id, "ent-ashley");
+  assert.equal(resolved?.ownerName, "Ashley");
 });
 
 test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
