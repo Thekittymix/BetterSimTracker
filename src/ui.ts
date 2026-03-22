@@ -778,6 +778,23 @@ export function resolveRegistryEntryForOwnerInMessageData(input: {
   return input.resolveRegistryEntryForMessage?.(ownerName, input.messageIndex) ?? null;
 }
 
+export function resolveLifecycleRegistryStateForOwnerInMessageData(input: {
+  ownerName: string;
+  messageIndex: number;
+  data?: TrackerData | null;
+  resolveLifecycleRegistryState?: (ownerName: string, messageIndex: number) => CardLifecycleRegistryState | null;
+  resolveLifecycleRegistryStateByEntityId?: (entityId: string, messageIndex: number) => CardLifecycleRegistryState | null;
+}): CardLifecycleRegistryState | null {
+  const ownerName = String(input.ownerName ?? "").trim();
+  if (!ownerName) return null;
+  const targetEntityId = String(input.data?.entityOwnerMap?.[ownerName]?.entityId ?? "").trim();
+  if (targetEntityId) {
+    const byEntityId = input.resolveLifecycleRegistryStateByEntityId?.(targetEntityId, input.messageIndex) ?? null;
+    if (byEntityId) return byEntityId;
+  }
+  return input.resolveLifecycleRegistryState?.(ownerName, input.messageIndex) ?? null;
+}
+
 export function buildDisplayPoolWithRegistry(input: {
   entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
   includeAllTargets: boolean;
@@ -4622,6 +4639,7 @@ export function renderTracker(
   isTrackerEnabled?: (characterName: string) => boolean,
   isOwnerStatEnabled?: (characterName: string, statId: string) => boolean,
   resolveLifecycleRegistryState?: (characterName: string, messageIndex: number) => CardLifecycleRegistryState | null,
+  resolveLifecycleRegistryStateByEntityId?: (entityId: string, messageIndex: number) => CardLifecycleRegistryState | null,
   resolveRegistryOwnersForMessage?: (messageIndex: number) => string[],
   resolveRegistryEntriesForMessage?: (messageIndex: number) => TrackerEntityRegistryEntry[],
   resolveRegistryEntryForMessage?: (ownerName: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
@@ -5489,7 +5507,13 @@ export function renderTracker(
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,
-        registryState: resolveLifecycleRegistryState?.(name, entry.messageIndex) ?? null,
+        registryState: resolveLifecycleRegistryStateForOwnerInMessageData({
+          ownerName: name,
+          messageIndex: entry.messageIndex,
+          data,
+          resolveLifecycleRegistryState,
+          resolveLifecycleRegistryStateByEntityId,
+        }),
       });
       const targets = filterArchivedOwnersFromTargets(
         filterTechnicalSourceOwnersFromTargets(uniqueTargets, resolveOwnerRenderIdentity),

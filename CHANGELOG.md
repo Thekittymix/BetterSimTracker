@@ -1,3 +1,6 @@
+## [2.2.4.16-exp79] - 2026-03-22
+### Changed
+- Experimental multi-character render lifecycle reads now resolve registry state through persisted tracker `entityId` references before falling back to owner-name matches, reducing another alias-owner drift path in inactive/archive state reads.
 ## [2.2.4.16-exp78] - 2026-03-22
 ### Changed
 - Experimental multi-character render lookups now resolve registry entries through persisted tracker `entityId` references before falling back to owner-name matches, reducing more alias drift in card continuity and lifecycle reads.

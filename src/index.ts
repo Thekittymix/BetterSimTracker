@@ -26,6 +26,7 @@ import {
   getEntityRegistryEntryForMessage,
   getEntityRegistryEntryByEntityIdForMessage,
   getEntityRegistryLifecycleStateForMessage,
+  getEntityRegistryLifecycleStateForEntityIdForMessage,
   listEntityRegistryEntriesForMessage,
   listEntityRegistryOwnersForMessage,
   listTrackerDataLookupNamesForOwnerWithEntityFallback,
@@ -1781,6 +1782,9 @@ function queueRender(): void {
     }, (characterName, messageIndex) => {
         const liveContext = getSafeContext();
         return getEntityRegistryLifecycleStateForMessage(liveContext, characterName, messageIndex);
+      }, (entityId, messageIndex) => {
+        const liveContext = getSafeContext();
+        return getEntityRegistryLifecycleStateForEntityIdForMessage(liveContext, entityId, messageIndex);
       }, messageIndex => {
         const liveContext = getSafeContext();
         return listEntityRegistryOwnersForMessage(liveContext, messageIndex);

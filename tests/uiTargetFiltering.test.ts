@@ -11,6 +11,7 @@ import {
   applyTrackerCardCollapsed,
   resolveRegistryLookupNamesForOwner,
   resolveRegistryEntryForOwnerInMessageData,
+  resolveLifecycleRegistryStateForOwnerInMessageData,
   resolveRegistryOwnersFromEntries,
   resolveTrackerCardCollapsed,
   resolveOwnerUiKey,
@@ -137,6 +138,37 @@ test("resolveRegistryEntryForOwnerInMessageData prefers tracker data entity ids 
 
   assert.equal(resolved?.id, "ent-ashley");
   assert.equal(resolved?.ownerName, "Ashley");
+});
+
+test("resolveLifecycleRegistryStateForOwnerInMessageData prefers tracker data entity ids over stale owner-name lifecycle matches", () => {
+  const resolved = resolveLifecycleRegistryStateForOwnerInMessageData({
+    ownerName: "Ash",
+    messageIndex: 2,
+    data: {
+      activeCharacters: ["Ash"],
+      entityOwnerMap: {
+        Ash: {
+          entityId: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceKey: "camp",
+          kind: "multi_character_alias",
+        },
+      },
+    } as never,
+    resolveLifecycleRegistryState: ownerName =>
+      ownerName === "Ash"
+        ? ({ lifecycleState: "inactive", lastActiveMessageIndex: 1, introducedAtMessageIndex: 0 } as never)
+        : null,
+    resolveLifecycleRegistryStateByEntityId: entityId =>
+      entityId === "ent-ashley"
+        ? ({ lifecycleState: "active", lastActiveMessageIndex: 2, introducedAtMessageIndex: 0 } as never)
+        : null,
+  });
+
+  assert.equal(resolved?.lifecycleState, "active");
+  assert.equal(resolved?.lastActiveMessageIndex, 2);
 });
 
 test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
