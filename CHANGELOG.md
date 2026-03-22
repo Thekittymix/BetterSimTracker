@@ -1,3 +1,7 @@
+## [2.2.4.16-exp86] - 2026-03-22
+### Changed
+- Experimental multi-character model resolver now works on candidate entity refs and persists resolved `sceneEntityIds` / `messageEntityIds` directly from the resolver result, reducing another owner-name drift path between resolution and tracker write storage.
+
 ## [2.2.4.16-exp85] - 2026-03-22
 ### Changed
 - Experimental multi-character extraction prompt builders now read current seeded tracker state through the actual current tracker snapshot/entity mapping instead of borrowing alias lookup context from unrelated history entries, reducing another owner-name drift path in prompt continuity.

@@ -42,14 +42,29 @@ function uniqueKnownOwners(values: unknown[], knownOwners: string[]): string[] {
 export type MultiCharacterResolutionResult = {
   sceneOwners: string[];
   messageOwners: string[];
+  sceneEntityIds: string[];
+  messageEntityIds: string[];
+};
+
+export type MultiCharacterResolverCandidate = {
+  entityRef: string;
+  ownerName: string;
+  entityId?: string | null;
 };
 
 export function buildMultiCharacterResolverPrompt(input: {
-  candidateOwners: string[];
+  candidateEntities: MultiCharacterResolverCandidate[];
   contextText: string;
   message: ChatMessage;
 }): string {
-  const candidateOwners = input.candidateOwners.map(normalizeToken).filter(Boolean);
+  const candidateEntities = input.candidateEntities
+    .map(candidate => ({
+      entityRef: normalizeToken(candidate.entityRef),
+      ownerName: normalizeToken(candidate.ownerName),
+      entityId: normalizeToken(candidate.entityId),
+    }))
+    .filter(candidate => candidate.entityRef && candidate.ownerName);
+  const candidateOwners = candidateEntities.map(candidate => candidate.ownerName);
   const contextText = normalizeToken(input.contextText);
   const messageName = normalizeToken(input.message?.name);
   const messageText = normalizeToken(input.message?.mes);
@@ -67,8 +82,17 @@ export function buildMultiCharacterResolverPrompt(input: {
     '- "messageOwners": known character owners this latest AI message is actively advancing enough to warrant tracker extraction now.',
     "- A character merely mentioned inside another character's dialogue is not automatically a messageOwner.",
     "- For a focused single-character reply, messageOwners may contain only one owner even if sceneOwners contains more than one.",
+    "- Prefer using entity refs when possible so runtime can map the result back to stable tracked entities.",
     "",
-    `Candidate owners: [${candidateOwners.map(escapeJsonString).join(", ")}]`,
+    "Candidate entities:",
+    JSON.stringify(
+      candidateEntities.map(candidate => ({
+        entityRef: candidate.entityRef,
+        ownerName: candidate.ownerName,
+      })),
+      null,
+      2,
+    ),
     "",
     "Recent context:",
     contextText || "(none)",
@@ -81,18 +105,21 @@ export function buildMultiCharacterResolverPrompt(input: {
     "Return STRICT JSON only:",
     "{",
     '  "sceneOwners": ["Owner A"],',
-    '  "messageOwners": ["Owner A"]',
+    '  "messageOwners": ["Owner A"],',
+    '  "sceneEntityRefs": ["ent1"],',
+    '  "messageEntityRefs": ["ent1"]',
     "}",
   ].join("\n");
 }
 
 export function parseMultiCharacterResolverResponse(
   raw: string,
-  candidateOwners: string[],
+  candidateEntities: MultiCharacterResolverCandidate[],
 ): MultiCharacterResolutionResult | null {
   const parsed = safeJsonParse(raw);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
   const record = parsed as Record<string, unknown>;
+  const candidateOwners = candidateEntities.map(candidate => candidate.ownerName);
   const sceneOwners = uniqueKnownOwners(
     Array.isArray(record.sceneOwners) ? record.sceneOwners : [],
     candidateOwners,
@@ -101,9 +128,46 @@ export function parseMultiCharacterResolverResponse(
     Array.isArray(record.messageOwners) ? record.messageOwners : [],
     candidateOwners,
   );
-  if (!sceneOwners.length && !messageOwners.length) return null;
+  const candidateByRef = new Map(
+    candidateEntities
+      .filter(candidate => candidate.entityRef)
+      .map(candidate => [candidate.entityRef, candidate] as const),
+  );
+  const mapRefsToEntityIds = (values: unknown[]): string[] => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const rawValue of values) {
+      const ref = normalizeToken(rawValue);
+      if (!ref) continue;
+      const candidate = candidateByRef.get(ref);
+      const entityId = normalizeToken(candidate?.entityId);
+      if (!entityId || seen.has(entityId)) continue;
+      seen.add(entityId);
+      out.push(entityId);
+    }
+    return out;
+  };
+  const sceneEntityIds = mapRefsToEntityIds(
+    Array.isArray(record.sceneEntityRefs) ? record.sceneEntityRefs : [],
+  );
+  const messageEntityIds = mapRefsToEntityIds(
+    Array.isArray(record.messageEntityRefs) ? record.messageEntityRefs : [],
+  );
+  if (!sceneOwners.length && !messageOwners.length && !sceneEntityIds.length && !messageEntityIds.length) return null;
+  const fallbackSceneOwners = sceneOwners.length
+    ? sceneOwners
+    : candidateEntities
+        .filter(candidate => sceneEntityIds.includes(normalizeToken(candidate.entityId)))
+        .map(candidate => candidate.ownerName);
+  const fallbackMessageOwners = messageOwners.length
+    ? messageOwners
+    : candidateEntities
+        .filter(candidate => messageEntityIds.includes(normalizeToken(candidate.entityId)))
+        .map(candidate => candidate.ownerName);
   return {
-    sceneOwners,
-    messageOwners: messageOwners.length ? messageOwners : sceneOwners,
+    sceneOwners: fallbackSceneOwners,
+    messageOwners: fallbackMessageOwners.length ? fallbackMessageOwners : fallbackSceneOwners,
+    sceneEntityIds,
+    messageEntityIds: messageEntityIds.length ? messageEntityIds : sceneEntityIds,
   };
 }
