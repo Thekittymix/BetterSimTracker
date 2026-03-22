@@ -1,3 +1,4 @@
+import { buildEntitySourceKey, getEntityRegistryEntryByEntityIdForMessage } from "./entityRegistry";
 import type { Character, STContext } from "./types";
 import { resolveCharacterIdentity, resolveEntityTrackingMode } from "./entityResolution";
 
@@ -29,6 +30,7 @@ function buildCharacterCardChunk(character: Character, duplicateNameCount: numbe
 export function buildCharacterCardsContext(
   context: STContext,
   activeCharacters: string[],
+  activeEntityIds: string[] = [],
   entityTrackingMode: "standard" | "multi_character" = "standard",
 ): string {
   const allCharacters = Array.isArray(context?.characters) ? context.characters : [];
@@ -46,13 +48,20 @@ export function buildCharacterCardsContext(
 
   const activeNameKeys = new Set<string>();
   const activeAvatarKeys = new Set<string>();
+  const activeSourceKeys = new Set<string>();
   for (const token of activeCharacters) {
     const raw = normalizeToken(token);
     if (!raw) continue;
     activeNameKeys.add(raw.toLowerCase());
     activeAvatarKeys.add(raw);
   }
-  if (!activeNameKeys.size && !activeAvatarKeys.size) return "";
+  for (const entityId of activeEntityIds) {
+    const entry = getEntityRegistryEntryByEntityIdForMessage(context, entityId, Number.MAX_SAFE_INTEGER);
+    if (!entry) continue;
+    const sourceKey = buildEntitySourceKey(entry.sourceName, entry.sourceAvatar);
+    if (sourceKey) activeSourceKeys.add(sourceKey);
+  }
+  if (!activeNameKeys.size && !activeAvatarKeys.size && !activeSourceKeys.size) return "";
 
   const duplicateNameCounts = new Map<string, number>();
   for (const character of allCharacters) {
@@ -66,18 +75,25 @@ export function buildCharacterCardsContext(
   for (const character of allCharacters) {
     const nameKey = normalizeNameKey(character?.name);
     const avatarKey = normalizeToken(character?.avatar);
+    const sourceKey = buildEntitySourceKey(
+      normalizeToken(character?.name),
+      avatarKey || null,
+    );
     if (!nameKey && !avatarKey) continue;
 
     if (focusedAvatar && avatarKey !== focusedAvatar) continue;
 
     const isActiveByAvatar = avatarKey ? activeAvatarKeys.has(avatarKey) : false;
     const isActiveByName = nameKey ? activeNameKeys.has(nameKey) : false;
+    const isActiveByEntitySource = entityTrackingMode === "multi_character"
+      && sourceKey
+      && activeSourceKeys.has(sourceKey);
     const isActiveByAlias = entityTrackingMode === "multi_character"
       && activeCharacters.some(token => {
         const resolved = resolveCharacterIdentity(context, token, resolveEntityTrackingMode({ entityTrackingMode }));
         return Boolean(resolved && normalizeNameKey(resolved.sourceName) === nameKey);
       });
-    if (!isActiveByAvatar && !isActiveByName && !isActiveByAlias) continue;
+    if (!isActiveByAvatar && !isActiveByName && !isActiveByAlias && !isActiveByEntitySource) continue;
 
     const duplicateCount = duplicateNameCounts.get(nameKey) ?? 1;
     const duplicateIndex = duplicateNameIndices.get(nameKey) ?? 0;

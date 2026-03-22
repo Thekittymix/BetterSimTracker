@@ -3468,7 +3468,15 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     }
     let contextText = buildRecentContext(context, settings.contextMessages, lastIndex);
     if (activeSettings.includeCharacterCardsInPrompt) {
-      contextText = `${contextText}${buildCharacterCardsContext(context, activeCharacters, resolveEntityTrackingMode(runScopedSettings))}`.trim();
+      const sceneEntityIdsForCardContext = resolvedEntityResolution?.sceneEntityIds?.length
+        ? resolvedEntityResolution.sceneEntityIds
+        : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
+      contextText = `${contextText}${buildCharacterCardsContext(
+        context,
+        activeCharacters,
+        sceneEntityIdsForCardContext,
+        resolveEntityTrackingMode(runScopedSettings),
+      )}`.trim();
     }
     if (activeSettings.includeLorebookInExtraction) {
       contextText = `${contextText}${buildLorebookExtractionContext(context, activeSettings.lorebookExtractionMaxChars)}`.trim();

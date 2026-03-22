@@ -1,3 +1,7 @@
+## [2.2.4.16-exp88] - 2026-03-22
+### Changed
+- Experimental multi-character extraction now feeds character-card disambiguation with resolver-backed `sceneEntityIds`, so source-card prompt context can follow stable entity identity instead of relying only on owner-name heuristics.
+
 ## [2.2.4.16-exp87] - 2026-03-22
 ### Changed
 - Experimental multi-character merged prompt/runtime state now prefers preferred resolver `sceneEntityIds` over stale preferred scene owner names, reducing another owner-name drift path in merged continuity reads.
