@@ -56,10 +56,16 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   const clearedStatistics = normalizeClearedStatistics(data.clearedStatistics);
   const clearedCustomStatistics = normalizeClearedOwnerBuckets(data.clearedCustomStatistics);
   const clearedCustomNonNumericStatistics = normalizeClearedOwnerBuckets(data.clearedCustomNonNumericStatistics);
+  const normalizedEntityResolution = normalizeEntityResolution(data.entityResolution);
+  const normalizedActiveCharacters = normalizedEntityResolution?.sceneOwners?.length
+    ? [...normalizedEntityResolution.sceneOwners]
+    : (Array.isArray(data.activeCharacters)
+      ? Array.from(new Set(data.activeCharacters.map(item => String(item ?? "").trim()).filter(Boolean)))
+      : []);
   return normalizeTrackerDataEntityBuckets({
     timestamp: Number(data.timestamp ?? Date.now()),
-    activeCharacters: Array.isArray(data.activeCharacters) ? data.activeCharacters : [],
-    entityResolution: normalizeEntityResolution(data.entityResolution),
+    activeCharacters: normalizedActiveCharacters,
+    entityResolution: normalizedEntityResolution,
     statistics: {
       ...createEmptyStatistics(),
       ...(data.statistics as Statistics)

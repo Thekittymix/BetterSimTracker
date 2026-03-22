@@ -1,3 +1,6 @@
+## [2.2.4.16-exp76] - 2026-03-22
+### Changed
+- Experimental multi-character tracker input normalization now immediately aligns stored ctiveCharacters with resolver sceneOwners whenever explicit entity resolution is already present, removing another stale raw-owner fallback before later storage/runtime processing.
 ## [2.2.4.16-exp75] - 2026-03-22
 ### Changed
 - Experimental multi-character tracker payload normalization now keeps `activeCharacters` aligned with resolver `sceneOwners` whenever a payload already carries explicit entity resolution, preventing another write-path fallback to stale owner arrays during message storage normalization.
@@ -1183,6 +1186,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

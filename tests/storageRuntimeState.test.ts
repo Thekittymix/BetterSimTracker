@@ -779,6 +779,34 @@ test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () =
   assert.deepEqual(resolved.data.customNonNumericStatistics, messageTracker.customNonNumericStatistics);
 });
 
+test("resolveLatestStoredTrackerData normalizes stale activeCharacters to resolver scene owners on input", () => {
+  const context = makeContext();
+  const messageTracker = makeTracker(2000, {
+    activeCharacters: ["Garret", "Raleigh"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+    },
+  });
+
+  writeTrackerDataToMessage(context, messageTracker, 2);
+
+  const resolved = resolveLatestStoredTrackerData(context, 2);
+  assert.equal(resolved.source, "message");
+  assert.ok(resolved.data);
+  assert.deepEqual(resolved.data.activeCharacters, ["Blake"]);
+  assert.deepEqual(resolved.data.entityResolution, {
+    source: "model",
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["ent-blake"],
+    messageEntityIds: ["ent-blake"],
+  });
+});
+
 test("clearTrackerDataForCurrentChat removes persisted tracker data", () => {
   const context = makeContext();
   const tracker = makeTracker(1000);
