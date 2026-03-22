@@ -1,3 +1,7 @@
+## [2.2.4.16-exp68] - 2026-03-22
+### Changed
+- Experimental multi-character graph/history summaries now resolve alias continuity through persisted `entityId` lookup names as well as owner names, reducing more owner-name drift in registry-backed historical reads.
+
 ## [2.2.4.16-exp67] - 2026-03-21
 ### Changed
 - Experimental multi-character UI continuity lookups now prefer persisted `byEntityId` shadow state for current alias-backed values before falling back to owner-name maps, while preserving canonical/alias owner fallback when no entity-scoped state exists.

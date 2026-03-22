@@ -15,6 +15,7 @@ import {
   listEntityRegistryLookupNames,
   listEntityRegistryOwnersForMessage,
   listTrackerDataLookupNamesForEntityIds,
+  listTrackerDataLookupNamesForOwnerWithEntityFallback,
   readEntityRegistry,
   resolveTrackerDataLookupValue,
   resolveTrackerEntityIdsForOwners,
@@ -200,6 +201,36 @@ test("listTrackerDataLookupNamesForEntityIds resolves tracker lookup aliases fro
   );
 
   assert.deepEqual(names, ["Ash", "Ashley"]);
+});
+
+test("listTrackerDataLookupNamesForOwnerWithEntityFallback merges owner and persisted entity lookup names", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+
+  const names = listTrackerDataLookupNamesForOwnerWithEntityFallback(
+    context,
+    makeTracker({
+      entityOwnerMap: {
+        Ash: {
+          entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+        },
+      },
+    }),
+    "Ashley",
+  );
+
+  assert.deepEqual(names, ["Ashley", "Ash"]);
 });
 
 test("resolveTrackerSceneOwners prefers scene entity ids over stale owner-name arrays", () => {

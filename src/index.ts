@@ -30,6 +30,7 @@ import {
   listEntityRegistryOwnersForMessage,
   listTrackerDataLookupNamesForEntityIds,
   listTrackerDataLookupNamesForOwner,
+  listTrackerDataLookupNamesForOwnerWithEntityFallback,
   resolveEntityRegistryLookupValue,
   resolveTrackerDataLookupValue,
   resolveTrackerEntityIdsForOwners,
@@ -3204,11 +3205,13 @@ function summarizeGraphSeries(context: STContext, history: TrackerData[], charac
   );
   const numericStatIds = new Set<string>(allNumericDefs.map(def => def.id));
   const builtInKeys = new Set(["affection", "trust", "desire", "connection"]);
+  const lookupNamesForEntry = (item: TrackerData): string[] =>
+    listTrackerDataLookupNamesForOwnerWithEntityFallback(context, item, characterName);
   const sorted = [...history]
     .filter(item => Number.isFinite(item.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp)
     .filter(item => {
-      const lookupNames = listTrackerDataLookupNamesForOwner(context, item, characterName);
+      const lookupNames = lookupNamesForEntry(item);
       const numericDefs = allNumericDefs.map(def => ({
         key: def.id,
         defaultValue: def.defaultValue,
@@ -3222,7 +3225,7 @@ function summarizeGraphSeries(context: STContext, history: TrackerData[], charac
   const build = (key: string, defaultValue = 50, globalScope = false): number[] => {
     return buildStatSeries(
       sorted,
-      item => listTrackerDataLookupNamesForOwner(context, item, characterName),
+      lookupNamesForEntry,
       { key, defaultValue, globalScope },
     );
   };

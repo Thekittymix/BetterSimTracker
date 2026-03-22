@@ -635,6 +635,31 @@ export function listTrackerDataLookupNamesForEntityIds(
   return names;
 }
 
+export function listTrackerDataLookupNamesForOwnerWithEntityFallback(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  ownerName: string,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    const key = normalizeKey(value);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+
+  for (const name of listTrackerDataLookupNamesForOwner(context, data, ownerName)) push(name);
+  for (const name of listTrackerDataLookupNamesForEntityIds(
+    context,
+    data,
+    resolveTrackerEntityIdsForOwners(context, [ownerName]),
+  )) push(name);
+
+  return names;
+}
+
 export function getEntityRegistryEntryForMessage(
   context: STContext | null,
   ownerName: string,
