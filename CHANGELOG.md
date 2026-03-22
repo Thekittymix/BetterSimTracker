@@ -1,3 +1,6 @@
+## [2.2.4.16-exp77] - 2026-03-22
+### Changed
+- Experimental multi-character entityOwnerMap collection now ignores stale raw ctiveCharacters whenever explicit resolver sceneOwners or messageOwners are already present, preventing another alias-owner fallback leak back into registry-backed owner maps.
 ## [2.2.4.16-exp76] - 2026-03-22
 ### Changed
 - Experimental multi-character tracker input normalization now immediately aligns stored ctiveCharacters with resolver sceneOwners whenever explicit entity resolution is already present, removing another stale raw-owner fallback before later storage/runtime processing.
@@ -1186,6 +1189,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

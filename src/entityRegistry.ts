@@ -434,9 +434,14 @@ function collectTrackerDataOwnerNames(data: TrackerData): string[] {
     seen.add(key);
     names.push(value);
   };
+  const hasExplicitResolverOwners =
+    Array.isArray(data.entityResolution?.sceneOwners) && data.entityResolution.sceneOwners.length > 0 ||
+    Array.isArray(data.entityResolution?.messageOwners) && data.entityResolution.messageOwners.length > 0;
   for (const name of data.entityResolution?.sceneOwners ?? []) push(name);
   for (const name of data.entityResolution?.messageOwners ?? []) push(name);
-  for (const name of data.activeCharacters ?? []) push(name);
+  if (!hasExplicitResolverOwners) {
+    for (const name of data.activeCharacters ?? []) push(name);
+  }
   for (const bucket of Object.values(data.statistics ?? {})) {
     for (const owner of Object.keys(bucket ?? {})) push(owner);
   }
