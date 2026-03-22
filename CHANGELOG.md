@@ -1,3 +1,6 @@
+## [2.2.4.16-exp80] - 2026-03-22
+### Changed
+- Experimental multi-character extraction prompt state lookups now use tracker entityOwnerMap data when available, so prompt continuity follows persisted entityId mappings instead of falling back too early to raw owner-name spellings.
 ## [2.2.4.16-exp79] - 2026-03-22
 ### Changed
 - Experimental multi-character render lifecycle reads now resolve registry state through persisted tracker `entityId` references before falling back to owner-name matches, reducing another alias-owner drift path in inactive/archive state reads.
@@ -1195,6 +1198,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

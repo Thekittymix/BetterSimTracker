@@ -4,7 +4,7 @@ import type { TrackerData } from "./types";
 import { GLOBAL_TRACKER_KEY } from "./constants";
 import { normalizeDateTimeValue } from "./dateTime";
 import { MAX_CUSTOM_ARRAY_ITEMS, MAX_CUSTOM_ENUM_OPTIONS, normalizeNonNumericArrayItems } from "./customStatRuntime";
-import { listEntityRegistryLookupNames } from "./entityRegistry";
+import { listEntityRegistryLookupNames, listTrackerDataLookupNamesForOwnerWithEntityFallback } from "./entityRegistry";
 
 export const moodOptions = [
   "Happy",
@@ -306,8 +306,15 @@ function uniqueLookupOwners(ownerNames: string | string[]): string[] {
   return out;
 }
 
-function resolveOwnerLookupNames(context: STContext | null | undefined, ownerName: string): string[] {
-  return context ? listEntityRegistryLookupNames(context, ownerName) : [ownerName];
+function resolveOwnerLookupNames(
+  context: STContext | null | undefined,
+  ownerName: string,
+  data?: TrackerData | null,
+): string[] {
+  if (!context) return [ownerName];
+  return data
+    ? listTrackerDataLookupNamesForOwnerWithEntityFallback(context, data, ownerName)
+    : listEntityRegistryLookupNames(context, ownerName);
 }
 
 function resolveBuiltInNumericValue(
@@ -553,7 +560,7 @@ export function buildUnifiedPrompt(
   const historyLines = history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = characters.map(name => {
-      const ownerLookupNames = resolveOwnerLookupNames(context, name);
+      const ownerLookupNames = resolveOwnerLookupNames(context, name, entry);
       const affection = Number(resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames) ?? 50);
       const trust = Number(resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames) ?? 50);
       const desire = Number(resolveBuiltInNumericValue(entry.statistics.desire, ownerLookupNames) ?? 50);
@@ -648,7 +655,7 @@ export function buildUnifiedAllStatsPrompt(input: {
   const numericDeltaKeys = [...builtInNumeric, ...customNumeric.map(stat => stat.id)];
 
   const currentLines = input.characters.map(name => {
-    const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.history[0] ?? null);
     const chunks: string[] = [];
     const builtInChunk = renderBuiltInSnapshotChunk({
       affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
@@ -687,7 +694,7 @@ export function buildUnifiedAllStatsPrompt(input: {
   const historyLines = input.history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
-      const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
+      const ownerLookupNames = resolveOwnerLookupNames(input.context, name, entry);
       const chunks: string[] = [];
       const builtInChunk = renderBuiltInSnapshotChunk({
         affection: resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames),
@@ -888,7 +895,7 @@ export function buildSequentialPrompt(
   const historyLines = history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = characters.map(name => {
-      const ownerLookupNames = resolveOwnerLookupNames(context, name);
+      const ownerLookupNames = resolveOwnerLookupNames(context, name, entry);
       const chunk = renderBuiltInSnapshotChunk({
         affection: resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames),
         trust: resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames),
@@ -985,7 +992,7 @@ export function buildSequentialCustomNumericPrompt(input: {
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
 
   const currentLines = input.characters.map(name => {
-    const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.history[0] ?? null);
     const builtInChunk = renderBuiltInSnapshotChunk({
       affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
       trust: resolveBuiltInNumericValue(input.current?.trust, ownerLookupNames),
@@ -1002,7 +1009,7 @@ export function buildSequentialCustomNumericPrompt(input: {
   const historyLines = input.history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
-      const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
+      const ownerLookupNames = resolveOwnerLookupNames(input.context, name, entry);
       const builtInChunk = renderBuiltInSnapshotChunk({
         affection: resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames),
         trust: resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames),
@@ -1276,7 +1283,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
           : `text<=${textMaxLen}`;
 
   const currentLines = input.characters.map(name => {
-    const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.history[0] ?? null);
     const builtInChunk = renderBuiltInSnapshotChunk({
       affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
       trust: resolveBuiltInNumericValue(input.current?.trust, ownerLookupNames),
@@ -1301,7 +1308,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   const historyLines = input.history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
-      const ownerLookupNames = resolveOwnerLookupNames(input.context, name);
+      const ownerLookupNames = resolveOwnerLookupNames(input.context, name, entry);
       const builtInChunk = renderBuiltInSnapshotChunk({
         affection: resolveBuiltInNumericValue(entry.statistics.affection, ownerLookupNames),
         trust: resolveBuiltInNumericValue(entry.statistics.trust, ownerLookupNames),
