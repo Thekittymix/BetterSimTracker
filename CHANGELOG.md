@@ -1,3 +1,7 @@
+## [2.2.4.16-exp84] - 2026-03-22
+### Changed
+- Experimental multi-character tracker summary and fallback prose reads now resolve alias-backed custom numeric values through tracker payload `entityOwnerMap` and persisted `byEntityId` state, reducing another owner-name drift path in summary continuity.
+
 ## [2.2.4.16-exp83] - 2026-03-22
 ### Changed
 - Experimental multi-character relevance/baseline presence checks now resolve alias-backed values through tracker payload `entityOwnerMap` and persisted `byEntityId` state instead of relying only on owner-name lookup lists, reducing more alias drift in extraction-time continuity selection.
