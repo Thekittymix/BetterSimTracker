@@ -1,4 +1,12 @@
-import type { BetterSimTrackerSettings, CustomStatDefinition, StatKey } from "./types";
+import type {
+  BetterSimTrackerSettings,
+  CustomNonNumericStatistics,
+  CustomStatDefinition,
+  CustomStatistics,
+  StatKey,
+  Statistics,
+  TrackerData,
+} from "./types";
 
 export function enabledBuiltInAndTextStats(settings: BetterSimTrackerSettings): StatKey[] {
   const selected: StatKey[] = [];
@@ -63,6 +71,53 @@ export function resolveBaselineBeforeIndex(input: {
     return input.targetMessageIndex;
   }
   return input.lastIndex;
+}
+
+export function buildPromptCurrentTrackerData(input: {
+  activeCharacters: string[];
+  entityResolution?: TrackerData["entityResolution"] | null;
+  previousTrackerData?: TrackerData | null;
+  previousStatistics?: Statistics | null;
+  previousCustomStatistics?: CustomStatistics | null;
+  previousCustomNonNumericStatistics?: CustomNonNumericStatistics | null;
+}): TrackerData {
+  const {
+    activeCharacters,
+    entityResolution,
+    previousTrackerData,
+    previousStatistics,
+    previousCustomStatistics,
+    previousCustomNonNumericStatistics,
+  } = input;
+
+  return {
+    ...(previousTrackerData ?? {
+      timestamp: Date.now(),
+      activeCharacters: [...activeCharacters],
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    }),
+    activeCharacters: [...activeCharacters],
+    entityResolution: entityResolution ?? previousTrackerData?.entityResolution,
+    statistics: previousStatistics ?? {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: previousCustomStatistics ?? {},
+    customNonNumericStatistics: previousCustomNonNumericStatistics ?? {},
+  };
 }
 
 export function applyConfidenceScaledDelta(input: {

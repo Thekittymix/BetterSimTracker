@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { defaultSettings } from "../src/settings";
 import {
   applyConfidenceScaledDelta,
+  buildPromptCurrentTrackerData,
   enabledBuiltInAndTextStats,
   enabledCustomStats,
   groupCustomStatsForSequential,
@@ -161,4 +162,58 @@ test("resolveBaselineBeforeIndex excludes the current message for retrack baseli
     resolveBaselineBeforeIndex({ lastIndex: 4 }),
     4,
   );
+});
+
+test("buildPromptCurrentTrackerData prefers the current resolver entityResolution over stale previous tracker data", () => {
+  const tracker = buildPromptCurrentTrackerData({
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    },
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Ashley", "Garret"],
+      entityResolution: {
+        sceneOwners: ["Ashley", "Garret"],
+        messageOwners: ["Ashley", "Garret"],
+        sceneEntityIds: ["ent-ashley", "ent-garret"],
+        messageEntityIds: ["ent-ashley", "ent-garret"],
+        source: "fallback",
+      },
+      statistics: {
+        affection: { Ashley: 60 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    previousStatistics: {
+      affection: { Blake: 52 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: {},
+  });
+
+  assert.deepEqual(tracker.activeCharacters, ["Blake"]);
+  assert.deepEqual(tracker.entityResolution, {
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["ent-blake"],
+    messageEntityIds: ["ent-blake"],
+    source: "model",
+  });
+  assert.deepEqual(tracker.statistics.affection, { Blake: 52 });
 });

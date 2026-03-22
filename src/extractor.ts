@@ -18,6 +18,7 @@ import {
 import { normalizeDateTimeWithMode } from "./dateTime";
 import {
   applyConfidenceScaledDelta,
+  buildPromptCurrentTrackerData,
   enabledBuiltInAndTextStats,
   enabledCustomStats,
   groupCustomStatsForSequential,
@@ -266,6 +267,7 @@ export async function extractStatisticsParallel(input: {
   settings: BetterSimTrackerSettings;
   userName: string;
   activeCharacters: string[];
+  entityResolution?: TrackerData["entityResolution"] | null;
   preferredCharacterName?: string;
   contextText: string;
   previousTrackerData?: TrackerData | null;
@@ -290,6 +292,7 @@ export async function extractStatisticsParallel(input: {
     settings,
     userName,
     activeCharacters,
+    entityResolution,
     preferredCharacterName,
     contextText,
     previousTrackerData,
@@ -319,19 +322,14 @@ export async function extractStatisticsParallel(input: {
   const output = emptyStatistics();
   const outputCustom: CustomStatistics = {};
   const outputCustomNonNumeric: CustomNonNumericStatistics = {};
-  const promptCurrentData: TrackerData = {
-    ...(previousTrackerData ?? {
-      timestamp: Date.now(),
-      activeCharacters: [...activeCharacters],
-      statistics: emptyStatistics(),
-      customStatistics: {},
-      customNonNumericStatistics: {},
-    }),
-    activeCharacters: [...activeCharacters],
-    statistics: previousStatistics ?? emptyStatistics(),
-    customStatistics: previousCustomStatistics ?? {},
-    customNonNumericStatistics: previousCustomNonNumericStatistics ?? {},
-  };
+  const promptCurrentData = buildPromptCurrentTrackerData({
+    activeCharacters,
+    entityResolution,
+    previousTrackerData,
+    previousStatistics,
+    previousCustomStatistics,
+    previousCustomNonNumericStatistics,
+  });
   let debugRecord: DeltaDebugRecord | null = null;
   let cancelled = false;
   const normalizedUserName = String(userName ?? "").trim();

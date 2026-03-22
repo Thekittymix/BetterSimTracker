@@ -3580,6 +3580,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       settings: extractionSettings,
       userName,
       activeCharacters,
+      entityResolution: resolvedEntityResolution,
       preferredCharacterName,
       contextText,
       previousTrackerData: previousEntry?.data ?? null,

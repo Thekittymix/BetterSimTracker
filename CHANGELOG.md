@@ -1,3 +1,7 @@
+## [2.2.4.16-exp91] - 2026-03-22
+### Changed
+- Experimental multi-character extractor prompt-state seeding now carries the current resolver `entityResolution` into `promptCurrentData`, so prompt builders do not fall back to stale previous owner-name resolution when a fresh resolver result already exists for the current AI message.
+
 ## [2.2.4.16-exp90] - 2026-03-22
 ### Changed
 - Experimental multi-character extraction baseline relevance checks now resolve alias-backed built-in and custom owner values through tracker payload `entityOwnerMap` and persisted `byEntityId` state, reducing another owner-name-only continuity path during history selection.
