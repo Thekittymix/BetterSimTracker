@@ -1,3 +1,6 @@
+## [2.2.4.16-exp72] - 2026-03-22
+### Changed
+- Experimental multi-character merged prompt/runtime snapshots now prefer resolver-derived `sceneOwners` from the preferred tracker snapshot before falling back to raw `activeCharacters`, removing another read-path regression back to the old owner-array model.
 ## [2.2.4.16-exp71] - 2026-03-22
 ### Changed
 - Experimental multi-character merged prompt/runtime snapshots now preserve the latest resolver `entityResolution` payload instead of dropping back to owner-name-only continuity during chronological merge.

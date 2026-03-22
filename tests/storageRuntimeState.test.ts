@@ -646,6 +646,42 @@ test("buildMergedPromptMacroData preserves the latest entityResolution for merge
   });
 });
 
+test("buildMergedPromptMacroData prefers preferred resolver scene owners over stale preferred activeCharacters", () => {
+  const context = makeContext();
+  const older = makeTracker(1000, {
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: {
+      source: "fallback",
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+    },
+  });
+  const preferred = makeTracker(1100, {
+    activeCharacters: ["Garret", "Raleigh"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+    },
+  });
+
+  writeTrackerDataToMessage(context, older, 0);
+
+  const merged = buildMergedPromptMacroData(context, preferred);
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
+  assert.deepEqual(merged?.entityResolution, {
+    source: "model",
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["ent-blake"],
+    messageEntityIds: ["ent-blake"],
+  });
+});
+
 test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () => {
   const context = makeContext();
   const chatStateTracker = makeTracker(1000);

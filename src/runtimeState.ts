@@ -49,9 +49,14 @@ export function buildMergedPromptMacroData(
     return preferred ? { ...preferred } : null;
   }
 
-  const preferredActiveCharacters = Array.isArray(preferred?.activeCharacters)
-    ? preferred.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
+  const preferredResolvedSceneOwners = Array.isArray(preferred?.entityResolution?.sceneOwners)
+    ? preferred.entityResolution.sceneOwners.map(name => String(name ?? "").trim()).filter(Boolean)
     : [];
+  const preferredActiveCharacters = preferredResolvedSceneOwners.length
+    ? preferredResolvedSceneOwners
+    : (Array.isArray(preferred?.activeCharacters)
+        ? preferred.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
+        : []);
 
   return {
     ...merged,
