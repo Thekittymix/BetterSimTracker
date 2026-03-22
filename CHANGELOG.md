@@ -1,3 +1,7 @@
+## [2.2.4.16-exp89] - 2026-03-22
+### Changed
+- Experimental multi-character prompt injection now prefers resolver-backed `messageEntityIds` / `messageOwners` before source-card fallback names when choosing the current target owner, reducing another source-card-name drift path.
+
 ## [2.2.4.16-exp88] - 2026-03-22
 ### Changed
 - Experimental multi-character extraction now feeds character-card disambiguation with resolver-backed `sceneEntityIds`, so source-card prompt context can follow stable entity identity instead of relying only on owner-name heuristics.

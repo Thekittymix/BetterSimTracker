@@ -1,7 +1,11 @@
 import { DEFAULT_INJECTION_PROMPT_TEMPLATE } from "./prompts";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
-import { listTrackerDataLookupNamesForOwnerWithEntityFallback, resolveTrackerSceneOwners } from "./entityRegistry";
+import {
+  listTrackerDataLookupNamesForOwnerWithEntityFallback,
+  resolveTrackerOwnersForEntityIds,
+  resolveTrackerSceneOwners,
+} from "./entityRegistry";
 import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
 import { buildMergedPromptMacroData } from "./runtimeState";
 import {
@@ -152,6 +156,12 @@ function isOwnerStatEnabled(
 }
 
 function resolveInjectionTargetOwner(context: STContext, data: TrackerData): string | null {
+  const messageOwnersFromEntityIds = Array.isArray(data.entityResolution?.messageEntityIds)
+    ? resolveTrackerOwnersForEntityIds(context, data.entityResolution.messageEntityIds)
+    : [];
+  const messageOwners = Array.isArray(data.entityResolution?.messageOwners)
+    ? data.entityResolution.messageOwners.map(name => String(name ?? "").trim()).filter(Boolean)
+    : [];
   const sceneOwners = resolveTrackerSceneOwners(context, data);
   const userName = String(context.name1 ?? "").trim();
   const userAliases = new Set(
@@ -160,6 +170,16 @@ function resolveInjectionTargetOwner(context: STContext, data: TrackerData): str
       .filter(Boolean),
   );
   const candidates: string[] = [];
+
+  for (const owner of messageOwnersFromEntityIds) {
+    if (owner) candidates.push(owner);
+  }
+  for (const owner of messageOwners) {
+    if (owner) candidates.push(owner);
+  }
+  if (sceneOwners.length === 1) {
+    candidates.push(String(sceneOwners[0] ?? "").trim());
+  }
 
   const characterId = Number(context.characterId);
   if (Number.isFinite(characterId) && characterId >= 0 && Array.isArray(context.characters) && context.characters[characterId]) {
@@ -179,10 +199,6 @@ function resolveInjectionTargetOwner(context: STContext, data: TrackerData): str
       candidates.push(name);
       break;
     }
-  }
-
-  if (sceneOwners.length === 1) {
-    candidates.push(String(sceneOwners[0] ?? "").trim());
   }
 
   let hasUserCandidate = false;
@@ -656,4 +672,5 @@ export function getLastInjectedPromptDebug(): Record<string, unknown> | null {
 export const __testables = {
   buildPrompt,
   isOwnerStatEnabled,
+  resolveInjectionTargetOwner,
 };

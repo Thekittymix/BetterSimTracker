@@ -459,6 +459,78 @@ test("buildPrompt prefers resolved scene owners over request-only activeCharacte
   assert.match(prompt, /- Blake: mood=Hopeful/);
 });
 
+test("resolveInjectionTargetOwner prefers resolver message entity ids over source-card fallback names", () => {
+  const data = makeTracker({
+    activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: [],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: ["ent-ashley"],
+    },
+  });
+  const context = makeContext({
+    name2: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    groupId: "group-1",
+    characterId: 0,
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-ashley": {
+            id: "ent-ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            aliases: ["Ash"],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 1,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 1, state: "active" }],
+          },
+          "ent-blake": {
+            id: "ent-blake",
+            ownerName: "Blake",
+            canonicalName: "Blake",
+            aliases: [],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 1,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 1, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          ashley: "ent-ashley",
+          ash: "ent-ashley",
+          blake: "ent-blake",
+        },
+      },
+    } as any,
+    chat: [
+      {
+        is_user: false,
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        mes: "source-card style reply",
+      },
+    ] as any,
+  });
+
+  assert.equal(__testables.resolveInjectionTargetOwner(context, data), "Ashley");
+});
+
 test("buildPrompt resolves owner lines through tracker entityOwnerMap before raw owner-name lookup", () => {
   const settings = makeSettings({
     trackMood: true,
