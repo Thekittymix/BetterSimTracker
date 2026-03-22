@@ -1,3 +1,7 @@
+## [2.2.4.16-exp93] - 2026-03-22
+### Changed
+- Experimental multi-character baseline/history relevance selection now accepts explicit resolver entity ids alongside owner names, reducing another owner-name-only path when choosing prior tracker continuity entries.
+
 ## [2.2.4.16-exp92] - 2026-03-22
 ### Changed
 - Experimental multi-character tracker summaries now prefer resolver-backed scene owners when assembling summary character lists and active-owner summary prompts, reducing another stale owner-name path in summary generation.

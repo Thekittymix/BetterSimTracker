@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { defaultSettings } from "../src/settings";
-import { hasTrackedValueForOwner } from "../src/trackerDataPresence";
+import { hasTrackedValueForOwner, hasTrackedValueForSelection } from "../src/trackerDataPresence";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
 
 function makeSettings(): BetterSimTrackerSettings {
@@ -140,4 +140,47 @@ test("hasTrackedValueForOwner still returns false when no tracked alias value ex
   };
 
   assert.equal(hasTrackedValueForOwner(data, "Ash", makeSettings(), makeContext()), false);
+});
+
+test("hasTrackedValueForSelection resolves tracked values directly from explicit entity ids", () => {
+  const data: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Unknown Alias"],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    statisticsByEntityId: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: {
+      clothes: {},
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn hoodie"],
+      },
+    },
+  };
+
+  assert.equal(
+    hasTrackedValueForSelection(
+      data,
+      { ownerNames: ["Unknown Alias"], entityIds: ["ent-ashley"] },
+      makeSettings(),
+      null,
+    ),
+    true,
+  );
 });

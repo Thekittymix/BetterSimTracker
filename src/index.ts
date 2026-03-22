@@ -37,7 +37,7 @@ import {
   syncEntityRegistryFromRender,
 } from "./entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
-import { hasTrackedValueForOwner } from "./trackerDataPresence";
+import { hasTrackedValueForOwner, hasTrackedValueForSelection } from "./trackerDataPresence";
 import {
   buildFallbackSummaryProse as buildFallbackSummaryProseHelper,
   buildSummaryTrackerStateLines as buildSummaryTrackerStateLinesHelper,
@@ -105,6 +105,7 @@ import {
   normalizeNonNumericArrayItems,
 } from "./customStatRuntime";
 import {
+  hasCharacterOwnedTrackedValueForSelection,
   hasCharacterOwnedTrackedValueForCharacter,
   overlayLatestGlobalCustomStats,
   selectLatestRelevantHistoryEntry,
@@ -796,6 +797,7 @@ function getLatestRelevantTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
   activeCharacters: string[],
+  activeEntityIds: string[],
   settingsInput: BetterSimTrackerSettings,
 ): { data: TrackerData; messageIndex: number } | null {
   if (beforeIndex <= 0 || context.chat.length === 0) return null;
@@ -806,7 +808,10 @@ function getLatestRelevantTrackerDataWithIndexBefore(
     const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
       projectOwnerScopedCustomNonNumeric: false,
     });
-    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForOwner(projected, name, settingsInput, context));
+    const hasRelevantValue = hasTrackedValueForSelection(projected, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context);
     if (hasRelevantValue) {
       return { data: projected, messageIndex: i };
     }
@@ -821,7 +826,10 @@ function getLatestRelevantTrackerDataWithIndexBefore(
     const projected = getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
       projectOwnerScopedCustomNonNumeric: false,
     });
-    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForOwner(projected, name, settingsInput, context));
+    const hasRelevantValue = hasTrackedValueForSelection(projected, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context);
     if (!hasRelevantValue) continue;
     if (!best || entry.messageIndex > best.messageIndex) {
       best = { data: projected, messageIndex: entry.messageIndex };
@@ -838,6 +846,7 @@ function getMergedRelevantTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
   activeCharacters: string[],
+  activeEntityIds: string[],
   settingsInput: BetterSimTrackerSettings,
 ): { data: TrackerData; messageIndex: number } | null {
   if (beforeIndex <= 0 || context.chat.length === 0) return null;
@@ -851,7 +860,10 @@ function getMergedRelevantTrackerDataWithIndexBefore(
         projectOwnerScopedCustomNonNumeric: false,
       }),
     }))
-    .filter(entry => activeCharacters.some(name => hasTrackedValueForOwner(entry.data, name, settingsInput, context)))
+    .filter(entry => hasTrackedValueForSelection(entry.data, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context))
     .map(entry => ({
       data: entry.data,
       messageIndex: entry.messageIndex,
@@ -877,6 +889,7 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
   activeCharacters: string[],
+  activeEntityIds: string[],
   settingsInput: BetterSimTrackerSettings,
 ): { data: TrackerData; messageIndex: number } | null {
   if (beforeIndex <= 0 || context.chat.length === 0) return null;
@@ -887,9 +900,10 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
     const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
       projectOwnerScopedCustomNonNumeric: false,
     });
-    const hasRelevantValue = activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput, context),
-    );
+    const hasRelevantValue = hasCharacterOwnedTrackedValueForSelection(projected, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context);
     if (hasRelevantValue) {
       return { data: projected, messageIndex: i };
     }
@@ -905,9 +919,10 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
     })),
     beforeIndex,
-    data => activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(data, name, settingsInput, context),
-    ),
+    data => hasCharacterOwnedTrackedValueForSelection(data, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context),
   );
   if (!latestEntry) return null;
   return { data: latestEntry.data, messageIndex: latestEntry.messageIndex };
@@ -917,6 +932,7 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
   activeCharacters: string[],
+  activeEntityIds: string[],
   settingsInput: BetterSimTrackerSettings,
 ): { data: TrackerData; messageIndex: number } | null {
   if (beforeIndex <= 0 || context.chat.length === 0) return null;
@@ -928,9 +944,10 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
     const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
       projectOwnerScopedCustomNonNumeric: false,
     });
-    const hasRelevantValue = activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(projected, name, settingsInput, context),
-    );
+    const hasRelevantValue = hasCharacterOwnedTrackedValueForSelection(projected, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context);
     if (hasRelevantValue) {
       return { data: projected, messageIndex: i };
     }
@@ -946,9 +963,10 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
     })),
     beforeIndex,
-    data => activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(data, name, settingsInput, context),
-    ),
+    data => hasCharacterOwnedTrackedValueForSelection(data, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context),
     messageIndex => isTrackableUserMessage(context.chat[messageIndex]),
   );
   if (!latestEntry) return null;
@@ -3301,10 +3319,18 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const activeCharacters = ownerScopes.requestCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
+    const sceneActiveEntityIds = resolvedEntityResolution?.sceneEntityIds?.length
+      ? [...resolvedEntityResolution.sceneEntityIds]
+      : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
+    const activeEntityIds = resolvedEntityResolution?.messageEntityIds?.length
+      ? [...resolvedEntityResolution.messageEntityIds]
+      : resolveTrackerEntityIdsForOwners(context, activeCharacters);
     pushTrace("activity.resolve", {
       allCharacterNames,
       activeCharacters,
       sceneActiveCharacters,
+      activeEntityIds,
+      sceneActiveEntityIds,
       entityResolverUsed: Boolean(resolvedOwnerScopes),
       lookback: activity.lookback,
       autoDetectActive: settings.autoDetectActive,
@@ -3359,17 +3385,20 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         )
       : (getLatestCharacterOwnedTrackerDataWithIndexBefore(
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         ) ?? getLatestRelevantTrackerDataWithIndexBefore(
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         ));
     const previousGlobalEntry = userExtraction
@@ -3377,12 +3406,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         )
       : getLatestRelevantTrackerDataWithIndexBefore(
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         );
     let previous = previousEntry?.data ?? null;

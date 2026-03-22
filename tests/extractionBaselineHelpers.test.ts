@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { USER_TRACKER_KEY } from "../src/constants";
-import { hasCharacterOwnedTrackedValueForCharacter, selectLatestRelevantHistoryEntry } from "../src/extractionBaselineHelpers";
+import {
+  hasCharacterOwnedTrackedValueForCharacter,
+  hasCharacterOwnedTrackedValueForSelection,
+  selectLatestRelevantHistoryEntry,
+} from "../src/extractionBaselineHelpers";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
 
 function makeTracker(timestamp: number, clothes: string[]): TrackerData {
@@ -213,6 +217,31 @@ test("hasCharacterOwnedTrackedValueForCharacter resolves alias-owned history thr
 
   assert.equal(
     hasCharacterOwnedTrackedValueForCharacter(data, "Ash", makeSettings(), context),
+    true,
+  );
+});
+
+test("hasCharacterOwnedTrackedValueForSelection resolves relevance directly from explicit entity ids", () => {
+  const data = makeTracker(1, []);
+  data.customNonNumericStatistics = {
+    clothes: {},
+  };
+  data.customNonNumericStatisticsByEntityId = {
+    clothes: {
+      "bst_mc_alias:test:ashley": ["camp hoodie"],
+    },
+  };
+
+  assert.equal(
+    hasCharacterOwnedTrackedValueForSelection(
+      data,
+      {
+        ownerNames: ["Unknown Alias"],
+        entityIds: ["bst_mc_alias:test:ashley"],
+      },
+      makeSettings(),
+      null,
+    ),
     true,
   );
 });

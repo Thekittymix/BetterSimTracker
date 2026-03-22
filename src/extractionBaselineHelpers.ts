@@ -1,5 +1,6 @@
 import { GLOBAL_TRACKER_KEY } from "./constants";
 import {
+  listTrackerDataLookupNamesForEntityIds,
   listTrackerDataLookupNamesForOwnerWithEntityFallback,
   resolveTrackerDataLookupValue,
 } from "./entityRegistry";
@@ -11,25 +12,50 @@ export type TrackerHistoryEntry = {
   timestamp: number;
 };
 
-export function hasCharacterOwnedTrackedValueForCharacter(
+type TrackerSelectionInput = {
+  ownerNames: string[];
+  entityIds?: string[] | null;
+};
+
+export function hasCharacterOwnedTrackedValueForSelection(
   data: TrackerData,
-  characterName: string,
+  selection: TrackerSelectionInput,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null = null,
 ): boolean {
-  const lookupNames = listTrackerDataLookupNamesForOwnerWithEntityFallback(context, data, characterName);
+  const ownerNames = Array.from(new Set(
+    (selection.ownerNames ?? [])
+      .map(name => String(name ?? "").trim())
+      .filter(Boolean),
+  ));
+  const entityIds = Array.from(new Set(
+    (selection.entityIds ?? [])
+      .map(id => String(id ?? "").trim())
+      .filter(Boolean),
+  ));
+  const lookupNames = Array.from(new Set([
+    ...ownerNames.flatMap(ownerName => listTrackerDataLookupNamesForOwnerWithEntityFallback(context, data, ownerName)),
+    ...listTrackerDataLookupNamesForEntityIds(context, data, entityIds),
+  ]));
   const hasOwnerValue = <T>(input: {
     byOwner: Record<string, T> | null | undefined;
     byEntityId?: Record<string, T> | null | undefined;
   }): boolean => {
-    if (resolveTrackerDataLookupValue({
-      context,
-      data,
-      byOwner: input.byOwner,
-      byEntityId: input.byEntityId,
-      ownerName: characterName,
-    }) !== undefined) {
-      return true;
+    if (input.byEntityId) {
+      for (const entityId of entityIds) {
+        if (input.byEntityId[entityId] !== undefined) return true;
+      }
+    }
+    for (const ownerName of ownerNames) {
+      if (resolveTrackerDataLookupValue({
+        context,
+        data,
+        byOwner: input.byOwner,
+        byEntityId: input.byEntityId,
+        ownerName,
+      }) !== undefined) {
+        return true;
+      }
     }
     return lookupNames.some(name => input.byOwner?.[name] !== undefined);
   };
@@ -56,6 +82,20 @@ export function hasCharacterOwnedTrackedValueForCharacter(
   }
 
   return false;
+}
+
+export function hasCharacterOwnedTrackedValueForCharacter(
+  data: TrackerData,
+  characterName: string,
+  settingsInput: BetterSimTrackerSettings,
+  context: STContext | null = null,
+): boolean {
+  return hasCharacterOwnedTrackedValueForSelection(
+    data,
+    { ownerNames: [characterName] },
+    settingsInput,
+    context,
+  );
 }
 
 export function selectLatestRelevantHistoryEntry(

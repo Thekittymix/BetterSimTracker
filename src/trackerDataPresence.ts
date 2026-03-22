@@ -1,24 +1,53 @@
 import { GLOBAL_TRACKER_KEY } from "./constants";
-import { resolveTrackerDataLookupValue } from "./entityRegistry";
+import {
+  listTrackerDataLookupNamesForEntityIds,
+  resolveTrackerDataLookupValue,
+} from "./entityRegistry";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
-export function hasTrackedValueForOwner(
+type TrackerSelectionInput = {
+  ownerNames: string[];
+  entityIds?: string[] | null;
+};
+
+export function hasTrackedValueForSelection(
   data: TrackerData,
-  ownerName: string,
+  selection: TrackerSelectionInput,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null = null,
 ): boolean {
+  const ownerNames = Array.from(new Set(
+    (selection.ownerNames ?? [])
+      .map(name => String(name ?? "").trim())
+      .filter(Boolean),
+  ));
+  const entityIds = Array.from(new Set(
+    (selection.entityIds ?? [])
+      .map(id => String(id ?? "").trim())
+      .filter(Boolean),
+  ));
+  const entityLookupNames = listTrackerDataLookupNamesForEntityIds(context, data, entityIds);
   const hasOwnerValue = <T>(input: {
     byOwner: Record<string, T> | null | undefined;
     byEntityId?: Record<string, T> | null | undefined;
   }): boolean => {
-    return resolveTrackerDataLookupValue({
-      context,
-      data,
-      byOwner: input.byOwner,
-      byEntityId: input.byEntityId,
-      ownerName,
-    }) !== undefined;
+    if (input.byEntityId) {
+      for (const entityId of entityIds) {
+        if (input.byEntityId[entityId] !== undefined) return true;
+      }
+    }
+    for (const ownerName of ownerNames) {
+      if (resolveTrackerDataLookupValue({
+        context,
+        data,
+        byOwner: input.byOwner,
+        byEntityId: input.byEntityId,
+        ownerName,
+      }) !== undefined) {
+        return true;
+      }
+    }
+    return entityLookupNames.some(name => input.byOwner?.[name] !== undefined);
   };
 
   if (settingsInput.trackAffection && hasOwnerValue({ byOwner: data.statistics.affection, byEntityId: data.statisticsByEntityId?.affection })) return true;
@@ -45,4 +74,18 @@ export function hasTrackedValueForOwner(
   }
 
   return false;
+}
+
+export function hasTrackedValueForOwner(
+  data: TrackerData,
+  ownerName: string,
+  settingsInput: BetterSimTrackerSettings,
+  context: STContext | null = null,
+): boolean {
+  return hasTrackedValueForSelection(
+    data,
+    { ownerNames: [ownerName] },
+    settingsInput,
+    context,
+  );
 }
