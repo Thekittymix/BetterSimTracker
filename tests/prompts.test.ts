@@ -373,6 +373,30 @@ test("buildUnifiedAllStatsPrompt resolves alias owner custom stats through regis
 });
 
 test("buildUnifiedAllStatsPrompt resolves current custom stats through tracker entityOwnerMap before raw owner-name lookup", () => {
+  const currentData: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ash"],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+    entityOwnerMap: {
+      Ash: {
+        entityId: "bst_mc_alias:test:ashley",
+        ownerName: "Ashley Summers",
+        canonicalName: "Ashley Summers",
+        aliases: ["Ashley", "Ash"],
+        sourceKey: "camp",
+        kind: "multi_character_alias",
+      },
+    },
+  };
   const prompt = buildUnifiedAllStatsPrompt({
     context: {
       chatMetadata: {
@@ -431,37 +455,94 @@ test("buildUnifiedAllStatsPrompt resolves current custom stats through tracker e
       mood: {},
       lastThought: {},
     },
+    currentData,
     currentCustom: {},
     currentCustomNonNumeric: {
       clothes: { "Ashley Summers": ["worn hoodie"] },
     },
-    history: [
-      {
-        timestamp: 1,
-        activeCharacters: ["Ash"],
-        statistics: {
-          affection: {},
-          trust: {},
-          desire: {},
-          connection: {},
-          mood: {},
-          lastThought: {},
-        },
-        customStatistics: {},
-        customNonNumericStatistics: {},
-        entityOwnerMap: {
-          Ash: {
-            entityId: "bst_mc_alias:test:ashley",
-            ownerName: "Ashley Summers",
-            canonicalName: "Ashley Summers",
-            aliases: ["Ashley", "Ash"],
-            sourceKey: "camp",
-            kind: "multi_character_alias",
+    history: [],
+    maxDeltaPerTurn: 8,
+    includeCharacterCardsInPrompt: true,
+    includeLorebookInExtraction: false,
+  });
+
+  assert.match(prompt, /- Ash: clothes=\["worn hoodie"\]/);
+});
+
+test("buildSequentialCustomNonNumericPrompt resolves current scoped values through currentData entityOwnerMap", () => {
+  const prompt = buildSequentialCustomNonNumericPrompt({
+    context: {
+      chatMetadata: {
+        bstEntityRegistry: {
+          version: 1,
+          entities: {
+            "bst_mc_alias:test:ashley": {
+              id: "bst_mc_alias:test:ashley",
+              ownerName: "Ashley",
+              canonicalName: "Ashley",
+              aliases: ["Ash"],
+              sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+              sourceAvatar: "camp.png",
+              sourceKey: "camp",
+              kind: "multi_character_alias",
+              introducedAtMessageIndex: 1,
+              lastSeenMessageIndex: 1,
+              lastActiveMessageIndex: 1,
+              lifecycleState: "active",
+              archivedAtMessageIndex: null,
+            },
+          },
+          ownerToEntityId: {
+            ash: "bst_mc_alias:test:ashley",
+            ashley: "bst_mc_alias:test:ashley",
           },
         },
       },
-    ],
-    maxDeltaPerTurn: 8,
+    } as never,
+    statId: "clothes",
+    statKind: "array",
+    statLabel: "Clothes",
+    statDefault: [],
+    textMaxLength: 80,
+    userName: "User",
+    characters: ["Ash"],
+    contextText: "Recent lines",
+    current: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    currentData: {
+      timestamp: 1,
+      activeCharacters: ["Ash"],
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+      entityOwnerMap: {
+        Ash: {
+          entityId: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley Summers",
+          canonicalName: "Ashley Summers",
+          aliases: ["Ashley", "Ash"],
+          sourceKey: "camp",
+          kind: "multi_character_alias",
+        },
+      },
+    },
+    currentCustomNonNumeric: {
+      clothes: { "Ashley Summers": ["worn hoodie"] },
+    },
+    history: [],
     includeCharacterCardsInPrompt: true,
     includeLorebookInExtraction: false,
   });

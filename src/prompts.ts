@@ -539,6 +539,7 @@ export function buildUnifiedPrompt(
   includeCharacterCardsInPrompt = true,
   includeLorebookInExtraction = true,
   context?: STContext | null,
+  currentData?: TrackerData | null,
 ): string {
   const envelope = commonEnvelope(userName, characters, contextText);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
@@ -548,7 +549,7 @@ export function buildUnifiedPrompt(
   const textStats = stats.filter(stat => stat === "mood" || stat === "lastThought");
 
   const currentLines = characters.map(name => {
-    const ownerLookupNames = resolveOwnerLookupNames(context, name);
+    const ownerLookupNames = resolveOwnerLookupNames(context, name, currentData ?? null);
     const affection = Number(resolveBuiltInNumericValue(current?.affection, ownerLookupNames) ?? 50);
     const trust = Number(resolveBuiltInNumericValue(current?.trust, ownerLookupNames) ?? 50);
     const desire = Number(resolveBuiltInNumericValue(current?.desire, ownerLookupNames) ?? 50);
@@ -627,6 +628,7 @@ export function buildUnifiedAllStatsPrompt(input: {
   characters: string[];
   contextText: string;
   current: Statistics | null;
+  currentData?: TrackerData | null;
   currentCustom?: CustomStatistics | null;
   currentCustomNonNumeric?: CustomNonNumericStatistics | null;
   history: TrackerData[];
@@ -655,7 +657,7 @@ export function buildUnifiedAllStatsPrompt(input: {
   const numericDeltaKeys = [...builtInNumeric, ...customNumeric.map(stat => stat.id)];
 
   const currentLines = input.characters.map(name => {
-    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.history[0] ?? null);
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.currentData ?? null);
     const chunks: string[] = [];
     const builtInChunk = renderBuiltInSnapshotChunk({
       affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
@@ -872,6 +874,7 @@ export function buildSequentialPrompt(
   includeLorebookInExtraction = true,
   builtInTracking?: BuiltInTrackingFlags,
   context?: STContext | null,
+  currentData?: TrackerData | null,
 ): string {
   const envelope = commonEnvelope(userName, characters, contextText);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
@@ -881,7 +884,7 @@ export function buildSequentialPrompt(
   const textStats = stat === "mood" || stat === "lastThought" ? [stat] : [];
 
   const currentLines = characters.map(name => {
-    const ownerLookupNames = resolveOwnerLookupNames(context, name);
+    const ownerLookupNames = resolveOwnerLookupNames(context, name, currentData ?? null);
     const chunk = renderBuiltInSnapshotChunk({
       affection: resolveBuiltInNumericValue(current?.affection, ownerLookupNames),
       trust: resolveBuiltInNumericValue(current?.trust, ownerLookupNames),
@@ -974,6 +977,7 @@ export function buildSequentialCustomNumericPrompt(input: {
   characters: string[];
   contextText: string;
   current: Statistics | null;
+  currentData?: TrackerData | null;
   currentCustom?: Record<string, Record<string, number>> | null;
   history: TrackerData[];
   template?: string;
@@ -992,7 +996,7 @@ export function buildSequentialCustomNumericPrompt(input: {
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
 
   const currentLines = input.characters.map(name => {
-    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.history[0] ?? null);
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.currentData ?? null);
     const builtInChunk = renderBuiltInSnapshotChunk({
       affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
       trust: resolveBuiltInNumericValue(input.current?.trust, ownerLookupNames),
@@ -1241,6 +1245,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   characters: string[];
   contextText: string;
   current: Statistics | null;
+  currentData?: TrackerData | null;
   currentCustomNonNumeric?: CustomNonNumericStatistics | null;
   history: TrackerData[];
   template?: string;
@@ -1283,7 +1288,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
           : `text<=${textMaxLen}`;
 
   const currentLines = input.characters.map(name => {
-    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.history[0] ?? null);
+    const ownerLookupNames = resolveOwnerLookupNames(input.context, name, input.currentData ?? null);
     const builtInChunk = renderBuiltInSnapshotChunk({
       affection: resolveBuiltInNumericValue(input.current?.affection, ownerLookupNames),
       trust: resolveBuiltInNumericValue(input.current?.trust, ownerLookupNames),

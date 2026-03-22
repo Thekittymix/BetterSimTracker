@@ -319,6 +319,19 @@ export async function extractStatisticsParallel(input: {
   const output = emptyStatistics();
   const outputCustom: CustomStatistics = {};
   const outputCustomNonNumeric: CustomNonNumericStatistics = {};
+  const promptCurrentData: TrackerData = {
+    ...(previousTrackerData ?? {
+      timestamp: Date.now(),
+      activeCharacters: [...activeCharacters],
+      statistics: emptyStatistics(),
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    }),
+    activeCharacters: [...activeCharacters],
+    statistics: previousStatistics ?? emptyStatistics(),
+    customStatistics: previousCustomStatistics ?? {},
+    customNonNumericStatistics: previousCustomNonNumericStatistics ?? {},
+  };
   let debugRecord: DeltaDebugRecord | null = null;
   let cancelled = false;
   const normalizedUserName = String(userName ?? "").trim();
@@ -1114,6 +1127,7 @@ export async function extractStatisticsParallel(input: {
               trackMood: settings.trackMood,
             },
             context,
+            promptCurrentData,
           )
         : buildUnifiedPrompt(
             statList,
@@ -1129,6 +1143,7 @@ export async function extractStatisticsParallel(input: {
             settings.includeCharacterCardsInPrompt,
             settings.includeLorebookInExtraction,
             context,
+            promptCurrentData,
           );
       const prompt = applyPromptCharacterAliases(builtPrompt);
       tickProgress(buildProgressRequest(progressLabel));
@@ -1234,6 +1249,7 @@ export async function extractStatisticsParallel(input: {
           characters: requestCharacters,
           contextText,
           current: previousStatistics,
+          currentData: promptCurrentData,
           currentCustom: previousCustomStatistics ?? {},
           history,
           template: (statDef.promptOverride ?? statDef.sequentialPromptTemplate)
@@ -1272,6 +1288,7 @@ export async function extractStatisticsParallel(input: {
           characters: requestCharacters,
           contextText,
           current: previousStatistics,
+          currentData: promptCurrentData,
           currentCustomNonNumeric: previousCustomNonNumericStatistics ?? {},
           history,
           template: (statDef.promptOverride ?? statDef.sequentialPromptTemplate)
@@ -1475,6 +1492,7 @@ export async function extractStatisticsParallel(input: {
           characters: requestCharacters,
           contextText,
           current: previousStatistics,
+          currentData: promptCurrentData,
           currentCustom: previousCustomStatistics ?? {},
           currentCustomNonNumeric: previousCustomNonNumericStatistics ?? {},
           history,
@@ -1644,6 +1662,7 @@ export async function extractStatisticsParallel(input: {
           characters: requestCharacters,
           contextText,
           current: previousStatistics,
+          currentData: promptCurrentData,
           currentCustom: previousCustomStatistics ?? {},
           currentCustomNonNumeric: previousCustomNonNumericStatistics ?? {},
           history,

@@ -1,3 +1,7 @@
+## [2.2.4.16-exp85] - 2026-03-22
+### Changed
+- Experimental multi-character extraction prompt builders now read current seeded tracker state through the actual current tracker snapshot/entity mapping instead of borrowing alias lookup context from unrelated history entries, reducing another owner-name drift path in prompt continuity.
+
 ## [2.2.4.16-exp84] - 2026-03-22
 ### Changed
 - Experimental multi-character tracker summary and fallback prose reads now resolve alias-backed custom numeric values through tracker payload `entityOwnerMap` and persisted `byEntityId` state, reducing another owner-name drift path in summary continuity.
