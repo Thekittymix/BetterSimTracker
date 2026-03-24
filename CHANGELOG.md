@@ -1,3 +1,7 @@
+## [2.2.4.16-exp99] - 2026-03-24
+### Changed
+- Experimental graph timeline helpers now resolve numeric values through entity-owner mapping and *ByEntityId buckets instead of relying only on raw owner-name buckets.
+
 ## [2.2.4.16-exp98] - 2026-03-24
 ### Changed
 - Experimental multi-character manual active-state edits now keep resolver-backed scene identity in sync with the edited snapshot instead of updating only raw `activeCharacters`.
@@ -1270,6 +1274,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

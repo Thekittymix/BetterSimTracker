@@ -84,3 +84,47 @@ test("graph timeline helpers can resolve alias-owned values through per-entry lo
   );
   assert.deepEqual(series, [71]);
 });
+
+test("graph timeline helpers prefer by-entity numeric values through entityOwnerMap", () => {
+  const entry = makeTracker(1);
+  entry.entityOwnerMap = {
+    Ashley: {
+      entityId: "ent-ashley",
+      ownerName: "Ashley",
+      canonicalName: "Ashley Summers",
+      aliases: ["Ash"],
+      sourceKey: "camp|ashley",
+      kind: "multi_character_alias",
+    },
+  };
+  entry.statisticsByEntityId = {
+    affection: {
+      "ent-ashley": 68,
+    },
+    trust: {},
+    desire: {},
+    connection: {},
+    mood: {},
+    lastThought: {},
+  };
+  entry.customStatisticsByEntityId = {
+    owner_score: {
+      "ent-ashley": 73,
+    },
+  };
+
+  const defs: GraphNumericStatDefinition[] = [
+    { key: "affection", defaultValue: 50, globalScope: false },
+    { key: "owner_score", defaultValue: 50, globalScope: false },
+  ];
+
+  assert.equal(hasNumericSnapshot(entry, "Ashley", defs), true);
+  assert.deepEqual(
+    buildStatSeries([entry], "Ashley", { key: "owner_score", defaultValue: 50, globalScope: false }),
+    [73],
+  );
+  assert.deepEqual(
+    buildStatSeries([entry], "Ashley", { key: "affection", defaultValue: 50, globalScope: false }),
+    [68],
+  );
+});

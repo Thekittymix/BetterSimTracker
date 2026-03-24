@@ -1,4 +1,5 @@
 import { GLOBAL_TRACKER_KEY } from "./constants";
+import { resolveTrackerDataLookupValue } from "./entityRegistry";
 import type { TrackerData } from "./types";
 
 export type GraphNumericStatDefinition = {
@@ -43,7 +44,13 @@ function getNumericRawValue(
     const byOwner = entry.statistics[key as "affection" | "trust" | "desire" | "connection"];
     if (!byOwner) return undefined;
     for (const name of lookupNames) {
-      const raw = byOwner[name];
+      const raw = resolveTrackerDataLookupValue({
+        context: null,
+        data: entry,
+        ownerName: name,
+        byOwner,
+        byEntityId: entry.statisticsByEntityId?.[key as "affection" | "trust" | "desire" | "connection"],
+      });
       if (raw === undefined) continue;
       return Number(raw);
     }
@@ -51,8 +58,10 @@ function getNumericRawValue(
   }
 
   const byOwner = entry.customStatistics?.[key];
-  if (!byOwner) return undefined;
+  const byEntityId = entry.customStatisticsByEntityId?.[key];
+  if (!byOwner && !byEntityId) return undefined;
   const legacyFallback = (): number | undefined => {
+    if (!byOwner) return undefined;
     for (const [owner, value] of Object.entries(byOwner)) {
       if (owner === GLOBAL_TRACKER_KEY) continue;
       const parsed = Number(value);
@@ -62,8 +71,18 @@ function getNumericRawValue(
   };
 
   const customRaw = globalScope
-    ? (byOwner[GLOBAL_TRACKER_KEY] ?? lookupNames.map(name => byOwner[name]).find(value => value !== undefined) ?? legacyFallback())
-    : lookupNames.map(name => byOwner[name]).find(value => value !== undefined);
+    ? ((byOwner?.[GLOBAL_TRACKER_KEY])
+      ?? lookupNames.map(name => byOwner?.[name]).find(value => value !== undefined)
+      ?? legacyFallback())
+    : lookupNames
+      .map(name => resolveTrackerDataLookupValue({
+        context: null,
+        data: entry,
+        ownerName: name,
+        byOwner,
+        byEntityId,
+      }))
+      .find(value => value !== undefined);
   if (customRaw === undefined) return undefined;
   return Number(customRaw);
 }
