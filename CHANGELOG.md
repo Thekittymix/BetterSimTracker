@@ -1,3 +1,7 @@
+## [2.2.4.16-exp96] - 2026-03-24
+### Changed
+- Experimental multi-character edit-modal working copies now preserve resolver identity data and all `*ByEntityId` state instead of falling back to owner-only clones while editing tracker cards.
+
 ## [2.2.4.16-exp95] - 2026-03-24
 ### Changed
 - Experimental multi-character manual tracker edits now preserve resolver identity metadata and entity-owner mapping instead of dropping them when saving edited tracker snapshots.

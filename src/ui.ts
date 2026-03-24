@@ -56,6 +56,7 @@ import { getDateTimeStructuredParts, normalizeDateTimeValue, toDateTimeInputValu
 import { renderThoughtMarkup } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
+import { cloneTrackerDataForEdit } from "./trackerUiState";
 import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
 import {
   buildLifecycleHistorySnapshotsFromTrackerEntries,
@@ -4823,37 +4824,6 @@ export function renderTracker(
     null,
     sortedEntries.filter(item => item.data),
   );
-  const cloneTrackerDataForEdit = (data: TrackerData): TrackerData => {
-    const cloneCustomNumeric: TrackerData["customStatistics"] = {};
-    for (const [statId, byOwner] of Object.entries(data.customStatistics ?? {})) {
-      cloneCustomNumeric[statId] = { ...(byOwner ?? {}) };
-    }
-    const cloneCustomNonNumeric: TrackerData["customNonNumericStatistics"] = {};
-    for (const [statId, byOwner] of Object.entries(data.customNonNumericStatistics ?? {})) {
-      const next: Record<string, CustomNonNumericValue> = {};
-      for (const [owner, value] of Object.entries(byOwner ?? {})) {
-        next[owner] = Array.isArray(value) ? [...value] : value;
-      }
-      cloneCustomNonNumeric[statId] = next;
-    }
-    return {
-      timestamp: data.timestamp,
-      activeCharacters: [...(data.activeCharacters ?? [])],
-      statistics: {
-        affection: { ...(data.statistics.affection ?? {}) },
-        trust: { ...(data.statistics.trust ?? {}) },
-        desire: { ...(data.statistics.desire ?? {}) },
-        connection: { ...(data.statistics.connection ?? {}) },
-        mood: { ...(data.statistics.mood ?? {}) },
-        lastThought: { ...(data.statistics.lastThought ?? {}) },
-      },
-      customStatistics: cloneCustomNumeric,
-      customNonNumericStatistics: cloneCustomNonNumeric,
-      entityOwnerMap: data.entityOwnerMap
-        ? Object.fromEntries(Object.entries(data.entityOwnerMap).map(([owner, snapshot]) => [owner, { ...snapshot, aliases: [...(snapshot.aliases ?? [])] }]))
-        : undefined,
-    };
-  };
   const buildEffectiveEditModalData = (
     messageIndex: number,
     owner: string,
