@@ -786,6 +786,49 @@ test("mergeTrackerDataChronologically prefers resolver scene owners over stale a
   });
 });
 
+test("mergeTrackerDataChronologically materializes missing resolver owners from entity ids through merged entityOwnerMap", () => {
+  const blakeEntityId = "bst_mc_alias:test:blake";
+  const merged = mergeTrackerDataChronologically([
+    makeTracker(1000, {
+      activeCharacters: ["Garret"],
+      entityResolution: {
+        source: "model",
+        sceneOwners: [],
+        messageOwners: [],
+        sceneEntityIds: [blakeEntityId],
+        messageEntityIds: [blakeEntityId],
+      },
+      entityOwnerMap: {
+        Blake: {
+          entityId: blakeEntityId,
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: [],
+          sourceKey: "camp.png|camp whispering pines",
+          kind: "multi_character_alias",
+        },
+        Garret: {
+          entityId: "bst_mc_alias:test:garret",
+          ownerName: "Garret",
+          canonicalName: "Garret",
+          aliases: [],
+          sourceKey: "camp.png|camp whispering pines",
+          kind: "multi_character_alias",
+        },
+      },
+    }),
+  ]);
+
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
+  assert.deepEqual(merged?.entityResolution, {
+    source: "model",
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: [blakeEntityId],
+    messageEntityIds: [blakeEntityId],
+  });
+});
+
 test("mergeTrackerDataChronologically preserves explicit by-entity buckets when owner buckets are absent", () => {
   const entityOnlySnapshot = makeTracker(1000, {
     activeCharacters: ["Ashley"],

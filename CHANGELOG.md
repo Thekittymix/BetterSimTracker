@@ -1,3 +1,7 @@
+## [2.2.4.16-exp113] - 2026-03-24
+### Changed
+- Experimental multi-character chronological tracker merges now rebuild missing resolver scene/message owners from persisted entity ids plus merged `entityOwnerMap` before falling back to stale raw `activeCharacters`.
+
 ## [2.2.4.16-exp112] - 2026-03-24
 ### Changed
 - Experimental multi-character storage normalization now rebuilds missing resolver scene/message owners from persisted entity ids plus `entityOwnerMap` before falling back to stale raw `activeCharacters`.

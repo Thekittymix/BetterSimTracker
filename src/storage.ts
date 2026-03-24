@@ -1200,10 +1200,30 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     }
   }
 
+  const mergedEntityOwnerMap = mergeEntityOwnerMapsChronologically(sorted);
+  const hydratedSceneOwners = mergedEntityResolution?.sceneOwners?.length
+    ? [...mergedEntityResolution.sceneOwners]
+    : resolveOwnersFromEntityIdsWithOwnerMap(mergedEntityResolution?.sceneEntityIds, mergedEntityOwnerMap);
+  const hydratedMessageOwners = mergedEntityResolution?.messageOwners?.length
+    ? [...mergedEntityResolution.messageOwners]
+    : resolveOwnersFromEntityIdsWithOwnerMap(mergedEntityResolution?.messageEntityIds, mergedEntityOwnerMap);
+  const hydratedEntityResolution = mergedEntityResolution
+    ? {
+        ...mergedEntityResolution,
+        sceneOwners: hydratedSceneOwners,
+        messageOwners: hydratedMessageOwners.length
+          ? hydratedMessageOwners
+          : (hydratedSceneOwners.length ? hydratedSceneOwners : mergedEntityResolution.messageOwners),
+      }
+    : mergedEntityResolution;
+  const normalizedFallbackActiveCharacters = hydratedSceneOwners.length
+    ? hydratedSceneOwners
+    : fallbackActiveCharacters;
+
   return normalizeTrackerDataEntityBuckets({
     timestamp: mergedTimestamp || Date.now(),
-    activeCharacters: fallbackActiveCharacters,
-    entityResolution: mergedEntityResolution,
+    activeCharacters: normalizedFallbackActiveCharacters,
+    entityResolution: hydratedEntityResolution,
     statistics: mergedStatistics ?? createEmptyStatistics(),
     statisticsByEntityId: mergedStatisticsByEntityId ?? createEmptyStatistics(),
     customStatistics: mergedCustomStatistics ?? {},
@@ -1213,7 +1233,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     clearedStatistics: pruneClearedStatistics(mergedClearedStatistics ?? undefined),
     clearedCustomStatistics: pruneClearedOwnerBuckets(mergedClearedCustomStatistics ?? undefined),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(mergedClearedCustomNonNumericStatistics ?? undefined),
-    entityOwnerMap: mergeEntityOwnerMapsChronologically(sorted),
+    entityOwnerMap: mergedEntityOwnerMap,
   });
 }
 
