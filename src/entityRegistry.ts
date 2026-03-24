@@ -533,16 +533,39 @@ export function resolveTrackerOwnersForEntityIds(
   return out;
 }
 
+function resolveTrackerOwnersForEntityIdsFromOwnerMap(
+  data: TrackerData | null | undefined,
+  entityIds: string[],
+): string[] {
+  if (!data?.entityOwnerMap || typeof data.entityOwnerMap !== "object" || !Array.isArray(entityIds) || !entityIds.length) {
+    return [];
+  }
+  const wanted = new Set(entityIds.map(normalizeToken).filter(Boolean));
+  if (!wanted.size) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
+    const entityId = normalizeToken(snapshot?.entityId);
+    if (!entityId || !wanted.has(entityId)) continue;
+    const ownerName = normalizeToken(snapshot?.ownerName) || normalizeToken(snapshotOwner);
+    const ownerKey = normalizeKey(ownerName);
+    if (!ownerKey || seen.has(ownerKey)) continue;
+    seen.add(ownerKey);
+    out.push(ownerName);
+  }
+  return out;
+}
+
 export function resolveTrackerSceneOwners(
   context: STContext | null,
   data: TrackerData | null | undefined,
 ): string[] {
   if (!data) return [];
-  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(
-    context,
-    data.entityResolution?.sceneEntityIds ?? [],
-  );
+  const sceneEntityIds = data.entityResolution?.sceneEntityIds ?? [];
+  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, sceneEntityIds);
   if (sceneOwnersFromEntityIds.length) return sceneOwnersFromEntityIds;
+  const sceneOwnersFromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, sceneEntityIds);
+  if (sceneOwnersFromOwnerMap.length) return sceneOwnersFromOwnerMap;
   const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
     ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
     : [];

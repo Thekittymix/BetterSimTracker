@@ -10,8 +10,9 @@
     "js":  "dist/index.js",
     "auto_update":  true,
     "author":  "BetterSimTracker",
-    "version":  "2.2.4.16-exp116",
+    "version":  "2.2.4.16-exp117",
     "homePage":  "https://github.com/ghostd93/BetterSimTracker"
 }
+
 
 

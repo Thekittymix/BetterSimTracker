@@ -1,3 +1,7 @@
+## [2.2.4.16-exp117] - 2026-03-24
+### Changed
+- Experimental multi-character UI/runtime reads can now materialize resolver scene owners directly from persisted `sceneEntityIds` plus `entityOwnerMap` even when no live `STContext` registry lookup is available.
+
 ## [2.2.4.16-exp116] - 2026-03-24
 ### Changed
 - Experimental multi-character merged prompt/runtime snapshots now normalize preferred `entityResolution.sceneOwners/messageOwners` from resolver-backed entity ids instead of leaving stale owner-name arrays beside corrected `activeCharacters`.
@@ -1333,6 +1337,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

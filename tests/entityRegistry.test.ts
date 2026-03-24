@@ -276,6 +276,39 @@ test("resolveTrackerSceneOwners prefers scene entity ids over stale owner-name a
   );
 });
 
+test("resolveTrackerSceneOwners can materialize scene owners from sceneEntityIds plus entityOwnerMap without context", () => {
+  const resolved = resolveTrackerSceneOwners(null, makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    },
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["Blackout Blake"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "ent-garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+  }));
+
+  assert.deepEqual(resolved, ["Blake"]);
+});
+
 test("buildLifecycleHistorySnapshotsFromTrackerEntries uses resolved scene owners for continuity history", () => {
   const context = makeContext();
   const blakeEntityId = buildTrackerEntityId({
