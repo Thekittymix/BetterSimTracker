@@ -1,3 +1,7 @@
+## [2.2.4.16-exp114] - 2026-03-24
+### Changed
+- Experimental multi-character summary owner collection now materializes missing scene owners from persisted `sceneEntityIds` plus `entityOwnerMap`, instead of broadening to stale fallback owners when no live context is available.
+
 ## [2.2.4.16-exp113] - 2026-03-24
 ### Changed
 - Experimental multi-character chronological tracker merges now rebuild missing resolver scene/message owners from persisted entity ids plus merged `entityOwnerMap` before falling back to stale raw `activeCharacters`.

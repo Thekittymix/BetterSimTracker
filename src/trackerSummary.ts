@@ -2,6 +2,27 @@ import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveTrackerDataLookupValue, resolveTrackerSceneOwners } from "./entityRegistry";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
+function resolveSceneOwnersFromEntityIdsWithOwnerMap(data: TrackerData): string[] {
+  const entityIds = Array.isArray(data.entityResolution?.sceneEntityIds)
+    ? data.entityResolution.sceneEntityIds.map(entityId => String(entityId ?? "").trim()).filter(Boolean)
+    : [];
+  if (!entityIds.length || !data.entityOwnerMap || typeof data.entityOwnerMap !== "object") {
+    return [];
+  }
+  const ownerByEntityId = new Map<string, string>();
+  for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
+    const entityId = String(snapshot?.entityId ?? "").trim();
+    const ownerName = String(snapshot?.ownerName ?? snapshotOwner).trim();
+    if (!entityId || !ownerName || ownerByEntityId.has(entityId)) continue;
+    ownerByEntityId.set(entityId, ownerName);
+  }
+  return Array.from(new Set(
+    entityIds
+      .map(entityId => ownerByEntityId.get(entityId) ?? "")
+      .filter(Boolean),
+  ));
+}
+
 export function collectSummaryCharacters(context: STContext | null, data: TrackerData): string[];
 export function collectSummaryCharacters(data: TrackerData): string[];
 export function collectSummaryCharacters(
@@ -11,7 +32,11 @@ export function collectSummaryCharacters(
   const context = maybeData ? (contextOrData as STContext | null) : null;
   const data = maybeData ?? (contextOrData as TrackerData);
   const names = new Set<string>();
-  const preferredOwners = context ? resolveTrackerSceneOwners(context, data) : [];
+  const preferredOwners = context
+    ? resolveTrackerSceneOwners(context, data)
+    : (Array.isArray(data.entityResolution?.sceneOwners) && data.entityResolution.sceneOwners.length
+      ? data.entityResolution.sceneOwners.map(name => String(name ?? "").trim()).filter(Boolean)
+      : resolveSceneOwnersFromEntityIdsWithOwnerMap(data));
   for (const name of preferredOwners.length ? preferredOwners : (data.activeCharacters ?? [])) {
     if (typeof name === "string" && name.trim()) names.add(name.trim());
   }
