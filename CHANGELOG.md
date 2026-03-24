@@ -1,3 +1,7 @@
+## [2.2.4.16-exp134] - 2026-03-24
+### Changed
+- Experimental multi-character AI extraction now requests stat updates for the full resolver-backed scene owner set, while still preserving separate message-owner identity for the character(s) actively driving that reply.
+
 ## [2.2.4.16-exp133] - 2026-03-24
 ### Fixed
 - Experimental multi-character user-turn cards now treat message-level user ownership as active lifecycle state, so the current user card no longer renders collapsed/inactive just because the broader scene owners exclude the user.

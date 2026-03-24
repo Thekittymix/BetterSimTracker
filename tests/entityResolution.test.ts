@@ -12,6 +12,8 @@ import {
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   constrainFallbackOwnerScopesToPreviousUserScene,
+  resolveExtractionRequestEntityIds,
+  resolveExtractionRequestOwners,
   resolveExtractionOwnerScopes,
   resolveEntityResolverCandidateOwners,
   resolveInitialExtractionOwners,
@@ -719,5 +721,69 @@ test("resolvePersistedSnapshotEntityIds clears user message entity ids while pre
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
     },
+  );
+});
+
+test("resolveExtractionRequestOwners uses full scene owners for multi-character AI extraction but keeps message-only owners for user and standard flows", () => {
+  assert.deepEqual(
+    resolveExtractionRequestOwners({
+      sceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+      requestCharacters: ["Blake"],
+      userExtraction: false,
+      settings: { entityTrackingMode: "multi_character" },
+    }),
+    ["Ashley", "Blake", "Garret", "Raleigh"],
+  );
+
+  assert.deepEqual(
+    resolveExtractionRequestOwners({
+      sceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+      requestCharacters: ["__bst_user__"],
+      userExtraction: true,
+      settings: { entityTrackingMode: "multi_character" },
+    }),
+    ["__bst_user__"],
+  );
+
+  assert.deepEqual(
+    resolveExtractionRequestOwners({
+      sceneActiveCharacters: ["Ashley", "Blake"],
+      requestCharacters: ["Blake"],
+      userExtraction: false,
+      settings: { entityTrackingMode: "standard" },
+    }),
+    ["Blake"],
+  );
+});
+
+test("resolveExtractionRequestEntityIds uses full scene entity ids for multi-character AI extraction but keeps message-only ids for user and standard flows", () => {
+  assert.deepEqual(
+    resolveExtractionRequestEntityIds({
+      sceneEntityIds: ["ent:ashley", "ent:blake", "ent:garret", "ent:raleigh"],
+      requestEntityIds: ["ent:blake"],
+      userExtraction: false,
+      settings: { entityTrackingMode: "multi_character" },
+    }),
+    ["ent:ashley", "ent:blake", "ent:garret", "ent:raleigh"],
+  );
+
+  assert.deepEqual(
+    resolveExtractionRequestEntityIds({
+      sceneEntityIds: ["ent:ashley", "ent:blake"],
+      requestEntityIds: ["ent:user"],
+      userExtraction: true,
+      settings: { entityTrackingMode: "multi_character" },
+    }),
+    ["ent:user"],
+  );
+
+  assert.deepEqual(
+    resolveExtractionRequestEntityIds({
+      sceneEntityIds: ["ent:ashley", "ent:blake"],
+      requestEntityIds: ["ent:blake"],
+      userExtraction: false,
+      settings: { entityTrackingMode: "standard" },
+    }),
+    ["ent:blake"],
   );
 });

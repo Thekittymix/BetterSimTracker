@@ -17,6 +17,8 @@ import {
   resolveEntityTrackingMode,
   resolveInitialExtractionOwners,
   resolvePersistedActiveOwners,
+  resolveExtractionRequestEntityIds,
+  resolveExtractionRequestOwners,
   resolvePersistedSnapshotActiveOwners,
   resolvePersistedSnapshotEntityResolution,
 } from "./entityResolution";
@@ -3370,20 +3372,34 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const sceneActiveCharacters = ownerScopes.sceneActiveCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
-    const activeCharacters = ownerScopes.requestCharacters.filter(name =>
+    const requestCharacters = ownerScopes.requestCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
     const sceneActiveEntityIds = resolvedEntityResolution?.sceneEntityIds?.length
       ? [...resolvedEntityResolution.sceneEntityIds]
       : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
-    const activeEntityIds = resolvedEntityResolution?.messageEntityIds?.length
+    const requestEntityIds = resolvedEntityResolution?.messageEntityIds?.length
       ? [...resolvedEntityResolution.messageEntityIds]
-      : resolveTrackerEntityIdsForOwners(context, activeCharacters);
+      : resolveTrackerEntityIdsForOwners(context, requestCharacters);
+    const activeCharacters = resolveExtractionRequestOwners({
+      sceneActiveCharacters,
+      requestCharacters,
+      userExtraction,
+      settings: activeSettings,
+    }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const activeEntityIds = resolveExtractionRequestEntityIds({
+      sceneEntityIds: sceneActiveEntityIds,
+      requestEntityIds,
+      userExtraction,
+      settings: activeSettings,
+    });
     pushTrace("activity.resolve", {
       allCharacterNames,
       activeCharacters,
+      requestCharacters,
       sceneActiveCharacters,
       activeEntityIds,
+      requestEntityIds,
       sceneActiveEntityIds,
       entityResolverUsed: Boolean(resolvedOwnerScopes),
       lookback: activity.lookback,

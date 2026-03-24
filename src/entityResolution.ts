@@ -596,6 +596,32 @@ export function resolvePersistedSnapshotActiveOwners(input: {
   );
 }
 
+export function resolveExtractionRequestOwners(input: {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+  userExtraction: boolean;
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
+}): string[] {
+  if (input.userExtraction) return [...input.requestCharacters];
+  if (input.settings.entityTrackingMode === "multi_character" && input.sceneActiveCharacters.length) {
+    return [...input.sceneActiveCharacters];
+  }
+  return [...input.requestCharacters];
+}
+
+export function resolveExtractionRequestEntityIds(input: {
+  sceneEntityIds: string[];
+  requestEntityIds: string[];
+  userExtraction: boolean;
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
+}): string[] {
+  if (input.userExtraction) return [...input.requestEntityIds];
+  if (input.settings.entityTrackingMode === "multi_character" && input.sceneEntityIds.length) {
+    return [...input.sceneEntityIds];
+  }
+  return [...input.requestEntityIds];
+}
+
 export function resolvePersistedSnapshotEntityResolution(input: {
   sceneActiveCharacters: string[];
   requestCharacters: string[];
