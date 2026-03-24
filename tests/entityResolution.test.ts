@@ -414,6 +414,13 @@ test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload
     {
       timestamp: 1,
       activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      entityResolution: {
+        sceneOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+        messageOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+        sceneEntityIds: ["bst_mc_source:camp.png"],
+        messageEntityIds: ["bst_mc_source:camp.png"],
+        source: "model",
+      },
       statistics: {
         affection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 51 },
         trust: {},
@@ -437,11 +444,17 @@ test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload
   );
 
   assert.deepEqual(projected.activeCharacters, ["Ashley"]);
+  assert.deepEqual(projected.entityResolution, {
+    sceneOwners: ["Ashley"],
+    messageOwners: ["Ashley"],
+    source: "model",
+  });
   assert.deepEqual(projected.statistics.affection, { Ashley: 51 });
   assert.deepEqual(projected.statistics.mood, { Ashley: "Anxious" });
   assert.deepEqual(projected.statistics.lastThought, { Ashley: "Need to keep moving." });
   assert.deepEqual(projected.customNonNumericStatistics?.clothes, { Ashley: ["sneakers"] });
   assert.deepEqual(projected.customNonNumericStatistics?.pose, { Ashley: "Frozen in the kitchen doorway." });
+  assert.equal(projected.entityOwnerMap, undefined);
 });
 
 test("projectTrackerDataToMessageScopedOwners can leave owner-scoped non-numeric custom stats unmapped for continuity reads", () => {

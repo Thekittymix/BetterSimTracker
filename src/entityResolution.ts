@@ -759,9 +759,22 @@ export function projectTrackerDataToMessageScopedOwners(
 
   if (!changed) return data;
 
+  const remapOwners = (owners: string[] | undefined): string[] => uniqueStrings(
+    (owners ?? []).map(ownerName => ownerMap.get(ownerName) ?? ownerName),
+  );
+  const remappedSceneOwners = remapOwners(data.entityResolution?.sceneOwners);
+  const remappedMessageOwners = remapOwners(data.entityResolution?.messageOwners);
+
   return {
     ...data,
     activeCharacters: (data.activeCharacters ?? []).map(ownerName => ownerMap.get(ownerName) ?? ownerName),
+    entityResolution: data.entityResolution
+      ? {
+          sceneOwners: remappedSceneOwners,
+          messageOwners: remappedMessageOwners.length ? remappedMessageOwners : remappedSceneOwners,
+          source: data.entityResolution.source,
+        }
+      : undefined,
     statistics: remapStatistics(data.statistics, ownerMap),
     customStatistics: remapCustomStatistics(data.customStatistics, ownerMap),
     customNonNumericStatistics: projectOwnerScopedCustomNonNumeric
@@ -772,5 +785,6 @@ export function projectTrackerDataToMessageScopedOwners(
     clearedCustomNonNumericStatistics: projectOwnerScopedCustomNonNumeric
       ? remapClearedCustomBuckets(data.clearedCustomNonNumericStatistics, ownerMap)
       : data.clearedCustomNonNumericStatistics,
+    entityOwnerMap: undefined,
   };
 }

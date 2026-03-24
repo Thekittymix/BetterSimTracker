@@ -1,3 +1,6 @@
+## [2.2.4.16-exp103] - 2026-03-24
+### Changed
+- Experimental multi-character message-scoped owner projection now remaps resolver owner metadata together with projected owner buckets, and drops stale source-card entity-id payloads so later entity-layer reads rebuild from the projected alias identity instead of mixed source-owner leftovers.
 ## [2.2.4.16-exp102] - 2026-03-24
 ### Changed
 - Experimental multi-character entity-owner mapping now prefers resolver sceneEntityIds before stale raw owner arrays when rebuilding owner identity from tracker payloads.
@@ -1286,6 +1289,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 
