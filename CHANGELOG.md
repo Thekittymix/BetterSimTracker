@@ -1,3 +1,6 @@
+## [2.2.4.16-exp104] - 2026-03-24
+### Changed
+- Experimental multi-character extraction baselines and seeded history now materialize `*ByEntityId` shadow buckets from the current resolved owners/entity ids instead of only seeding owner-name buckets.
 ## [2.2.4.16-exp103] - 2026-03-24
 ### Changed
 - Experimental multi-character message-scoped owner projection now remaps resolver owner metadata together with projected owner buckets, and drops stale source-card entity-id payloads so later entity-layer reads rebuild from the projected alias identity instead of mixed source-owner leftovers.

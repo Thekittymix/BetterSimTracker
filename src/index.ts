@@ -40,6 +40,12 @@ import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
 import { hasTrackedValueForOwner, hasTrackedValueForSelection } from "./trackerDataPresence";
 import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot } from "./trackerEditState";
 import {
+  buildEntityScopedCustomNonNumericStatisticsBuckets,
+  buildEntityScopedCustomStatisticsBuckets,
+  buildEntityScopedStatisticsBuckets,
+  buildTargetToEntityMap,
+} from "./entityScopedBuckets";
+import {
   buildFallbackSummaryProse as buildFallbackSummaryProseHelper,
   buildSummaryTrackerStateLines as buildSummaryTrackerStateLinesHelper,
   collectSummaryCharacters as collectSummaryCharactersHelper,
@@ -2288,28 +2294,42 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
 function seedHistoryForActiveCharacters(
   history: TrackerData[],
   activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): TrackerData[] {
-  return history.map(entry => ({
-    ...entry,
-    statistics: buildSeededStatisticsForActiveCharacters(entry.statistics, activeCharacters, settingsInput, context),
-    customStatistics: buildSeededCustomStatisticsForActiveCharacters(
+  const targetToEntity = buildTargetToEntityMap(context, activeCharacters, activeEntityIds);
+  return history.map(entry => {
+    const statistics = buildSeededStatisticsForActiveCharacters(entry.statistics, activeCharacters, settingsInput, context);
+    const customStatistics = buildSeededCustomStatisticsForActiveCharacters(
       entry.customStatistics,
       activeCharacters,
       settingsInput,
       context,
-    ),
-    customNonNumericStatistics: buildSeededCustomNonNumericStatisticsForActiveCharacters(
+    );
+    const customNonNumericStatistics = buildSeededCustomNonNumericStatisticsForActiveCharacters(
       entry.customNonNumericStatistics,
       activeCharacters,
       settingsInput,
       context,
-    ),
-  }));
+    );
+    return {
+      ...entry,
+      statistics,
+      statisticsByEntityId: buildEntityScopedStatisticsBuckets(statistics, targetToEntity),
+      customStatistics,
+      customStatisticsByEntityId: buildEntityScopedCustomStatisticsBuckets(customStatistics, targetToEntity),
+      customNonNumericStatistics,
+      customNonNumericStatisticsByEntityId: buildEntityScopedCustomNonNumericStatisticsBuckets(customNonNumericStatistics, targetToEntity),
+    };
+  });
 }
 
-function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettings): TrackerData {
+function buildBaselineData(
+  activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
+  s: BetterSimTrackerSettings,
+): TrackerData {
   const context = getSafeContext();
 
   const pickNumber = (raw: unknown, fallback: number): number => {
@@ -2477,31 +2497,37 @@ function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettin
     }
   }
 
+  const targetToEntity = buildTargetToEntityMap(context, activeCharacters, activeEntityIds);
+  const statistics: Statistics = {
+    affection: s.trackAffection
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.affection ?? s.defaultAffection]))
+      : {},
+    trust: s.trackTrust
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.trust ?? s.defaultTrust]))
+      : {},
+    desire: s.trackDesire
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.desire ?? s.defaultDesire]))
+      : {},
+    connection: s.trackConnection
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.connection ?? s.defaultConnection]))
+      : {},
+    mood: s.trackMood
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.mood ?? s.defaultMood]))
+      : {},
+    lastThought: s.trackLastThought
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.lastThought ?? ""]))
+      : {}
+  };
+
   return {
     timestamp: Date.now(),
     activeCharacters,
-    statistics: {
-      affection: s.trackAffection
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.affection ?? s.defaultAffection]))
-        : {},
-      trust: s.trackTrust
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.trust ?? s.defaultTrust]))
-        : {},
-      desire: s.trackDesire
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.desire ?? s.defaultDesire]))
-        : {},
-      connection: s.trackConnection
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.connection ?? s.defaultConnection]))
-        : {},
-      mood: s.trackMood
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.mood ?? s.defaultMood]))
-        : {},
-      lastThought: s.trackLastThought
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.lastThought ?? ""]))
-        : {}
-    },
+    statistics,
+    statisticsByEntityId: buildEntityScopedStatisticsBuckets(statistics, targetToEntity),
     customStatistics,
+    customStatisticsByEntityId: buildEntityScopedCustomStatisticsBuckets(customStatistics, targetToEntity),
     customNonNumericStatistics,
+    customNonNumericStatisticsByEntityId: buildEntityScopedCustomNonNumericStatisticsBuckets(customNonNumericStatistics, targetToEntity),
   };
 }
 
@@ -3427,7 +3453,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     };
     pushTrace("extract.baseline.source", lastExtractionBaselineDebugMeta);
     if (!previous) {
-      previous = buildBaselineData(activeCharacters, runScopedSettings);
+      previous = buildBaselineData(activeCharacters, activeEntityIds, runScopedSettings);
       pushTrace("extract.baseline", { runId, forMessageIndex: lastIndex, activeCharacters: activeCharacters.length });
     }
     const hasPriorUserMessage = hasTrackableUserMessageBeforeIndex(context, lastIndex);
@@ -3459,8 +3485,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         timestamp: Date.now(),
         activeCharacters,
         statistics: previous.statistics,
+        statisticsByEntityId: previous.statisticsByEntityId,
         customStatistics: previous.customStatistics,
+        customStatisticsByEntityId: previous.customStatisticsByEntityId,
         customNonNumericStatistics: previous.customNonNumericStatistics,
+        customNonNumericStatisticsByEntityId: previous.customNonNumericStatisticsByEntityId,
       };
       latestDataMessageIndex = lastIndex;
       refreshPromptMacroData(context);
@@ -3554,6 +3583,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const seededHistory = seedHistoryForActiveCharacters(
       relevantHistory,
       activeCharacters,
+      activeEntityIds,
       runScopedSettings,
       context,
     );
