@@ -3,10 +3,13 @@ import type {
   CustomNonNumericStatistics,
   CustomStatDefinition,
   CustomStatistics,
+  STContext,
   StatKey,
   Statistics,
   TrackerData,
 } from "./types";
+import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
+import { resolveTrackerSceneOwners } from "./entityRegistry";
 
 export function enabledBuiltInAndTextStats(settings: BetterSimTrackerSettings): StatKey[] {
   const selected: StatKey[] = [];
@@ -132,13 +135,36 @@ export function buildNoActiveContinuityTrackerData(input: {
     timestamp: input.timestamp ?? Date.now(),
     activeCharacters: [],
     entityResolution: {
-      sceneOwners: [],
+      sceneOwners: [...(previous.entityResolution?.sceneOwners ?? previous.activeCharacters ?? [])],
       messageOwners: [],
-      sceneEntityIds: [],
+      sceneEntityIds: [...(previous.entityResolution?.sceneEntityIds ?? [])],
       messageEntityIds: [],
       source: input.source ?? previous.entityResolution?.source ?? "fallback",
     },
   };
+}
+
+export function selectNoActiveContinuityTrackerEntry(input: {
+  context?: STContext | null;
+  entries: Array<{ data: TrackerData; messageIndex: number }>;
+  userExtraction: boolean;
+}): { data: TrackerData; messageIndex: number } | null {
+  const ordered = [...(input.entries ?? [])].sort((a, b) => a.messageIndex - b.messageIndex);
+  if (!ordered.length) return null;
+  if (input.userExtraction) {
+    return ordered[ordered.length - 1] ?? null;
+  }
+  for (let i = ordered.length - 1; i >= 0; i -= 1) {
+    const candidate = ordered[i];
+    const owners = resolveTrackerSceneOwners(input.context ?? null, candidate.data).filter(owner => {
+      const value = String(owner ?? "").trim();
+      return value && value !== USER_TRACKER_KEY && value !== GLOBAL_TRACKER_KEY;
+    });
+    if (owners.length > 0) {
+      return candidate;
+    }
+  }
+  return ordered[ordered.length - 1] ?? null;
 }
 
 export function applyConfidenceScaledDelta(input: {

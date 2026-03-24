@@ -17,6 +17,8 @@ import {
   listTrackerDataLookupNamesForEntityIds,
   listTrackerDataLookupNamesForOwnerWithEntityFallback,
   readEntityRegistry,
+  resolveTrackerActiveEntityIds,
+  resolveTrackerActiveOwners,
   resolveTrackerDataLookupValue,
   resolveTrackerEntityIdsForOwners,
   resolveTrackerMessageOwners,
@@ -462,7 +464,7 @@ test("resolveTrackerMessageOwners can materialize message owners from messageEnt
   assert.deepEqual(resolved, ["Blake"]);
 });
 
-test("buildLifecycleHistorySnapshotsFromTrackerEntries uses resolved scene owners for continuity history", () => {
+test("buildLifecycleHistorySnapshotsFromTrackerEntries uses explicit active owners for lifecycle history and falls back to scene owners only when missing", () => {
   const context = makeContext();
   const blakeEntityId = buildTrackerEntityId({
     sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
@@ -482,7 +484,7 @@ test("buildLifecycleHistorySnapshotsFromTrackerEntries uses resolved scene owner
     {
       messageIndex: 8,
       data: makeTracker({
-        activeCharacters: ["Garret"],
+        activeCharacters: [],
         entityResolution: {
           sceneOwners: ["Garret"],
           messageOwners: ["Blake"],
@@ -492,15 +494,49 @@ test("buildLifecycleHistorySnapshotsFromTrackerEntries uses resolved scene owner
         },
       }),
     } as never,
+    (() => {
+      const tracker = makeTracker({
+        entityResolution: undefined,
+      });
+      tracker.activeCharacters = ["Garret"];
+      return {
+      messageIndex: 9,
+      data: tracker,
+    } as never;
+    })(),
   ]);
 
   assert.deepEqual(snapshots, [
     {
       messageIndex: 8,
-      activeCharacters: ["Blake"],
-      activeEntityIds: [blakeEntityId],
+      activeCharacters: [],
+      activeEntityIds: [],
+    },
+    {
+      messageIndex: 9,
+      activeCharacters: ["Garret"],
+      activeEntityIds: [],
     },
   ]);
+});
+
+test("resolveTrackerActiveOwners and entity ids preserve explicit empty active sets for continuity snapshots", () => {
+  const context = makeContext();
+  const tracker = makeTracker({
+    activeCharacters: [],
+    entityResolution: {
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: [],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: [],
+      source: "model",
+    },
+  });
+
+  assert.deepEqual(resolveTrackerActiveOwners(context, tracker), []);
+  assert.deepEqual(resolveTrackerActiveEntityIds(context, tracker), []);
+  assert.deepEqual(resolveTrackerSceneOwners(context, tracker), ["Ashley", "Blake"]);
+  assert.deepEqual(resolveTrackerSceneEntityIds(context, tracker), ["ent-ashley", "ent-blake"]);
 });
 
 test("entity registry reactivation restores archived aliases for later messages without reviving them in archived history windows", () => {

@@ -13,8 +13,10 @@ import {
   normalizeSequentialGroupId,
   resolveBaselineBeforeIndex,
   resolveMoodWithConfidence,
+  selectNoActiveContinuityTrackerEntry,
   shouldBypassConfidenceControls,
 } from "../src/extractorHelpers";
+import { USER_TRACKER_KEY } from "../src/constants";
 import type { BetterSimTrackerSettings, CustomStatDefinition } from "../src/types";
 
 function makeSettings(overrides: Partial<BetterSimTrackerSettings> = {}): BetterSimTrackerSettings {
@@ -219,7 +221,7 @@ test("buildPromptCurrentTrackerData prefers the current resolver entityResolutio
   assert.deepEqual(tracker.statistics.affection, { Blake: 52 });
 });
 
-test("buildNoActiveContinuityTrackerData preserves continuity stats while clearing active resolver state", () => {
+test("buildNoActiveContinuityTrackerData preserves continuity stats while keeping scene continuity and clearing active resolver state", () => {
   const snapshot = buildNoActiveContinuityTrackerData({
     previousTrackerData: {
       timestamp: 1,
@@ -261,9 +263,9 @@ test("buildNoActiveContinuityTrackerData preserves continuity stats while cleari
   assert.equal(snapshot?.timestamp, 999);
   assert.deepEqual(snapshot?.activeCharacters, []);
   assert.deepEqual(snapshot?.entityResolution, {
-    sceneOwners: [],
+    sceneOwners: ["Blake"],
     messageOwners: [],
-    sceneEntityIds: [],
+    sceneEntityIds: ["ent-blake"],
     messageEntityIds: [],
     source: "model",
   });
@@ -282,4 +284,71 @@ test("buildNoActiveContinuityTrackerData preserves continuity stats while cleari
       kind: "multi_character_alias",
     },
   });
+});
+
+test("selectNoActiveContinuityTrackerEntry prefers the latest earlier character continuity entry for AI no-active turns", () => {
+  const userOnly = {
+    data: {
+      timestamp: 2,
+      activeCharacters: [USER_TRACKER_KEY],
+      entityResolution: {
+        sceneOwners: [],
+        messageOwners: [USER_TRACKER_KEY],
+        sceneEntityIds: [],
+        messageEntityIds: [],
+        source: "fallback" as const,
+      },
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { [USER_TRACKER_KEY]: "Neutral" },
+        lastThought: { [USER_TRACKER_KEY]: "Quiet at last." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    messageIndex: 6,
+  };
+  const priorAi = {
+    data: {
+      timestamp: 1,
+      activeCharacters: ["Ashley", "Blake"],
+      entityResolution: {
+        sceneOwners: ["Ashley", "Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-ashley", "ent-blake"],
+        messageEntityIds: ["ent-blake"],
+        source: "model" as const,
+      },
+      statistics: {
+        affection: { Blake: 55 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { Blake: "Neutral" },
+        lastThought: { Blake: "Still here." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    messageIndex: 5,
+  };
+
+  assert.equal(
+    selectNoActiveContinuityTrackerEntry({
+      entries: [priorAi as never, userOnly as never],
+      userExtraction: false,
+    })?.messageIndex,
+    5,
+  );
+
+  assert.equal(
+    selectNoActiveContinuityTrackerEntry({
+      entries: [priorAi as never, userOnly as never],
+      userExtraction: true,
+    })?.messageIndex,
+    6,
+  );
 });

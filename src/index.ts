@@ -58,7 +58,12 @@ import {
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
-import { buildNoActiveContinuityTrackerData, resolveBaselineBeforeIndex, shouldBypassConfidenceControls } from "./extractorHelpers";
+import {
+  buildNoActiveContinuityTrackerData,
+  resolveBaselineBeforeIndex,
+  selectNoActiveContinuityTrackerEntry,
+  shouldBypassConfidenceControls,
+} from "./extractorHelpers";
 import { isTrackableAiMessage, isTrackableMessage, isTrackableUserMessage } from "./messageFilter";
 import { clearPromptInjection, getLastInjectedPrompt, getLastInjectedPromptDebug } from "./promptInjection";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
@@ -3408,7 +3413,17 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     });
     if (!activeCharacters.length) {
       pushTrace("extract.skip", { reason: "no_active_characters", runId });
-      const priorContinuityEntry = getLatestTrackerDataWithIndexBefore(context, lastIndex);
+      const priorContinuityCandidates = getRecentTrackerHistoryEntries(
+        context,
+        Math.max(120, lastIndex + 8),
+      )
+        .filter(entry => entry.messageIndex < lastIndex)
+        .map(entry => ({ data: entry.data, messageIndex: entry.messageIndex }));
+      const priorContinuityEntry = selectNoActiveContinuityTrackerEntry({
+        context,
+        entries: priorContinuityCandidates,
+        userExtraction,
+      }) ?? getLatestTrackerDataWithIndexBefore(context, lastIndex);
       const continuitySnapshot = buildNoActiveContinuityTrackerData({
         previousTrackerData: priorContinuityEntry?.data ?? null,
         source: resolvedEntityResolution?.source ?? priorContinuityEntry?.data?.entityResolution?.source ?? "fallback",

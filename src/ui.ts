@@ -61,6 +61,8 @@ import { cloneTrackerDataForEdit } from "./trackerUiState";
 import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
 import {
   buildLifecycleHistorySnapshotsFromTrackerEntries,
+  resolveTrackerActiveEntityIds,
+  resolveTrackerActiveOwners,
   resolveTrackerDataLookupValue,
   resolveTrackerMessageOwners,
   resolveTrackerSceneEntityIds,
@@ -5346,11 +5348,14 @@ export function renderTracker(
     const collapsed = isMessageCollapsed(entry.messageIndex);
     const resolvedSceneOwners = resolveTrackerSceneOwners(null, data);
     const resolvedMessageOwners = resolveTrackerMessageOwners(null, data);
-    const currentLifecycleOwners = resolveCurrentLifecycleOwners({
-      sceneOwners: resolvedSceneOwners,
-      messageOwners: resolvedMessageOwners,
-    });
-    const resolvedSceneEntityIds = resolveTrackerSceneEntityIds(null, data);
+    const resolvedActiveOwners = resolveTrackerActiveOwners(null, data);
+    const currentLifecycleOwners = resolvedActiveOwners.length
+      ? resolvedActiveOwners
+      : resolveCurrentLifecycleOwners({
+          sceneOwners: resolvedSceneOwners,
+          messageOwners: resolvedMessageOwners,
+        });
+    const resolvedActiveEntityIds = resolveTrackerActiveEntityIds(null, data);
     const activeSet = new Set(currentLifecycleOwners.map(normalizeName));
     const allNumericDefs = getNumericStatDefinitions(settings);
     const cardNumericDefs = allNumericDefs.filter(def => def.showOnCard);
@@ -5521,7 +5526,7 @@ export function renderTracker(
       })?.id ?? null,
       currentMessageIndex: entry.messageIndex,
       currentActiveCharacters: currentLifecycleOwners,
-      currentActiveEntityIds: resolvedSceneEntityIds,
+      currentActiveEntityIds: resolvedActiveEntityIds,
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,

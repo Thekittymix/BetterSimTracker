@@ -53,13 +53,17 @@ export function getTrackerDataFromMessage(message: ChatMessage): TrackerData | n
 }
 
 export function resolveNormalizedTrackerActiveCharacters(
-  data: Pick<TrackerData, "activeCharacters">,
+  data: { activeCharacters?: TrackerData["activeCharacters"] | null },
   resolvedSceneOwners: string[] = [],
 ): string[] {
-  const rawActiveCharacters = Array.isArray(data.activeCharacters)
-    ? Array.from(new Set(data.activeCharacters.map(item => String(item ?? "").trim()).filter(Boolean)))
+  const hasExplicitActiveCharacters = Array.isArray(data.activeCharacters);
+  const rawActiveCharacters = hasExplicitActiveCharacters
+    ? Array.from(new Set((data.activeCharacters ?? []).map(item => String(item ?? "").trim()).filter(Boolean)))
     : [];
   if (rawActiveCharacters.includes(USER_TRACKER_KEY)) {
+    return rawActiveCharacters;
+  }
+  if (hasExplicitActiveCharacters && rawActiveCharacters.length === 0) {
     return rawActiveCharacters;
   }
   return resolvedSceneOwners.length ? [...resolvedSceneOwners] : rawActiveCharacters;
@@ -85,7 +89,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
       }
     : normalizedEntityResolution;
   const normalizedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
-    { activeCharacters: data.activeCharacters ?? [] },
+    { activeCharacters: data.activeCharacters },
     normalizedSceneOwners,
   );
   return normalizeTrackerDataEntityBuckets({
@@ -384,7 +388,9 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
     : undefined;
   const remappedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
     {
-      activeCharacters: Array.from(new Set((data.activeCharacters ?? []).map(owner => ownerToTarget[owner] || owner))),
+      activeCharacters: Array.isArray(data.activeCharacters)
+        ? Array.from(new Set(data.activeCharacters.map(owner => ownerToTarget[owner] || owner)))
+        : data.activeCharacters,
     },
     remappedEntityResolution?.sceneOwners ?? [],
   );
@@ -1246,7 +1252,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
   let mergedClearedCustomNonNumericStatistics: ClearedCustomNonNumericStatistics | null = null;
   let mergedEntityResolution: TrackerData["entityResolution"];
   let mergedTimestamp = 0;
-  let fallbackActiveCharacters: string[] = [];
+  let fallbackActiveCharacters: string[] | null = null;
 
   for (const entry of sorted) {
     mergedStatistics = mergeStatisticsWithFallback(entry.statistics, mergedStatistics, undefined);

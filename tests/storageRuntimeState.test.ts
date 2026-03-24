@@ -609,7 +609,7 @@ test("buildMergedPromptMacroData prefers the latest owner array value over older
   assert.deepEqual(merged?.customNonNumericStatistics?.clothes, { [USER_TRACKER_KEY]: ["jeans"] });
 });
 
-test("resolveNormalizedTrackerActiveCharacters preserves explicit user-only targets over resolver scene owners", () => {
+test("resolveNormalizedTrackerActiveCharacters preserves explicit targets and only falls back to resolver scene owners when missing", () => {
   assert.deepEqual(
     resolveNormalizedTrackerActiveCharacters(
       { activeCharacters: [USER_TRACKER_KEY] } as TrackerData,
@@ -621,6 +621,22 @@ test("resolveNormalizedTrackerActiveCharacters preserves explicit user-only targ
   assert.deepEqual(
     resolveNormalizedTrackerActiveCharacters(
       { activeCharacters: ["Garret", "Raleigh"] } as TrackerData,
+      ["Blake"],
+    ),
+    ["Blake"],
+  );
+
+  assert.deepEqual(
+    resolveNormalizedTrackerActiveCharacters(
+      { activeCharacters: [] } as unknown as TrackerData,
+      ["Blake"],
+    ),
+    [],
+  );
+
+  assert.deepEqual(
+    resolveNormalizedTrackerActiveCharacters(
+      {} as TrackerData,
       ["Blake"],
     ),
     ["Blake"],

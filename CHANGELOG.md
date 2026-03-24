@@ -1,3 +1,7 @@
+## [2.2.4.16-exp135] - 2026-03-24
+### Changed
+- Experimental multi-character continuity now keeps the scene-owner pool separate from the active-owner set, so `no_active_characters` AI turns preserve prior scene continuity for inactive cards instead of collapsing the message into an empty tracker state.
+
 ## [2.2.4.16-exp134] - 2026-03-24
 ### Changed
 - Experimental multi-character AI extraction now requests stat updates for the full resolver-backed scene owner set, while still preserving separate message-owner identity for the character(s) actively driving that reply.

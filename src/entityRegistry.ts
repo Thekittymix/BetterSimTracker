@@ -8,6 +8,7 @@ import type {
 } from "./types";
 import { resolveCharacterIdentity, type EntityTrackingMode, type ResolvedCharacterIdentity } from "./entityResolution";
 import type { CardLifecycleRegistryState, CardLifecycleSnapshot } from "./cardLifecycle";
+import { USER_TRACKER_KEY } from "./constants";
 
 type TrackerHistoryEntryWithMessageIndex = {
   data: TrackerData | null;
@@ -645,6 +646,31 @@ export function resolveTrackerSceneOwners(
   return uniqueStrings(Array.isArray(data.activeCharacters) ? data.activeCharacters : []);
 }
 
+export function resolveTrackerActiveOwners(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+): string[] {
+  if (!data) return [];
+  const explicitActiveCharacters = Array.isArray(data.activeCharacters)
+    ? uniqueStrings(data.activeCharacters)
+    : [];
+  if (explicitActiveCharacters.includes(USER_TRACKER_KEY)) {
+    return explicitActiveCharacters;
+  }
+  if (Array.isArray(data.activeCharacters) && explicitActiveCharacters.length === 0) {
+    return [];
+  }
+  const sceneEntityIds = data.entityResolution?.sceneEntityIds ?? [];
+  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, sceneEntityIds);
+  if (sceneOwnersFromEntityIds.length) return sceneOwnersFromEntityIds;
+  const sceneOwnersFromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, sceneEntityIds);
+  if (sceneOwnersFromOwnerMap.length) return sceneOwnersFromOwnerMap;
+  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
+    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
+    : [];
+  return sceneOwners.length ? sceneOwners : explicitActiveCharacters;
+}
+
 export function resolveTrackerMessageOwners(
   context: STContext | null,
   data: TrackerData | null | undefined,
@@ -677,6 +703,29 @@ export function resolveTrackerSceneEntityIds(
   return resolveTrackerEntityIdsForOwners(context, activeCharacters);
 }
 
+export function resolveTrackerActiveEntityIds(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+): string[] {
+  if (!data) return [];
+  const explicitActiveCharacters = Array.isArray(data.activeCharacters)
+    ? uniqueStrings(data.activeCharacters)
+    : [];
+  if (explicitActiveCharacters.includes(USER_TRACKER_KEY)) {
+    return resolveTrackerEntityIdsForOwners(context, explicitActiveCharacters);
+  }
+  if (Array.isArray(data.activeCharacters) && explicitActiveCharacters.length === 0) {
+    return [];
+  }
+  const explicitSceneEntityIds = uniqueStrings(data.entityResolution?.sceneEntityIds ?? []);
+  if (explicitSceneEntityIds.length) return explicitSceneEntityIds;
+  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
+    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
+    : [];
+  if (sceneOwners.length) return resolveTrackerEntityIdsForOwners(context, sceneOwners);
+  return resolveTrackerEntityIdsForOwners(context, explicitActiveCharacters);
+}
+
 export function buildLifecycleHistorySnapshotsFromTrackerEntries(
   context: STContext | null,
   entries: TrackerHistoryEntryWithMessageIndex[],
@@ -686,8 +735,8 @@ export function buildLifecycleHistorySnapshotsFromTrackerEntries(
     .sort((a, b) => a.messageIndex - b.messageIndex)
     .map(item => ({
       messageIndex: item.messageIndex,
-      activeCharacters: resolveTrackerSceneOwners(context, item.data),
-      activeEntityIds: resolveTrackerSceneEntityIds(context, item.data),
+      activeCharacters: resolveTrackerActiveOwners(context, item.data),
+      activeEntityIds: resolveTrackerActiveEntityIds(context, item.data),
     }));
 }
 
