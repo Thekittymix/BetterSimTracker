@@ -57,15 +57,31 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   const clearedCustomStatistics = normalizeClearedOwnerBuckets(data.clearedCustomStatistics);
   const clearedCustomNonNumericStatistics = normalizeClearedOwnerBuckets(data.clearedCustomNonNumericStatistics);
   const normalizedEntityResolution = normalizeEntityResolution(data.entityResolution);
-  const normalizedActiveCharacters = normalizedEntityResolution?.sceneOwners?.length
+  const normalizedEntityOwnerMap = normalizeEntityOwnerMap(data.entityOwnerMap);
+  const normalizedSceneOwners = normalizedEntityResolution?.sceneOwners?.length
     ? [...normalizedEntityResolution.sceneOwners]
+    : resolveOwnersFromEntityIdsWithOwnerMap(normalizedEntityResolution?.sceneEntityIds, normalizedEntityOwnerMap);
+  const normalizedMessageOwners = normalizedEntityResolution?.messageOwners?.length
+    ? [...normalizedEntityResolution.messageOwners]
+    : resolveOwnersFromEntityIdsWithOwnerMap(normalizedEntityResolution?.messageEntityIds, normalizedEntityOwnerMap);
+  const hydratedEntityResolution = normalizedEntityResolution
+    ? {
+        ...normalizedEntityResolution,
+        sceneOwners: normalizedSceneOwners,
+        messageOwners: normalizedMessageOwners.length
+          ? normalizedMessageOwners
+          : (normalizedSceneOwners.length ? normalizedSceneOwners : normalizedEntityResolution.messageOwners),
+      }
+    : normalizedEntityResolution;
+  const normalizedActiveCharacters = normalizedSceneOwners.length
+    ? [...normalizedSceneOwners]
     : (Array.isArray(data.activeCharacters)
       ? Array.from(new Set(data.activeCharacters.map(item => String(item ?? "").trim()).filter(Boolean)))
       : []);
   return normalizeTrackerDataEntityBuckets({
     timestamp: Number(data.timestamp ?? Date.now()),
     activeCharacters: normalizedActiveCharacters,
-    entityResolution: normalizedEntityResolution,
+    entityResolution: hydratedEntityResolution,
     statistics: {
       ...createEmptyStatistics(),
       ...(data.statistics as Statistics)
@@ -78,7 +94,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
     clearedStatistics: pruneClearedStatistics(clearedStatistics),
     clearedCustomStatistics: pruneClearedOwnerBuckets(clearedCustomStatistics),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(clearedCustomNonNumericStatistics),
-    entityOwnerMap: normalizeEntityOwnerMap(data.entityOwnerMap),
+    entityOwnerMap: normalizedEntityOwnerMap,
   });
 }
 
@@ -227,6 +243,27 @@ function buildEntityScopedRecord<T>(
     out[entityId] = value;
   }
   return Object.keys(out).length ? out : undefined;
+}
+
+function resolveOwnersFromEntityIdsWithOwnerMap(
+  entityIds: string[] | undefined,
+  entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
+): string[] {
+  if (!Array.isArray(entityIds) || !entityIds.length || !entityOwnerMap || typeof entityOwnerMap !== "object") {
+    return [];
+  }
+  const ownerByEntityId = new Map<string, string>();
+  for (const [snapshotOwner, snapshot] of Object.entries(entityOwnerMap)) {
+    const entityId = String(snapshot?.entityId ?? "").trim();
+    const ownerName = String(snapshot?.ownerName ?? snapshotOwner).trim();
+    if (!entityId || !ownerName || ownerByEntityId.has(entityId)) continue;
+    ownerByEntityId.set(entityId, ownerName);
+  }
+  return Array.from(new Set(
+    entityIds
+      .map(entityId => ownerByEntityId.get(String(entityId ?? "").trim()) ?? "")
+      .filter(Boolean),
+  ));
 }
 
 function buildEntityScopedStatistics(

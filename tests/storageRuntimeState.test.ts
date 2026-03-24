@@ -349,6 +349,60 @@ test("getTrackerDataFromMessage prefers resolver scene owners over stale activeC
   });
 });
 
+test("getTrackerDataFromMessage materializes missing resolver owners from entity ids through entityOwnerMap before falling back to stale activeCharacters", () => {
+  const blakeEntityId = "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake";
+  const tracker = makeTracker(1001, {
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: [blakeEntityId],
+      messageEntityIds: [blakeEntityId],
+      source: "model",
+    },
+    entityOwnerMap: {
+      Blake: {
+        entityId: blakeEntityId,
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+  });
+  const message = {
+    mes: "Reply",
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    is_user: false,
+    is_system: false,
+    swipe_id: 1,
+    extra: {
+      [EXTENSION_KEY]: {
+        "1": tracker,
+      },
+    },
+  };
+
+  const stored = getTrackerDataFromMessage(message);
+  assert.deepEqual(stored?.activeCharacters, ["Blake"]);
+  assert.deepEqual(stored?.entityResolution, {
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: [blakeEntityId],
+    messageEntityIds: [blakeEntityId],
+    source: "model",
+  });
+});
+
 test("mergeStatisticsWithFallback and custom merges preserve previous missing values", () => {
   const mergedStats = mergeStatisticsWithFallback(
     {
