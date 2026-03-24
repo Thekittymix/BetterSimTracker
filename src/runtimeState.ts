@@ -1,4 +1,12 @@
-import { getChatStateLatestTrackerData, getLatestTrackerDataWithIndex, getLocalLatestTrackerData, getMetadataLatestTrackerData, getRecentTrackerHistoryEntries, mergeTrackerDataChronologically } from "./storage";
+import {
+  getChatStateLatestTrackerData,
+  getLatestTrackerDataWithIndex,
+  getLocalLatestTrackerData,
+  getMetadataLatestTrackerData,
+  getRecentTrackerHistoryEntries,
+  mergeTrackerDataChronologically,
+  resolveNormalizedTrackerActiveCharacters,
+} from "./storage";
 import { resolveTrackerMessageOwners, resolveTrackerSceneOwners } from "./entityRegistry";
 import { isTrackableMessage } from "./messageFilter";
 import type { STContext, TrackerData } from "./types";
@@ -53,11 +61,9 @@ export function buildMergedPromptMacroData(
   const preferredResolvedSceneOwners = preferred
     ? resolveTrackerSceneOwners(context, preferred)
     : [];
-  const preferredActiveCharacters = preferredResolvedSceneOwners.length
-    ? preferredResolvedSceneOwners
-    : (Array.isArray(preferred?.activeCharacters)
-        ? preferred.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
-        : []);
+  const preferredActiveCharacters = preferred
+    ? resolveNormalizedTrackerActiveCharacters(preferred, preferredResolvedSceneOwners)
+    : [];
   const preferredResolvedMessageOwners = preferred
     ? resolveTrackerMessageOwners(context, preferred)
     : [];

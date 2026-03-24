@@ -1,4 +1,5 @@
 import { resolveTrackerMessageOwners, resolveTrackerSceneOwners } from "./entityRegistry";
+import { resolveNormalizedTrackerActiveCharacters } from "./storage";
 import type {
   BetterSimTrackerSettings,
   DeltaDebugRecord,
@@ -49,7 +50,7 @@ function summarizeTrackerData(data: TrackerData | null): Record<string, unknown>
   const messageOwners = resolveTrackerMessageOwners(null, data);
   return {
     timestamp: Number(data.timestamp ?? 0),
-    activeCharacters: sceneOwners.length ? sceneOwners : (Array.isArray(data.activeCharacters) ? [...data.activeCharacters] : []),
+    activeCharacters: resolveNormalizedTrackerActiveCharacters(data, sceneOwners),
     entityResolution: data.entityResolution
       ? {
           sceneOwners: sceneOwners.length ? sceneOwners : [...(data.entityResolution.sceneOwners ?? [])],
@@ -157,7 +158,7 @@ export function buildHistorySample(entries: Array<{ data: TrackerData; timestamp
     timestamp: entry.timestamp,
     activeCharacters: (() => {
       const sceneOwners = resolveTrackerSceneOwners(null, entry.data);
-      return sceneOwners.length ? sceneOwners : entry.data.activeCharacters;
+      return resolveNormalizedTrackerActiveCharacters(entry.data, sceneOwners);
     })(),
     statistics: {
       affection: entry.data.statistics.affection,

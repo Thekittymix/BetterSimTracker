@@ -14,6 +14,7 @@ import {
   mergeCustomNonNumericStatisticsWithFallback,
   mergeCustomStatisticsWithFallback,
   mergeStatisticsWithFallback,
+  resolveNormalizedTrackerActiveCharacters,
   saveTrackerSnapshot,
   writeTrackerDataToMessage,
 } from "../src/storage";
@@ -539,6 +540,57 @@ test("buildMergedPromptMacroData prefers the latest owner array value over older
   const merged = buildMergedPromptMacroData(context, newerUser);
   assert.ok(merged);
   assert.deepEqual(merged?.customNonNumericStatistics?.clothes, { [USER_TRACKER_KEY]: ["jeans"] });
+});
+
+test("resolveNormalizedTrackerActiveCharacters preserves explicit user-only targets over resolver scene owners", () => {
+  assert.deepEqual(
+    resolveNormalizedTrackerActiveCharacters(
+      { activeCharacters: [USER_TRACKER_KEY] } as TrackerData,
+      ["Blake"],
+    ),
+    [USER_TRACKER_KEY],
+  );
+
+  assert.deepEqual(
+    resolveNormalizedTrackerActiveCharacters(
+      { activeCharacters: ["Garret", "Raleigh"] } as TrackerData,
+      ["Blake"],
+    ),
+    ["Blake"],
+  );
+});
+
+test("buildMergedPromptMacroData keeps user-only activeCharacters even when resolver scene owners point at a character", () => {
+  const context = makeContext();
+  const preferred: TrackerData = {
+    timestamp: 2000,
+    activeCharacters: [USER_TRACKER_KEY],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: { [USER_TRACKER_KEY]: ["t-shirt"] },
+    },
+  };
+
+  saveTrackerSnapshot(context, preferred, 1);
+  const merged = buildMergedPromptMacroData(context, preferred);
+  assert.ok(merged);
+  assert.deepEqual(merged.activeCharacters, [USER_TRACKER_KEY]);
+  assert.deepEqual(merged.entityResolution, preferred.entityResolution);
 });
 
 test("buildMergedPromptMacroData prefers a newer manual edit on an older message over a stale later snapshot", () => {

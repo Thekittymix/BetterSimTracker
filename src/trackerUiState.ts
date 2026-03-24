@@ -1,4 +1,5 @@
 import { resolveTrackerSceneOwners } from "./entityRegistry";
+import { resolveNormalizedTrackerActiveCharacters } from "./storage";
 import type { CustomNonNumericValue, TrackerData } from "./types";
 
 export function cloneTrackerDataForEdit(data: TrackerData): TrackerData {
@@ -19,7 +20,7 @@ export function cloneTrackerDataForEdit(data: TrackerData): TrackerData {
 
   return {
     timestamp: data.timestamp,
-    activeCharacters: resolvedSceneOwners.length ? resolvedSceneOwners : [...(data.activeCharacters ?? [])],
+    activeCharacters: resolveNormalizedTrackerActiveCharacters(data, resolvedSceneOwners),
     entityResolution: data.entityResolution
       ? {
           sceneOwners: [...(data.entityResolution.sceneOwners ?? [])],
