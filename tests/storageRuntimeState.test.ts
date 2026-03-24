@@ -989,6 +989,13 @@ test("buildMergedPromptMacroData prefers preferred resolver scene entity ids ove
 
   const merged = buildMergedPromptMacroData(context, preferred);
   assert.deepEqual(merged?.activeCharacters, ["Blake"]);
+  assert.deepEqual(merged?.entityResolution, {
+    source: "model",
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: [blakeEntityId],
+    messageEntityIds: [blakeEntityId],
+  });
 });
 
 test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () => {

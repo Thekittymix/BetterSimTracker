@@ -63,9 +63,30 @@ export function buildMergedPromptMacroData(
     : (Array.isArray(preferred?.activeCharacters)
         ? preferred.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
         : []);
+  const preferredResolvedMessageOwnersFromEntityIds = Array.isArray(preferred?.entityResolution?.messageEntityIds)
+    ? resolveTrackerOwnersForEntityIds(context, preferred.entityResolution.messageEntityIds)
+    : [];
+  const preferredResolvedMessageOwners = preferredResolvedMessageOwnersFromEntityIds.length
+    ? preferredResolvedMessageOwnersFromEntityIds
+    : (Array.isArray(preferred?.entityResolution?.messageOwners)
+      ? preferred.entityResolution.messageOwners.map(name => String(name ?? "").trim()).filter(Boolean)
+      : []);
 
   return {
     ...merged,
+    entityResolution: merged.entityResolution
+      ? {
+          ...merged.entityResolution,
+          sceneOwners: preferredResolvedSceneOwners.length
+            ? preferredResolvedSceneOwners
+            : merged.entityResolution.sceneOwners,
+          messageOwners: preferredResolvedMessageOwners.length
+            ? preferredResolvedMessageOwners
+            : (preferredResolvedSceneOwners.length
+              ? preferredResolvedSceneOwners
+              : merged.entityResolution.messageOwners),
+        }
+      : merged.entityResolution,
     activeCharacters: preferredActiveCharacters.length ? preferredActiveCharacters : merged.activeCharacters,
   };
 }

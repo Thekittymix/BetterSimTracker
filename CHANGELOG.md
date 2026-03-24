@@ -1,3 +1,7 @@
+## [2.2.4.16-exp116] - 2026-03-24
+### Changed
+- Experimental multi-character merged prompt/runtime snapshots now normalize preferred `entityResolution.sceneOwners/messageOwners` from resolver-backed entity ids instead of leaving stale owner-name arrays beside corrected `activeCharacters`.
+
 ## [2.2.4.16-exp115] - 2026-03-24
 ### Changed
 - Experimental multi-character summary generation now keeps owner selection aligned to resolver-backed scene identity in both context-aware and contextless summary paths, including materializing missing scene owners from persisted `sceneEntityIds` plus `entityOwnerMap`.
@@ -1329,6 +1333,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 
