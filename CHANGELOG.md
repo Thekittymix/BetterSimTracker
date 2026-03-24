@@ -1,3 +1,7 @@
+## [2.2.4.16-exp128] - 2026-03-24
+### Changed
+- Experimental multi-character user-turn snapshots now keep `activeCharacters` scoped to the actual user tracker target instead of persisting resolver scene owners into the legacy active-owner array, while still preserving resolver-backed scene/message identity separately.
+
 ## [2.2.4.16-exp127] - 2026-03-24
 ### Changed
 - Experimental multi-character entity registry now preserves correct history when older messages are retracked later, backfilling earlier lifecycle events without regressing newer entity metadata.

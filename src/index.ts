@@ -16,6 +16,7 @@ import {
   resolveEntityTrackingMode,
   resolveInitialExtractionOwners,
   resolvePersistedActiveOwners,
+  resolvePersistedSnapshotActiveOwners,
 } from "./entityResolution";
 import {
   buildMultiCharacterResolverPrompt,
@@ -3711,8 +3712,10 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       mergedCustomNonNumeric = filterCustomNonNumericStatisticsToCharacters(mergedCustomNonNumeric, [USER_TRACKER_KEY], globalNonNumericStatIds);
     }
 
-    const persistedSceneActiveCharacters = resolvePersistedActiveOwners(sceneActiveCharacters, {
-      includeUserOwner: userExtraction,
+    const persistedSceneActiveCharacters = resolvePersistedSnapshotActiveOwners({
+      sceneActiveCharacters,
+      requestCharacters: activeCharacters,
+      userExtraction,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const persistedResolverSceneOwners = resolvePersistedActiveOwners(
       resolvedEntityResolution?.sceneOwners?.length

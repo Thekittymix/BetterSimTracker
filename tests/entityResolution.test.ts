@@ -7,6 +7,7 @@ import {
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
   resolvePersistedActiveOwners,
+  resolvePersistedSnapshotActiveOwners,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveExtractionOwnerScopes,
@@ -15,6 +16,7 @@ import {
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
 } from "../src/entityResolution";
+import { USER_TRACKER_KEY } from "../src/constants";
 
 test("extractMultiCharacterAliases parses multi-character source card names generically", () => {
   assert.deepEqual(
@@ -575,4 +577,24 @@ test("projectTrackerDataToMessageScopedOwners can leave owner-scoped non-numeric
   assert.deepEqual(projected.customNonNumericStatistics?.clothes, {
     "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": ["sneakers"],
   });
+});
+
+test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the user tracker owner", () => {
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveOwners({
+      sceneActiveCharacters: ["Blake"],
+      requestCharacters: [USER_TRACKER_KEY],
+      userExtraction: true,
+    }),
+    [USER_TRACKER_KEY],
+  );
+
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveOwners({
+      sceneActiveCharacters: ["Blake"],
+      requestCharacters: [USER_TRACKER_KEY],
+      userExtraction: false,
+    }),
+    ["Blake"],
+  );
 });

@@ -556,6 +556,17 @@ export function resolvePersistedActiveOwners(
   return out;
 }
 
+export function resolvePersistedSnapshotActiveOwners(input: {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+  userExtraction: boolean;
+}): string[] {
+  return resolvePersistedActiveOwners(
+    input.userExtraction ? input.requestCharacters : input.sceneActiveCharacters,
+    { includeUserOwner: input.userExtraction },
+  );
+}
+
 function normalizeOwnerForTracking(
   context: STContext | null | undefined,
   ownerName: unknown,
