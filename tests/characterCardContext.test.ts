@@ -126,3 +126,48 @@ test("buildCharacterCardsContext can include multi-character source card context
   assert.doesNotMatch(rendered, /Billie card\./);
 });
 
+test("buildCharacterCardsContext prefers explicit entity ids over stale raw active character tokens", () => {
+  const context = {
+    groupId: "group-1",
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-ashley": {
+            id: "ent-ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            aliases: ["Ash"],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          ashley: "ent-ashley",
+          ash: "ent-ashley",
+        },
+      },
+    },
+    characters: [
+      {
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        avatar: "camp.png",
+        description: "Whispering Pines description.",
+      },
+      { name: "Billie", avatar: "billie.png", description: "Billie card." },
+    ],
+  } as any;
+
+  const rendered = buildCharacterCardsContext(context, ["Billie"], ["ent-ashley"], "multi_character");
+  assert.match(rendered, /Camp Whispering Pines \| Ashley, Blake, Garret, & Raleigh/);
+  assert.match(rendered, /Whispering Pines description\./);
+  assert.doesNotMatch(rendered, /Billie card\./);
+});
+

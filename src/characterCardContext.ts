@@ -62,6 +62,7 @@ export function buildCharacterCardsContext(
     if (sourceKey) activeSourceKeys.add(sourceKey);
   }
   if (!activeNameKeys.size && !activeAvatarKeys.size && !activeSourceKeys.size) return "";
+  const hasExplicitEntityTargets = activeSourceKeys.size > 0;
 
   const duplicateNameCounts = new Map<string, number>();
   for (const character of allCharacters) {
@@ -83,12 +84,13 @@ export function buildCharacterCardsContext(
 
     if (focusedAvatar && avatarKey !== focusedAvatar) continue;
 
-    const isActiveByAvatar = avatarKey ? activeAvatarKeys.has(avatarKey) : false;
-    const isActiveByName = nameKey ? activeNameKeys.has(nameKey) : false;
+    const isActiveByAvatar = !hasExplicitEntityTargets && avatarKey ? activeAvatarKeys.has(avatarKey) : false;
+    const isActiveByName = !hasExplicitEntityTargets && nameKey ? activeNameKeys.has(nameKey) : false;
     const isActiveByEntitySource = entityTrackingMode === "multi_character"
       && sourceKey
       && activeSourceKeys.has(sourceKey);
-    const isActiveByAlias = entityTrackingMode === "multi_character"
+    const isActiveByAlias = !hasExplicitEntityTargets
+      && entityTrackingMode === "multi_character"
       && activeCharacters.some(token => {
         const resolved = resolveCharacterIdentity(context, token, resolveEntityTrackingMode({ entityTrackingMode }));
         return Boolean(resolved && normalizeNameKey(resolved.sourceName) === nameKey);
