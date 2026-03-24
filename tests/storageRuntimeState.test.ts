@@ -290,6 +290,39 @@ test("getTrackerDataFromMessage preserves explicit empty messageEntityIds when o
   });
 });
 
+test("getTrackerDataFromMessage preserves explicit empty messageOwners when only sceneOwners exist", () => {
+  const tracker = makeTracker(1001, {
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: [],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: [],
+      source: "model",
+    },
+  });
+  const message = {
+    mes: "Reply",
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    is_user: false,
+    is_system: false,
+    swipe_id: 1,
+    extra: {
+      [EXTENSION_KEY]: {
+        "1": tracker,
+      },
+    },
+  };
+  const stored = getTrackerDataFromMessage(message);
+  assert.deepEqual(stored?.entityResolution, {
+    sceneOwners: ["Blake"],
+    messageOwners: [],
+    sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+    messageEntityIds: undefined,
+    source: "model",
+  });
+});
+
 test("getTrackerDataFromMessage accepts resolver-backed payloads without raw activeCharacters", () => {
   const tracker = {
     timestamp: 1001,

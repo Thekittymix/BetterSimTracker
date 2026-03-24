@@ -1,3 +1,7 @@
+## [2.2.4.16-exp129] - 2026-03-24
+### Changed
+- Experimental multi-character resolver and storage normalization now keep message-level owner identity separate from broader scene presence instead of silently hydrating `messageOwners` from `sceneOwners` when the resolver leaves message ownership empty.
+
 ## [2.2.4.16-exp128] - 2026-03-24
 ### Changed
 - Experimental multi-character user-turn snapshots now keep `activeCharacters` scoped to the actual user tracker target instead of persisting resolver scene owners into the legacy active-owner array, while still preserving resolver-backed scene/message identity separately.

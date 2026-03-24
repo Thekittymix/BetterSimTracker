@@ -81,9 +81,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
     ? {
         ...normalizedEntityResolution,
         sceneOwners: normalizedSceneOwners,
-        messageOwners: normalizedMessageOwners.length
-          ? normalizedMessageOwners
-          : (normalizedSceneOwners.length ? normalizedSceneOwners : normalizedEntityResolution.messageOwners),
+        messageOwners: normalizedMessageOwners,
       }
     : normalizedEntityResolution;
   const normalizedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
@@ -129,7 +127,7 @@ function normalizeEntityResolution(raw: unknown): TrackerData["entityResolution"
   if (!sceneOwners.length && !messageOwners.length && !sceneEntityIds.length && !messageEntityIds.length) return undefined;
   return {
     sceneOwners,
-    messageOwners: messageOwners.length ? messageOwners : sceneOwners,
+    messageOwners,
     sceneEntityIds: sceneEntityIds.length ? sceneEntityIds : undefined,
     messageEntityIds: messageEntityIds.length ? messageEntityIds : undefined,
     source,

@@ -168,7 +168,7 @@ export function parseMultiCharacterResolverResponse(
         .map(candidate => candidate.ownerName);
   return {
     sceneOwners: fallbackSceneOwners,
-    messageOwners: fallbackMessageOwners.length ? fallbackMessageOwners : fallbackSceneOwners,
+    messageOwners: fallbackMessageOwners,
     sceneEntityIds,
     messageEntityIds,
   };

@@ -3293,9 +3293,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             };
             resolvedEntityResolution = {
               sceneOwners: parsedResolver.sceneOwners,
-              messageOwners: parsedResolver.messageOwners.length
-                ? parsedResolver.messageOwners
-                : parsedResolver.sceneOwners,
+              messageOwners: parsedResolver.messageOwners,
               sceneEntityIds: parsedResolver.sceneEntityIds,
               messageEntityIds: parsedResolver.messageEntityIds.length
                 ? parsedResolver.messageEntityIds

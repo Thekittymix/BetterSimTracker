@@ -48,7 +48,7 @@ test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", ()
   assert.match(prompt, /Ashley leaves the room\. Blake stays here alone now\./);
 });
 
-test("parseMultiCharacterResolverResponse keeps only known owners and falls back messageOwners to sceneOwners", () => {
+test("parseMultiCharacterResolverResponse keeps scene owners separate when messageOwners are empty", () => {
   const parsed = parseMultiCharacterResolverResponse(
     JSON.stringify({
       sceneOwners: ["Blake", "Kuba", "Blake"],
@@ -64,7 +64,7 @@ test("parseMultiCharacterResolverResponse keeps only known owners and falls back
 
   assert.deepEqual(parsed, {
     sceneOwners: ["Blake"],
-    messageOwners: ["Blake"],
+    messageOwners: [],
     sceneEntityIds: [],
     messageEntityIds: [],
   });
@@ -128,7 +128,7 @@ test("parseMultiCharacterResolverResponse keeps messageEntityIds empty when only
 
   assert.deepEqual(parsed, {
     sceneOwners: ["Blake"],
-    messageOwners: ["Blake"],
+    messageOwners: [],
     sceneEntityIds: ["bst_mc_alias:test:blake"],
     messageEntityIds: [],
   });
