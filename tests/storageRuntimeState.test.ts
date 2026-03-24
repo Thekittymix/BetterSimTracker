@@ -593,6 +593,49 @@ test("buildMergedPromptMacroData keeps user-only activeCharacters even when reso
   assert.deepEqual(merged.entityResolution, preferred.entityResolution);
 });
 
+test("writeTrackerDataToMessage preserves user-only activeCharacters when entity buckets are normalized", () => {
+  const context = makeContext();
+  context.chat.push({ mes: "User turn", is_user: true, is_system: false, extra: {} } as any);
+
+  const data: TrackerData = {
+    timestamp: 2000,
+    activeCharacters: [USER_TRACKER_KEY],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { [USER_TRACKER_KEY]: "Neutral" },
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["Blake"],
+        sourceKey: "camp-source",
+        kind: "multi_character_alias",
+      },
+    },
+  };
+
+  writeTrackerDataToMessage(context, data, 1);
+  const stored = getTrackerDataFromMessage(context.chat[1]);
+  assert.ok(stored);
+  assert.deepEqual(stored?.activeCharacters, [USER_TRACKER_KEY]);
+  assert.deepEqual(stored?.entityResolution, data.entityResolution);
+});
+
 test("buildMergedPromptMacroData prefers a newer manual edit on an older message over a stale later snapshot", () => {
   const context = makeContext();
   context.chat.push(

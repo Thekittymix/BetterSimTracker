@@ -384,9 +384,12 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
         source: data.entityResolution.source,
       }
     : undefined;
-  const remappedActiveCharacters = remappedEntityResolution?.sceneOwners?.length
-    ? remappedEntityResolution.sceneOwners
-    : Array.from(new Set((data.activeCharacters ?? []).map(owner => ownerToTarget[owner] || owner)));
+  const remappedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
+    {
+      activeCharacters: Array.from(new Set((data.activeCharacters ?? []).map(owner => ownerToTarget[owner] || owner))),
+    },
+    remappedEntityResolution?.sceneOwners ?? [],
+  );
   return {
     ...data,
     activeCharacters: remappedActiveCharacters,
