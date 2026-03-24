@@ -1,3 +1,7 @@
+## [2.2.4.16-exp108] - 2026-03-24
+### Changed
+- Experimental multi-character UI owner collection now stops reintroducing stale raw stat-owner names once explicit resolver/entity identity is already present, keeping render and registry sync on the resolver/entity path instead of falling back to owner-name soup.
+
 ## [2.2.4.16-exp107] - 2026-03-24
 ### Changed
 - Experimental multi-character retracks now prefer persisted resolver scene identity (`sceneOwners` / `sceneEntityIds`) before legacy built-in owner buckets when reusing stored owners for the next extraction pass.

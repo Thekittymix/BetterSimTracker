@@ -990,6 +990,12 @@ export function collectCharacterNamesFromTrackerData(
     }
   }
 
+  const hasExplicitEntityIdentity = preferredNames.length > 0
+    || (data.entityOwnerMap != null && Object.keys(data.entityOwnerMap).length > 0);
+  if (hasExplicitEntityIdentity) {
+    return names;
+  }
+
   const builtInStatMaps: unknown[] = [
     data.statistics?.affection,
     data.statistics?.trust,

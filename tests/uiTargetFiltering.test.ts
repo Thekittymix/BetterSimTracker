@@ -148,6 +148,73 @@ test("collectCharacterNamesFromTrackerData prefers resolver scene owners and ent
   assert.deepEqual(names, ["Blake"]);
 });
 
+test("collectCharacterNamesFromTrackerData ignores raw stat owner keys once explicit resolver/entity identity exists", () => {
+  const names = collectCharacterNamesFromTrackerData(
+    {
+      chat: [],
+      chatMetadata: {
+        bstEntityRegistry: {
+          entities: {
+            "ent-blake": {
+              id: "ent-blake",
+              ownerName: "Blake",
+              canonicalName: "Blake",
+              aliases: ["Blackout Blake"],
+              kind: "multi_character_alias",
+              sourceKey: "camp",
+              lifecycle: "active",
+              createdAtMessageIndex: 0,
+              lastSeenMessageIndex: 2,
+              lastActiveMessageIndex: 2,
+            },
+          },
+          byOwner: {
+            Blake: "ent-blake",
+          },
+          bySource: {},
+        },
+      },
+    } as never,
+    {
+      activeCharacters: ["Garret"],
+      entityResolution: {
+        source: "model",
+        sceneOwners: ["Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-blake"],
+        messageEntityIds: ["ent-blake"],
+      },
+      entityOwnerMap: {
+        Blake: {
+          entityId: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blackout Blake"],
+          kind: "multi_character_alias",
+          sourceKey: "camp",
+        },
+      },
+      statistics: {
+        affection: { Garret: 50, Raleigh: 50 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        pose: {
+          Ashley: "near the door",
+        },
+      },
+      timestamp: 1,
+    },
+  );
+
+  assert.deepEqual(names, ["Blake"]);
+});
+
 test("resolveRegistryOwnersFromEntries preserves introduction order and deduplicates names", () => {
   const owners = resolveRegistryOwnersFromEntries([
     { id: "a", ownerName: "Ashley" } as never,
