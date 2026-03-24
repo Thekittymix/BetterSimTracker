@@ -4,6 +4,7 @@ import {
   getEntityRegistryEntryForMessage,
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
+  readEntityRegistry,
   resolveTrackerSceneEntityIds,
   resolveTrackerSceneOwners,
   syncEntityRegistryFromRender,
@@ -32,12 +33,17 @@ export function syncEntityRegistryFromTrackerData(input: {
   const dataCharacterNames = collectCharacterNamesFromTrackerData(input.context, input.data);
   const registryEntriesForMessage = listEntityRegistryEntriesForMessage(input.context, input.messageIndex);
   const registryOwnersForMessage = resolveRegistryOwnersFromEntries(registryEntriesForMessage);
+  const registryEntriesForContinuity = Object.values(readEntityRegistry(input.context).entities);
+  const registryOwnersForContinuity = resolveRegistryOwnersFromEntries(registryEntriesForContinuity);
   const resolverAndDataTargets = mergeRegistryOwnersIntoTargets(sceneOwners, dataCharacterNames);
-  const continuityTargets = mergeRegistryOwnersIntoTargets(resolverAndDataTargets, registryOwnersForMessage);
-  const uniqueTargets = registryEntriesForMessage.length > 0
+  const continuityTargets = mergeRegistryOwnersIntoTargets(
+    mergeRegistryOwnersIntoTargets(resolverAndDataTargets, registryOwnersForMessage),
+    registryOwnersForContinuity,
+  );
+  const uniqueTargets = registryEntriesForContinuity.length > 0
     ? mergeRegistryEntitiesIntoTargets({
         targets: continuityTargets,
-        registryEntries: registryEntriesForMessage,
+        registryEntries: registryEntriesForContinuity,
         resolveRegistryEntry: ownerName => getEntityRegistryEntryForMessage(input.context, ownerName, input.messageIndex),
       })
     : continuityTargets;

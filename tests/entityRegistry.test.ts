@@ -153,6 +153,95 @@ test("syncEntityRegistryFromRender marks archived aliases without deleting them"
   assert.equal(registry.entities[ashleyId]?.lastActiveMessageIndex, 8);
 });
 
+test("syncEntityRegistryFromRender preserves latest metadata while backfilling historical lifecycle events", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    owners: ["Ashley"],
+    getLifecycleState: () => "inactive",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 3,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+
+  const registry = readEntityRegistry(context);
+  const ashleyId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Ashley",
+    matchedBy: "alias",
+  });
+  assert.equal(registry.entities[ashleyId]?.introducedAtMessageIndex, 3);
+  assert.equal(registry.entities[ashleyId]?.lastSeenMessageIndex, 15);
+  assert.equal(registry.entities[ashleyId]?.lastActiveMessageIndex, 8);
+  assert.equal(registry.entities[ashleyId]?.lifecycleState, "inactive");
+  assert.deepEqual(
+    registry.entities[ashleyId]?.lifecycleEvents,
+    [
+      { messageIndex: 3, state: "active" },
+      { messageIndex: 8, state: "active" },
+      { messageIndex: 15, state: "inactive" },
+    ],
+  );
+});
+
+test("getEntityRegistryLifecycleStateForMessage resolves last active message from lifecycle events at that message", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    owners: ["Ashley"],
+    getLifecycleState: () => "inactive",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 3,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+
+  assert.deepEqual(
+    getEntityRegistryLifecycleStateForMessage(context, "Ashley", 3),
+    {
+      lastActiveMessageIndex: 3,
+      lifecycleState: "inactive",
+      archivedAtMessageIndex: null,
+      introducedAtMessageIndex: 3,
+    },
+  );
+  assert.deepEqual(
+    getEntityRegistryLifecycleStateForMessage(context, "Ashley", 10),
+    {
+      lastActiveMessageIndex: 8,
+      lifecycleState: "inactive",
+      archivedAtMessageIndex: null,
+      introducedAtMessageIndex: 3,
+    },
+  );
+});
+
 test("entity registry resolves owner names to stable entity ids and back", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
@@ -1052,7 +1141,7 @@ test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the
 
   assert.deepEqual(
     getEntityRegistryLifecycleStateForMessage(context, "Ashley", 8),
-    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
+    { lastActiveMessageIndex: 8, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
   );
   assert.deepEqual(
     getEntityRegistryLifecycleStateForMessage(context, "Blake", 8),
@@ -1096,7 +1185,7 @@ test("getEntityRegistryLifecycleStateForEntityIdForMessage clamps lifecycle with
 
   assert.deepEqual(
     getEntityRegistryLifecycleStateForEntityIdForMessage(context, ashleyId, 8),
-    { lastActiveMessageIndex: null, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
+    { lastActiveMessageIndex: 8, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
   );
   assert.deepEqual(
     getEntityRegistryLifecycleStateForEntityIdForMessage(context, blakeId, 15),

@@ -1,3 +1,8 @@
+## [2.2.4.16-exp127] - 2026-03-24
+### Changed
+- Experimental multi-character entity registry now preserves correct history when older messages are retracked later, backfilling earlier lifecycle events without regressing newer entity metadata.
+- Experimental multi-character registry continuity sync now includes existing tracked entities from chat registry so user-turn scene changes can mark previously active aliases inactive even when the current tracker payload only names the remaining scene owners.
+
 ## [2.2.4.16-exp126] - 2026-03-24
 ### Changed
 - Experimental multi-character resolver-first flow now runs the model entity resolver on user turns too, and persists resolver scene/message owners separately from user-only tracker targets so registry lifecycle can follow character scene identity without polluting it with the user owner.

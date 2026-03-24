@@ -106,13 +106,59 @@ function upsertLifecycleEvent(
   return before !== after;
 }
 
+function getLifecycleEvents(entry: TrackerEntityRegistryEntry): Array<{ messageIndex: number; state: TrackerEntityLifecycleState }> {
+  if (Array.isArray(entry.lifecycleEvents) && entry.lifecycleEvents.length) {
+    return entry.lifecycleEvents;
+  }
+  return [{ messageIndex: entry.introducedAtMessageIndex, state: entry.lifecycleState }];
+}
+
+function resolveDerivedLifecycleMetadata(entry: TrackerEntityRegistryEntry): {
+  introducedAtMessageIndex: number;
+  lastSeenMessageIndex: number;
+  lastActiveMessageIndex: number | null;
+  lifecycleState: TrackerEntityLifecycleState;
+  archivedAtMessageIndex: number | null;
+} {
+  const events = getLifecycleEvents(entry);
+  const introducedAtMessageIndex = Math.min(
+    entry.introducedAtMessageIndex,
+    ...events.map(event => event.messageIndex),
+  );
+  const lastSeenMessageIndex = Math.max(
+    entry.lastSeenMessageIndex,
+    ...events.map(event => event.messageIndex),
+  );
+  const activeEvents = events.filter(event => event.state === "active").map(event => event.messageIndex);
+  const latestEvent = events[events.length - 1] ?? { messageIndex: introducedAtMessageIndex, state: entry.lifecycleState };
+  return {
+    introducedAtMessageIndex,
+    lastSeenMessageIndex,
+    lastActiveMessageIndex: activeEvents.length ? Math.max(...activeEvents) : null,
+    lifecycleState: latestEvent.state,
+    archivedAtMessageIndex: latestEvent.state === "archived" ? latestEvent.messageIndex : null,
+  };
+}
+
+function resolveLastActiveMessageIndexAtMessage(
+  entry: TrackerEntityRegistryEntry,
+  messageIndex: number,
+): number | null {
+  let lastActiveMessageIndex: number | null = null;
+  for (const event of getLifecycleEvents(entry)) {
+    if (event.messageIndex > messageIndex) break;
+    if (event.state === "active") {
+      lastActiveMessageIndex = event.messageIndex;
+    }
+  }
+  return lastActiveMessageIndex;
+}
+
 function resolveLifecycleStateAtMessage(
   entry: TrackerEntityRegistryEntry,
   messageIndex: number,
 ): { state: TrackerEntityLifecycleState; stateChangedAtMessageIndex: number | null } {
-  const events = Array.isArray(entry.lifecycleEvents) && entry.lifecycleEvents.length
-    ? entry.lifecycleEvents
-    : [{ messageIndex: entry.introducedAtMessageIndex, state: entry.lifecycleState }];
+  const events = getLifecycleEvents(entry);
   let resolvedState: TrackerEntityLifecycleState = "inactive";
   let stateChangedAtMessageIndex: number | null = null;
   for (const event of events) {
@@ -290,24 +336,44 @@ export function syncEntityRegistryFromRender(input: {
       entry.aliases = aliases;
       changed = true;
     }
-    if (entry.lastSeenMessageIndex !== input.messageIndex) {
-      entry.lastSeenMessageIndex = input.messageIndex;
+    const derived = resolveDerivedLifecycleMetadata(entry);
+    if (entry.introducedAtMessageIndex !== derived.introducedAtMessageIndex) {
+      entry.introducedAtMessageIndex = derived.introducedAtMessageIndex;
       changed = true;
     }
-    if (lifecycleState === "active" && entry.lastActiveMessageIndex !== input.messageIndex) {
-      entry.lastActiveMessageIndex = input.messageIndex;
+    if (entry.lastSeenMessageIndex !== derived.lastSeenMessageIndex) {
+      entry.lastSeenMessageIndex = derived.lastSeenMessageIndex;
       changed = true;
     }
-    if (entry.lifecycleState !== lifecycleState) {
-      entry.lifecycleState = lifecycleState;
+    if (entry.lastActiveMessageIndex !== derived.lastActiveMessageIndex) {
+      entry.lastActiveMessageIndex = derived.lastActiveMessageIndex;
+      changed = true;
+    }
+    if (entry.lifecycleState !== derived.lifecycleState) {
+      entry.lifecycleState = derived.lifecycleState;
+      changed = true;
+    }
+    if (entry.archivedAtMessageIndex !== derived.archivedAtMessageIndex) {
+      entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
       changed = true;
     }
     if (upsertLifecycleEvent(entry, input.messageIndex, lifecycleState)) {
-      changed = true;
-    }
-    const archivedAtMessageIndex = lifecycleState === "archived" ? input.messageIndex : null;
-    if (entry.archivedAtMessageIndex !== archivedAtMessageIndex) {
-      entry.archivedAtMessageIndex = archivedAtMessageIndex;
+      const nextDerived = resolveDerivedLifecycleMetadata(entry);
+      if (entry.introducedAtMessageIndex !== nextDerived.introducedAtMessageIndex) {
+        entry.introducedAtMessageIndex = nextDerived.introducedAtMessageIndex;
+      }
+      if (entry.lastSeenMessageIndex !== nextDerived.lastSeenMessageIndex) {
+        entry.lastSeenMessageIndex = nextDerived.lastSeenMessageIndex;
+      }
+      if (entry.lastActiveMessageIndex !== nextDerived.lastActiveMessageIndex) {
+        entry.lastActiveMessageIndex = nextDerived.lastActiveMessageIndex;
+      }
+      if (entry.lifecycleState !== nextDerived.lifecycleState) {
+        entry.lifecycleState = nextDerived.lifecycleState;
+      }
+      if (entry.archivedAtMessageIndex !== nextDerived.archivedAtMessageIndex) {
+        entry.archivedAtMessageIndex = nextDerived.archivedAtMessageIndex;
+      }
       changed = true;
     }
     registry.ownerToEntityId[normalizeKey(ownerName)] = entry.id;
@@ -800,9 +866,7 @@ export function getEntityRegistryLifecycleStateForEntityIdForMessage(
   const archivedAtMessageIndex = lifecycleAtMessage.state === "archived"
     ? lifecycleAtMessage.stateChangedAtMessageIndex
     : null;
-  const lastActiveMessageIndex = entry.lastActiveMessageIndex != null && entry.lastActiveMessageIndex <= messageIndex
-    ? entry.lastActiveMessageIndex
-    : null;
+  const lastActiveMessageIndex = resolveLastActiveMessageIndexAtMessage(entry, messageIndex);
   const lifecycleState: CardLifecycleRegistryState["lifecycleState"] = archivedAtMessageIndex != null
     ? "archived"
     : "inactive";

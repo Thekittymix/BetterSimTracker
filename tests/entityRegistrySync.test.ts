@@ -275,6 +275,88 @@ test("syncEntityRegistryFromTrackerData updates multi-character lifecycle on use
   assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lastSeenMessageIndex, 1);
 });
 
+test("syncEntityRegistryFromTrackerData backfills inactive continuity for aliases that were only introduced in later registry sync", () => {
+  const context = makeContext();
+  context.chat.push({
+    is_user: false,
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    mes: "Blake answers alone.",
+    extra: {},
+    swipe_id: 0,
+  } as never);
+  const settings = makeSettings();
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake", "Garret", "Raleigh"]), 0);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 0,
+    owners: ["Ashley", "Blake", "Garret", "Raleigh"],
+    getLifecycleState: () => "active",
+  });
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Blake"]), 2);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 2,
+    owners: ["Ashley", "Blake", "Garret", "Raleigh"],
+    getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
+  });
+
+  const current = {
+    ...makeTrackerData(["Blake"]),
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      source: "model" as const,
+    },
+  } satisfies TrackerData;
+  writeTrackerDataToMessage(context, current, 1);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+  });
+
+  assert.equal(changed, true);
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.introducedAtMessageIndex, 0);
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lastActiveMessageIndex, 2);
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.introducedAtMessageIndex, 0);
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "inactive");
+  assert.deepEqual(
+    registry.entities[registry.ownerToEntityId.ashley]?.lifecycleEvents,
+    [
+      { messageIndex: 0, state: "active" },
+      { messageIndex: 1, state: "inactive" },
+      { messageIndex: 2, state: "inactive" },
+    ],
+  );
+  assert.deepEqual(
+    registry.entities[registry.ownerToEntityId.garret]?.lifecycleEvents,
+    [
+      { messageIndex: 0, state: "active" },
+      { messageIndex: 1, state: "inactive" },
+      { messageIndex: 2, state: "inactive" },
+    ],
+  );
+  assert.deepEqual(
+    registry.entities[registry.ownerToEntityId.raleigh]?.lifecycleEvents,
+    [
+      { messageIndex: 0, state: "active" },
+      { messageIndex: 1, state: "inactive" },
+      { messageIndex: 2, state: "inactive" },
+    ],
+  );
+});
+
 test("syncEntityRegistryFromTrackerData is a no-op outside multi-character mode", () => {
   const context = makeContext();
   const settings = {
