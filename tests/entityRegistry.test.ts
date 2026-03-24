@@ -874,6 +874,44 @@ test("buildTrackerDataEntityOwnerMap prefers resolver scene entity ids over stal
   assert.equal(map?.Garret, undefined);
 });
 
+test("buildTrackerDataEntityOwnerMap prefers resolver message entity ids over stale activeCharacters even when scene owners are empty", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Blake", "Ashley"],
+    getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
+  });
+
+  const [blakeEntityId] = resolveTrackerEntityIdsForOwners(context, ["Blake"]);
+  assert.ok(blakeEntityId);
+
+  const tracker = makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: [],
+      messageEntityIds: [blakeEntityId],
+    },
+    statistics: {
+      affection: { Blake: 61 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+  });
+
+  const map = buildTrackerDataEntityOwnerMap(context, tracker);
+  assert.ok(map);
+  assert.equal(map?.Blake?.canonicalName, "Blake");
+  assert.equal(map?.Garret, undefined);
+});
+
 test("buildTrackerDataEntityOwnerMap ignores raw stat owner keys once resolver/entity identity is explicit", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

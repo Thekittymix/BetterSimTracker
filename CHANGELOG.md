@@ -1,6 +1,7 @@
-## [2.2.4.16-exp120] - 2026-03-24
+## [2.2.4.16-exp121] - 2026-03-24
 ### Changed
 - Experimental multi-character message-owner reads now use a shared resolver-backed helper, including `messageEntityIds + entityOwnerMap` fallback materialization, instead of duplicating local owner-array fallback logic in injection/runtime paths.
+- Experimental multi-character entity-owner map enrichment now respects message-only resolver entity IDs instead of falling back to stale raw active owner arrays.
 
 ## [2.2.4.16-exp119] - 2026-03-24
 ### Changed

@@ -441,14 +441,20 @@ function collectTrackerDataOwnerNames(
     context,
     data.entityResolution?.sceneEntityIds ?? [],
   );
+  const resolverMessageOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(
+    context,
+    data.entityResolution?.messageEntityIds ?? [],
+  );
   const hasExplicitResolverOwners =
     resolverOwnersFromEntityIds.length > 0 ||
+    resolverMessageOwnersFromEntityIds.length > 0 ||
     Array.isArray(data.entityResolution?.sceneOwners) && data.entityResolution.sceneOwners.length > 0 ||
     Array.isArray(data.entityResolution?.messageOwners) && data.entityResolution.messageOwners.length > 0;
   const hasExplicitEntityIdentity =
     hasExplicitResolverOwners ||
     (data.entityOwnerMap != null && Object.keys(data.entityOwnerMap).length > 0);
   for (const name of resolverOwnersFromEntityIds) push(name);
+  for (const name of resolverMessageOwnersFromEntityIds) push(name);
   for (const name of data.entityResolution?.sceneOwners ?? []) push(name);
   for (const name of data.entityResolution?.messageOwners ?? []) push(name);
   for (const name of Object.keys(data.entityOwnerMap ?? {})) push(name);
