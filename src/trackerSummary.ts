@@ -23,6 +23,11 @@ export function collectSummaryCharacters(
       names.add(normalized);
     }
   };
+  const hasExplicitEntityIdentity = preferredOwners.length > 0
+    || (data.entityOwnerMap != null && Object.keys(data.entityOwnerMap).length > 0);
+  if (hasExplicitEntityIdentity) {
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }
   addKeys(data.statistics.affection);
   addKeys(data.statistics.trust);
   addKeys(data.statistics.desire);

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildFallbackSummaryProse, buildSummaryTrackerStateLines } from "../src/trackerSummary";
+import { buildFallbackSummaryProse, buildSummaryTrackerStateLines, collectSummaryCharacters } from "../src/trackerSummary";
 import { defaultSettings } from "../src/settings";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
 
@@ -129,4 +129,18 @@ test("buildFallbackSummaryProse resolves alias-backed numeric custom stats throu
   const output = buildFallbackSummaryProse(makeContext(), makeTracker(), makeSettings());
   assert.match(output, /Stress feels high/);
   assert.match(output, /Ashley/);
+});
+
+test("collectSummaryCharacters ignores raw stat owner keys once explicit resolver/entity identity exists", () => {
+  const tracker = makeTracker();
+  tracker.statistics.affection = { Garret: 50 };
+  tracker.customNonNumericStatistics = {
+    pose: {
+      Raleigh: "leaning on the window",
+    },
+  };
+
+  const names = collectSummaryCharacters(makeContext(), tracker);
+
+  assert.deepEqual(names, ["Ashley"]);
 });

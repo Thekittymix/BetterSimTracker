@@ -1,3 +1,7 @@
+## [2.2.4.16-exp109] - 2026-03-24
+### Changed
+- Experimental multi-character summary owner collection now stops reintroducing stale raw stat-owner names once explicit resolver/entity identity is already present, keeping summary generation on the same resolver/entity path as render and registry sync.
+
 ## [2.2.4.16-exp108] - 2026-03-24
 ### Changed
 - Experimental multi-character UI owner collection now stops reintroducing stale raw stat-owner names once explicit resolver/entity identity is already present, keeping render and registry sync on the resolver/entity path instead of falling back to owner-name soup.
