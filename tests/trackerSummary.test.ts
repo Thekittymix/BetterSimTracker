@@ -178,3 +178,9 @@ test("collectSummaryCharacters can materialize scene owners from sceneEntityIds 
 
   assert.deepEqual(names, ["Ashley"]);
 });
+
+test("collectSummaryCharacters prefers context-aware entity resolution over raw alias owner keys", () => {
+  const names = collectSummaryCharacters(makeContext(), makeTracker());
+
+  assert.deepEqual(names, ["Ashley"]);
+});

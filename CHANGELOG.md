@@ -1,6 +1,6 @@
-## [2.2.4.16-exp114] - 2026-03-24
+## [2.2.4.16-exp115] - 2026-03-24
 ### Changed
-- Experimental multi-character summary owner collection now materializes missing scene owners from persisted `sceneEntityIds` plus `entityOwnerMap`, instead of broadening to stale fallback owners when no live context is available.
+- Experimental multi-character summary generation now keeps owner selection aligned to resolver-backed scene identity in both context-aware and contextless summary paths, including materializing missing scene owners from persisted `sceneEntityIds` plus `entityOwnerMap`.
 
 ## [2.2.4.16-exp113] - 2026-03-24
 ### Changed
@@ -1329,6 +1329,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

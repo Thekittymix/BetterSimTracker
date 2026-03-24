@@ -269,8 +269,8 @@ function bindInjectionSnapshotToLatestAiMessage(context: STContext): void {
   pendingGenerationInjectionSnapshot = null;
 }
 
-function collectSummaryCharacters(data: TrackerData): string[] {
-  return collectSummaryCharactersHelper(data);
+function collectSummaryCharacters(context: STContext | null, data: TrackerData): string[] {
+  return collectSummaryCharactersHelper(context, data);
 }
 
 function describeLorebookPayload(payload: unknown): string {
@@ -425,7 +425,7 @@ async function generateTrackerSummaryProse(input: {
   const { context, settings, data, messageIndex } = input;
   const userDisplayName = context.name1 ?? "User";
   const normalizeSummaryName = (name: string): string => (name === USER_TRACKER_KEY ? userDisplayName : name);
-  const characters = collectSummaryCharacters(data).map(normalizeSummaryName);
+  const characters = collectSummaryCharacters(context, data).map(normalizeSummaryName);
   const summaryActiveCharacters = resolveTrackerSceneOwners(context, data).map(normalizeSummaryName);
   const trackedDimensions: string[] = [];
   if (settings.trackAffection) trackedDimensions.push("warmth/care");
@@ -3113,7 +3113,7 @@ async function sendTrackerSummaryToChat(messageIndex: number): Promise<void> {
     pushTrace("summary.sent", {
       messageIndex,
       activeCharacters: data.activeCharacters.length,
-      charCount: collectSummaryCharacters(data).length,
+      charCount: collectSummaryCharacters(context, data).length,
       textChars: summaryText.length,
       delivery,
       aiProfileId,
