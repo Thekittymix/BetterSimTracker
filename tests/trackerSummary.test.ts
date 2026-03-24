@@ -179,6 +179,40 @@ test("collectSummaryCharacters can materialize scene owners from sceneEntityIds 
   assert.deepEqual(names, ["Ashley"]);
 });
 
+test("collectSummaryCharacters without context prefers sceneEntityIds plus ownerMap over stale sceneOwners", () => {
+  const tracker = makeTracker();
+  tracker.activeCharacters = ["Garret"];
+  tracker.entityResolution = {
+    source: "model",
+    sceneOwners: ["Garret"],
+    messageOwners: ["Garret"],
+    sceneEntityIds: ["ent-ashley"],
+    messageEntityIds: ["ent-ashley"],
+  };
+  tracker.entityOwnerMap = {
+    Ashley: {
+      entityId: "ent-ashley",
+      ownerName: "Ashley",
+      canonicalName: "Ashley",
+      aliases: ["Ash"],
+      sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+      kind: "multi_character_alias",
+    },
+    Garret: {
+      entityId: "ent-garret",
+      ownerName: "Garret",
+      canonicalName: "Garret",
+      aliases: [],
+      sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+      kind: "multi_character_alias",
+    },
+  };
+
+  const names = collectSummaryCharacters(tracker);
+
+  assert.deepEqual(names, ["Ashley"]);
+});
+
 test("collectSummaryCharacters prefers context-aware entity resolution over raw alias owner keys", () => {
   const names = collectSummaryCharacters(makeContext(), makeTracker());
 
