@@ -1,3 +1,7 @@
+## [2.2.4.16-exp100] - 2026-03-24
+### Changed
+- Experimental multi-character card lifecycle history now trusts `activeEntityIds` over owner-name fallback whenever entity-aware snapshots are available, keeping archive/inactive decisions aligned with entity identity instead of name collisions.
+
 ## [2.2.4.16-exp99] - 2026-03-24
 ### Changed
 - Experimental graph timeline helpers now resolve numeric values through entity-owner mapping and *ByEntityId buckets instead of relying only on raw owner-name buckets.

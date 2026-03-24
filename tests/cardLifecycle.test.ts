@@ -131,3 +131,29 @@ test("card lifecycle prefers entity ids over owner spellings when tracking alias
     archiveInactiveAfterTurns: 2,
   }), "active");
 });
+
+test("card lifecycle does not fall back to owner names when a newer entity-aware snapshot belongs to a different entity", () => {
+  const history = [
+    {
+      messageIndex: 4,
+      activeCharacters: ["Ashley"],
+    },
+    {
+      messageIndex: 6,
+      activeCharacters: ["Ashley"],
+      activeEntityIds: ["bst_mc_alias:test:other-ashley"],
+    },
+  ];
+
+  assert.equal(findLastActiveMessageIndex(history, 8, "Ashley", "bst_mc_alias:test:ashley"), 4);
+  assert.equal(resolveCardLifecycleState({
+    ownerName: "Ashley",
+    entityId: "bst_mc_alias:test:ashley",
+    currentMessageIndex: 8,
+    currentActiveCharacters: ["Blake"],
+    currentActiveEntityIds: [],
+    history,
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 3,
+  }), "archived");
+});

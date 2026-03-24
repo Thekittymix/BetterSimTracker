@@ -33,8 +33,14 @@ export function findLastActiveMessageIndex(
   for (let i = snapshots.length - 1; i >= 0; i -= 1) {
     const snapshot = snapshots[i];
     if (snapshot.messageIndex >= currentMessageIndex) continue;
-    if (entityNeedle && (snapshot.activeEntityIds ?? []).some(id => normalizeEntityId(id) === entityNeedle)) {
-      return snapshot.messageIndex;
+    const snapshotEntityIds = snapshot.activeEntityIds ?? [];
+    if (entityNeedle) {
+      if (snapshotEntityIds.some(id => normalizeEntityId(id) === entityNeedle)) {
+        return snapshot.messageIndex;
+      }
+      if (snapshotEntityIds.length > 0) {
+        continue;
+      }
     }
     if ((snapshot.activeCharacters ?? []).some(name => normalizeName(name) === needle)) {
       return snapshot.messageIndex;
