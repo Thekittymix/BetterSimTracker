@@ -311,9 +311,21 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
   const remappedCustomNonNumericStatistics = Object.fromEntries(
     Object.entries(data.customNonNumericStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
   );
-  const statisticsByEntityId = buildEntityScopedStatistics(remappedStatistics, targetToEntity);
-  const customStatisticsByEntityId = buildEntityScopedCustomStatistics(remappedCustomStatistics, targetToEntity);
-  const customNonNumericStatisticsByEntityId = buildEntityScopedCustomNonNumericStatistics(remappedCustomNonNumericStatistics, targetToEntity);
+  const derivedStatisticsByEntityId = buildEntityScopedStatistics(remappedStatistics, targetToEntity);
+  const derivedCustomStatisticsByEntityId = buildEntityScopedCustomStatistics(remappedCustomStatistics, targetToEntity);
+  const derivedCustomNonNumericStatisticsByEntityId = buildEntityScopedCustomNonNumericStatistics(remappedCustomNonNumericStatistics, targetToEntity);
+  const statisticsByEntityId = mergeStatisticsWithFallback(
+    derivedStatisticsByEntityId ?? createEmptyStatistics(),
+    normalizeStatistics(data.statisticsByEntityId),
+  );
+  const customStatisticsByEntityId = mergeCustomStatisticsWithFallback(
+    derivedCustomStatisticsByEntityId,
+    normalizeCustomStatistics(data.customStatisticsByEntityId),
+  );
+  const customNonNumericStatisticsByEntityId = mergeCustomNonNumericStatisticsWithFallback(
+    derivedCustomNonNumericStatisticsByEntityId,
+    normalizeCustomNonNumericStatistics(data.customNonNumericStatisticsByEntityId),
+  );
   const remappedEntityResolution = data.entityResolution
     ? {
         sceneOwners: Array.from(new Set((data.entityResolution.sceneOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
@@ -1089,8 +1101,11 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     .map(entry => normalizeTrackerDataEntityBuckets(entry))
     .sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0));
   let mergedStatistics: Statistics | null = null;
+  let mergedStatisticsByEntityId: Statistics | null = null;
   let mergedCustomStatistics: CustomStatistics | null = null;
+  let mergedCustomStatisticsByEntityId: CustomStatistics | null = null;
   let mergedCustomNonNumericStatistics: CustomNonNumericStatistics | null = null;
+  let mergedCustomNonNumericStatisticsByEntityId: CustomNonNumericStatistics | null = null;
   let mergedClearedStatistics: ClearedStatistics | null = null;
   let mergedClearedCustomStatistics: ClearedCustomStatistics | null = null;
   let mergedClearedCustomNonNumericStatistics: ClearedCustomNonNumericStatistics | null = null;
@@ -1100,10 +1115,23 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
 
   for (const entry of sorted) {
     mergedStatistics = mergeStatisticsWithFallback(entry.statistics, mergedStatistics, undefined);
+    mergedStatisticsByEntityId = mergeStatisticsWithFallback(
+      entry.statisticsByEntityId ?? createEmptyStatistics(),
+      mergedStatisticsByEntityId,
+      undefined,
+    );
     mergedCustomStatistics = mergeCustomStatisticsWithFallback(entry.customStatistics, mergedCustomStatistics);
+    mergedCustomStatisticsByEntityId = mergeCustomStatisticsWithFallback(
+      entry.customStatisticsByEntityId,
+      mergedCustomStatisticsByEntityId,
+    );
     mergedCustomNonNumericStatistics = mergeCustomNonNumericStatisticsWithFallback(
       entry.customNonNumericStatistics,
       mergedCustomNonNumericStatistics,
+    );
+    mergedCustomNonNumericStatisticsByEntityId = mergeCustomNonNumericStatisticsWithFallback(
+      entry.customNonNumericStatisticsByEntityId,
+      mergedCustomNonNumericStatisticsByEntityId,
     );
     mergedClearedStatistics = mergeClearedStatisticsWithFallback(entry.clearedStatistics, mergedClearedStatistics);
     mergedClearedCustomStatistics = mergeClearedOwnerBucketsWithFallback(entry.clearedCustomStatistics, mergedClearedCustomStatistics);
@@ -1140,8 +1168,11 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     activeCharacters: fallbackActiveCharacters,
     entityResolution: mergedEntityResolution,
     statistics: mergedStatistics ?? createEmptyStatistics(),
+    statisticsByEntityId: mergedStatisticsByEntityId ?? createEmptyStatistics(),
     customStatistics: mergedCustomStatistics ?? {},
+    customStatisticsByEntityId: mergedCustomStatisticsByEntityId ?? {},
     customNonNumericStatistics: mergedCustomNonNumericStatistics ?? {},
+    customNonNumericStatisticsByEntityId: mergedCustomNonNumericStatisticsByEntityId ?? {},
     clearedStatistics: pruneClearedStatistics(mergedClearedStatistics ?? undefined),
     clearedCustomStatistics: pruneClearedOwnerBuckets(mergedClearedCustomStatistics ?? undefined),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(mergedClearedCustomNonNumericStatistics ?? undefined),

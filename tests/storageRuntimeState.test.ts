@@ -732,6 +732,58 @@ test("mergeTrackerDataChronologically prefers resolver scene owners over stale a
   });
 });
 
+test("mergeTrackerDataChronologically preserves explicit by-entity buckets when owner buckets are absent", () => {
+  const entityOnlySnapshot = makeTracker(1000, {
+    activeCharacters: ["Ashley"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Ashley"],
+      messageOwners: ["Ashley"],
+      sceneEntityIds: ["bst_mc_alias:test:ashley"],
+      messageEntityIds: ["bst_mc_alias:test:ashley"],
+    },
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "bst_mc_alias:test:ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: { Ashley: 61 },
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customNonNumericStatistics: {},
+  });
+  entityOnlySnapshot.statisticsByEntityId = {
+    affection: { "bst_mc_alias:test:ashley": 58 },
+    trust: {},
+    desire: {},
+    connection: {},
+    mood: {},
+    lastThought: {},
+  };
+  entityOnlySnapshot.customNonNumericStatisticsByEntityId = {
+    pose: { "bst_mc_alias:test:ashley": "Leaning on the wall." },
+  };
+
+  const merged = mergeTrackerDataChronologically([entityOnlySnapshot]);
+  assert.ok(merged);
+  assert.equal(merged?.statisticsByEntityId?.affection?.["bst_mc_alias:test:ashley"], 58);
+  assert.equal(merged?.statisticsByEntityId?.trust?.["bst_mc_alias:test:ashley"], 61);
+  assert.equal(
+    merged?.customNonNumericStatisticsByEntityId?.pose?.["bst_mc_alias:test:ashley"],
+    "Leaning on the wall.",
+  );
+});
+
 test("buildMergedPromptMacroData preserves the latest entityResolution for merged prompt/runtime reads", () => {
   const context = makeContext();
   const older = makeTracker(1000, {
