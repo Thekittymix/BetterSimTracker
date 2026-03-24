@@ -170,6 +170,6 @@ export function parseMultiCharacterResolverResponse(
     sceneOwners: fallbackSceneOwners,
     messageOwners: fallbackMessageOwners.length ? fallbackMessageOwners : fallbackSceneOwners,
     sceneEntityIds,
-    messageEntityIds: messageEntityIds.length ? messageEntityIds : sceneEntityIds,
+    messageEntityIds,
   };
 }

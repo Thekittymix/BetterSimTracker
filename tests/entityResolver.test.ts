@@ -113,3 +113,23 @@ test("parseMultiCharacterResolverResponse maps entity refs back to stable entity
     messageEntityIds: ["bst_mc_alias:test:blake"],
   });
 });
+
+test("parseMultiCharacterResolverResponse keeps messageEntityIds empty when only scene entity refs are provided", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      sceneEntityRefs: ["ent2"],
+      messageEntityRefs: [],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley" },
+      { entityRef: "ent2", ownerName: "Blake", entityId: "bst_mc_alias:test:blake" },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["bst_mc_alias:test:blake"],
+    messageEntityIds: [],
+  });
+});
