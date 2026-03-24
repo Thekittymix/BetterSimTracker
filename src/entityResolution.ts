@@ -595,6 +595,40 @@ function collectStoredBuiltInOwnerNames(
   return out;
 }
 
+function collectStoredResolverSceneOwners(
+  context: STContext | null | undefined,
+  data: TrackerData | null | undefined,
+  includeUserOwner: boolean,
+): string[] {
+  if (!data) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const pushOwner = (rawOwner: unknown): void => {
+    const ownerName = normalizeOwnerForTracking(context, rawOwner);
+    if (!ownerName) return;
+    if (!includeUserOwner && normalizeKey(ownerName) === normalizeKey(USER_TRACKER_KEY)) return;
+    pushUniqueString(out, seen, ownerName);
+  };
+
+  for (const ownerName of data.entityResolution?.sceneOwners ?? []) {
+    pushOwner(ownerName);
+  }
+  if (out.length) return out;
+
+  const snapshotsByEntityId = new Map<string, NonNullable<TrackerData["entityOwnerMap"]>[string]>();
+  for (const snapshot of Object.values(data.entityOwnerMap ?? {})) {
+    const entityId = normalizeToken(snapshot?.entityId);
+    if (!entityId) continue;
+    snapshotsByEntityId.set(entityId, snapshot);
+  }
+  for (const entityId of data.entityResolution?.sceneEntityIds ?? []) {
+    const snapshot = snapshotsByEntityId.get(normalizeToken(entityId));
+    if (!snapshot) continue;
+    pushOwner(snapshot.ownerName);
+  }
+  return out;
+}
+
 export function resolveInitialExtractionOwners(input: {
   context?: STContext | null;
   userExtraction: boolean;
@@ -608,6 +642,10 @@ export function resolveInitialExtractionOwners(input: {
     return [USER_TRACKER_KEY];
   }
   const preferExistingOwnersOnRetrack = input.preferExistingOwnersOnRetrack !== false;
+  const storedResolverSceneOwners = collectStoredResolverSceneOwners(input.context, input.existingTrackerData, false);
+  if (input.forceRetrack && preferExistingOwnersOnRetrack && storedResolverSceneOwners.length) {
+    return storedResolverSceneOwners;
+  }
   const storedBuiltInOwners = collectStoredBuiltInOwnerNames(input.context, input.existingTrackerData, false);
   if (input.forceRetrack && preferExistingOwnersOnRetrack && storedBuiltInOwners.length) {
     return storedBuiltInOwners;

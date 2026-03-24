@@ -362,6 +362,80 @@ test("resolveInitialExtractionOwners prefers built-in stat owners from saved tra
   assert.deepEqual(resolved, ["Blake"]);
 });
 
+test("resolveInitialExtractionOwners prefers resolver scene owners over stale built-in owner buckets when retracking", () => {
+  const resolved = resolveInitialExtractionOwners({
+    context: { name1: "User" } as never,
+    userExtraction: false,
+    forceRetrack: true,
+    detectedActiveCharacters: ["Garret", "Raleigh"],
+    existingTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Garret", "Raleigh"],
+      entityResolution: {
+        source: "model",
+        sceneOwners: ["Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["bst_mc_alias:test:blake"],
+        messageEntityIds: ["bst_mc_alias:test:blake"],
+      },
+      statistics: {
+        affection: { Garret: 50, Raleigh: 50 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    existingActiveCharacters: ["Garret", "Raleigh"],
+  });
+  assert.deepEqual(resolved, ["Blake"]);
+});
+
+test("resolveInitialExtractionOwners can resolve scene owners from persisted sceneEntityIds through entityOwnerMap", () => {
+  const resolved = resolveInitialExtractionOwners({
+    context: { name1: "User" } as never,
+    userExtraction: false,
+    forceRetrack: true,
+    detectedActiveCharacters: ["Garret", "Raleigh"],
+    existingTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Garret", "Raleigh"],
+      entityResolution: {
+        source: "model",
+        sceneOwners: [],
+        messageOwners: [],
+        sceneEntityIds: ["bst_mc_alias:test:blake"],
+        messageEntityIds: ["bst_mc_alias:test:blake"],
+      },
+      entityOwnerMap: {
+        Blake: {
+          entityId: "bst_mc_alias:test:blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blackout Blake"],
+          sourceKey: "camp.png|camp whispering pines",
+          kind: "multi_character_alias",
+        },
+      },
+      statistics: {
+        affection: { Garret: 50, Raleigh: 50 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    existingActiveCharacters: ["Garret", "Raleigh"],
+  });
+  assert.deepEqual(resolved, ["Blake"]);
+});
+
 test("resolveExtractionOwnerScopes narrows scene activity to a single remaining alias when the latest user cue makes presence exclusive", () => {
   const context = {
     characterId: 0,

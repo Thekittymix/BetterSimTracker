@@ -1,3 +1,6 @@
+## [2.2.4.16-exp107] - 2026-03-24
+### Changed
+- Experimental multi-character retracks now prefer persisted resolver scene identity (`sceneOwners` / `sceneEntityIds`) before legacy built-in owner buckets when reusing stored owners for the next extraction pass.
 ## [2.2.4.16-exp106] - 2026-03-24
 ### Changed
 - Experimental multi-character chronological tracker merges and normalization now preserve explicit `*ByEntityId` state as first-class data instead of only rebuilding entity buckets from owner-name mirrors.
