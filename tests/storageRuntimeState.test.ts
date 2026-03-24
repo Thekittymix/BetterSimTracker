@@ -622,6 +622,15 @@ test("resolveNormalizedTrackerActiveCharacters preserves explicit targets and on
     resolveNormalizedTrackerActiveCharacters(
       { activeCharacters: ["Garret", "Raleigh"] } as TrackerData,
       ["Blake"],
+      ["Ashley"],
+    ),
+    ["Ashley"],
+  );
+
+  assert.deepEqual(
+    resolveNormalizedTrackerActiveCharacters(
+      { activeCharacters: ["Garret", "Raleigh"] } as TrackerData,
+      ["Blake"],
     ),
     ["Blake"],
   );
@@ -641,6 +650,40 @@ test("resolveNormalizedTrackerActiveCharacters preserves explicit targets and on
     ),
     ["Blake"],
   );
+});
+
+test("buildMergedPromptMacroData falls back to resolver message owners before scene owners when activeCharacters are missing", () => {
+  const context = makeContext();
+  const entry = {
+    timestamp: 2000,
+    entityResolution: {
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    },
+    statistics: {
+      affection: { Blake: 49 },
+      trust: { Blake: 49 },
+      desire: { Blake: 48 },
+      connection: { Blake: 49 },
+      mood: { Blake: "Serious" },
+      lastThought: { Blake: "Focused." },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      pose: { Blake: "Standing a few feet away." },
+    },
+  } as unknown as TrackerData;
+
+  saveTrackerSnapshot(context, entry, 2);
+
+  const merged = buildMergedPromptMacroData(context, entry);
+  assert.ok(merged);
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
+  assert.deepEqual(merged?.entityResolution?.sceneOwners, ["Ashley", "Blake", "Garret", "Raleigh"]);
+  assert.deepEqual(merged?.entityResolution?.messageOwners, ["Blake"]);
 });
 
 test("buildMergedPromptMacroData keeps user-only activeCharacters even when resolver scene owners point at a character", () => {
@@ -937,7 +980,7 @@ test("mergeTrackerDataChronologically preserves the latest entityResolution payl
     sceneEntityIds: ["ent-ashley", "ent-blake"],
     messageEntityIds: ["ent-blake"],
   });
-  assert.deepEqual(merged?.activeCharacters, ["Ashley", "Blake"]);
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
 });
 
 test("mergeTrackerDataChronologically prefers resolver scene owners over stale activeCharacters", () => {

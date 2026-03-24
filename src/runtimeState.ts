@@ -61,11 +61,11 @@ export function buildMergedPromptMacroData(
   const preferredResolvedSceneOwners = preferred
     ? resolveTrackerSceneOwners(context, preferred)
     : [];
-  const preferredActiveCharacters = preferred
-    ? resolveNormalizedTrackerActiveCharacters(preferred, preferredResolvedSceneOwners)
-    : [];
   const preferredResolvedMessageOwners = preferred
     ? resolveTrackerMessageOwners(context, preferred)
+    : [];
+  const preferredActiveCharacters = preferred
+    ? resolveNormalizedTrackerActiveCharacters(preferred, preferredResolvedSceneOwners, preferredResolvedMessageOwners)
     : [];
 
   return {

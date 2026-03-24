@@ -1,3 +1,7 @@
+## [2.2.4.16-exp138] - 2026-03-24
+### Fixed
+- Experimental multi-character storage/runtime normalization now repairs stale legacy `activeCharacters` from resolver `messageOwners` first, so explicit message-owner scope survives storage merges, prompt/runtime reads, and edit clones instead of silently re-expanding to full scene owners.
+
 ## [2.2.4.16-exp137] - 2026-03-24
 ### Fixed
 - Experimental multi-character AI extraction and persisted active-owner snapshots now stay scoped to resolver message owners instead of expanding back out to the full scene-owner set, so silent aliases no longer get re-extracted and marked active just because they remain present in the scene.

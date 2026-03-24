@@ -55,6 +55,7 @@ export function getTrackerDataFromMessage(message: ChatMessage): TrackerData | n
 export function resolveNormalizedTrackerActiveCharacters(
   data: { activeCharacters?: TrackerData["activeCharacters"] | null },
   resolvedSceneOwners: string[] = [],
+  resolvedMessageOwners: string[] = [],
 ): string[] {
   const hasExplicitActiveCharacters = Array.isArray(data.activeCharacters);
   const rawActiveCharacters = hasExplicitActiveCharacters
@@ -66,7 +67,16 @@ export function resolveNormalizedTrackerActiveCharacters(
   if (hasExplicitActiveCharacters && rawActiveCharacters.length === 0) {
     return rawActiveCharacters;
   }
-  return resolvedSceneOwners.length ? [...resolvedSceneOwners] : rawActiveCharacters;
+  if (resolvedMessageOwners.length) {
+    return [...resolvedMessageOwners];
+  }
+  if (resolvedSceneOwners.length) {
+    return [...resolvedSceneOwners];
+  }
+  if (hasExplicitActiveCharacters) {
+    return rawActiveCharacters;
+  }
+  return rawActiveCharacters;
 }
 
 function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
@@ -91,6 +101,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   const normalizedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
     { activeCharacters: data.activeCharacters },
     normalizedSceneOwners,
+    normalizedMessageOwners,
   );
   return normalizeTrackerDataEntityBuckets({
     timestamp: Number(data.timestamp ?? Date.now()),
@@ -393,6 +404,7 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
         : data.activeCharacters,
     },
     remappedEntityResolution?.sceneOwners ?? [],
+    remappedEntityResolution?.messageOwners ?? [],
   );
   return {
     ...data,
@@ -1295,9 +1307,14 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
         sceneEntityIds: [...(entry.entityResolution.sceneEntityIds ?? [])],
         messageEntityIds: [...(entry.entityResolution.messageEntityIds ?? [])],
       };
-      const sceneOwners = (entry.entityResolution.sceneOwners ?? []).map(name => String(name ?? "").trim()).filter(Boolean);
-      if (sceneOwners.length) {
-        fallbackActiveCharacters = sceneOwners;
+      const messageOwners = (entry.entityResolution.messageOwners ?? []).map(name => String(name ?? "").trim()).filter(Boolean);
+      if (messageOwners.length) {
+        fallbackActiveCharacters = messageOwners;
+      } else {
+        const sceneOwners = (entry.entityResolution.sceneOwners ?? []).map(name => String(name ?? "").trim()).filter(Boolean);
+        if (sceneOwners.length) {
+          fallbackActiveCharacters = sceneOwners;
+        }
       }
     } else if (Array.isArray(entry.activeCharacters) && entry.activeCharacters.length) {
       fallbackActiveCharacters = entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean);
@@ -1323,6 +1340,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
   const normalizedFallbackActiveCharacters = resolveNormalizedTrackerActiveCharacters(
     { activeCharacters: fallbackActiveCharacters },
     hydratedSceneOwners,
+    hydratedMessageOwners,
   );
 
   return normalizeTrackerDataEntityBuckets({
