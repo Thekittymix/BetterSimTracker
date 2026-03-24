@@ -1,3 +1,7 @@
+## [2.2.4.16-exp126] - 2026-03-24
+### Changed
+- Experimental multi-character resolver-first flow now runs the model entity resolver on user turns too, and persists resolver scene/message owners separately from user-only tracker targets so registry lifecycle can follow character scene identity without polluting it with the user owner.
+
 ## [2.2.4.16-exp125] - 2026-03-24
 ### Changed
 - Experimental multi-character entity-registry lifecycle sync no longer depends on UI render visibility (`showInactive` / display target pools), and now updates alias continuity directly from resolver-backed scene/data owners on both AI and user turns.

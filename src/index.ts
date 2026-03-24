@@ -3258,7 +3258,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           source: "model" | "fallback";
         }
       | null = null;
-    if (!userExtraction && activeSettings.entityTrackingMode === "multi_character" && isTrackableAiMessage(lastMessage)) {
+    if (activeSettings.entityTrackingMode === "multi_character" && lastMessage && !lastMessage.is_system) {
       const candidateOwners = resolveEntityResolverCandidateOwners(
         context,
         allCharacterNames.filter(name => name !== USER_TRACKER_KEY),
@@ -3315,9 +3315,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         }
       }
     }
-    const initialActiveCharacters = resolvedOwnerScopes?.sceneActiveCharacters.length
-      ? resolvedOwnerScopes.sceneActiveCharacters
-      : resolveInitialExtractionOwners({
+    const fallbackInitialActiveCharacters = resolveInitialExtractionOwners({
           context,
           userExtraction,
           forceRetrack,
@@ -3328,11 +3326,16 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         }).filter(name =>
           isTrackerEnabledForOwner(context, activeSettings, name),
         );
+    const initialActiveCharacters = !userExtraction && resolvedOwnerScopes?.sceneActiveCharacters.length
+      ? resolvedOwnerScopes.sceneActiveCharacters
+      : fallbackInitialActiveCharacters;
     const ownerScopes = userExtraction
       ? {
-          sceneActiveCharacters: initialActiveCharacters,
-          requestCharacters: initialActiveCharacters,
-          source: "fallback" as const,
+          sceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters.length
+            ? resolvedOwnerScopes.sceneActiveCharacters
+            : fallbackInitialActiveCharacters,
+          requestCharacters: fallbackInitialActiveCharacters,
+          source: (resolvedOwnerScopes?.source ?? "fallback") as "model" | "fallback",
         }
       : (resolvedOwnerScopes ?? {
           ...resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings),
@@ -3711,19 +3714,29 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const persistedSceneActiveCharacters = resolvePersistedActiveOwners(sceneActiveCharacters, {
       includeUserOwner: userExtraction,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const persistedResolverSceneOwners = resolvePersistedActiveOwners(
+      resolvedEntityResolution?.sceneOwners?.length
+        ? resolvedEntityResolution.sceneOwners
+        : sceneActiveCharacters,
+    ).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const persistedResolverMessageOwners = resolvePersistedActiveOwners(
+      resolvedEntityResolution?.messageOwners?.length
+        ? resolvedEntityResolution.messageOwners
+        : activeCharacters,
+    ).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const resolvedSceneEntityIds = resolvedEntityResolution?.sceneEntityIds?.length
       ? resolvedEntityResolution.sceneEntityIds
-      : resolveTrackerEntityIdsForOwners(context, persistedSceneActiveCharacters);
+      : resolveTrackerEntityIdsForOwners(context, persistedResolverSceneOwners);
     const resolvedMessageEntityIds = resolvedEntityResolution?.messageEntityIds?.length
       ? resolvedEntityResolution.messageEntityIds
-      : resolveTrackerEntityIdsForOwners(context, activeCharacters);
+      : resolveTrackerEntityIdsForOwners(context, persistedResolverMessageOwners);
 
     latestData = {
       timestamp: Date.now(),
       activeCharacters: persistedSceneActiveCharacters,
       entityResolution: {
-        sceneOwners: persistedSceneActiveCharacters,
-        messageOwners: activeCharacters,
+        sceneOwners: persistedResolverSceneOwners,
+        messageOwners: persistedResolverMessageOwners,
         sceneEntityIds: resolvedSceneEntityIds,
         messageEntityIds: resolvedMessageEntityIds,
         source: resolvedEntityResolution?.source ?? ownerScopes.source,

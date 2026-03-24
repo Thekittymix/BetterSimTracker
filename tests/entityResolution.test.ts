@@ -279,6 +279,11 @@ test("resolvePersistedActiveOwners can retain User for user-side tracker targets
   assert.deepEqual(refined, ["__bst_user__"]);
 });
 
+test("resolvePersistedActiveOwners excludes User from resolver-backed entity owner sets by default", () => {
+  const refined = resolvePersistedActiveOwners(["Blake", "__bst_user__"]);
+  assert.deepEqual(refined, ["Blake"]);
+});
+
 test("resolveInitialExtractionOwners keeps user extraction pinned to the user owner", () => {
   const resolved = resolveInitialExtractionOwners({
     userExtraction: true,

@@ -68,18 +68,19 @@ export function buildMultiCharacterResolverPrompt(input: {
   const contextText = normalizeToken(input.contextText);
   const messageName = normalizeToken(input.message?.name);
   const messageText = normalizeToken(input.message?.mes);
+  const messageRole = input.message?.is_user ? "user" : "ai";
 
   return [
     "SYSTEM:",
     "You are a character entity resolver for BetterSimTracker.",
-    "Determine which known character owners are still present in the current scene, and which owners this latest AI message should update.",
-    "Use the latest AI message as the primary source of truth, with recent chat context only for continuity.",
+    "Determine which known character owners are still present in the current scene, and which owners this latest message is actively advancing.",
+    "Use the latest message as the primary source of truth, with recent chat context only for continuity.",
     "Do not invent names. Use only the provided candidate owners exactly as written.",
     "Do not include the user. Return JSON only.",
     "",
     "Definitions:",
-    '- "sceneOwners": known character owners still present in the scene at the end of the latest AI message.',
-    '- "messageOwners": known character owners this latest AI message is actively advancing enough to warrant tracker extraction now.',
+    '- "sceneOwners": known character owners still present in the scene at the end of the latest message.',
+    '- "messageOwners": known character owners this latest message is actively advancing enough to matter right now.',
     "- A character merely mentioned inside another character's dialogue is not automatically a messageOwner.",
     "- For a focused single-character reply, messageOwners may contain only one owner even if sceneOwners contains more than one.",
     "- Prefer using entity refs when possible so runtime can map the result back to stable tracked entities.",
@@ -97,9 +98,10 @@ export function buildMultiCharacterResolverPrompt(input: {
     "Recent context:",
     contextText || "(none)",
     "",
-    "Latest AI message metadata:",
+    "Latest message metadata:",
+    `role: ${messageRole}`,
     `speaker: ${messageName || "(unknown)"}`,
-    "Latest AI message:",
+    "Latest message:",
     messageText || "(empty)",
     "",
     "Return STRICT JSON only:",

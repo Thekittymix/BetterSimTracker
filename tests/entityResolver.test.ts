@@ -6,7 +6,7 @@ import {
   parseMultiCharacterResolverResponse,
 } from "../src/entityResolver";
 
-test("buildMultiCharacterResolverPrompt lists candidate owners and latest AI message", () => {
+test("buildMultiCharacterResolverPrompt lists candidate owners and latest message metadata", () => {
   const prompt = buildMultiCharacterResolverPrompt({
     candidateEntities: [
       { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley" },
@@ -24,8 +24,28 @@ test("buildMultiCharacterResolverPrompt lists candidate owners and latest AI mes
 
   assert.match(prompt, /\"entityRef\": \"ent1\"/);
   assert.match(prompt, /\"ownerName\": \"Blake\"/);
-  assert.match(prompt, /Latest AI message:/);
+  assert.match(prompt, /Latest message:/);
+  assert.match(prompt, /role: ai/);
   assert.match(prompt, /Blake watched the door click shut\./);
+});
+
+test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", () => {
+  const prompt = buildMultiCharacterResolverPrompt({
+    candidateEntities: [
+      { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley" },
+      { entityRef: "ent2", ownerName: "Blake", entityId: "bst_mc_alias:test:blake" },
+    ],
+    contextText: "Ashley, Blake, Garret, and Raleigh were all here a moment ago.",
+    message: {
+      name: "User",
+      mes: "Ashley leaves the room. Blake stays here alone now.",
+      is_user: true,
+    } as any,
+  });
+
+  assert.match(prompt, /Latest message:/);
+  assert.match(prompt, /role: user/);
+  assert.match(prompt, /Ashley leaves the room\. Blake stays here alone now\./);
 });
 
 test("parseMultiCharacterResolverResponse keeps only known owners and falls back messageOwners to sceneOwners", () => {
