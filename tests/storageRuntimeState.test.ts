@@ -627,6 +627,9 @@ test("mergeTrackerDataChronologically canonicalizes alias-owner buckets by entit
   assert.equal(merged?.statistics.affection.Ash, undefined);
   assert.equal(merged?.statistics.trust.Ashley, 61);
   assert.equal(merged?.statistics.mood.Ashley, "Hopeful");
+  assert.equal(merged?.statisticsByEntityId?.affection?.["bst_mc_alias:test:ashley"], 58);
+  assert.equal(merged?.statisticsByEntityId?.trust?.["bst_mc_alias:test:ashley"], 61);
+  assert.equal(merged?.statisticsByEntityId?.mood?.["bst_mc_alias:test:ashley"], "Hopeful");
   assert.ok(merged?.entityOwnerMap?.Ashley);
   assert.equal(merged?.entityOwnerMap?.Ash, undefined);
   assert.deepEqual(merged?.entityOwnerMap?.Ashley.aliases, ["Ash"]);

@@ -1130,7 +1130,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     }
   }
 
-  return {
+  return normalizeTrackerDataEntityBuckets({
     timestamp: mergedTimestamp || Date.now(),
     activeCharacters: fallbackActiveCharacters,
     entityResolution: mergedEntityResolution,
@@ -1141,7 +1141,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     clearedCustomStatistics: pruneClearedOwnerBuckets(mergedClearedCustomStatistics ?? undefined),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(mergedClearedCustomNonNumericStatistics ?? undefined),
     entityOwnerMap: mergeEntityOwnerMapsChronologically(sorted),
-  };
+  });
 }
 
 export function clearTrackerDataForCurrentChat(context: STContext): void {

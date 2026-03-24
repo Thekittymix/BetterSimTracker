@@ -1,3 +1,7 @@
+## [2.2.4.16-exp94] - 2026-03-24
+### Changed
+- Experimental multi-character chronological tracker merges now retain and rebuild *ByEntityId state from merged entity identity data instead of falling back to owner-name-only merged results.
+
 ## [2.2.4.16-exp93] - 2026-03-22
 ### Changed
 - Experimental multi-character baseline/history relevance selection now accepts explicit resolver entity ids alongside owner names, reducing another owner-name-only path when choosing prior tracker continuity entries.
@@ -1250,6 +1254,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 
