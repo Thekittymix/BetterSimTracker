@@ -1,3 +1,7 @@
+## [2.2.4.16-exp118] - 2026-03-24
+### Changed
+- Experimental multi-character UI target collection now resolves scene owners through the shared resolver-backed entity-id path even without live `STContext`, instead of falling back early to stale raw owner arrays.
+
 ## [2.2.4.16-exp117] - 2026-03-24
 ### Changed
 - Experimental multi-character UI/runtime reads can now materialize resolver scene owners directly from persisted `sceneEntityIds` plus `entityOwnerMap` even when no live `STContext` registry lookup is available.

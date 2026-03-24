@@ -971,11 +971,7 @@ export function collectCharacterNamesFromTrackerData(
   const data = maybeData ?? (contextOrData as TrackerData);
   const names: string[] = [];
   const seen = new Set<string>();
-  const preferredNames = context
-    ? resolveTrackerSceneOwners(context, data)
-    : (Array.isArray(data.entityResolution?.sceneOwners)
-      ? data.entityResolution.sceneOwners.map(name => String(name ?? "").trim()).filter(Boolean)
-      : []);
+  const preferredNames = resolveTrackerSceneOwners(context, data);
   const fallbackNames = preferredNames.length
     ? preferredNames
     : (data.entityOwnerMap

@@ -215,6 +215,42 @@ test("collectCharacterNamesFromTrackerData ignores raw stat owner keys once expl
   assert.deepEqual(names, ["Blake"]);
 });
 
+test("collectCharacterNamesFromTrackerData can materialize resolver scene owners from entity ids plus owner map without context", () => {
+  const names = collectCharacterNamesFromTrackerData({
+    activeCharacters: ["Garret", "Raleigh"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+    },
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["Blackout Blake"],
+        kind: "multi_character_alias",
+        sourceKey: "camp",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+    timestamp: 1,
+  } as never);
+
+  assert.deepEqual(names, ["Blake"]);
+});
+
 test("resolveRegistryOwnersFromEntries preserves introduction order and deduplicates names", () => {
   const owners = resolveRegistryOwnersFromEntries([
     { id: "a", ownerName: "Ashley" } as never,
