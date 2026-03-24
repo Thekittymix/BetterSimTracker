@@ -424,7 +424,10 @@ export function resolveTrackerDataLookupValue<T>(input: {
   return resolveEntityRegistryLookupValue(input.context, input.byOwner, input.ownerName);
 }
 
-function collectTrackerDataOwnerNames(data: TrackerData): string[] {
+function collectTrackerDataOwnerNames(
+  context: STContext | null,
+  data: TrackerData,
+): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
   const push = (raw: unknown): void => {
@@ -434,11 +437,18 @@ function collectTrackerDataOwnerNames(data: TrackerData): string[] {
     seen.add(key);
     names.push(value);
   };
+  const resolverOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(
+    context,
+    data.entityResolution?.sceneEntityIds ?? [],
+  );
   const hasExplicitResolverOwners =
+    resolverOwnersFromEntityIds.length > 0 ||
     Array.isArray(data.entityResolution?.sceneOwners) && data.entityResolution.sceneOwners.length > 0 ||
     Array.isArray(data.entityResolution?.messageOwners) && data.entityResolution.messageOwners.length > 0;
+  for (const name of resolverOwnersFromEntityIds) push(name);
   for (const name of data.entityResolution?.sceneOwners ?? []) push(name);
   for (const name of data.entityResolution?.messageOwners ?? []) push(name);
+  for (const name of Object.keys(data.entityOwnerMap ?? {})) push(name);
   if (!hasExplicitResolverOwners) {
     for (const name of data.activeCharacters ?? []) push(name);
   }
@@ -461,7 +471,7 @@ export function buildTrackerDataEntityOwnerMap(
   if (!context) return undefined;
   const registry = readRegistry(context);
   const out: Record<string, TrackerDataEntityOwner> = {};
-  for (const ownerName of collectTrackerDataOwnerNames(data)) {
+  for (const ownerName of collectTrackerDataOwnerNames(context, data)) {
     const entityId = registry.ownerToEntityId[normalizeKey(ownerName)];
     if (!entityId) continue;
     const entry = registry.entities[entityId];

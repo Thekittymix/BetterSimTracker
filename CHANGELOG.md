@@ -1,3 +1,7 @@
+## [2.2.4.16-exp102] - 2026-03-24
+### Changed
+- Experimental multi-character entity-owner mapping now prefers resolver sceneEntityIds before stale raw owner arrays when rebuilding owner identity from tracker payloads.
+
 ## [2.2.4.16-exp101] - 2026-03-24
 ### Changed
 - Experimental multi-character UI owner collection now prefers resolver scene owners and entity-owner mapping before stale raw `activeCharacters`, keeping display and registry sync aligned with entity identity earlier in the read path.
@@ -1282,6 +1286,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

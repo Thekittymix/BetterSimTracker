@@ -739,6 +739,44 @@ test("buildTrackerDataEntityOwnerMap ignores stale activeCharacters when resolve
   assert.equal(map?.Garret, undefined);
 });
 
+test("buildTrackerDataEntityOwnerMap prefers resolver scene entity ids over stale activeCharacters even without explicit scene owner names", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Blake", "Ashley"],
+    getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
+  });
+
+  const [blakeEntityId] = resolveTrackerEntityIdsForOwners(context, ["Blake"]);
+  assert.ok(blakeEntityId);
+
+  const tracker = makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: [],
+      messageOwners: ["Blake"],
+      sceneEntityIds: [blakeEntityId],
+      messageEntityIds: [blakeEntityId],
+    },
+    statistics: {
+      affection: { Blake: 61 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+  });
+
+  const map = buildTrackerDataEntityOwnerMap(context, tracker);
+  assert.ok(map);
+  assert.equal(map?.Blake?.canonicalName, "Blake");
+  assert.equal(map?.Garret, undefined);
+});
+
 test("listEntityRegistryEntriesForMessage returns visible entities in introduction order", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
