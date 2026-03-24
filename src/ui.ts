@@ -62,6 +62,7 @@ import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardL
 import {
   buildLifecycleHistorySnapshotsFromTrackerEntries,
   resolveTrackerDataLookupValue,
+  resolveTrackerMessageOwners,
   resolveTrackerSceneEntityIds,
   resolveTrackerSceneOwners,
 } from "./entityRegistry";
@@ -880,6 +881,23 @@ export function applyTrackerCardCollapsed(input: {
   } else {
     input.expandedInactiveCardKeys.add(key);
   }
+}
+
+export function resolveCurrentLifecycleOwners(input: {
+  sceneOwners: string[];
+  messageOwners: string[];
+}): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const name of [...(input.sceneOwners ?? []), ...(input.messageOwners ?? [])]) {
+    const trimmed = String(name ?? "").trim();
+    if (!trimmed) continue;
+    const normalized = normalizeName(trimmed);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(trimmed);
+  }
+  return out;
 }
 
 export type TrackerRecoveryEntry = {
@@ -5327,8 +5345,13 @@ export function renderTracker(
     const userMessageEntry = Boolean(isUserMessageIndex?.(entry.messageIndex));
     const collapsed = isMessageCollapsed(entry.messageIndex);
     const resolvedSceneOwners = resolveTrackerSceneOwners(null, data);
+    const resolvedMessageOwners = resolveTrackerMessageOwners(null, data);
+    const currentLifecycleOwners = resolveCurrentLifecycleOwners({
+      sceneOwners: resolvedSceneOwners,
+      messageOwners: resolvedMessageOwners,
+    });
     const resolvedSceneEntityIds = resolveTrackerSceneEntityIds(null, data);
-    const activeSet = new Set(resolvedSceneOwners.map(normalizeName));
+    const activeSet = new Set(currentLifecycleOwners.map(normalizeName));
     const allNumericDefs = getNumericStatDefinitions(settings);
     const cardNumericDefs = allNumericDefs.filter(def => def.showOnCard);
     const allNonNumericDefs = getNonNumericStatDefinitions(settings);
@@ -5497,7 +5520,7 @@ export function renderTracker(
         resolveRegistryEntryByEntityIdForMessage,
       })?.id ?? null,
       currentMessageIndex: entry.messageIndex,
-      currentActiveCharacters: resolvedSceneOwners,
+      currentActiveCharacters: currentLifecycleOwners,
       currentActiveEntityIds: resolvedSceneEntityIds,
       history: lifecycleSnapshots,
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,

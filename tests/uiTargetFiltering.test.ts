@@ -14,6 +14,7 @@ import {
   resolveRegistryEntryForOwnerInMessageData,
   resolveLifecycleRegistryStateForOwnerInMessageData,
   resolveRegistryOwnersFromEntries,
+  resolveCurrentLifecycleOwners,
   resolveTrackerCardCollapsed,
   resolveOwnerUiKey,
   shouldKeepOwnerInRenderTargetPool,
@@ -424,6 +425,16 @@ test("resolveTrackerCardCollapsed defaults active cards open and inactive cards 
       expandedInactiveCardKeys: new Set(),
     }),
     true,
+  );
+});
+
+test("resolveCurrentLifecycleOwners includes message-only user owner without duplicating scene owners", () => {
+  assert.deepEqual(
+    resolveCurrentLifecycleOwners({
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["__bst_user__", "Blake"],
+    }),
+    ["Ashley", "Blake", "Garret", "Raleigh", "__bst_user__"],
   );
 });
 

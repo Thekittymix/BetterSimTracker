@@ -1,3 +1,7 @@
+## [2.2.4.16-exp133] - 2026-03-24
+### Fixed
+- Experimental multi-character user-turn cards now treat message-level user ownership as active lifecycle state, so the current user card no longer renders collapsed/inactive just because the broader scene owners exclude the user.
+
 ## [2.2.4.16-exp132] - 2026-03-24
 ### Changed
 - Experimental multi-character AI messages that resolve to `no_active_characters` now persist a continuity snapshot for that message with no active owners, so prior entity cards can still render through normal inactive/archive behavior instead of collapsing into a tracker-skip placeholder.
