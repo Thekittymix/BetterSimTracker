@@ -3,7 +3,7 @@ import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
 import {
   listTrackerDataLookupNamesForOwnerWithEntityFallback,
-  resolveTrackerOwnersForEntityIds,
+  resolveTrackerMessageOwners,
   resolveTrackerSceneOwners,
 } from "./entityRegistry";
 import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
@@ -156,12 +156,7 @@ function isOwnerStatEnabled(
 }
 
 function resolveInjectionTargetOwner(context: STContext, data: TrackerData): string | null {
-  const messageOwnersFromEntityIds = Array.isArray(data.entityResolution?.messageEntityIds)
-    ? resolveTrackerOwnersForEntityIds(context, data.entityResolution.messageEntityIds)
-    : [];
-  const messageOwners = Array.isArray(data.entityResolution?.messageOwners)
-    ? data.entityResolution.messageOwners.map(name => String(name ?? "").trim()).filter(Boolean)
-    : [];
+  const messageOwners = resolveTrackerMessageOwners(context, data);
   const sceneOwners = resolveTrackerSceneOwners(context, data);
   const userName = String(context.name1 ?? "").trim();
   const userAliases = new Set(
@@ -171,9 +166,6 @@ function resolveInjectionTargetOwner(context: STContext, data: TrackerData): str
   );
   const candidates: string[] = [];
 
-  for (const owner of messageOwnersFromEntityIds) {
-    if (owner) candidates.push(owner);
-  }
   for (const owner of messageOwners) {
     if (owner) candidates.push(owner);
   }

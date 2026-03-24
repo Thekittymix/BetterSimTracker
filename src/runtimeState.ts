@@ -1,5 +1,5 @@
 import { getChatStateLatestTrackerData, getLatestTrackerDataWithIndex, getLocalLatestTrackerData, getMetadataLatestTrackerData, getRecentTrackerHistoryEntries, mergeTrackerDataChronologically } from "./storage";
-import { resolveTrackerOwnersForEntityIds } from "./entityRegistry";
+import { resolveTrackerMessageOwners, resolveTrackerSceneOwners } from "./entityRegistry";
 import { isTrackableMessage } from "./messageFilter";
 import type { STContext, TrackerData } from "./types";
 
@@ -50,27 +50,17 @@ export function buildMergedPromptMacroData(
     return preferred ? { ...preferred } : null;
   }
 
-  const preferredResolvedSceneOwnersFromEntityIds = Array.isArray(preferred?.entityResolution?.sceneEntityIds)
-    ? resolveTrackerOwnersForEntityIds(context, preferred.entityResolution.sceneEntityIds)
+  const preferredResolvedSceneOwners = preferred
+    ? resolveTrackerSceneOwners(context, preferred)
     : [];
-  const preferredResolvedSceneOwners = preferredResolvedSceneOwnersFromEntityIds.length
-    ? preferredResolvedSceneOwnersFromEntityIds
-    : (Array.isArray(preferred?.entityResolution?.sceneOwners)
-    ? preferred.entityResolution.sceneOwners.map(name => String(name ?? "").trim()).filter(Boolean)
-    : []);
   const preferredActiveCharacters = preferredResolvedSceneOwners.length
     ? preferredResolvedSceneOwners
     : (Array.isArray(preferred?.activeCharacters)
         ? preferred.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
         : []);
-  const preferredResolvedMessageOwnersFromEntityIds = Array.isArray(preferred?.entityResolution?.messageEntityIds)
-    ? resolveTrackerOwnersForEntityIds(context, preferred.entityResolution.messageEntityIds)
+  const preferredResolvedMessageOwners = preferred
+    ? resolveTrackerMessageOwners(context, preferred)
     : [];
-  const preferredResolvedMessageOwners = preferredResolvedMessageOwnersFromEntityIds.length
-    ? preferredResolvedMessageOwnersFromEntityIds
-    : (Array.isArray(preferred?.entityResolution?.messageOwners)
-      ? preferred.entityResolution.messageOwners.map(name => String(name ?? "").trim()).filter(Boolean)
-      : []);
 
   return {
     ...merged,

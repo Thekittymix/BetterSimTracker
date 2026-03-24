@@ -531,6 +531,59 @@ test("resolveInjectionTargetOwner prefers resolver message entity ids over sourc
   assert.equal(__testables.resolveInjectionTargetOwner(context, data), "Ashley");
 });
 
+test("resolveInjectionTargetOwner can materialize message owners from messageEntityIds plus entityOwnerMap when registry lookup is unavailable", () => {
+  const data = makeTracker({
+    activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: [],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: ["ent-ashley"],
+    },
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+  });
+  const context = makeContext({
+    name2: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    groupId: "group-1",
+    characterId: 0,
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {},
+        ownerToEntityId: {},
+      },
+    } as any,
+    chat: [
+      {
+        is_user: false,
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        mes: "source-card style reply",
+      },
+    ] as any,
+  });
+
+  assert.equal(__testables.resolveInjectionTargetOwner(context, data), "Ashley");
+});
+
 test("buildPrompt resolves owner lines through tracker entityOwnerMap before raw owner-name lookup", () => {
   const settings = makeSettings({
     trackMood: true,

@@ -573,6 +573,23 @@ export function resolveTrackerSceneOwners(
   return uniqueStrings(Array.isArray(data.activeCharacters) ? data.activeCharacters : []);
 }
 
+export function resolveTrackerMessageOwners(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+): string[] {
+  if (!data) return [];
+  const messageEntityIds = data.entityResolution?.messageEntityIds ?? [];
+  const messageOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, messageEntityIds);
+  if (messageOwnersFromEntityIds.length) return messageOwnersFromEntityIds;
+  const messageOwnersFromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, messageEntityIds);
+  if (messageOwnersFromOwnerMap.length) return messageOwnersFromOwnerMap;
+  const messageOwners = Array.isArray(data.entityResolution?.messageOwners)
+    ? uniqueStrings(data.entityResolution?.messageOwners ?? [])
+    : [];
+  if (messageOwners.length) return messageOwners;
+  return resolveTrackerSceneOwners(context, data);
+}
+
 export function resolveTrackerSceneEntityIds(
   context: STContext | null,
   data: TrackerData | null | undefined,

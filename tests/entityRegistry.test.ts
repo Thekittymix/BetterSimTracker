@@ -19,6 +19,7 @@ import {
   readEntityRegistry,
   resolveTrackerDataLookupValue,
   resolveTrackerEntityIdsForOwners,
+  resolveTrackerMessageOwners,
   resolveTrackerSceneEntityIds,
   resolveTrackerSceneOwners,
   resolveTrackerOwnersForEntityIds,
@@ -283,6 +284,69 @@ test("resolveTrackerSceneOwners can materialize scene owners from sceneEntityIds
       sceneOwners: [],
       messageOwners: [],
       sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    },
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["Blackout Blake"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "ent-garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+  }));
+
+  assert.deepEqual(resolved, ["Blake"]);
+});
+
+test("resolveTrackerMessageOwners prefers message entity ids over stale message owner arrays", () => {
+  const context = makeContext();
+  const blakeEntityId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Blake",
+    matchedBy: "alias",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const resolved = resolveTrackerMessageOwners(context, makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Garret"],
+      sceneEntityIds: [blakeEntityId],
+      messageEntityIds: [blakeEntityId],
+      source: "model",
+    },
+  }));
+
+  assert.deepEqual(resolved, ["Blake"]);
+});
+
+test("resolveTrackerMessageOwners can materialize message owners from messageEntityIds plus entityOwnerMap without context", () => {
+  const resolved = resolveTrackerMessageOwners(null, makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: ["Garret"],
+      messageOwners: [],
+      sceneEntityIds: ["ent-garret"],
       messageEntityIds: ["ent-blake"],
       source: "model",
     },
