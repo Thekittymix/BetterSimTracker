@@ -652,6 +652,15 @@ test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the us
       requestCharacters: [USER_TRACKER_KEY],
       userExtraction: false,
     }),
+    [],
+  );
+
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveOwners({
+      sceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+      requestCharacters: ["Blake"],
+      userExtraction: false,
+    }),
     ["Blake"],
   );
 });
@@ -724,7 +733,7 @@ test("resolvePersistedSnapshotEntityIds clears user message entity ids while pre
   );
 });
 
-test("resolveExtractionRequestOwners uses full scene owners for multi-character AI extraction but keeps message-only owners for user and standard flows", () => {
+test("resolveExtractionRequestOwners keeps extraction scoped to request owners across multi-character, user, and standard flows", () => {
   assert.deepEqual(
     resolveExtractionRequestOwners({
       sceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
@@ -732,7 +741,7 @@ test("resolveExtractionRequestOwners uses full scene owners for multi-character 
       userExtraction: false,
       settings: { entityTrackingMode: "multi_character" },
     }),
-    ["Ashley", "Blake", "Garret", "Raleigh"],
+    ["Blake"],
   );
 
   assert.deepEqual(
@@ -764,7 +773,7 @@ test("resolveExtractionRequestEntityIds uses full scene entity ids for multi-cha
       userExtraction: false,
       settings: { entityTrackingMode: "multi_character" },
     }),
-    ["ent:ashley", "ent:blake", "ent:garret", "ent:raleigh"],
+    ["ent:blake"],
   );
 
   assert.deepEqual(

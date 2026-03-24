@@ -1,3 +1,7 @@
+## [2.2.4.16-exp137] - 2026-03-24
+### Fixed
+- Experimental multi-character AI extraction and persisted active-owner snapshots now stay scoped to resolver message owners instead of expanding back out to the full scene-owner set, so silent aliases no longer get re-extracted and marked active just because they remain present in the scene.
+
 ## [2.2.4.16-exp136] - 2026-03-24
 ### Fixed
 - Experimental multi-character tracker cards now respect an explicit empty `activeCharacters` set during UI lifecycle reads, so `no_active_characters` continuity turns no longer fall back to scene owners and falsely mark all alias cards as active.
