@@ -1,3 +1,7 @@
+## [2.2.4.16-exp136] - 2026-03-24
+### Fixed
+- Experimental multi-character tracker cards now respect an explicit empty `activeCharacters` set during UI lifecycle reads, so `no_active_characters` continuity turns no longer fall back to scene owners and falsely mark all alias cards as active.
+
 ## [2.2.4.16-exp135] - 2026-03-24
 ### Changed
 - Experimental multi-character continuity now keeps the scene-owner pool separate from the active-owner set, so `no_active_characters` AI turns preserve prior scene continuity for inactive cards instead of collapsing the message into an empty tracker state.

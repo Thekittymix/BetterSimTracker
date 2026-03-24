@@ -902,6 +902,17 @@ export function resolveCurrentLifecycleOwners(input: {
   return out;
 }
 
+export function resolveCurrentLifecycleOwnersForTrackerData(data: TrackerData | null | undefined): string[] {
+  if (!data) return [];
+  if (Array.isArray(data.activeCharacters)) {
+    return resolveTrackerActiveOwners(null, data);
+  }
+  return resolveCurrentLifecycleOwners({
+    sceneOwners: resolveTrackerSceneOwners(null, data),
+    messageOwners: resolveTrackerMessageOwners(null, data),
+  });
+}
+
 export type TrackerRecoveryEntry = {
   kind: "error" | "stopped";
   title: string;
@@ -5347,14 +5358,7 @@ export function renderTracker(
     const userMessageEntry = Boolean(isUserMessageIndex?.(entry.messageIndex));
     const collapsed = isMessageCollapsed(entry.messageIndex);
     const resolvedSceneOwners = resolveTrackerSceneOwners(null, data);
-    const resolvedMessageOwners = resolveTrackerMessageOwners(null, data);
-    const resolvedActiveOwners = resolveTrackerActiveOwners(null, data);
-    const currentLifecycleOwners = resolvedActiveOwners.length
-      ? resolvedActiveOwners
-      : resolveCurrentLifecycleOwners({
-          sceneOwners: resolvedSceneOwners,
-          messageOwners: resolvedMessageOwners,
-        });
+    const currentLifecycleOwners = resolveCurrentLifecycleOwnersForTrackerData(data);
     const resolvedActiveEntityIds = resolveTrackerActiveEntityIds(null, data);
     const activeSet = new Set(currentLifecycleOwners.map(normalizeName));
     const allNumericDefs = getNumericStatDefinitions(settings);

@@ -15,6 +15,7 @@ import {
   resolveLifecycleRegistryStateForOwnerInMessageData,
   resolveRegistryOwnersFromEntries,
   resolveCurrentLifecycleOwners,
+  resolveCurrentLifecycleOwnersForTrackerData,
   resolveTrackerCardCollapsed,
   resolveOwnerUiKey,
   shouldKeepOwnerInRenderTargetPool,
@@ -435,6 +436,29 @@ test("resolveCurrentLifecycleOwners includes message-only user owner without dup
       messageOwners: ["__bst_user__", "Blake"],
     }),
     ["Ashley", "Blake", "Garret", "Raleigh", "__bst_user__"],
+  );
+});
+
+test("resolveCurrentLifecycleOwnersForTrackerData preserves explicit empty active sets instead of falling back to scene owners", () => {
+  assert.deepEqual(
+    resolveCurrentLifecycleOwnersForTrackerData({
+      timestamp: 1,
+      activeCharacters: [],
+      entityResolution: {
+        sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+        messageOwners: [],
+        source: "model",
+      },
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+    }),
+    [],
   );
 });
 
