@@ -777,6 +777,53 @@ test("buildTrackerDataEntityOwnerMap prefers resolver scene entity ids over stal
   assert.equal(map?.Garret, undefined);
 });
 
+test("buildTrackerDataEntityOwnerMap ignores raw stat owner keys once resolver/entity identity is explicit", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
+  });
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 8,
+    owners: ["Billie"],
+    getLifecycleState: () => "inactive",
+  });
+
+  const tracker = makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Blake", "Ashley"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: [],
+      messageEntityIds: [],
+    },
+    statistics: {
+      affection: { Billie: 61 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customNonNumericStatistics: {
+      clothes: { Billie: ["jacket"] },
+    },
+  });
+
+  const map = buildTrackerDataEntityOwnerMap(context, tracker);
+  assert.ok(map);
+  assert.equal(map?.Blake?.canonicalName, "Blake");
+  assert.equal(map?.Ashley?.canonicalName, "Ashley");
+  assert.equal(map?.Billie, undefined);
+  assert.equal(map?.Garret, undefined);
+});
+
 test("listEntityRegistryEntriesForMessage returns visible entities in introduction order", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

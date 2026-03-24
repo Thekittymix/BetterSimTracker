@@ -1,3 +1,7 @@
+## [2.2.4.16-exp111] - 2026-03-24
+### Changed
+- Experimental multi-character entity-owner-map rebuilding now stops scanning raw stat-owner buckets once explicit resolver or entity-owner identity is already present, keeping write-path identity aligned with the resolver/entity layer.
+
 ## [2.2.4.16-exp110] - 2026-03-24
 ### Changed
 - Experimental multi-character character-card context now prefers explicit resolver/entity targets over stale raw owner tokens when deciding which source cards to inject into extraction context.
