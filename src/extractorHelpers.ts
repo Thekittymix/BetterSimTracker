@@ -120,6 +120,27 @@ export function buildPromptCurrentTrackerData(input: {
   };
 }
 
+export function buildNoActiveContinuityTrackerData(input: {
+  previousTrackerData?: TrackerData | null;
+  source?: NonNullable<TrackerData["entityResolution"]>["source"];
+  timestamp?: number;
+}): TrackerData | null {
+  const previous = input.previousTrackerData;
+  if (!previous) return null;
+  return {
+    ...previous,
+    timestamp: input.timestamp ?? Date.now(),
+    activeCharacters: [],
+    entityResolution: {
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: [],
+      messageEntityIds: [],
+      source: input.source ?? previous.entityResolution?.source ?? "fallback",
+    },
+  };
+}
+
 export function applyConfidenceScaledDelta(input: {
   previousValue: number;
   delta: number;

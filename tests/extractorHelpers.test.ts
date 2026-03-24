@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { defaultSettings } from "../src/settings";
 import {
   applyConfidenceScaledDelta,
+  buildNoActiveContinuityTrackerData,
   buildPromptCurrentTrackerData,
   enabledBuiltInAndTextStats,
   enabledCustomStats,
@@ -216,4 +217,69 @@ test("buildPromptCurrentTrackerData prefers the current resolver entityResolutio
     source: "model",
   });
   assert.deepEqual(tracker.statistics.affection, { Blake: 52 });
+});
+
+test("buildNoActiveContinuityTrackerData preserves continuity stats while clearing active resolver state", () => {
+  const snapshot = buildNoActiveContinuityTrackerData({
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Blake"],
+      entityResolution: {
+        sceneOwners: ["Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-blake"],
+        messageEntityIds: ["ent-blake"],
+        source: "model",
+      },
+      statistics: {
+        affection: { Blake: 55 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { Blake: "Neutral" },
+        lastThought: { Blake: "Finally some quiet." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        pose: { Blake: "Standing in the doorway." },
+      },
+      entityOwnerMap: {
+        Blake: {
+          entityId: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blackout Blake"],
+          sourceKey: "camp.png|camp",
+          kind: "multi_character_alias",
+        },
+      },
+    },
+    timestamp: 999,
+  });
+
+  assert.ok(snapshot);
+  assert.equal(snapshot?.timestamp, 999);
+  assert.deepEqual(snapshot?.activeCharacters, []);
+  assert.deepEqual(snapshot?.entityResolution, {
+    sceneOwners: [],
+    messageOwners: [],
+    sceneEntityIds: [],
+    messageEntityIds: [],
+    source: "model",
+  });
+  assert.deepEqual(snapshot?.statistics.affection, { Blake: 55 });
+  assert.deepEqual(snapshot?.statistics.mood, { Blake: "Neutral" });
+  assert.deepEqual(snapshot?.customNonNumericStatistics, {
+    pose: { Blake: "Standing in the doorway." },
+  });
+  assert.deepEqual(snapshot?.entityOwnerMap, {
+    Blake: {
+      entityId: "ent-blake",
+      ownerName: "Blake",
+      canonicalName: "Blake",
+      aliases: ["Blackout Blake"],
+      sourceKey: "camp.png|camp",
+      kind: "multi_character_alias",
+    },
+  });
 });

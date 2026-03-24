@@ -56,7 +56,7 @@ import {
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
-import { resolveBaselineBeforeIndex, shouldBypassConfidenceControls } from "./extractorHelpers";
+import { buildNoActiveContinuityTrackerData, resolveBaselineBeforeIndex, shouldBypassConfidenceControls } from "./extractorHelpers";
 import { isTrackableAiMessage, isTrackableMessage, isTrackableUserMessage } from "./messageFilter";
 import { clearPromptInjection, getLastInjectedPrompt, getLastInjectedPromptDebug } from "./promptInjection";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
@@ -71,6 +71,7 @@ import { discoverConnectionProfiles, getActiveConnectionProfileId, getContext, g
 import {
   clearTrackerDataForMessage,
   clearTrackerDataForCurrentChat,
+  getLatestTrackerDataWithIndexBefore,
   getRecentTrackerHistory,
   getRecentTrackerHistoryEntries,
   getTrackerDataFromMessage,
@@ -3391,7 +3392,22 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     });
     if (!activeCharacters.length) {
       pushTrace("extract.skip", { reason: "no_active_characters", runId });
-      if (hadTrackerAtStart) {
+      const priorContinuityEntry = getLatestTrackerDataWithIndexBefore(context, lastIndex);
+      const continuitySnapshot = buildNoActiveContinuityTrackerData({
+        previousTrackerData: priorContinuityEntry?.data ?? null,
+        source: resolvedEntityResolution?.source ?? priorContinuityEntry?.data?.entityResolution?.source ?? "fallback",
+      });
+      if (continuitySnapshot) {
+        clearTrackerRecovery(lastIndex);
+        latestData = continuitySnapshot;
+        latestDataMessageIndex = lastIndex;
+        writeTrackerDataToMessage(context, continuitySnapshot, lastIndex);
+        refreshPromptMacroData(context);
+        queuePromptSync(context);
+        queueRender();
+        context.saveChatDebounced?.();
+        await context.saveChat?.();
+      } else if (hadTrackerAtStart) {
         clearTrackerDataForMessage(context, lastIndex);
         const resolved = resolveLatestStoredTrackerData(context, lastIndex);
         latestData = resolved.data;
@@ -3402,7 +3418,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         context.saveChatDebounced?.();
         await context.saveChat?.();
       }
-      if (!hadTrackerAtStart) {
+      if (!continuitySnapshot && !hadTrackerAtStart) {
         setTrackerRecovery(lastIndex, {
           kind: "error",
           title: "Tracker generation skipped",

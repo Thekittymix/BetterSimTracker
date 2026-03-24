@@ -1,3 +1,7 @@
+## [2.2.4.16-exp132] - 2026-03-24
+### Changed
+- Experimental multi-character AI messages that resolve to `no_active_characters` now persist a continuity snapshot for that message with no active owners, so prior entity cards can still render through normal inactive/archive behavior instead of collapsing into a tracker-skip placeholder.
+
 ## [2.2.4.16-exp131] - 2026-03-24
 ### Changed
 - Experimental multi-character manual retracks now clear stale tracker payloads for a message when the resolver confirms there are no remaining active owners, instead of leaving the previous message tracker data in place.
