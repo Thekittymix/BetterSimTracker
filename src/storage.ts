@@ -823,6 +823,51 @@ function writeChatStateStore(context: STContext, store: ChatStateStore): void {
   firstMessage.extra[CHAT_STATE_KEY] = store;
 }
 
+function rebuildPersistedTrackerStores(context: STContext): void {
+  const entries: Array<{ data: TrackerData; timestamp: number; messageIndex: number }> = [];
+  for (let i = 0; i < context.chat.length; i += 1) {
+    const message = context.chat[i];
+    if (!isTrackableMessage(message)) continue;
+    const data = getTrackerDataFromMessage(message);
+    if (!data) continue;
+    entries.push({
+      data,
+      timestamp: Number(data.timestamp ?? Date.now()),
+      messageIndex: i,
+    });
+  }
+
+  const sorted = [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  const latest = sorted[0]
+    ? {
+        data: sorted[0].data,
+        messageIndex: sorted[0].messageIndex,
+        timestamp: sorted[0].timestamp,
+      }
+    : undefined;
+  const store: SnapshotStore = {
+    latest,
+    history: sorted.slice(0, HISTORY_LIMIT).map(entry => ({
+      data: entry.data,
+      timestamp: entry.timestamp,
+      messageIndex: entry.messageIndex,
+    })),
+  };
+
+  writeStore(context, store);
+  writeMetadataStore(context, store);
+  writeChatStateStore(context, store);
+
+  const scope = getScopeKey(context);
+  const latestByScope = readLatestByScopeMap();
+  if (latest) {
+    latestByScope[scope] = latest;
+  } else if (Object.prototype.hasOwnProperty.call(latestByScope, scope)) {
+    delete latestByScope[scope];
+  }
+  writeLatestByScopeMap(latestByScope);
+}
+
 export function saveTrackerSnapshot(
   context: STContext,
   data: TrackerData,
@@ -1009,6 +1054,46 @@ export function writeTrackerDataToMessage(
   swipeStorage[swipeKey] = normalizeTrackerData(enriched);
   message.extra[EXTENSION_KEY] = swipeStorage;
   saveTrackerSnapshot(context, swipeStorage[swipeKey], messageIndex);
+}
+
+export function clearTrackerDataForMessage(
+  context: STContext,
+  messageIndex: number,
+): void {
+  if (messageIndex < 0 || messageIndex >= context.chat.length) return;
+  const message = context.chat[messageIndex];
+  if (!message.extra || !Object.prototype.hasOwnProperty.call(message.extra, EXTENSION_KEY)) {
+    rebuildPersistedTrackerStores(context);
+    return;
+  }
+
+  const raw = message.extra[EXTENSION_KEY];
+  if (isTrackerPayload(raw)) {
+    delete message.extra[EXTENSION_KEY];
+    rebuildPersistedTrackerStores(context);
+    return;
+  }
+
+  if (raw && typeof raw === "object") {
+    const swipeId = Number(message.swipe_id ?? 0);
+    const swipeKey = String(Number.isNaN(swipeId) ? 0 : swipeId);
+    const next: Record<string, TrackerData> = {};
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (key === swipeKey) continue;
+      if (isTrackerPayload(value)) {
+        next[key] = normalizeTrackerData(value);
+      }
+    }
+    if (Object.keys(next).length) {
+      message.extra[EXTENSION_KEY] = next;
+    } else {
+      delete message.extra[EXTENSION_KEY];
+    }
+  } else {
+    delete message.extra[EXTENSION_KEY];
+  }
+
+  rebuildPersistedTrackerStores(context);
 }
 
 export function mergeStatisticsWithFallback(

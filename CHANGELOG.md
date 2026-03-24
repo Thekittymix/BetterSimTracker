@@ -1,3 +1,7 @@
+## [2.2.4.16-exp131] - 2026-03-24
+### Changed
+- Experimental multi-character manual retracks now clear stale tracker payloads for a message when the resolver confirms there are no remaining active owners, instead of leaving the previous message tracker data in place.
+
 ## [2.2.4.16-exp130] - 2026-03-24
 ### Changed
 - Experimental multi-character AI fallback owner resolution now clamps itself to the latest resolver-backed user-turn scene, preventing stale alias owners from being reactivated when the model resolver falls back after an explicit user-side scene transition.
@@ -1387,6 +1391,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

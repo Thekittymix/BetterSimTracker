@@ -69,6 +69,7 @@ import {
 import { upsertSettingsPanel } from "./settingsPanel";
 import { discoverConnectionProfiles, getActiveConnectionProfileId, getContext, getSettingsProvenance, loadSettings, logDebug, resolveConnectionProfileId, saveSettings } from "./settings";
 import {
+  clearTrackerDataForMessage,
   clearTrackerDataForCurrentChat,
   getRecentTrackerHistory,
   getRecentTrackerHistoryEntries,
@@ -3390,6 +3391,17 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     });
     if (!activeCharacters.length) {
       pushTrace("extract.skip", { reason: "no_active_characters", runId });
+      if (hadTrackerAtStart) {
+        clearTrackerDataForMessage(context, lastIndex);
+        const resolved = resolveLatestStoredTrackerData(context, lastIndex);
+        latestData = resolved.data;
+        latestDataMessageIndex = resolved.messageIndex;
+        refreshPromptMacroData(context);
+        queuePromptSync(context);
+        queueRender();
+        context.saveChatDebounced?.();
+        await context.saveChat?.();
+      }
       if (!hadTrackerAtStart) {
         setTrackerRecovery(lastIndex, {
           kind: "error",

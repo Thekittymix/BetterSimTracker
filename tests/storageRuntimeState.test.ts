@@ -7,6 +7,7 @@ import { isTrackableMessage } from "../src/messageFilter";
 import { buildMergedPromptMacroData, resolveLatestStoredTrackerData } from "../src/runtimeState";
 import { resolveTrackerEntityIdsForOwners, syncEntityRegistryFromRender } from "../src/entityRegistry";
 import {
+  clearTrackerDataForMessage,
   clearTrackerDataForCurrentChat,
   getRecentTrackerHistoryEntries,
   getTrackerDataFromMessage,
@@ -1196,6 +1197,51 @@ test("resolveLatestStoredTrackerData normalizes stale activeCharacters to resolv
   const resolved = resolveLatestStoredTrackerData(context, 2);
   assert.equal(resolved.source, "message");
   assert.ok(resolved.data);
+  assert.deepEqual(resolved.data.activeCharacters, ["Blake"]);
+  assert.deepEqual(resolved.data.entityResolution, {
+    source: "model",
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["ent-blake"],
+    messageEntityIds: ["ent-blake"],
+  });
+});
+
+test("clearTrackerDataForMessage removes the current message tracker and rebuilds persisted latest state from earlier messages", () => {
+  const context = makeContext();
+  context.chat.push({ mes: "Later reply", name: "Seraphina", is_user: false, is_system: false, extra: {} } as any);
+  const earlier = makeTracker(1000, {
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+    },
+  });
+  const staleLatest = makeTracker(2000, {
+    activeCharacters: ["Garret", "Raleigh"],
+    entityResolution: {
+      source: "fallback",
+      sceneOwners: ["Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      sceneEntityIds: ["ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+    },
+  });
+
+  writeTrackerDataToMessage(context, earlier, 2);
+  writeTrackerDataToMessage(context, staleLatest, 3);
+
+  clearTrackerDataForMessage(context, 3);
+
+  assert.equal(getTrackerDataFromMessage(context.chat[3]), null);
+  const resolved = resolveLatestStoredTrackerData(context, 3);
+  assert.equal(resolved.source, "message");
+  assert.equal(resolved.messageIndex, 2);
+  assert.ok(resolved.data);
+  assert.equal(resolved.data.timestamp, earlier.timestamp);
   assert.deepEqual(resolved.data.activeCharacters, ["Blake"]);
   assert.deepEqual(resolved.data.entityResolution, {
     source: "model",
