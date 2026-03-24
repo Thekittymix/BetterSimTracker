@@ -99,7 +99,7 @@ test("syncEntityRegistryFromTrackerData prefers explicit resolver scene owners o
   const registry = readEntityRegistry(context);
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "active");
   assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "inactive");
-  assert.equal(registry.entities[registry.ownerToEntityId.garret]?.lifecycleState, "inactive");
+  assert.equal(registry.ownerToEntityId.garret, undefined);
 });
 
 test("syncEntityRegistryFromTrackerData prefers resolver scene entity ids over stale scene owner names", () => {
@@ -138,7 +138,7 @@ test("syncEntityRegistryFromTrackerData prefers resolver scene entity ids over s
   const registry = readEntityRegistry(context);
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "active");
   assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "inactive");
-  assert.equal(registry.entities[registry.ownerToEntityId.garret]?.lifecycleState, "inactive");
+  assert.equal(registry.ownerToEntityId.garret, undefined);
 });
 
 test("syncEntityRegistryFromTrackerData preserves registry continuity for inactive multi-character aliases", () => {
@@ -170,6 +170,109 @@ test("syncEntityRegistryFromTrackerData preserves registry continuity for inacti
   assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "active");
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "inactive");
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lastSeenMessageIndex, 1);
+});
+
+test("syncEntityRegistryFromTrackerData does not depend on showInactive to keep multi-character continuity", () => {
+  const context = makeContext();
+  const settings = {
+    ...makeSettings(),
+    showInactive: false,
+  } as BetterSimTrackerSettings;
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 0,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const current = {
+    ...makeTrackerData(["Blake"]),
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      source: "model" as const,
+    },
+  };
+  writeTrackerDataToMessage(context, current, 1);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, true);
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "active");
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "inactive");
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lastSeenMessageIndex, 1);
+});
+
+test("syncEntityRegistryFromTrackerData updates multi-character lifecycle on user messages from resolver/data state", () => {
+  const context = makeContext();
+  context.chat[1].is_user = true;
+  context.chat[1].name = "Kuba";
+  context.chat[1].mes = "Ashley leaves the room. Blake stays here alone now and answers in one short reply.";
+  const settings = {
+    ...makeSettings(),
+    showInactive: false,
+  } as BetterSimTrackerSettings;
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 0,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const current = {
+    ...makeTrackerData(["Blake"]),
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      source: "model" as const,
+    },
+    statistics: {
+      affection: { Ashley: 45, Blake: 45 },
+      trust: { Ashley: 45, Blake: 46 },
+      desire: { Ashley: 35, Blake: 35 },
+      connection: { Ashley: 48, Blake: 47 },
+      mood: { Ashley: "Neutral", Blake: "Lonely" },
+      lastThought: {
+        Ashley: "Finally out of there.",
+        Blake: "Now it is just me and Kuba.",
+      },
+    },
+  } satisfies TrackerData;
+  writeTrackerDataToMessage(context, current, 1);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, true);
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "active");
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "inactive");
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lastSeenMessageIndex, 1);
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lastSeenMessageIndex, 1);
 });
 
 test("syncEntityRegistryFromTrackerData is a no-op outside multi-character mode", () => {

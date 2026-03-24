@@ -1,3 +1,7 @@
+## [2.2.4.16-exp125] - 2026-03-24
+### Changed
+- Experimental multi-character entity-registry lifecycle sync no longer depends on UI render visibility (`showInactive` / display target pools), and now updates alias continuity directly from resolver-backed scene/data owners on both AI and user turns.
+
 ## [2.2.4.16-exp124] - 2026-03-24
 ### Changed
 - Experimental multi-character manual tracker edits now mirror alias-backed built-in, numeric custom, and non-numeric custom values into persisted yEntityId state instead of updating only raw owner-name buckets.

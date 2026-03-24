@@ -1,11 +1,9 @@
 import { resolveCardLifecycleState } from "./cardLifecycle";
-import { USER_TRACKER_KEY } from "./constants";
 import {
   buildLifecycleHistorySnapshotsFromTrackerEntries,
   getEntityRegistryEntryForMessage,
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
-  listEntityRegistryOwnersForMessage,
   resolveTrackerSceneEntityIds,
   resolveTrackerSceneOwners,
   syncEntityRegistryFromRender,
@@ -14,7 +12,6 @@ import { resolveEntityTrackingMode } from "./entityResolution";
 import { getRecentTrackerHistoryEntries } from "./storage";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 import {
-  buildDisplayPoolWithRegistry,
   collectCharacterNamesFromTrackerData,
   mergeRegistryEntitiesIntoTargets,
   mergeRegistryOwnersIntoTargets,
@@ -30,33 +27,20 @@ export function syncEntityRegistryFromTrackerData(input: {
 }): boolean {
   if (resolveEntityTrackingMode(input.settings) !== "multi_character") return false;
 
-  const userMessageEntry = Boolean(input.context.chat[input.messageIndex]?.is_user);
   const sceneOwners = resolveTrackerSceneOwners(input.context, input.data);
   const sceneEntityIds = resolveTrackerSceneEntityIds(input.context, input.data);
   const dataCharacterNames = collectCharacterNamesFromTrackerData(input.context, input.data);
   const registryEntriesForMessage = listEntityRegistryEntriesForMessage(input.context, input.messageIndex);
-  const registryOwnersForMessage = registryEntriesForMessage.length > 0
-    ? resolveRegistryOwnersFromEntries(registryEntriesForMessage)
-    : listEntityRegistryOwnersForMessage(input.context, input.messageIndex);
-  const mergedKnownTargets = mergeRegistryOwnersIntoTargets(input.allKnownCharacters, dataCharacterNames);
-  const mergedWithRegistryOwners = registryEntriesForMessage.length > 0
+  const registryOwnersForMessage = resolveRegistryOwnersFromEntries(registryEntriesForMessage);
+  const resolverAndDataTargets = mergeRegistryOwnersIntoTargets(sceneOwners, dataCharacterNames);
+  const continuityTargets = mergeRegistryOwnersIntoTargets(resolverAndDataTargets, registryOwnersForMessage);
+  const uniqueTargets = registryEntriesForMessage.length > 0
     ? mergeRegistryEntitiesIntoTargets({
-        targets: mergedKnownTargets,
+        targets: continuityTargets,
         registryEntries: registryEntriesForMessage,
         resolveRegistryEntry: ownerName => getEntityRegistryEntryForMessage(input.context, ownerName, input.messageIndex),
       })
-    : mergeRegistryOwnersIntoTargets(mergedKnownTargets, registryOwnersForMessage);
-  const displayPool = buildDisplayPoolWithRegistry({
-    entityTrackingMode: input.settings.entityTrackingMode,
-    includeAllTargets: Boolean(input.context.groupId) || input.settings.showInactive,
-    activeCharacters: sceneOwners,
-    dataCharacterNames,
-    mergedWithRegistryOwners,
-  });
-  const scopedDisplayPool = userMessageEntry
-    ? displayPool.filter(name => String(name ?? "").trim().toLowerCase() === USER_TRACKER_KEY.toLowerCase())
-    : displayPool.filter(name => String(name ?? "").trim().toLowerCase() !== USER_TRACKER_KEY.toLowerCase());
-  const uniqueTargets = Array.from(new Set(scopedDisplayPool));
+    : continuityTargets;
   if (!uniqueTargets.length) return false;
 
   const lifecycleSnapshots = buildLifecycleHistorySnapshotsFromTrackerEntries(
