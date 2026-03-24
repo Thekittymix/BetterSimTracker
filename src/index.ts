@@ -38,6 +38,7 @@ import {
 } from "./entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
 import { hasTrackedValueForOwner, hasTrackedValueForSelection } from "./trackerDataPresence";
+import { buildEditedTrackerDataSnapshot } from "./trackerEditState";
 import {
   buildFallbackSummaryProse as buildFallbackSummaryProseHelper,
   buildSummaryTrackerStateLines as buildSummaryTrackerStateLinesHelper,
@@ -2930,7 +2931,8 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
     }
   }
 
-  const next: TrackerData = {
+  const next: TrackerData = buildEditedTrackerDataSnapshot({
+    current,
     timestamp: Date.now(),
     activeCharacters: Array.isArray(current.activeCharacters) ? [...current.activeCharacters] : [],
     statistics: stats,
@@ -2939,7 +2941,7 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
     clearedStatistics: Object.keys(clearedStatistics).length ? clearedStatistics : undefined,
     clearedCustomStatistics: Object.keys(clearedCustom).length ? clearedCustom : undefined,
     clearedCustomNonNumericStatistics: Object.keys(clearedCustomNonNumeric).length ? clearedCustomNonNumeric : undefined,
-  };
+  });
 
   if (payload.active !== undefined && character !== USER_TRACKER_KEY) {
     const activeSet = new Set(

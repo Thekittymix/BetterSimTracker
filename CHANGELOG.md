@@ -1,3 +1,7 @@
+## [2.2.4.16-exp95] - 2026-03-24
+### Changed
+- Experimental multi-character manual tracker edits now preserve resolver identity metadata and entity-owner mapping instead of dropping them when saving edited tracker snapshots.
+
 ## [2.2.4.16-exp94] - 2026-03-24
 ### Changed
 - Experimental multi-character chronological tracker merges now retain and rebuild *ByEntityId state from merged entity identity data instead of falling back to owner-name-only merged results.
