@@ -11,6 +11,7 @@ import {
   resolvePersistedSnapshotEntityResolution,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
+  constrainFallbackOwnerScopesToPreviousUserScene,
   resolveExtractionOwnerScopes,
   resolveEntityResolverCandidateOwners,
   resolveInitialExtractionOwners,
@@ -281,6 +282,58 @@ test("resolvePersistedActiveOwners excludes User by default for AI-side tracker 
 test("resolvePersistedActiveOwners can retain User for user-side tracker targets", () => {
   const refined = resolvePersistedActiveOwners(["__bst_user__"], { includeUserOwner: true });
   assert.deepEqual(refined, ["__bst_user__"]);
+});
+
+test("constrainFallbackOwnerScopesToPreviousUserScene keeps fallback AI scopes inside the latest user-declared scene", () => {
+  const constrained = constrainFallbackOwnerScopesToPreviousUserScene({
+    userExtraction: false,
+    settings: { entityTrackingMode: "multi_character" } as any,
+    previousMessage: {
+      is_user: true,
+      name: "Kuba",
+      mes: "Blake leaves too. Raleigh stays with me now and answers in one short reply.",
+    } as any,
+    previousTrackerData: {
+      entityResolution: {
+        sceneOwners: ["Raleigh"],
+        messageOwners: [USER_TRACKER_KEY],
+        source: "model",
+      },
+    } as any,
+    fallbackSceneActiveCharacters: ["Garret", "Raleigh"],
+    fallbackRequestCharacters: ["Ashley", "Raleigh"],
+  });
+
+  assert.deepEqual(constrained, {
+    sceneActiveCharacters: ["Raleigh"],
+    requestCharacters: ["Raleigh"],
+  });
+});
+
+test("constrainFallbackOwnerScopesToPreviousUserScene can preserve an explicitly empty scene", () => {
+  const constrained = constrainFallbackOwnerScopesToPreviousUserScene({
+    userExtraction: false,
+    settings: { entityTrackingMode: "multi_character" } as any,
+    previousMessage: {
+      is_user: true,
+      name: "Kuba",
+      mes: "Raleigh exits too. Nobody from the group stays here with me now.",
+    } as any,
+    previousTrackerData: {
+      entityResolution: {
+        sceneOwners: [],
+        messageOwners: [USER_TRACKER_KEY],
+        source: "fallback",
+      },
+    } as any,
+    fallbackSceneActiveCharacters: ["Garret", "Raleigh"],
+    fallbackRequestCharacters: ["Garret", "Raleigh"],
+  });
+
+  assert.deepEqual(constrained, {
+    sceneActiveCharacters: [],
+    requestCharacters: [],
+  });
 });
 
 test("resolvePersistedActiveOwners excludes User from resolver-backed entity owner sets by default", () => {

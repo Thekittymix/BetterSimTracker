@@ -12,6 +12,7 @@ import {
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveEntityResolverCandidateOwners,
+  constrainFallbackOwnerScopesToPreviousUserScene,
   resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
   resolveInitialExtractionOwners,
@@ -3330,7 +3331,13 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const initialActiveCharacters = !userExtraction && resolvedOwnerScopes?.sceneActiveCharacters.length
       ? resolvedOwnerScopes.sceneActiveCharacters
       : fallbackInitialActiveCharacters;
-    const ownerScopes = userExtraction
+    const previousMessage = !userExtraction && lastIndex > 0
+      ? context.chat[lastIndex - 1]
+      : null;
+    const previousMessageTrackerData = previousMessage
+      ? getTrackerDataFromMessage(previousMessage)
+      : null;
+    const baseOwnerScopes = userExtraction
       ? {
           sceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters.length
             ? resolvedOwnerScopes.sceneActiveCharacters
@@ -3342,6 +3349,22 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           ...resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings),
           source: "fallback" as const,
         });
+    const constrainedFallbackOwnerScopes = !resolvedOwnerScopes
+      ? constrainFallbackOwnerScopesToPreviousUserScene({
+          userExtraction,
+          settings: activeSettings,
+          previousMessage,
+          previousTrackerData: previousMessageTrackerData,
+          fallbackSceneActiveCharacters: baseOwnerScopes.sceneActiveCharacters,
+          fallbackRequestCharacters: baseOwnerScopes.requestCharacters,
+        })
+      : null;
+    const ownerScopes = constrainedFallbackOwnerScopes
+      ? {
+          ...constrainedFallbackOwnerScopes,
+          source: "fallback" as const,
+        }
+      : baseOwnerScopes;
     const sceneActiveCharacters = ownerScopes.sceneActiveCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );

@@ -536,6 +536,35 @@ export function resolveExtractionOwnerScopes(
   };
 }
 
+export function constrainFallbackOwnerScopesToPreviousUserScene(input: {
+  userExtraction: boolean;
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
+  previousMessage: ChatMessage | null | undefined;
+  previousTrackerData: TrackerData | null | undefined;
+  fallbackSceneActiveCharacters: string[];
+  fallbackRequestCharacters: string[];
+}): {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+} | null {
+  if (input.userExtraction) return null;
+  if (input.settings.entityTrackingMode !== "multi_character") return null;
+  if (!input.previousMessage?.is_user) return null;
+  const rawSceneOwners = input.previousTrackerData?.entityResolution?.sceneOwners;
+  if (!Array.isArray(rawSceneOwners)) return null;
+
+  const previousSceneOwners = resolvePersistedActiveOwners(rawSceneOwners);
+  const allowed = new Set(previousSceneOwners.map(owner => normalizeKey(owner)));
+  const requestCharacters = input.fallbackRequestCharacters.filter(owner => allowed.has(normalizeKey(owner)));
+
+  return {
+    sceneActiveCharacters: [...previousSceneOwners],
+    requestCharacters: requestCharacters.length
+      ? requestCharacters
+      : (previousSceneOwners.length === 1 ? [...previousSceneOwners] : []),
+  };
+}
+
 export function resolvePersistedActiveOwners(
   sceneActiveCharacters: string[],
   input: { includeUserOwner?: boolean } = {},
