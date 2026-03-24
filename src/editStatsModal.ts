@@ -40,6 +40,75 @@ function uniqueOwnerKeys(primary: string, displayName: string): string[] {
   return out;
 }
 
+function normalizeEditOwnerToken(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function normalizeEditEntityId(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function resolveEditOwnerEntityIds(
+  data: TrackerData,
+  ownerKeys: string[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (value: unknown): void => {
+    const entityId = normalizeEditEntityId(value);
+    if (!entityId || seen.has(entityId)) return;
+    seen.add(entityId);
+    out.push(entityId);
+  };
+
+  if (data.entityOwnerMap && typeof data.entityOwnerMap === "object") {
+    for (const ownerKey of ownerKeys) {
+      const direct = data.entityOwnerMap[ownerKey];
+      if (direct?.entityId) push(direct.entityId);
+    }
+    for (const snapshot of Object.values(data.entityOwnerMap)) {
+      if (!snapshot?.entityId) continue;
+      const candidateKeys = uniqueOwnerKeys(snapshot.ownerName, snapshot.canonicalName);
+      for (const alias of snapshot.aliases ?? []) {
+        candidateKeys.push(...uniqueOwnerKeys(alias, alias));
+      }
+      if (candidateKeys.some(candidate => ownerKeys.includes(candidate))) {
+        push(snapshot.entityId);
+      }
+    }
+  }
+
+  return out;
+}
+
+function resolveEditIsCurrentlyActive(
+  data: TrackerData,
+  character: string,
+  ownerKeys: string[],
+): boolean {
+  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
+    ? data.entityResolution.sceneOwners.map(normalizeEditOwnerToken).filter(Boolean)
+    : [];
+  const sceneEntityIds = Array.isArray(data.entityResolution?.sceneEntityIds)
+    ? data.entityResolution.sceneEntityIds.map(normalizeEditEntityId).filter(Boolean)
+    : [];
+  if (sceneOwners.length || sceneEntityIds.length) {
+    if (sceneOwners.length && ownerKeys.some(ownerKey => sceneOwners.includes(normalizeEditOwnerToken(ownerKey)))) {
+      return true;
+    }
+    const ownerEntityIds = resolveEditOwnerEntityIds(data, ownerKeys);
+    if (ownerEntityIds.length && sceneEntityIds.length && ownerEntityIds.some(entityId => sceneEntityIds.includes(entityId))) {
+      return true;
+    }
+    return false;
+  }
+
+  const activeCharacters = Array.isArray(data.activeCharacters)
+    ? data.activeCharacters.map(normalizeEditOwnerToken).filter(Boolean)
+    : [];
+  return activeCharacters.includes(normalizeEditOwnerToken(character));
+}
+
 function resolveEditNumericRawValue(
   data: TrackerData,
   statId: string,
@@ -150,10 +219,8 @@ export function openEditStatsModal(input: {
   const currentMood = input.data.statistics.mood?.[input.character];
   const normalizedMood = currentMood ? normalizeMoodLabel(String(currentMood)) : null;
   const currentThought = input.data.statistics.lastThought?.[input.character];
-  const isCurrentlyActive = !isUserCharacter
-    && Array.isArray(input.data.activeCharacters)
-    && input.data.activeCharacters.some(name => String(name ?? "").trim() === input.character);
   const ownerKeys = uniqueOwnerKeys(input.character, characterLabel);
+  const isCurrentlyActive = !isUserCharacter && resolveEditIsCurrentlyActive(input.data, input.character, ownerKeys);
 
   const numericField = (def: { id: string; label: string; defaultValue: number }): string => {
     const builtInId = String(def.id ?? "").trim().toLowerCase();
@@ -578,5 +645,7 @@ export function openEditStatsModal(input: {
 export const __testables = {
   resolveEditNumericRawValue,
   resolveEditNonNumericRawValue,
+  resolveEditIsCurrentlyActive,
+  resolveEditOwnerEntityIds,
   uniqueOwnerKeys,
 };

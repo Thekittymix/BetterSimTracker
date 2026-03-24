@@ -1,3 +1,7 @@
+## [2.2.4.16-exp97] - 2026-03-24
+### Changed
+- Experimental multi-character tracker edit modals now resolve active state from resolver-backed scene owners and scene entity IDs instead of trusting stale raw owner arrays.
+
 ## [2.2.4.16-exp96] - 2026-03-24
 ### Changed
 - Experimental multi-character edit-modal working copies now preserve resolver identity data and all `*ByEntityId` state instead of falling back to owner-only clones while editing tracker cards.
