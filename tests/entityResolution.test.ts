@@ -8,6 +8,7 @@ import {
   projectTrackerDataToMessageScopedOwners,
   resolvePersistedActiveOwners,
   resolvePersistedSnapshotActiveOwners,
+  resolvePersistedSnapshotEntityResolution,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   resolveExtractionOwnerScopes,
@@ -596,5 +597,35 @@ test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the us
       userExtraction: false,
     }),
     ["Blake"],
+  );
+});
+
+test("resolvePersistedSnapshotEntityResolution keeps user snapshot message owners scoped to the user tracker owner", () => {
+  assert.deepEqual(
+    resolvePersistedSnapshotEntityResolution({
+      sceneActiveCharacters: ["Blake"],
+      requestCharacters: [USER_TRACKER_KEY],
+      resolvedSceneOwners: ["Blake"],
+      resolvedMessageOwners: ["Blake"],
+      userExtraction: true,
+    }),
+    {
+      sceneOwners: ["Blake"],
+      messageOwners: [USER_TRACKER_KEY],
+    },
+  );
+
+  assert.deepEqual(
+    resolvePersistedSnapshotEntityResolution({
+      sceneActiveCharacters: ["Ashley", "Blake"],
+      requestCharacters: ["Blake"],
+      resolvedSceneOwners: ["Ashley", "Blake"],
+      resolvedMessageOwners: ["Blake"],
+      userExtraction: false,
+    }),
+    {
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Blake"],
+    },
   );
 });

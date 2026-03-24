@@ -17,6 +17,7 @@ import {
   resolveInitialExtractionOwners,
   resolvePersistedActiveOwners,
   resolvePersistedSnapshotActiveOwners,
+  resolvePersistedSnapshotEntityResolution,
 } from "./entityResolution";
 import {
   buildMultiCharacterResolverPrompt,
@@ -3717,16 +3718,17 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       requestCharacters: activeCharacters,
       userExtraction,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
-    const persistedResolverSceneOwners = resolvePersistedActiveOwners(
-      resolvedEntityResolution?.sceneOwners?.length
-        ? resolvedEntityResolution.sceneOwners
-        : sceneActiveCharacters,
-    ).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
-    const persistedResolverMessageOwners = resolvePersistedActiveOwners(
-      resolvedEntityResolution?.messageOwners?.length
-        ? resolvedEntityResolution.messageOwners
-        : activeCharacters,
-    ).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const persistedResolverOwners = resolvePersistedSnapshotEntityResolution({
+      sceneActiveCharacters,
+      requestCharacters: activeCharacters,
+      resolvedSceneOwners: resolvedEntityResolution?.sceneOwners ?? [],
+      resolvedMessageOwners: resolvedEntityResolution?.messageOwners ?? [],
+      userExtraction,
+    });
+    const persistedResolverSceneOwners = persistedResolverOwners.sceneOwners
+      .filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const persistedResolverMessageOwners = persistedResolverOwners.messageOwners
+      .filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const resolvedSceneEntityIds = resolvedEntityResolution?.sceneEntityIds?.length
       ? resolvedEntityResolution.sceneEntityIds
       : resolveTrackerEntityIdsForOwners(context, persistedResolverSceneOwners);

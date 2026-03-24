@@ -567,6 +567,28 @@ export function resolvePersistedSnapshotActiveOwners(input: {
   );
 }
 
+export function resolvePersistedSnapshotEntityResolution(input: {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+  resolvedSceneOwners: string[];
+  resolvedMessageOwners: string[];
+  userExtraction: boolean;
+}): {
+  sceneOwners: string[];
+  messageOwners: string[];
+} {
+  const sceneOwners = resolvePersistedActiveOwners(
+    input.resolvedSceneOwners.length ? input.resolvedSceneOwners : input.sceneActiveCharacters,
+  );
+  const messageOwners = resolvePersistedActiveOwners(
+    input.userExtraction
+      ? input.requestCharacters
+      : (input.resolvedMessageOwners.length ? input.resolvedMessageOwners : input.requestCharacters),
+    { includeUserOwner: input.userExtraction },
+  );
+  return { sceneOwners, messageOwners };
+}
+
 function normalizeOwnerForTracking(
   context: STContext | null | undefined,
   ownerName: unknown,
