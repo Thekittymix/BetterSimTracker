@@ -256,6 +256,46 @@ test("getTrackerDataFromMessage preserves explicit entity resolution payload", (
   });
 });
 
+test("getTrackerDataFromMessage accepts resolver-backed payloads without raw activeCharacters", () => {
+  const tracker = {
+    timestamp: 1001,
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      source: "model" as const,
+    },
+    statistics: {
+      affection: { Blake: 55 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+  };
+  const message = {
+    mes: "Reply",
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    is_user: false,
+    is_system: false,
+    swipe_id: 1,
+    extra: {
+      [EXTENSION_KEY]: {
+        "1": tracker,
+      },
+    },
+  };
+
+  const stored = getTrackerDataFromMessage(message);
+  assert.equal(stored?.timestamp, 1001);
+  assert.deepEqual(stored?.entityResolution, tracker.entityResolution);
+  assert.deepEqual(stored?.activeCharacters, ["Blake"]);
+});
+
 test("getTrackerDataFromMessage prefers resolver scene owners over stale activeCharacters during entity normalization", () => {
   const tracker = makeTracker(1001, {
     activeCharacters: ["Garret"],

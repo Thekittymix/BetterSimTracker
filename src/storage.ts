@@ -533,7 +533,12 @@ function normalizeCustomNonNumericStatistics(raw: unknown): CustomNonNumericStat
 function isTrackerPayload(raw: unknown): raw is Partial<TrackerData> {
   if (!raw || typeof raw !== "object") return false;
   const data = raw as Partial<TrackerData>;
-  if (!data.statistics || !data.activeCharacters) return false;
+  const hasResolverSceneIdentity = Boolean(
+    Array.isArray(data.entityResolution?.sceneEntityIds) && data.entityResolution.sceneEntityIds.length
+    || Array.isArray(data.entityResolution?.sceneOwners) && data.entityResolution.sceneOwners.length,
+  );
+  if (!data.statistics) return false;
+  if (!data.activeCharacters && !hasResolverSceneIdentity) return false;
   return true;
 }
 

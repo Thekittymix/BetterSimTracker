@@ -1,3 +1,6 @@
+## [2.2.4.16-exp105] - 2026-03-24
+### Changed
+- Experimental multi-character storage now accepts resolver-backed tracker payloads that carry scene identity through `entityResolution`, instead of requiring legacy raw `activeCharacters` to recognize the payload as valid.
 ## [2.2.4.16-exp104] - 2026-03-24
 ### Changed
 - Experimental multi-character extraction baselines and seeded history now materialize `*ByEntityId` shadow buckets from the current resolved owners/entity ids instead of only seeding owner-name buckets.
