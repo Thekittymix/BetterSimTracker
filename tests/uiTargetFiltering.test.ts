@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildDisplayPoolWithRegistry,
+  collectCharacterNamesFromTrackerData,
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   isUserOwnerToken,
@@ -82,6 +83,69 @@ test("mergeRegistryEntitiesIntoTargets deduplicates entity-backed targets by reg
   });
 
   assert.deepEqual(merged, ["Ash", "Blake"]);
+});
+
+test("collectCharacterNamesFromTrackerData prefers resolver scene owners and entity owner map over stale activeCharacters", () => {
+  const names = collectCharacterNamesFromTrackerData(
+    {
+      chat: [],
+      chatMetadata: {
+        bstEntityRegistry: {
+          entities: {
+            "ent-blake": {
+              id: "ent-blake",
+              ownerName: "Blake",
+              canonicalName: "Blake",
+              aliases: ["Blackout Blake"],
+              kind: "multi_character_alias",
+              sourceKey: "camp",
+              lifecycle: "active",
+              createdAtMessageIndex: 0,
+              lastSeenMessageIndex: 2,
+              lastActiveMessageIndex: 2,
+            },
+          },
+          byOwner: {
+            Blake: "ent-blake",
+          },
+          bySource: {},
+        },
+      },
+    } as never,
+    {
+      activeCharacters: ["Garret", "Raleigh"],
+      entityResolution: {
+        source: "model",
+        sceneOwners: ["Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-blake"],
+        messageEntityIds: ["ent-blake"],
+      },
+      entityOwnerMap: {
+        Blake: {
+          entityId: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blackout Blake"],
+          kind: "multi_character_alias",
+          sourceKey: "camp",
+        },
+      },
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+      timestamp: 1,
+    },
+  );
+
+  assert.deepEqual(names, ["Blake"]);
 });
 
 test("resolveRegistryOwnersFromEntries preserves introduction order and deduplicates names", () => {

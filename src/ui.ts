@@ -15,6 +15,7 @@ import type {
   MoodSource,
   MoodSymbolMap,
   SceneCardStatDisplayOptions,
+  STContext,
   StExpressionImageOptions,
   StatValue,
   TrackerData,
@@ -960,11 +961,33 @@ function pushUniqueCharacterName(target: string[], seen: Set<string>, raw: unkno
   target.push(name);
 }
 
-export function collectCharacterNamesFromTrackerData(data: TrackerData): string[] {
+export function collectCharacterNamesFromTrackerData(data: TrackerData): string[];
+export function collectCharacterNamesFromTrackerData(context: STContext | null, data: TrackerData): string[];
+export function collectCharacterNamesFromTrackerData(
+  contextOrData: STContext | null | TrackerData,
+  maybeData?: TrackerData,
+): string[] {
+  const context = maybeData ? (contextOrData as STContext | null) : null;
+  const data = maybeData ?? (contextOrData as TrackerData);
   const names: string[] = [];
   const seen = new Set<string>();
-  for (const name of data.activeCharacters ?? []) {
+  const preferredNames = context
+    ? resolveTrackerSceneOwners(context, data)
+    : (Array.isArray(data.entityResolution?.sceneOwners)
+      ? data.entityResolution.sceneOwners.map(name => String(name ?? "").trim()).filter(Boolean)
+      : []);
+  const fallbackNames = preferredNames.length
+    ? preferredNames
+    : (data.entityOwnerMap
+      ? Object.keys(data.entityOwnerMap)
+      : (data.activeCharacters ?? []));
+  for (const name of fallbackNames) {
     pushUniqueCharacterName(names, seen, name);
+  }
+  if (data.entityOwnerMap) {
+    for (const name of Object.keys(data.entityOwnerMap)) {
+      pushUniqueCharacterName(names, seen, name);
+    }
   }
 
   const builtInStatMaps: unknown[] = [

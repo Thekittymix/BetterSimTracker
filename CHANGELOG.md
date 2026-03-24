@@ -1,3 +1,7 @@
+## [2.2.4.16-exp101] - 2026-03-24
+### Changed
+- Experimental multi-character UI owner collection now prefers resolver scene owners and entity-owner mapping before stale raw `activeCharacters`, keeping display and registry sync aligned with entity identity earlier in the read path.
+
 ## [2.2.4.16-exp100] - 2026-03-24
 ### Changed
 - Experimental multi-character card lifecycle history now trusts `activeEntityIds` over owner-name fallback whenever entity-aware snapshots are available, keeping archive/inactive decisions aligned with entity identity instead of name collisions.
@@ -1278,6 +1282,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

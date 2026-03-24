@@ -33,7 +33,7 @@ export function syncEntityRegistryFromTrackerData(input: {
   const userMessageEntry = Boolean(input.context.chat[input.messageIndex]?.is_user);
   const sceneOwners = resolveTrackerSceneOwners(input.context, input.data);
   const sceneEntityIds = resolveTrackerSceneEntityIds(input.context, input.data);
-  const dataCharacterNames = collectCharacterNamesFromTrackerData(input.data);
+  const dataCharacterNames = collectCharacterNamesFromTrackerData(input.context, input.data);
   const registryEntriesForMessage = listEntityRegistryEntriesForMessage(input.context, input.messageIndex);
   const registryOwnersForMessage = registryEntriesForMessage.length > 0
     ? resolveRegistryOwnersFromEntries(registryEntriesForMessage)
