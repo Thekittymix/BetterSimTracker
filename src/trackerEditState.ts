@@ -137,3 +137,78 @@ export function buildEditedTrackerDataSnapshot(input: BuildEditedTrackerDataSnap
     entityOwnerMap: current.entityOwnerMap ? structuredClone(current.entityOwnerMap) : undefined,
   };
 }
+
+export function syncEditedTrackerEntityState(
+  data: TrackerData,
+  ownerName: string,
+): TrackerData {
+  const snapshot = resolveEditedOwnerSnapshot(data.entityOwnerMap, ownerName);
+  const entityId = normalizeToken(snapshot?.entityId);
+  if (!entityId) return data;
+
+  const ownerCandidates = Array.from(new Set([
+    normalizeToken(ownerName),
+    normalizeToken(snapshot?.ownerName),
+    normalizeToken(snapshot?.canonicalName),
+    ...((snapshot?.aliases ?? []).map(alias => normalizeToken(alias))),
+  ].filter(Boolean)));
+
+  const resolveOwnerValue = <T>(byOwner: Record<string, T> | undefined): T | undefined => {
+    if (!byOwner) return undefined;
+    for (const ownerCandidate of ownerCandidates) {
+      const value = byOwner[ownerCandidate];
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  };
+
+  const syncBucket = <T>(
+    byOwner: Record<string, T> | undefined,
+    byEntityId: Record<string, T> | undefined,
+  ): Record<string, T> | undefined => {
+    if (!byOwner && !byEntityId) return byEntityId;
+    const nextByEntityId = { ...(byEntityId ?? {}) };
+    const ownerValue = resolveOwnerValue(byOwner);
+    if (ownerValue === undefined) {
+      delete nextByEntityId[entityId];
+    } else {
+      nextByEntityId[entityId] = ownerValue;
+    }
+    return Object.keys(nextByEntityId).length ? nextByEntityId : undefined;
+  };
+
+  const nextStatisticsByEntityId = {
+    affection: syncBucket(data.statistics.affection, data.statisticsByEntityId?.affection) ?? {},
+    trust: syncBucket(data.statistics.trust, data.statisticsByEntityId?.trust) ?? {},
+    desire: syncBucket(data.statistics.desire, data.statisticsByEntityId?.desire) ?? {},
+    connection: syncBucket(data.statistics.connection, data.statisticsByEntityId?.connection) ?? {},
+    mood: syncBucket(data.statistics.mood, data.statisticsByEntityId?.mood) ?? {},
+    lastThought: syncBucket(data.statistics.lastThought, data.statisticsByEntityId?.lastThought) ?? {},
+  };
+
+  const syncCustomBuckets = <T>(
+    byOwnerRoot: Record<string, Record<string, T>> | undefined,
+    byEntityRoot: Record<string, Record<string, T>> | undefined,
+  ): Record<string, Record<string, T>> | undefined => {
+    if (!byOwnerRoot && !byEntityRoot) return byEntityRoot;
+    const nextRoot: Record<string, Record<string, T>> = {};
+    const statIds = new Set([
+      ...Object.keys(byOwnerRoot ?? {}),
+      ...Object.keys(byEntityRoot ?? {}),
+    ]);
+    for (const statId of statIds) {
+      const nextBucket = syncBucket(byOwnerRoot?.[statId], byEntityRoot?.[statId]);
+      if (nextBucket && Object.keys(nextBucket).length) {
+        nextRoot[statId] = nextBucket;
+      }
+    }
+    return Object.keys(nextRoot).length ? nextRoot : undefined;
+  };
+
+  return {
+    ...data,
+    statisticsByEntityId: nextStatisticsByEntityId,
+    customStatisticsByEntityId: syncCustomBuckets(data.customStatistics, data.customStatisticsByEntityId),
+    customNonNumericStatisticsByEntityId: syncCustomBuckets(data.customNonNumericStatistics, data.customNonNumericStatisticsByEntityId),
+  };
+}

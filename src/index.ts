@@ -38,7 +38,7 @@ import {
 } from "./entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
 import { hasTrackedValueForOwner, hasTrackedValueForSelection } from "./trackerDataPresence";
-import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot } from "./trackerEditState";
+import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot, syncEditedTrackerEntityState } from "./trackerEditState";
 import {
   buildEntityScopedCustomNonNumericStatisticsBuckets,
   buildEntityScopedCustomStatisticsBuckets,
@@ -2975,6 +2975,11 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
     next.entityResolution = updated.entityResolution;
     setManualInactiveCharacter(context, character, !payload.active);
   }
+
+  const entitySynced = syncEditedTrackerEntityState(next, character);
+  next.statisticsByEntityId = entitySynced.statisticsByEntityId;
+  next.customStatisticsByEntityId = entitySynced.customStatisticsByEntityId;
+  next.customNonNumericStatisticsByEntityId = entitySynced.customNonNumericStatisticsByEntityId;
 
   writeTrackerDataToMessage(context, next, messageIndex);
   syncEntityRegistryFromTrackerData({

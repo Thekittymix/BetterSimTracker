@@ -1,3 +1,7 @@
+## [2.2.4.16-exp124] - 2026-03-24
+### Changed
+- Experimental multi-character manual tracker edits now mirror alias-backed built-in, numeric custom, and non-numeric custom values into persisted yEntityId state instead of updating only raw owner-name buckets.
+
 ## [2.2.4.16-exp123] - 2026-03-24
 ### Changed
 - Experimental multi-character edit modal value reads now resolve alias-backed numeric, non-numeric, mood, and last-thought state through persisted entity ids before falling back to raw owner buckets.
@@ -1358,6 +1362,7 @@ And more...
 ## [1.0.0] - 2026-02-18
 
 - First stable public release.
+
 
 
 

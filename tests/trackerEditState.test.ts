@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot } from "../src/trackerEditState";
+import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot, syncEditedTrackerEntityState } from "../src/trackerEditState";
 import type { TrackerData } from "../src/types";
 
 function makeTrackerData(): TrackerData {
@@ -206,4 +206,66 @@ test("buildEditedTrackerDataSnapshot prefers resolver scene owners over stale ac
   });
 
   assert.deepEqual(next.activeCharacters, ["Blake"]);
+});
+
+test("syncEditedTrackerEntityState mirrors edited alias values into byEntityId buckets", () => {
+  const current = makeTrackerData();
+  const edited = buildEditedTrackerDataSnapshot({
+    current,
+    timestamp: 2000,
+    activeCharacters: ["Blake"],
+    statistics: {
+      affection: { Blake: 61 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Blake: "Content" },
+      lastThought: { Blake: "Stay calm." },
+    },
+    customStatistics: {
+      tension: { Blake: 37 },
+    },
+    customNonNumericStatistics: {
+      clothes: { Blake: ["flannel shirt", "jeans"] },
+    },
+  });
+
+  const next = syncEditedTrackerEntityState(edited, "Blake");
+
+  assert.equal(next.statisticsByEntityId?.affection?.["bst_mc_alias:test:blake"], 61);
+  assert.equal(next.statisticsByEntityId?.mood?.["bst_mc_alias:test:blake"], "Content");
+  assert.equal(next.statisticsByEntityId?.lastThought?.["bst_mc_alias:test:blake"], "Stay calm.");
+  assert.equal(next.customStatisticsByEntityId?.tension?.["bst_mc_alias:test:blake"], 37);
+  assert.deepEqual(next.customNonNumericStatisticsByEntityId?.clothes?.["bst_mc_alias:test:blake"], ["flannel shirt", "jeans"]);
+});
+
+test("syncEditedTrackerEntityState removes stale byEntityId values when an edited alias value is cleared", () => {
+  const current = makeTrackerData();
+  const edited = buildEditedTrackerDataSnapshot({
+    current,
+    timestamp: 2000,
+    activeCharacters: ["Blake"],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {
+      tension: {},
+    },
+    customNonNumericStatistics: {
+      clothes: {},
+    },
+  });
+
+  const next = syncEditedTrackerEntityState(edited, "Blake");
+
+  assert.equal(next.statisticsByEntityId?.affection?.["bst_mc_alias:test:blake"], undefined);
+  assert.equal(next.statisticsByEntityId?.mood?.["bst_mc_alias:test:blake"], undefined);
+  assert.equal(next.statisticsByEntityId?.lastThought?.["bst_mc_alias:test:blake"], undefined);
+  assert.equal(next.customStatisticsByEntityId?.tension?.["bst_mc_alias:test:blake"], undefined);
+  assert.equal(next.customNonNumericStatisticsByEntityId?.clothes?.["bst_mc_alias:test:blake"], undefined);
 });
