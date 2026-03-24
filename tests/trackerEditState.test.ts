@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildEditedTrackerDataSnapshot } from "../src/trackerEditState";
+import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot } from "../src/trackerEditState";
 import type { TrackerData } from "../src/types";
 
 function makeTrackerData(): TrackerData {
@@ -88,4 +88,70 @@ test("buildEditedTrackerDataSnapshot preserves resolver identity metadata during
   assert.equal(next.statistics.affection.Blake, 61);
   assert.equal(next.customStatistics?.tension?.Blake, 37);
   assert.deepEqual(next.customNonNumericStatistics?.clothes?.Blake, ["flannel shirt", "jeans"]);
+});
+
+test("applyEditedTrackerActiveState removes inactive owner from resolver-backed scene and message identity", () => {
+  const current = {
+    ...makeTrackerData(),
+    activeCharacters: ["Blake", "Ashley"],
+    entityResolution: {
+      sceneOwners: ["Blake", "Ashley"],
+      messageOwners: ["Blake", "Ashley"],
+      sceneEntityIds: ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"],
+      messageEntityIds: ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"],
+      source: "model" as const,
+    },
+    entityOwnerMap: {
+      ...makeTrackerData().entityOwnerMap,
+      Ashley: {
+        entityId: "bst_mc_alias:test:ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley Summers",
+        aliases: ["Ash"],
+        sourceKey: "test",
+        kind: "multi_character_alias" as const,
+      },
+    },
+  } satisfies TrackerData;
+
+  const next = applyEditedTrackerActiveState(current, "Ashley", false);
+
+  assert.deepEqual(next.activeCharacters, ["Blake"]);
+  assert.deepEqual(next.entityResolution?.sceneOwners, ["Blake"]);
+  assert.deepEqual(next.entityResolution?.messageOwners, ["Blake"]);
+  assert.deepEqual(next.entityResolution?.sceneEntityIds, ["bst_mc_alias:test:blake"]);
+  assert.deepEqual(next.entityResolution?.messageEntityIds, ["bst_mc_alias:test:blake"]);
+});
+
+test("applyEditedTrackerActiveState adds manually activated owner back to resolver scene identity without forcing message ownership", () => {
+  const current = {
+    ...makeTrackerData(),
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:test:blake"],
+      messageEntityIds: ["bst_mc_alias:test:blake"],
+      source: "model" as const,
+    },
+    entityOwnerMap: {
+      ...makeTrackerData().entityOwnerMap,
+      Ashley: {
+        entityId: "bst_mc_alias:test:ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley Summers",
+        aliases: ["Ash"],
+        sourceKey: "test",
+        kind: "multi_character_alias" as const,
+      },
+    },
+  } satisfies TrackerData;
+
+  const next = applyEditedTrackerActiveState(current, "Ash", true);
+
+  assert.deepEqual(next.activeCharacters, ["Blake", "Ashley"]);
+  assert.deepEqual(next.entityResolution?.sceneOwners, ["Blake", "Ashley"]);
+  assert.deepEqual(next.entityResolution?.messageOwners, ["Blake"]);
+  assert.deepEqual(next.entityResolution?.sceneEntityIds, ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"]);
+  assert.deepEqual(next.entityResolution?.messageEntityIds, ["bst_mc_alias:test:blake"]);
 });

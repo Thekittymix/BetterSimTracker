@@ -1,3 +1,7 @@
+## [2.2.4.16-exp98] - 2026-03-24
+### Changed
+- Experimental multi-character manual active-state edits now keep resolver-backed scene identity in sync with the edited snapshot instead of updating only raw `activeCharacters`.
+
 ## [2.2.4.16-exp97] - 2026-03-24
 ### Changed
 - Experimental multi-character tracker edit modals now resolve active state from resolver-backed scene owners and scene entity IDs instead of trusting stale raw owner arrays.

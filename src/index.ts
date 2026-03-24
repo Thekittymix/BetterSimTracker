@@ -38,7 +38,7 @@ import {
 } from "./entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
 import { hasTrackedValueForOwner, hasTrackedValueForSelection } from "./trackerDataPresence";
-import { buildEditedTrackerDataSnapshot } from "./trackerEditState";
+import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot } from "./trackerEditState";
 import {
   buildFallbackSummaryProse as buildFallbackSummaryProseHelper,
   buildSummaryTrackerStateLines as buildSummaryTrackerStateLinesHelper,
@@ -2944,17 +2944,9 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
   });
 
   if (payload.active !== undefined && character !== USER_TRACKER_KEY) {
-    const activeSet = new Set(
-      next.activeCharacters
-        .map(name => String(name ?? "").trim())
-        .filter(Boolean),
-    );
-    if (payload.active) {
-      activeSet.add(character);
-    } else {
-      activeSet.delete(character);
-    }
-    next.activeCharacters = Array.from(activeSet);
+    const updated = applyEditedTrackerActiveState(next, character, payload.active);
+    next.activeCharacters = updated.activeCharacters;
+    next.entityResolution = updated.entityResolution;
     setManualInactiveCharacter(context, character, !payload.active);
   }
 
