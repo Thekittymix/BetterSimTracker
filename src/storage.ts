@@ -131,7 +131,7 @@ function normalizeEntityResolution(raw: unknown): TrackerData["entityResolution"
     sceneOwners,
     messageOwners: messageOwners.length ? messageOwners : sceneOwners,
     sceneEntityIds: sceneEntityIds.length ? sceneEntityIds : undefined,
-    messageEntityIds: messageEntityIds.length ? messageEntityIds : (sceneEntityIds.length ? sceneEntityIds : undefined),
+    messageEntityIds: messageEntityIds.length ? messageEntityIds : undefined,
     source,
   };
 }
