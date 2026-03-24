@@ -155,3 +155,55 @@ test("applyEditedTrackerActiveState adds manually activated owner back to resolv
   assert.deepEqual(next.entityResolution?.sceneEntityIds, ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"]);
   assert.deepEqual(next.entityResolution?.messageEntityIds, ["bst_mc_alias:test:blake"]);
 });
+
+test("applyEditedTrackerActiveState prefers resolver scene owners over stale activeCharacters", () => {
+  const current = {
+    ...makeTrackerData(),
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: ["Blake", "Ashley"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"],
+      messageEntityIds: ["bst_mc_alias:test:blake"],
+      source: "model" as const,
+    },
+    entityOwnerMap: {
+      ...makeTrackerData().entityOwnerMap,
+      Ashley: {
+        entityId: "bst_mc_alias:test:ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley Summers",
+        aliases: ["Ash"],
+        sourceKey: "test",
+        kind: "multi_character_alias" as const,
+      },
+    },
+  } satisfies TrackerData;
+
+  const next = applyEditedTrackerActiveState(current, "Ashley", false);
+
+  assert.deepEqual(next.activeCharacters, ["Blake"]);
+});
+
+test("buildEditedTrackerDataSnapshot prefers resolver scene owners over stale activeCharacters", () => {
+  const current = {
+    ...makeTrackerData(),
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:test:blake"],
+      messageEntityIds: ["bst_mc_alias:test:blake"],
+      source: "model" as const,
+    },
+  } satisfies TrackerData;
+
+  const next = buildEditedTrackerDataSnapshot({
+    current,
+    timestamp: 2000,
+    activeCharacters: ["Garret"],
+    statistics: current.statistics,
+  });
+
+  assert.deepEqual(next.activeCharacters, ["Blake"]);
+});

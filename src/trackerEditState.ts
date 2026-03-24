@@ -1,3 +1,4 @@
+import { resolveTrackerSceneOwners } from "./entityRegistry";
 import type {
   ClearedCustomNonNumericStatistics,
   ClearedCustomStatistics,
@@ -68,7 +69,7 @@ export function applyEditedTrackerActiveState(
     return values.filter(value => normalizeToken(value) !== entityId);
   };
 
-  const nextActiveCharacters = removeOwner(data.activeCharacters);
+  const nextActiveCharacters = removeOwner(resolveTrackerSceneOwners(null, data));
   if (active) nextActiveCharacters.push(resolvedOwnerName);
 
   const nextEntityResolution = data.entityResolution
@@ -109,9 +110,10 @@ export function applyEditedTrackerActiveState(
 
 export function buildEditedTrackerDataSnapshot(input: BuildEditedTrackerDataSnapshotInput): TrackerData {
   const current = input.current;
+  const resolvedSceneOwners = resolveTrackerSceneOwners(null, current);
   return {
     timestamp: input.timestamp,
-    activeCharacters: [...input.activeCharacters],
+    activeCharacters: resolvedSceneOwners.length ? resolvedSceneOwners : [...input.activeCharacters],
     entityResolution: current.entityResolution
       ? {
           sceneOwners: [...(current.entityResolution.sceneOwners ?? [])],

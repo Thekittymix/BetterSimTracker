@@ -74,3 +74,31 @@ test("cloneTrackerDataForEdit preserves resolver and by-entity state for edit mo
   assert.deepEqual(data.customNonNumericStatistics!.clothes.Blake, ["hoodie"]);
   assert.deepEqual(data.entityOwnerMap!.Blake.aliases, ["Blackout Blake"]);
 });
+
+test("cloneTrackerDataForEdit prefers resolver scene owners over stale activeCharacters", () => {
+  const data: TrackerData = {
+    timestamp: 1000,
+    activeCharacters: ["Garret"],
+    entityResolution: {
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_mc_alias:test:blake"],
+      messageEntityIds: ["bst_mc_alias:test:blake"],
+      source: "model",
+    },
+    statistics: {
+      affection: { Blake: 55 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+  };
+
+  const cloned = cloneTrackerDataForEdit(data);
+
+  assert.deepEqual(cloned.activeCharacters, ["Blake"]);
+});

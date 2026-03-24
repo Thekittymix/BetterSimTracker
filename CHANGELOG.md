@@ -1,3 +1,7 @@
+## [2.2.4.16-exp122] - 2026-03-24
+### Changed
+- Experimental multi-character edit/debug snapshot paths now prefer resolver-backed scene/message owners over stale raw `activeCharacters`, preventing manual edit clones and diagnostics from reintroducing owner-name drift when resolver identity is already present.
+
 ## [2.2.4.16-exp121] - 2026-03-24
 ### Changed
 - Experimental multi-character message-owner reads now use a shared resolver-backed helper, including `messageEntityIds + entityOwnerMap` fallback materialization, instead of duplicating local owner-array fallback logic in injection/runtime paths.

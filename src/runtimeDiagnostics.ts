@@ -1,3 +1,4 @@
+import { resolveTrackerMessageOwners, resolveTrackerSceneOwners } from "./entityRegistry";
 import type {
   BetterSimTrackerSettings,
   DeltaDebugRecord,
@@ -44,13 +45,15 @@ type PromptInjectionLastMessageSnapshot = {
 
 function summarizeTrackerData(data: TrackerData | null): Record<string, unknown> | null {
   if (!data) return null;
+  const sceneOwners = resolveTrackerSceneOwners(null, data);
+  const messageOwners = resolveTrackerMessageOwners(null, data);
   return {
     timestamp: Number(data.timestamp ?? 0),
-    activeCharacters: Array.isArray(data.activeCharacters) ? [...data.activeCharacters] : [],
+    activeCharacters: sceneOwners.length ? sceneOwners : (Array.isArray(data.activeCharacters) ? [...data.activeCharacters] : []),
     entityResolution: data.entityResolution
       ? {
-          sceneOwners: [...(data.entityResolution.sceneOwners ?? [])],
-          messageOwners: [...(data.entityResolution.messageOwners ?? [])],
+          sceneOwners: sceneOwners.length ? sceneOwners : [...(data.entityResolution.sceneOwners ?? [])],
+          messageOwners: messageOwners.length ? messageOwners : [...(data.entityResolution.messageOwners ?? [])],
           sceneEntityIds: [...(data.entityResolution.sceneEntityIds ?? [])],
           messageEntityIds: [...(data.entityResolution.messageEntityIds ?? [])],
           source: data.entityResolution.source,
@@ -152,7 +155,10 @@ export function buildHistorySample(entries: Array<{ data: TrackerData; timestamp
   return entries.map(entry => ({
     messageIndex: entry.messageIndex,
     timestamp: entry.timestamp,
-    activeCharacters: entry.data.activeCharacters,
+    activeCharacters: (() => {
+      const sceneOwners = resolveTrackerSceneOwners(null, entry.data);
+      return sceneOwners.length ? sceneOwners : entry.data.activeCharacters;
+    })(),
     statistics: {
       affection: entry.data.statistics.affection,
       trust: entry.data.statistics.trust,

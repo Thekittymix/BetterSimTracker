@@ -1,6 +1,8 @@
+import { resolveTrackerSceneOwners } from "./entityRegistry";
 import type { CustomNonNumericValue, TrackerData } from "./types";
 
 export function cloneTrackerDataForEdit(data: TrackerData): TrackerData {
+  const resolvedSceneOwners = resolveTrackerSceneOwners(null, data);
   const cloneCustomNumeric: TrackerData["customStatistics"] = {};
   for (const [statId, byOwner] of Object.entries(data.customStatistics ?? {})) {
     cloneCustomNumeric[statId] = { ...(byOwner ?? {}) };
@@ -17,7 +19,7 @@ export function cloneTrackerDataForEdit(data: TrackerData): TrackerData {
 
   return {
     timestamp: data.timestamp,
-    activeCharacters: [...(data.activeCharacters ?? [])],
+    activeCharacters: resolvedSceneOwners.length ? resolvedSceneOwners : [...(data.activeCharacters ?? [])],
     entityResolution: data.entityResolution
       ? {
           sceneOwners: [...(data.entityResolution.sceneOwners ?? [])],

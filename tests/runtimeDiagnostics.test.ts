@@ -173,6 +173,15 @@ test("buildHistorySample keeps tracked snapshot structure", () => {
   assert.equal(sample[0].statistics.mood.Seraphina, "Hopeful");
 });
 
+test("buildHistorySample prefers resolver scene owners over stale activeCharacters", () => {
+  const tracker = makeTracker(1234);
+  tracker.activeCharacters = ["Garret"];
+
+  const sample = buildHistorySample([{ messageIndex: 4, timestamp: 1234, data: tracker }]);
+
+  assert.deepEqual(sample[0].activeCharacters, ["Seraphina"]);
+});
+
 test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
   const record: DeltaDebugRecord = {
     rawModelOutput: "{}",
@@ -324,5 +333,50 @@ test("buildDiagnosticsReport produces expected core fields", () => {
       usedCachedActivatedLorebookEntries: false,
       cachedActivatedLorebookEntryCount: 0,
     },
+  );
+});
+
+test("buildDiagnosticsReport prefers resolver owners in tracker summaries over stale activeCharacters", () => {
+  const context = {
+    chat: [{}, {}],
+    groupId: null,
+    characterId: "1",
+  } as unknown as STContext;
+  const tracker = makeTracker(123456);
+  tracker.activeCharacters = ["Garret"];
+
+  const report = buildDiagnosticsReport({
+    context,
+    settings: makeSettings(),
+    extensionVersion: "2.2.4.16-expX",
+    isExtracting: false,
+    runSequence: 1,
+    trackerUiState: { phase: "idle", done: 0, total: 0, messageIndex: null },
+    latestDataMessageIndex: 2,
+    latestDataTimestamp: 123456,
+    allCharacterNames: ["Seraphina"],
+    settingsProvenance: { enabled: "context" },
+    graphPreferences: { window: "all", smoothing: true },
+    profileDebug: { selectedProfile: "", resolvedProfileId: null, activeProfileId: null },
+    historySample: buildHistorySample([{ messageIndex: 2, timestamp: 123456, data: tracker }]),
+    activity: null,
+    latestData: tracker,
+    latestPromptMacroData: tracker,
+    promptInjectionPreview: "preview",
+    promptInjectionCurrentPrompt: "preview",
+    promptInjectionLastMessage: null,
+    promptInjectionPreviousMessage: null,
+    promptInjectionLatestDataMessage: null,
+    promptInjectionDebugMeta: null,
+    macroDebugMeta: null,
+    baselineDebugMeta: null,
+    traceTailMemory: [],
+    traceTailPersisted: [],
+    debugRecord: null,
+  });
+
+  assert.deepEqual(
+    ((report.promptInjection as { latestStoredTrackerData: { activeCharacters: string[] } }).latestStoredTrackerData.activeCharacters),
+    ["Seraphina"],
   );
 });
