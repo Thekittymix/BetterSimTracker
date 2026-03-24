@@ -145,6 +145,7 @@ import {
 import { isManualExtractionReason } from "./extractorHelpers";
 import { buildCharacterCardsContext } from "./characterCardContext";
 import { computeManualPlaceholderMessageIndices } from "./renderQueueHelpers";
+import { resolvePersistedSnapshotEntityIds } from "./persistedSnapshotResolution";
 
 declare const __BST_VERSION__: string;
 
@@ -3729,12 +3730,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       .filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const persistedResolverMessageOwners = persistedResolverOwners.messageOwners
       .filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
-    const resolvedSceneEntityIds = resolvedEntityResolution?.sceneEntityIds?.length
-      ? resolvedEntityResolution.sceneEntityIds
-      : resolveTrackerEntityIdsForOwners(context, persistedResolverSceneOwners);
-    const resolvedMessageEntityIds = resolvedEntityResolution?.messageEntityIds?.length
-      ? resolvedEntityResolution.messageEntityIds
-      : resolveTrackerEntityIdsForOwners(context, persistedResolverMessageOwners);
+    const persistedResolverEntityIds = resolvePersistedSnapshotEntityIds({
+      context,
+      persistedSceneOwners: persistedResolverSceneOwners,
+      persistedMessageOwners: persistedResolverMessageOwners,
+      resolvedSceneEntityIds: resolvedEntityResolution?.sceneEntityIds ?? [],
+      resolvedMessageEntityIds: resolvedEntityResolution?.messageEntityIds ?? [],
+      userExtraction,
+    });
 
     latestData = {
       timestamp: Date.now(),
@@ -3742,8 +3745,8 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       entityResolution: {
         sceneOwners: persistedResolverSceneOwners,
         messageOwners: persistedResolverMessageOwners,
-        sceneEntityIds: resolvedSceneEntityIds,
-        messageEntityIds: resolvedMessageEntityIds,
+        sceneEntityIds: persistedResolverEntityIds.sceneEntityIds,
+        messageEntityIds: persistedResolverEntityIds.messageEntityIds,
         source: resolvedEntityResolution?.source ?? ownerScopes.source,
       },
       statistics: merged,

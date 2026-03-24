@@ -18,6 +18,7 @@ import {
   resolveMessageScopedParticipants,
 } from "../src/entityResolution";
 import { USER_TRACKER_KEY } from "../src/constants";
+import { resolvePersistedSnapshotEntityIds } from "../src/persistedSnapshotResolution";
 
 test("extractMultiCharacterAliases parses multi-character source card names generically", () => {
   assert.deepEqual(
@@ -626,6 +627,44 @@ test("resolvePersistedSnapshotEntityResolution keeps user snapshot message owner
     {
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: ["Blake"],
+    },
+  );
+});
+
+test("resolvePersistedSnapshotEntityIds clears user message entity ids while preserving scene entity ids", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolvePersistedSnapshotEntityIds({
+      context,
+      persistedSceneOwners: ["Blake"],
+      persistedMessageOwners: [USER_TRACKER_KEY],
+      resolvedSceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      resolvedMessageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      userExtraction: true,
+    }),
+    {
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: [],
+    },
+  );
+
+  assert.deepEqual(
+    resolvePersistedSnapshotEntityIds({
+      context,
+      persistedSceneOwners: ["Blake"],
+      persistedMessageOwners: ["Blake"],
+      resolvedSceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      resolvedMessageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      userExtraction: false,
+    }),
+    {
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
     },
   );
 });
