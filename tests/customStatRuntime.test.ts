@@ -6,6 +6,7 @@ import {
   MAX_CUSTOM_ARRAY_ITEMS,
   MAX_CUSTOM_ENUM_OPTIONS,
   normalizeCustomEnumOptions,
+  normalizeCustomNumericDefaultValue,
   normalizeCustomNonNumericValue,
   normalizeCustomStatDefaultValue,
   normalizeCustomStatKind,
@@ -30,6 +31,13 @@ test("normalizeCustomTextMaxLength clamps into supported range", () => {
   assert.equal(normalizeCustomTextMaxLength(5), 20);
   assert.equal(normalizeCustomTextMaxLength(999), 200);
   assert.equal(normalizeCustomTextMaxLength(undefined), DEFAULT_CUSTOM_TEXT_MAX_LENGTH);
+});
+
+test("normalizeCustomNumericDefaultValue preserves explicit zero and clamps invalid values", () => {
+  assert.equal(normalizeCustomNumericDefaultValue(0), 0);
+  assert.equal(normalizeCustomNumericDefaultValue("0"), 0);
+  assert.equal(normalizeCustomNumericDefaultValue(undefined), 50);
+  assert.equal(normalizeCustomNumericDefaultValue(150), 100);
 });
 
 test("normalizeCustomEnumOptions deduplicates and strips unsafe values", () => {
@@ -80,6 +88,10 @@ test("normalizeNonNumericArrayItems preserves explicit empty arrays when request
 });
 
 test("normalizeCustomStatDefaultValue handles all supported kinds", () => {
+  assert.equal(
+    normalizeCustomStatDefaultValue({ kind: "numeric", defaultValue: 0 }),
+    0,
+  );
   assert.equal(
     normalizeCustomStatDefaultValue({ kind: "numeric", defaultValue: 150 }),
     100,

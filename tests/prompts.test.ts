@@ -622,6 +622,33 @@ test("buildSequentialCustomNumericPrompt includes BST tagged extraction sections
   assert.match(prompt, /satisfaction=64/);
 });
 
+test("buildSequentialCustomNumericPrompt preserves explicit zero defaults", () => {
+  const prompt = buildSequentialCustomNumericPrompt({
+    statId: "satisfaction",
+    statLabel: "Satisfaction",
+    statDescription: "General satisfaction.",
+    statDefault: 0,
+    maxDeltaPerTurn: 9,
+    userName: "User",
+    characters: ["Seraphina"],
+    contextText: "Recent lines",
+    current: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    currentCustom: {},
+    history: [],
+    includeCharacterCardsInPrompt: true,
+    includeLorebookInExtraction: false,
+  });
+
+  assert.match(prompt, /satisfaction=0/);
+});
+
 test("buildSequentialCustomNonNumericPrompt includes scoped values and mode-aware schema", () => {
   const prompt = buildSequentialCustomNonNumericPrompt({
     statId: "scene_date_time",

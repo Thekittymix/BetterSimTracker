@@ -3,7 +3,7 @@ import type { Statistics } from "./types";
 import type { TrackerData } from "./types";
 import { GLOBAL_TRACKER_KEY } from "./constants";
 import { normalizeDateTimeValue } from "./dateTime";
-import { MAX_CUSTOM_ARRAY_ITEMS, MAX_CUSTOM_ENUM_OPTIONS, normalizeNonNumericArrayItems } from "./customStatRuntime";
+import { MAX_CUSTOM_ARRAY_ITEMS, MAX_CUSTOM_ENUM_OPTIONS, normalizeCustomNumericDefaultValue, normalizeNonNumericArrayItems } from "./customStatRuntime";
 import { listEntityRegistryLookupNames, listTrackerDataLookupNamesForOwnerWithEntityFallback } from "./entityRegistry";
 
 export const moodOptions = [
@@ -990,7 +990,7 @@ export function buildSequentialCustomNumericPrompt(input: {
   const statId = input.statId.trim();
   const statLabel = input.statLabel.trim() || statId;
   const statDescription = String(input.statDescription ?? "").trim();
-  const defaultValue = Math.max(0, Math.min(100, Math.round(Number(input.statDefault) || 50)));
+  const defaultValue = normalizeCustomNumericDefaultValue(input.statDefault);
   const envelope = commonEnvelope(input.userName, input.characters, input.contextText);
   const char = resolvePrimaryCharacter(input.characters, input.preferredCharacterName);
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));

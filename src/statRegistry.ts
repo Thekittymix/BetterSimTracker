@@ -1,4 +1,5 @@
 import type { BetterSimTrackerSettings, NumericStatKey } from "./types";
+import { normalizeCustomNumericDefaultValue } from "./customStatRuntime";
 
 export interface NumericStatDefinition {
   id: string;
@@ -85,7 +86,7 @@ export function getCustomNumericStatDefinitions(settings: BetterSimTrackerSettin
     id: def.id,
     label: def.label,
     description: def.description ?? "",
-    defaultValue: Math.max(0, Math.min(100, Math.round(Number(def.defaultValue) || 50))),
+    defaultValue: normalizeCustomNumericDefaultValue(def.defaultValue),
     maxDeltaPerTurn: def.maxDeltaPerTurn ?? settings.maxDeltaPerTurn,
     track: def.track,
     showOnCard: def.showOnCard,

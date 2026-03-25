@@ -87,6 +87,12 @@ test("settings modal exposes live preview for non-dynamic injection placeholders
   assert.match(source, /\{\{statSemantics\}\}.*enabled built-in stat meanings plus enabled custom-stat descriptions/s);
 });
 
+test("settings modal numeric custom stat defaults do not fall back from zero to fifty", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /normalizeCustomNumericDefaultValue\(candidate\.defaultValue\)/);
+  assert.doesNotMatch(source, /Number\(candidate\.defaultValue\) \|\| 50/);
+});
+
 test("settings checkbox checked state keeps a visible non-color-mix fallback", () => {
   const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
   assert.match(source, /\.bst-check input\[type="checkbox"\]::before \{[\s\S]*border-right: 2px solid rgba\(247, 250, 255, 0\.96\);/);

@@ -1,3 +1,7 @@
+## [2.2.4.16-exp149] - 2026-03-25
+### Fixed
+- Experimental custom numeric stat defaults now preserve an explicit `0` instead of falling back to `50` when saving/editing stats, rebuilding numeric stat definitions, or generating custom numeric extraction prompts.
+
 ## [2.2.4.16-exp148] - 2026-03-25
 ### Fixed
 - Experimental user-turn gate now issues only one stop request per intercepted generation and retries transient replay failures instead of dropping the turn immediately when the backend returns retryable proxy/API errors during replay.
