@@ -59,4 +59,9 @@ test("resolveExtractionProgressDisplay keeps resolver preflight out of fake 1/1 
     percent: 0,
     ratio: 0,
   });
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(0, 1, "Parsing Built-in: mood"), {
+    stageText: "preparing",
+    percent: 0,
+    ratio: 0,
+  });
 });

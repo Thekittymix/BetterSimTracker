@@ -1,3 +1,7 @@
+## [2.2.4.16-exp152] - 2026-03-25
+### Fixed
+- Experimental extraction placeholder now keeps zero-progress single-step startup states in `preparing` instead of showing misleading fake stage labels like `stage 1/1 (0%)` before real extraction progress begins.
+
 ## [2.2.4.16-exp151] - 2026-03-25
 ### Fixed
 - Experimental multi-character `no_active_characters` continuity turns now synchronize entity-registry lifecycle state before render, so inactive aliases can actually reach `Archived` instead of staying stuck as visible `Inactive` cards forever.
