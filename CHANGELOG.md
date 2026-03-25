@@ -1,3 +1,7 @@
+## [2.2.4.16-exp147] - 2026-03-25
+### Fixed
+- Experimental storage/runtime normalization now preserves explicit empty `entityResolution` state on no-active turns instead of collapsing it away, so later continuity/lifecycle reads can distinguish an intentionally empty end-of-message scene from missing resolver data.
+
 ## [2.2.4.16-exp146] - 2026-03-25
 ### Changed
 - Experimental multi-character resolver prompt now states more explicitly that `sceneOwners` is the end-of-message roster, that leavers may still be `messageOwners` without remaining in `sceneOwners`, and that explicit user-turn leave/stay instructions should be treated as authoritative end-state scene guidance.

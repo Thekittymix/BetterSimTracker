@@ -1096,6 +1096,41 @@ test("mergeTrackerDataChronologically preserves explicit activeCharacters before
   });
 });
 
+test("getTrackerDataFromMessage preserves explicit empty entityResolution state", () => {
+  const tracker = makeTracker(1000, {
+    activeCharacters: [],
+    entityResolution: {
+      source: "fallback",
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: [],
+      messageEntityIds: [],
+    },
+  });
+  const message = {
+    mes: "Ambient reply",
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    is_user: false,
+    is_system: false,
+    swipe_id: 0,
+    extra: {
+      [EXTENSION_KEY]: {
+        "0": tracker,
+      },
+    },
+  };
+
+  const stored = getTrackerDataFromMessage(message);
+  assert.deepEqual(stored?.activeCharacters, []);
+  assert.deepEqual(stored?.entityResolution, {
+    source: "fallback",
+    sceneOwners: [],
+    messageOwners: [],
+    sceneEntityIds: undefined,
+    messageEntityIds: undefined,
+  });
+});
+
 test("mergeTrackerDataChronologically preserves explicit by-entity buckets when owner buckets are absent", () => {
   const entityOnlySnapshot = makeTracker(1000, {
     activeCharacters: ["Ashley"],

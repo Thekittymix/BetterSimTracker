@@ -123,6 +123,12 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
 function normalizeEntityResolution(raw: unknown): TrackerData["entityResolution"] {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const record = raw as Record<string, unknown>;
+  const hasExplicitEntityResolutionShape =
+    Object.prototype.hasOwnProperty.call(record, "sceneOwners")
+    || Object.prototype.hasOwnProperty.call(record, "messageOwners")
+    || Object.prototype.hasOwnProperty.call(record, "sceneEntityIds")
+    || Object.prototype.hasOwnProperty.call(record, "messageEntityIds")
+    || Object.prototype.hasOwnProperty.call(record, "source");
   const sceneOwners = Array.isArray(record.sceneOwners)
     ? Array.from(new Set(record.sceneOwners.map(item => String(item ?? "").trim()).filter(Boolean)))
     : [];
@@ -136,7 +142,15 @@ function normalizeEntityResolution(raw: unknown): TrackerData["entityResolution"
     ? Array.from(new Set(record.messageEntityIds.map(item => String(item ?? "").trim()).filter(Boolean)))
     : [];
   const source = record.source === "model" ? "model" : "fallback";
-  if (!sceneOwners.length && !messageOwners.length && !sceneEntityIds.length && !messageEntityIds.length) return undefined;
+  if (
+    !sceneOwners.length
+    && !messageOwners.length
+    && !sceneEntityIds.length
+    && !messageEntityIds.length
+    && !hasExplicitEntityResolutionShape
+  ) {
+    return undefined;
+  }
   return {
     sceneOwners,
     messageOwners,
