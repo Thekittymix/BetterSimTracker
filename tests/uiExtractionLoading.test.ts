@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveExtractionLoadingCopy, resolveExtractionProgressDisplay } from "../src/ui";
+import {
+  resolveExtractionLoadingCopy,
+  resolveExtractionProgressDisplay,
+  resolveExtractionProgressDisplayWithLabel,
+} from "../src/ui";
 
 test("resolveExtractionLoadingCopy explains resolver phases explicitly", () => {
   assert.deepEqual(resolveExtractionLoadingCopy(0, "Resolving active characters"), {
@@ -44,5 +48,10 @@ test("resolveExtractionProgressDisplay keeps resolver preflight out of fake 1/1 
     stageText: "stage 3/9",
     percent: 22,
     ratio: 2 / 9,
+  });
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(0, 1, "Resolving multi-character aliases"), {
+    stageText: "preparing",
+    percent: 0,
+    ratio: 0,
   });
 });

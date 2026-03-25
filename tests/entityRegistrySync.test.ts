@@ -275,6 +275,53 @@ test("syncEntityRegistryFromTrackerData updates multi-character lifecycle on use
   assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lastSeenMessageIndex, 1);
 });
 
+test("syncEntityRegistryFromTrackerData keeps scene continuity while deriving lifecycle from explicit active owners", () => {
+  const context = makeContext();
+  const settings = makeSettings();
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake", "Garret", "Raleigh"]), 0);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 0,
+    owners: ["Ashley", "Blake", "Garret", "Raleigh"],
+    getLifecycleState: () => "active",
+  });
+
+  const current = {
+    ...makeTrackerData(["Blake"]),
+    entityResolution: {
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: [
+        "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+        "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+        "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:garret",
+        "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:raleigh",
+      ],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      source: "model" as const,
+    },
+  };
+  writeTrackerDataToMessage(context, current, 1);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+  });
+
+  assert.equal(changed, true);
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "active");
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "inactive");
+  assert.equal(registry.entities[registry.ownerToEntityId.garret]?.lifecycleState, "inactive");
+  assert.equal(registry.entities[registry.ownerToEntityId.raleigh]?.lifecycleState, "inactive");
+});
+
 test("syncEntityRegistryFromTrackerData backfills inactive continuity for aliases that were only introduced in later registry sync", () => {
   const context = makeContext();
   context.chat.push({

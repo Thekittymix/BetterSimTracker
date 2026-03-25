@@ -1,3 +1,9 @@
+## [2.2.4.16-exp142] - 2026-03-25
+### Fixed
+- Experimental multi-character snapshots now persist `activeCharacters` from the actual message/request owners instead of the broader scene continuity set, and registry lifecycle sync now derives `Active/Inactive/Archived` from those explicit active owners instead of treating every in-scene alias as currently active.
+- Experimental user-turn extraction now waits for the intercepted generation to settle before running the first tracker request, and it performs one automatic retry on initial retryable API/request failures instead of immediately falling into the old manual-retrack-only path.
+- Experimental extraction placeholder no longer shows a fake `stage 1/1 (0%)` during resolver preflight when the UI is still in the alias-resolution phase.
+
 ## [2.2.4.16-exp141] - 2026-03-25
 ### Fixed
 - Experimental multi-character AI ambient replies with no resolved message participants now clamp their scene continuity to the latest user-declared scene instead of re-expanding back to the full source-card ensemble.

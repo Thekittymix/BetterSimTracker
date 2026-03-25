@@ -157,6 +157,11 @@ import { isManualExtractionReason } from "./extractorHelpers";
 import { buildCharacterCardsContext } from "./characterCardContext";
 import { computeManualPlaceholderMessageIndices } from "./renderQueueHelpers";
 import { resolvePersistedSnapshotEntityIds } from "./persistedSnapshotResolution";
+import {
+  shouldDeferUserTurnExtraction,
+  USER_MESSAGE_RENDERED_RETRY_REASON,
+  isUserMessageRenderedRetryReason,
+} from "./userTurnExtractionGate";
 
 declare const __BST_VERSION__: string;
 
@@ -1021,7 +1026,9 @@ function hasUserTrackingEnabledForExtraction(input: BetterSimTrackerSettings): b
 }
 
 function isUserExtractionReason(reason: string): boolean {
-  return reason === "USER_MESSAGE_RENDERED" || reason === "USER_MESSAGE_EDITED";
+  return reason === "USER_MESSAGE_RENDERED"
+    || reason === "USER_MESSAGE_EDITED"
+    || isUserMessageRenderedRetryReason(reason);
 }
 
 function findCharacterIndexByName(context: STContext, name: string): number | null {
@@ -3182,6 +3189,21 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     return;
   }
 
+  if (shouldDeferUserTurnExtraction({
+    reason,
+    userTurnGateActive,
+    chatGenerationInFlight,
+    stopGenerationScheduled: userTurnGateStopTimer !== null,
+  })) {
+    pushTrace("extract.defer", {
+      reason,
+      deferReason: chatGenerationInFlight ? "generation_in_flight" : "stop_generation_pending",
+      targetMessageIndex: targetMessageIndex ?? null,
+    });
+    scheduleExtraction(reason, targetMessageIndex, 140);
+    return;
+  }
+
   let lastIndex: number | null = null;
   if (typeof targetMessageIndex === "number" && targetMessageIndex >= 0 && targetMessageIndex < context.chat.length) {
     const target = context.chat[targetMessageIndex];
@@ -3212,10 +3234,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
   const forceRetrack =
     isManualRefreshReason ||
     isBootstrapContinueReason ||
-    reason === "SWIPE_GENERATION_ENDED" ||
-    reason === "USER_MESSAGE_RENDERED" ||
-    reason === "USER_MESSAGE_EDITED" ||
-    (reason === "MESSAGE_EDITED" && typeof targetMessageIndex === "number");
+      reason === "SWIPE_GENERATION_ENDED" ||
+      reason === "USER_MESSAGE_RENDERED" ||
+      reason === USER_MESSAGE_RENDERED_RETRY_REASON ||
+      reason === "USER_MESSAGE_EDITED" ||
+      (reason === "MESSAGE_EDITED" && typeof targetMessageIndex === "number");
   if (!forceRetrack && existingTrackerData) {
     pushTrace("extract.skip", { reason: "tracker_already_present", trigger: reason, messageIndex: lastIndex });
     clearGeneratingUiIfStale("tracker_already_present");
@@ -3224,6 +3247,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
 
   isExtracting = true;
   const runId = ++runSequence;
+  let retryScheduled = false;
   activeExtractionRunId = runId;
   cancelledExtractionRuns.delete(runId);
   pushTrace("extract.start", {
@@ -3897,7 +3921,6 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       return;
     }
     const message = getErrorMessage(error);
-    let retryScheduled = false;
     const isEmptyOutputError = /(?:^|\s)(?:Generator|Active runtime request) returned empty output/i.test(message);
     const isRetryableApiFailure = /(api request failed|failed to fetch|network\s+error|timeout|http\s+5\d\d|status\s*code\s*5\d\d)/i.test(message);
     const shouldRetryFailure = isEmptyOutputError || isRetryableApiFailure;
@@ -3924,6 +3947,20 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       scheduleExtraction(retryReason, targetMessageIndex, 180);
       retryScheduled = true;
     }
+    if (
+      !retryScheduled &&
+      reason === "USER_MESSAGE_RENDERED" &&
+      shouldRetryFailure
+    ) {
+      pushTrace("extract.retry", {
+        reason,
+        retryReason: USER_MESSAGE_RENDERED_RETRY_REASON,
+        trigger: isEmptyOutputError ? "empty_generator_output" : "retryable_api_failure",
+        targetMessageIndex: targetMessageIndex ?? null,
+      });
+      scheduleExtraction(USER_MESSAGE_RENDERED_RETRY_REASON, targetMessageIndex, 220);
+      retryScheduled = true;
+    }
     pushTrace("extract.error", {
       reason,
       message
@@ -3945,7 +3982,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     isExtracting = false;
     setTrackerUi(context, { phase: "idle", done: 0, total: 0, messageIndex: latestDataMessageIndex, stepLabel: null });
     queueRender();
-    if (userExtraction) {
+    if (userExtraction && !retryScheduled) {
       finalizeUserTurnGateReplay(reason);
     }
   }
@@ -4341,7 +4378,7 @@ function registerEvents(context: STContext): void {
         return;
       }
       startUserTurnGate(context, messageIndex);
-      scheduleExtraction("USER_MESSAGE_RENDERED", messageIndex ?? undefined, 0);
+      scheduleExtraction("USER_MESSAGE_RENDERED", messageIndex ?? undefined, 140);
     });
   }
 

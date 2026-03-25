@@ -653,14 +653,27 @@ export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | 
   };
 }
 
-export function resolveExtractionProgressDisplay(done: number, total: number): {
+export function resolveExtractionProgressDisplayWithLabel(
+  done: number,
+  total: number,
+  label?: string | null,
+): {
   stageText: string;
   percent: number;
   ratio: number;
 } {
   const normalizedTotal = Math.max(0, Math.floor(Number(total) || 0));
   const normalizedDone = Math.max(0, Math.floor(Number(done) || 0));
+  const normalizedLabel = String(label ?? "").trim();
+  const isResolverPreflight = normalizedDone === 0 && /^Resolving\b/i.test(normalizedLabel);
   if (normalizedTotal <= 0) {
+    return {
+      stageText: "preparing",
+      percent: 0,
+      ratio: 0,
+    };
+  }
+  if (isResolverPreflight) {
     return {
       stageText: "preparing",
       percent: 0,
@@ -674,6 +687,14 @@ export function resolveExtractionProgressDisplay(done: number, total: number): {
     percent: Math.round(ratio * 100),
     ratio,
   };
+}
+
+export function resolveExtractionProgressDisplay(done: number, total: number): {
+  stageText: string;
+  percent: number;
+  ratio: number;
+} {
+  return resolveExtractionProgressDisplayWithLabel(done, total, null);
 }
 
 export function filterTechnicalSourceOwnersFromTargets(
@@ -5305,7 +5326,7 @@ export function renderTracker(
       root.dataset.bstRenderSignature = "";
       root.innerHTML = "";
       const done = Math.max(0, Math.floor(Number(uiState.done) || 0));
-      const progress = resolveExtractionProgressDisplay(uiState.done, uiState.total);
+      const progress = resolveExtractionProgressDisplayWithLabel(uiState.done, uiState.total, uiState.stepLabel);
       const copy = resolveExtractionLoadingCopy(done, uiState.stepLabel);
       const title = copy.title;
       const subtitle = copy.subtitle;

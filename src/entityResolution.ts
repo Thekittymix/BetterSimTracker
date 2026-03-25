@@ -617,13 +617,10 @@ export function resolvePersistedSnapshotActiveOwners(input: {
   requestCharacters: string[];
   userExtraction: boolean;
 }): string[] {
-  const sceneOwners = resolvePersistedActiveOwners(input.sceneActiveCharacters);
-  if (!input.userExtraction) return sceneOwners;
-  const userOwners = resolvePersistedActiveOwners(
+  return resolvePersistedActiveOwners(
     input.requestCharacters,
-    { includeUserOwner: true },
+    { includeUserOwner: input.userExtraction },
   );
-  return Array.from(new Set([...sceneOwners, ...userOwners]));
 }
 
 export function resolveExtractionRequestOwners(input: {
