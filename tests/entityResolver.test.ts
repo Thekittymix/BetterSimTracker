@@ -27,6 +27,8 @@ test("buildMultiCharacterResolverPrompt lists candidate owners and latest messag
   assert.match(prompt, /Latest message:/);
   assert.match(prompt, /role: ai/);
   assert.match(prompt, /Blake watched the door click shut\./);
+  assert.match(prompt, /sceneOwners is the end-of-message roster/i);
+  assert.match(prompt, /messageOwner without being a sceneOwner if the message shows them leaving/i);
 });
 
 test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", () => {
@@ -46,6 +48,8 @@ test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", ()
   assert.match(prompt, /Latest message:/);
   assert.match(prompt, /role: user/);
   assert.match(prompt, /Ashley leaves the room\. Blake stays here alone now\./);
+  assert.match(prompt, /If the latest message or instruction makes it clear that only the user remains, sceneOwners should be an empty array\./);
+  assert.match(prompt, /For user-turn instructions about who leaves, stays, or remains, treat those explicit scene instructions as authoritative/i);
 });
 
 test("parseMultiCharacterResolverResponse keeps scene owners separate when messageOwners are empty", () => {

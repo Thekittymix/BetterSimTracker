@@ -1,3 +1,10 @@
+## [2.2.4.16-exp146] - 2026-03-25
+### Changed
+- Experimental multi-character resolver prompt now states more explicitly that `sceneOwners` is the end-of-message roster, that leavers may still be `messageOwners` without remaining in `sceneOwners`, and that explicit user-turn leave/stay instructions should be treated as authoritative end-state scene guidance.
+
+### Fixed
+- Experimental extraction placeholder progress no longer treats single-step preflight/baseline setup as a fake visible `stage 1/1`; resolver/baseline preflight stays in `preparing` until real extraction stage totals exist.
+
 ## [2.2.4.16-exp145] - 2026-03-25
 ### Fixed
 - Experimental user-turn extraction now waits for the intercepted generation to fully end before starting the first tracker request, and retryable first-pass user-turn API failures now get two delayed automatic retries instead of dropping straight into a failed tracker box on the opening user turn.

@@ -666,6 +666,9 @@ export function resolveExtractionProgressDisplayWithLabel(
   const normalizedDone = Math.max(0, Math.floor(Number(done) || 0));
   const normalizedLabel = String(label ?? "").trim();
   const isResolverPreflight = normalizedDone === 0 && /^Resolving\b/i.test(normalizedLabel);
+  const isBaselinePreflight = normalizedDone === 0
+    && normalizedTotal <= 1
+    && (/^Building extraction baseline$/i.test(normalizedLabel) || /^Preparing context$/i.test(normalizedLabel));
   if (normalizedTotal <= 0) {
     return {
       stageText: "preparing",
@@ -673,7 +676,7 @@ export function resolveExtractionProgressDisplayWithLabel(
       ratio: 0,
     };
   }
-  if (isResolverPreflight) {
+  if (isResolverPreflight || isBaselinePreflight) {
     return {
       stageText: "preparing",
       percent: 0,
