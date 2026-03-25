@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
   collectResolvedCharacterNames,
@@ -8,13 +9,11 @@ import {
   projectTrackerDataToMessageScopedOwners,
   resolvePersistedActiveOwners,
   resolvePersistedSnapshotActiveOwners,
-  resolvePersistedSnapshotEntityResolution,
+  resolvePersistedSnapshotResolvedEntities,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   constrainFallbackOwnerScopesToPreviousUserScene,
   constrainResolvedOwnerScopesToPreviousUserScene,
-  resolveExtractionRequestEntityIds,
-  resolveExtractionRequestOwners,
   resolveExtractionOwnerScopes,
   resolveEntityResolverCandidateOwners,
   resolveInitialExtractionOwners,
@@ -22,7 +21,6 @@ import {
   resolveMessageScopedParticipants,
 } from "../src/entityResolution";
 import { USER_TRACKER_KEY } from "../src/constants";
-import { resolvePersistedSnapshotEntityIds } from "../src/persistedSnapshotResolution";
 
 test("extractMultiCharacterAliases parses multi-character source card names generically", () => {
   assert.deepEqual(
@@ -297,11 +295,11 @@ test("constrainFallbackOwnerScopesToPreviousUserScene keeps fallback AI scopes i
       mes: "Blake leaves too. Raleigh stays with me now and answers in one short reply.",
     } as any,
     previousTrackerData: {
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Raleigh"],
         messageOwners: [USER_TRACKER_KEY],
         source: "model",
-      },
+      }),
     } as any,
     fallbackSceneActiveCharacters: ["Garret", "Raleigh"],
     fallbackRequestCharacters: ["Ashley", "Raleigh"],
@@ -323,11 +321,11 @@ test("constrainFallbackOwnerScopesToPreviousUserScene can preserve an explicitly
       mes: "Raleigh exits too. Nobody from the group stays here with me now.",
     } as any,
     previousTrackerData: {
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: [],
         messageOwners: [USER_TRACKER_KEY],
         source: "fallback",
-      },
+      }),
     } as any,
     fallbackSceneActiveCharacters: ["Garret", "Raleigh"],
     fallbackRequestCharacters: ["Garret", "Raleigh"],
@@ -349,11 +347,11 @@ test("constrainResolvedOwnerScopesToPreviousUserScene keeps no-speaker AI scopes
       mes: "Raleigh exits too. Nobody from the group stays here with me now.",
     } as any,
     previousTrackerData: {
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: [],
         messageOwners: [USER_TRACKER_KEY],
         source: "fallback",
-      },
+      }),
     } as any,
     resolvedSceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
     resolvedRequestCharacters: [],
@@ -375,11 +373,11 @@ test("constrainResolvedOwnerScopesToPreviousUserScene does not clamp replies tha
       mes: "Blake stays and answers.",
     } as any,
     previousTrackerData: {
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Blake"],
         messageOwners: [USER_TRACKER_KEY],
         source: "model",
-      },
+      }),
     } as any,
     resolvedSceneActiveCharacters: ["Ashley", "Blake"],
     resolvedRequestCharacters: ["Blake"],
@@ -485,13 +483,13 @@ test("resolveInitialExtractionOwners prefers resolver scene owners over stale bu
     existingTrackerData: {
       timestamp: 1,
       activeCharacters: ["Garret", "Raleigh"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         source: "model",
         sceneOwners: ["Blake"],
         messageOwners: ["Blake"],
         sceneEntityIds: ["bst_mc_alias:test:blake"],
         messageEntityIds: ["bst_mc_alias:test:blake"],
-      },
+      }),
       statistics: {
         affection: { Garret: 50, Raleigh: 50 },
         trust: {},
@@ -517,13 +515,13 @@ test("resolveInitialExtractionOwners can resolve scene owners from persisted sce
     existingTrackerData: {
       timestamp: 1,
       activeCharacters: ["Garret", "Raleigh"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         source: "model",
         sceneOwners: [],
         messageOwners: [],
         sceneEntityIds: ["bst_mc_alias:test:blake"],
         messageEntityIds: ["bst_mc_alias:test:blake"],
-      },
+      }),
       entityOwnerMap: {
         Blake: {
           entityId: "bst_mc_alias:test:blake",
@@ -602,13 +600,13 @@ test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload
     {
       timestamp: 1,
       activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
         messageOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
         sceneEntityIds: ["bst_mc_source:camp.png"],
         messageEntityIds: ["bst_mc_source:camp.png"],
         source: "model",
-      },
+      }),
       statistics: {
         affection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 51 },
         trust: {},
@@ -632,11 +630,13 @@ test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload
   );
 
   assert.deepEqual(projected.activeCharacters, ["Ashley"]);
-  assert.deepEqual(projected.entityResolution, {
+  assert.deepEqual(projected.entityResolution, buildEntityResolution({
     sceneOwners: ["Ashley"],
     messageOwners: ["Ashley"],
+    sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley"],
+    messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley"],
     source: "model",
-  });
+  }));
   assert.deepEqual(projected.statistics.affection, { Ashley: 51 });
   assert.deepEqual(projected.statistics.mood, { Ashley: "Anxious" });
   assert.deepEqual(projected.statistics.lastThought, { Ashley: "Need to keep moving." });
@@ -715,37 +715,7 @@ test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the us
   );
 });
 
-test("resolvePersistedSnapshotEntityResolution keeps user snapshot message owners scoped to the user tracker owner", () => {
-  assert.deepEqual(
-    resolvePersistedSnapshotEntityResolution({
-      sceneActiveCharacters: ["Blake"],
-      requestCharacters: [USER_TRACKER_KEY],
-      resolvedSceneOwners: ["Blake"],
-      resolvedMessageOwners: ["Blake"],
-      userExtraction: true,
-    }),
-    {
-      sceneOwners: ["Blake"],
-      messageOwners: [USER_TRACKER_KEY],
-    },
-  );
-
-  assert.deepEqual(
-    resolvePersistedSnapshotEntityResolution({
-      sceneActiveCharacters: ["Ashley", "Blake"],
-      requestCharacters: ["Blake"],
-      resolvedSceneOwners: ["Ashley", "Blake"],
-      resolvedMessageOwners: ["Blake"],
-      userExtraction: false,
-    }),
-    {
-      sceneOwners: ["Ashley", "Blake"],
-      messageOwners: ["Blake"],
-    },
-  );
-});
-
-test("resolvePersistedSnapshotEntityIds clears user message entity ids while preserving scene entity ids", () => {
+test("resolvePersistedSnapshotResolvedEntities keeps user snapshots scene-only and preserves AI message participation", () => {
   const context = {
     characters: [
       { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
@@ -753,96 +723,96 @@ test("resolvePersistedSnapshotEntityIds clears user message entity ids while pre
   } as any;
 
   assert.deepEqual(
-    resolvePersistedSnapshotEntityIds({
+    resolvePersistedSnapshotResolvedEntities({
       context,
-      persistedSceneOwners: ["Blake"],
-      persistedMessageOwners: [USER_TRACKER_KEY],
-      resolvedSceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-      resolvedMessageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      sceneActiveCharacters: ["Blake"],
+      requestCharacters: [USER_TRACKER_KEY],
+      resolvedEntities: [{
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      }],
       userExtraction: true,
     }),
-    {
-      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-      messageEntityIds: [],
-    },
+    [{
+      entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+      kind: "st-character",
+      name: "Blake",
+      avatar: null,
+      aliases: undefined,
+      inScene: true,
+      inMessage: false,
+      created: false,
+    }],
   );
 
   assert.deepEqual(
-    resolvePersistedSnapshotEntityIds({
+    resolvePersistedSnapshotResolvedEntities({
       context,
-      persistedSceneOwners: ["Blake"],
-      persistedMessageOwners: ["Blake"],
-      resolvedSceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-      resolvedMessageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      sceneActiveCharacters: ["Blake"],
+      requestCharacters: ["Blake"],
+      resolvedEntities: [{
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      }],
       userExtraction: false,
     }),
-    {
-      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-    },
+    [{
+      entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+      kind: "st-character",
+      name: "Blake",
+      avatar: null,
+      aliases: undefined,
+      inScene: true,
+      inMessage: true,
+      created: false,
+    }],
   );
 });
 
-test("resolveExtractionRequestOwners keeps extraction scoped to request owners across multi-character, user, and standard flows", () => {
-  assert.deepEqual(
-    resolveExtractionRequestOwners({
-      sceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
-      requestCharacters: ["Blake"],
-      userExtraction: false,
-      settings: { entityTrackingMode: "multi_character" },
-    }),
-    ["Blake"],
-  );
+test("resolvePersistedSnapshotResolvedEntities can synthesize entity-first continuity without legacy owner arrays", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
 
   assert.deepEqual(
-    resolveExtractionRequestOwners({
-      sceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
-      requestCharacters: ["__bst_user__"],
-      userExtraction: true,
-      settings: { entityTrackingMode: "multi_character" },
-    }),
-    ["__bst_user__"],
-  );
-
-  assert.deepEqual(
-    resolveExtractionRequestOwners({
+    resolvePersistedSnapshotResolvedEntities({
+      context,
       sceneActiveCharacters: ["Ashley", "Blake"],
       requestCharacters: ["Blake"],
+      resolvedEntities: [],
       userExtraction: false,
-      settings: { entityTrackingMode: "standard" },
     }),
-    ["Blake"],
-  );
-});
-
-test("resolveExtractionRequestEntityIds uses full scene entity ids for multi-character AI extraction but keeps message-only ids for user and standard flows", () => {
-  assert.deepEqual(
-    resolveExtractionRequestEntityIds({
-      sceneEntityIds: ["ent:ashley", "ent:blake", "ent:garret", "ent:raleigh"],
-      requestEntityIds: ["ent:blake"],
-      userExtraction: false,
-      settings: { entityTrackingMode: "multi_character" },
-    }),
-    ["ent:blake"],
-  );
-
-  assert.deepEqual(
-    resolveExtractionRequestEntityIds({
-      sceneEntityIds: ["ent:ashley", "ent:blake"],
-      requestEntityIds: ["ent:user"],
-      userExtraction: true,
-      settings: { entityTrackingMode: "multi_character" },
-    }),
-    ["ent:user"],
-  );
-
-  assert.deepEqual(
-    resolveExtractionRequestEntityIds({
-      sceneEntityIds: ["ent:ashley", "ent:blake"],
-      requestEntityIds: ["ent:blake"],
-      userExtraction: false,
-      settings: { entityTrackingMode: "standard" },
-    }),
-    ["ent:blake"],
+    [
+      {
+        entityId: "bst_owner:ashley",
+        kind: "st-character",
+        name: "Ashley",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+        created: false,
+      },
+      {
+        entityId: "bst_owner:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
   );
 });

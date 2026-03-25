@@ -3,7 +3,7 @@ import { getAllNumericStatDefinitions } from "./statRegistry";
 import { normalizeDateTimeValue, toDateTimeInputValue } from "./dateTime";
 import { MAX_CUSTOM_ARRAY_ITEMS, normalizeNonNumericArrayItems, resolveEnumOption } from "./customStatRuntime";
 import type { BetterSimTrackerSettings, TrackerData } from "./types";
-import { resolveTrackerDataLookupValue } from "./entityRegistry";
+import { resolveTrackerDataLookupValue, resolveTrackerSceneEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
 import {
   EDIT_STATS_BACKDROP_CLASS,
   EDIT_STATS_DIALOG_CLASS,
@@ -89,12 +89,8 @@ function resolveEditIsCurrentlyActive(
   character: string,
   ownerKeys: string[],
 ): boolean {
-  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
-    ? data.entityResolution.sceneOwners.map(normalizeEditOwnerToken).filter(Boolean)
-    : [];
-  const sceneEntityIds = Array.isArray(data.entityResolution?.sceneEntityIds)
-    ? data.entityResolution.sceneEntityIds.map(normalizeEditEntityId).filter(Boolean)
-    : [];
+  const sceneOwners = resolveTrackerSceneOwners(null, data).map(normalizeEditOwnerToken).filter(Boolean);
+  const sceneEntityIds = resolveTrackerSceneEntityIds(null, data).map(normalizeEditEntityId).filter(Boolean);
   if (sceneOwners.length || sceneEntityIds.length) {
     if (sceneOwners.length && ownerKeys.some(ownerKey => sceneOwners.includes(normalizeEditOwnerToken(ownerKey)))) {
       return true;

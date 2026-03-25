@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { defaultSettings } from "../src/settings";
 import {
@@ -170,23 +171,23 @@ test("resolveBaselineBeforeIndex excludes the current message for retrack baseli
 test("buildPromptCurrentTrackerData prefers the current resolver entityResolution over stale previous tracker data", () => {
   const tracker = buildPromptCurrentTrackerData({
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-blake"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
     previousTrackerData: {
       timestamp: 1,
       activeCharacters: ["Ashley", "Garret"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Ashley", "Garret"],
         messageOwners: ["Ashley", "Garret"],
         sceneEntityIds: ["ent-ashley", "ent-garret"],
         messageEntityIds: ["ent-ashley", "ent-garret"],
         source: "fallback",
-      },
+      }),
       statistics: {
         affection: { Ashley: 60 },
         trust: {},
@@ -211,13 +212,13 @@ test("buildPromptCurrentTrackerData prefers the current resolver entityResolutio
   });
 
   assert.deepEqual(tracker.activeCharacters, ["Blake"]);
-  assert.deepEqual(tracker.entityResolution, {
+  assert.deepEqual(tracker.entityResolution, buildEntityResolution({
     sceneOwners: ["Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["ent-blake"],
     messageEntityIds: ["ent-blake"],
     source: "model",
-  });
+  }));
   assert.deepEqual(tracker.statistics.affection, { Blake: 52 });
 });
 
@@ -226,13 +227,13 @@ test("buildNoActiveContinuityTrackerData preserves continuity stats while keepin
     previousTrackerData: {
       timestamp: 1,
       activeCharacters: ["Blake"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Blake"],
         messageOwners: ["Blake"],
         sceneEntityIds: ["ent-blake"],
         messageEntityIds: ["ent-blake"],
         source: "model",
-      },
+      }),
       statistics: {
         affection: { Blake: 55 },
         trust: {},
@@ -262,13 +263,13 @@ test("buildNoActiveContinuityTrackerData preserves continuity stats while keepin
   assert.ok(snapshot);
   assert.equal(snapshot?.timestamp, 999);
   assert.deepEqual(snapshot?.activeCharacters, []);
-  assert.deepEqual(snapshot?.entityResolution, {
+  assert.deepEqual(snapshot?.entityResolution, buildEntityResolution({
     sceneOwners: ["Blake"],
     messageOwners: [],
     sceneEntityIds: ["ent-blake"],
     messageEntityIds: [],
     source: "model",
-  });
+  }));
   assert.deepEqual(snapshot?.statistics.affection, { Blake: 55 });
   assert.deepEqual(snapshot?.statistics.mood, { Blake: "Neutral" });
   assert.deepEqual(snapshot?.customNonNumericStatistics, {
@@ -291,13 +292,13 @@ test("buildNoActiveContinuityTrackerData overlays latest scene and user continui
     previousTrackerData: {
       timestamp: 1,
       activeCharacters: ["Blake"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
         messageOwners: ["Blake"],
         sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
         messageEntityIds: ["ent-blake"],
         source: "model",
-      },
+      }),
       statistics: {
         affection: { Blake: 48 },
         trust: { Blake: 50 },
@@ -330,13 +331,13 @@ test("buildNoActiveContinuityTrackerData overlays latest scene and user continui
     latestSceneTrackerData: {
       timestamp: 2,
       activeCharacters: [USER_TRACKER_KEY],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: [],
         messageOwners: [USER_TRACKER_KEY],
         sceneEntityIds: [],
         messageEntityIds: [],
         source: "fallback",
-      },
+      }),
       statistics: {
         affection: {},
         trust: {},
@@ -359,13 +360,13 @@ test("buildNoActiveContinuityTrackerData overlays latest scene and user continui
   assert.ok(snapshot);
   assert.equal(snapshot?.timestamp, 999);
   assert.deepEqual(snapshot?.activeCharacters, []);
-  assert.deepEqual(snapshot?.entityResolution, {
+  assert.deepEqual(snapshot?.entityResolution, buildEntityResolution({
     sceneOwners: [],
     messageOwners: [],
     sceneEntityIds: [],
     messageEntityIds: [],
     source: "model",
-  });
+  }));
   assert.deepEqual(snapshot?.statistics.affection, { Blake: 48 });
   assert.deepEqual(snapshot?.statistics.lastThought, {
     [USER_TRACKER_KEY]: "Finally, I have a moment of peace and quiet to myself in this office.",
@@ -394,13 +395,13 @@ test("selectNoActiveContinuityTrackerEntry prefers the latest earlier character 
     data: {
       timestamp: 2,
       activeCharacters: [USER_TRACKER_KEY],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: [],
         messageOwners: [USER_TRACKER_KEY],
         sceneEntityIds: [],
         messageEntityIds: [],
         source: "fallback" as const,
-      },
+      }),
       statistics: {
         affection: {},
         trust: {},
@@ -418,13 +419,13 @@ test("selectNoActiveContinuityTrackerEntry prefers the latest earlier character 
     data: {
       timestamp: 1,
       activeCharacters: ["Ashley", "Blake"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Ashley", "Blake"],
         messageOwners: ["Blake"],
         sceneEntityIds: ["ent-ashley", "ent-blake"],
         messageEntityIds: ["ent-blake"],
         source: "model" as const,
-      },
+      }),
       statistics: {
         affection: { Blake: 55 },
         trust: {},

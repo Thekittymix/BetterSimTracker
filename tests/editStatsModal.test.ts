@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
 import { __testables } from "../src/editStatsModal";
@@ -163,13 +164,13 @@ test("edit modal built-in text lookup resolves alias-backed values through byEnt
 test("edit modal active state prefers resolver scene owners over stale activeCharacters", () => {
   const data = makeData();
   data.activeCharacters = ["Garret"];
-  data.entityResolution = {
+  data.entityResolution = buildEntityResolution({
     sceneOwners: ["Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["bst_mc_alias:test:blake"],
     messageEntityIds: ["bst_mc_alias:test:blake"],
     source: "model",
-  };
+  });
 
   const ownerKeys = __testables.uniqueOwnerKeys("Blake", "Blake");
   assert.equal(__testables.resolveEditIsCurrentlyActive(data, "Blake", ownerKeys), true);
@@ -179,13 +180,13 @@ test("edit modal active state prefers resolver scene owners over stale activeCha
 test("edit modal active state can resolve alias activity through entity ids", () => {
   const data = makeData();
   data.activeCharacters = ["Ash"];
-  data.entityResolution = {
+  data.entityResolution = buildEntityResolution({
     sceneOwners: ["Ashley"],
     messageOwners: ["Ashley"],
     sceneEntityIds: ["bst_mc_alias:test:ashley"],
     messageEntityIds: ["bst_mc_alias:test:ashley"],
     source: "model",
-  };
+  });
   data.entityOwnerMap = {
     Ash: {
       entityId: "bst_mc_alias:test:ashley",

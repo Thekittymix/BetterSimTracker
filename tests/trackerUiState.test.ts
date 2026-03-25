@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { cloneTrackerDataForEdit } from "../src/trackerUiState";
 import type { TrackerData } from "../src/types";
@@ -8,13 +9,13 @@ test("cloneTrackerDataForEdit preserves resolver and by-entity state for edit mo
   const data: TrackerData = {
     timestamp: 1000,
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:test:blake"],
       messageEntityIds: ["bst_mc_alias:test:blake"],
       source: "model",
-    },
+    }),
     statistics: {
       affection: { Blake: 55 },
       trust: {},
@@ -79,13 +80,13 @@ test("cloneTrackerDataForEdit preserves explicit activeCharacters over resolver 
   const data: TrackerData = {
     timestamp: 1000,
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:test:blake"],
       messageEntityIds: ["bst_mc_alias:test:blake"],
       source: "model",
-    },
+    }),
     statistics: {
       affection: { Blake: 55 },
       trust: {},

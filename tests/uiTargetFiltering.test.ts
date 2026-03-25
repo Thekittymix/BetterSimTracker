@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
   buildDisplayPoolWithRegistry,
@@ -116,13 +117,13 @@ test("collectCharacterNamesFromTrackerData prefers resolver scene owners and ent
     } as never,
     {
       activeCharacters: ["Garret", "Raleigh"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         source: "model",
         sceneOwners: ["Blake"],
         messageOwners: ["Blake"],
         sceneEntityIds: ["ent-blake"],
         messageEntityIds: ["ent-blake"],
-      },
+      }),
       entityOwnerMap: {
         Blake: {
           entityId: "ent-blake",
@@ -179,13 +180,13 @@ test("collectCharacterNamesFromTrackerData ignores raw stat owner keys once expl
     } as never,
     {
       activeCharacters: ["Garret"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         source: "model",
         sceneOwners: ["Blake"],
         messageOwners: ["Blake"],
         sceneEntityIds: ["ent-blake"],
         messageEntityIds: ["ent-blake"],
-      },
+      }),
       entityOwnerMap: {
         Blake: {
           entityId: "ent-blake",
@@ -220,13 +221,13 @@ test("collectCharacterNamesFromTrackerData ignores raw stat owner keys once expl
 test("collectCharacterNamesFromTrackerData can materialize resolver scene owners from entity ids plus owner map without context", () => {
   const names = collectCharacterNamesFromTrackerData({
     activeCharacters: ["Garret", "Raleigh"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: [],
       messageOwners: [],
       sceneEntityIds: ["ent-blake"],
       messageEntityIds: ["ent-blake"],
-    },
+    }),
     entityOwnerMap: {
       Blake: {
         entityId: "ent-blake",
@@ -460,11 +461,11 @@ test("resolveCurrentLifecycleOwnersForTrackerData preserves explicit empty activ
     resolveCurrentLifecycleOwnersForTrackerData({
       timestamp: 1,
       activeCharacters: [],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
         messageOwners: [],
         source: "model",
-      },
+      }),
       statistics: {
         affection: {},
         trust: {},

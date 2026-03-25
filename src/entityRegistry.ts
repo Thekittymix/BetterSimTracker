@@ -5,6 +5,7 @@ import type {
   TrackerEntityLifecycleState,
   TrackerEntityRegistry,
   TrackerEntityRegistryEntry,
+  TrackerResolvedEntity,
 } from "./types";
 import { resolveCharacterIdentity, type EntityTrackingMode, type ResolvedCharacterIdentity } from "./entityResolution";
 import type { CardLifecycleRegistryState, CardLifecycleSnapshot } from "./cardLifecycle";
@@ -504,26 +505,16 @@ function collectTrackerDataOwnerNames(
     seen.add(key);
     names.push(value);
   };
-  const resolverOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(
-    context,
-    data.entityResolution?.sceneEntityIds ?? [],
-  );
-  const resolverMessageOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(
-    context,
-    data.entityResolution?.messageEntityIds ?? [],
-  );
+  const resolvedSceneOwners = resolveResolvedEntityNames(context, data, entity => entity.inScene);
+  const resolvedMessageOwners = resolveResolvedEntityNames(context, data, entity => entity.inMessage);
   const hasExplicitResolverOwners =
-    resolverOwnersFromEntityIds.length > 0 ||
-    resolverMessageOwnersFromEntityIds.length > 0 ||
-    Array.isArray(data.entityResolution?.sceneOwners) && data.entityResolution.sceneOwners.length > 0 ||
-    Array.isArray(data.entityResolution?.messageOwners) && data.entityResolution.messageOwners.length > 0;
+    resolvedSceneOwners.length > 0 ||
+    resolvedMessageOwners.length > 0;
   const hasExplicitEntityIdentity =
     hasExplicitResolverOwners ||
     (data.entityOwnerMap != null && Object.keys(data.entityOwnerMap).length > 0);
-  for (const name of resolverOwnersFromEntityIds) push(name);
-  for (const name of resolverMessageOwnersFromEntityIds) push(name);
-  for (const name of data.entityResolution?.sceneOwners ?? []) push(name);
-  for (const name of data.entityResolution?.messageOwners ?? []) push(name);
+  for (const name of resolvedSceneOwners) push(name);
+  for (const name of resolvedMessageOwners) push(name);
   for (const name of Object.keys(data.entityOwnerMap ?? {})) push(name);
   if (!hasExplicitResolverOwners) {
     for (const name of data.activeCharacters ?? []) push(name);
@@ -629,20 +620,86 @@ function resolveTrackerOwnersForEntityIdsFromOwnerMap(
   return out;
 }
 
+function resolveTrackerResolvedEntities(
+  data: TrackerData | null | undefined,
+): TrackerResolvedEntity[] {
+  const explicitResolvedEntities = data?.entityResolution?.resolvedEntities ?? [];
+  const out: TrackerResolvedEntity[] = [];
+  const seen = new Set<string>();
+  for (const entity of explicitResolvedEntities) {
+    const entityId = normalizeToken(entity?.entityId);
+    const name = normalizeToken(entity?.name);
+    if (!entityId || !name || seen.has(entityId)) continue;
+    seen.add(entityId);
+    out.push({
+      ...entity,
+      entityId,
+      name,
+      avatar: normalizeToken(entity.avatar) || null,
+      aliases: uniqueStrings(entity.aliases ?? []),
+      inScene: Boolean(entity.inScene),
+      inMessage: Boolean(entity.inMessage),
+      created: Boolean(entity.created),
+    });
+  }
+  return out;
+}
+
+function resolveOwnerNameForResolvedEntity(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  entity: TrackerResolvedEntity,
+): string {
+  const entityId = normalizeToken(entity.entityId);
+  if (!entityId) return normalizeToken(entity.name);
+  const fromContext = resolveTrackerOwnersForEntityIds(context, [entityId])[0];
+  if (fromContext) return fromContext;
+  const fromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, [entityId])[0];
+  if (fromOwnerMap) return fromOwnerMap;
+  return normalizeToken(entity.name);
+}
+
+function resolveResolvedEntityNames(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  predicate: (entity: TrackerResolvedEntity) => boolean,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entity of resolveTrackerResolvedEntities(data)) {
+    if (!predicate(entity)) continue;
+    const ownerName = resolveOwnerNameForResolvedEntity(context, data, entity);
+    const ownerKey = normalizeKey(ownerName);
+    if (!ownerKey || seen.has(ownerKey)) continue;
+    seen.add(ownerKey);
+    out.push(ownerName);
+  }
+  return out;
+}
+
+function resolveResolvedEntityIds(
+  data: TrackerData | null | undefined,
+  predicate: (entity: TrackerResolvedEntity) => boolean,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entity of resolveTrackerResolvedEntities(data)) {
+    if (!predicate(entity)) continue;
+    const entityId = normalizeToken(entity.entityId);
+    if (!entityId || seen.has(entityId)) continue;
+    seen.add(entityId);
+    out.push(entityId);
+  }
+  return out;
+}
+
 export function resolveTrackerSceneOwners(
   context: STContext | null,
   data: TrackerData | null | undefined,
 ): string[] {
   if (!data) return [];
-  const sceneEntityIds = data.entityResolution?.sceneEntityIds ?? [];
-  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, sceneEntityIds);
-  if (sceneOwnersFromEntityIds.length) return sceneOwnersFromEntityIds;
-  const sceneOwnersFromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, sceneEntityIds);
-  if (sceneOwnersFromOwnerMap.length) return sceneOwnersFromOwnerMap;
-  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
-    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
-    : [];
-  if (sceneOwners.length) return sceneOwners;
+  const resolvedNames = resolveResolvedEntityNames(context, data, entity => entity.inScene);
+  if (resolvedNames.length) return resolvedNames;
   return uniqueStrings(Array.isArray(data.activeCharacters) ? data.activeCharacters : []);
 }
 
@@ -663,24 +720,11 @@ export function resolveTrackerActiveOwners(
   if (explicitActiveCharacters.length) {
     return explicitActiveCharacters;
   }
-  const sceneEntityIds = data.entityResolution?.sceneEntityIds ?? [];
-  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, sceneEntityIds);
-  if (sceneOwnersFromEntityIds.length) return sceneOwnersFromEntityIds;
-  const sceneOwnersFromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, sceneEntityIds);
-  if (sceneOwnersFromOwnerMap.length) return sceneOwnersFromOwnerMap;
-  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
-    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
-    : [];
-  if (sceneOwners.length) return sceneOwners;
-  const messageEntityIds = data.entityResolution?.messageEntityIds ?? [];
-  const messageOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, messageEntityIds);
-  if (messageOwnersFromEntityIds.length) return messageOwnersFromEntityIds;
-  const messageOwnersFromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, messageEntityIds);
-  if (messageOwnersFromOwnerMap.length) return messageOwnersFromOwnerMap;
-  const messageOwners = Array.isArray(data.entityResolution?.messageOwners)
-    ? uniqueStrings(data.entityResolution?.messageOwners ?? [])
-    : [];
-  return messageOwners.length ? messageOwners : explicitActiveCharacters;
+  const resolvedMessageNames = resolveResolvedEntityNames(context, data, entity => entity.inMessage);
+  if (resolvedMessageNames.length) return resolvedMessageNames;
+  const resolvedSceneNames = resolveResolvedEntityNames(context, data, entity => entity.inScene);
+  if (resolvedSceneNames.length) return resolvedSceneNames;
+  return explicitActiveCharacters;
 }
 
 export function resolveTrackerMessageOwners(
@@ -688,15 +732,8 @@ export function resolveTrackerMessageOwners(
   data: TrackerData | null | undefined,
 ): string[] {
   if (!data) return [];
-  const messageEntityIds = data.entityResolution?.messageEntityIds ?? [];
-  const messageOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, messageEntityIds);
-  if (messageOwnersFromEntityIds.length) return messageOwnersFromEntityIds;
-  const messageOwnersFromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, messageEntityIds);
-  if (messageOwnersFromOwnerMap.length) return messageOwnersFromOwnerMap;
-  const messageOwners = Array.isArray(data.entityResolution?.messageOwners)
-    ? uniqueStrings(data.entityResolution?.messageOwners ?? [])
-    : [];
-  if (messageOwners.length) return messageOwners;
+  const resolvedNames = resolveResolvedEntityNames(context, data, entity => entity.inMessage);
+  if (resolvedNames.length) return resolvedNames;
   return resolveTrackerSceneOwners(context, data);
 }
 
@@ -705,12 +742,8 @@ export function resolveTrackerSceneEntityIds(
   data: TrackerData | null | undefined,
 ): string[] {
   if (!data) return [];
-  const explicit = uniqueStrings(data.entityResolution?.sceneEntityIds ?? []);
-  if (explicit.length) return explicit;
-  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
-    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
-    : [];
-  if (sceneOwners.length) return resolveTrackerEntityIdsForOwners(context, sceneOwners);
+  const resolvedIds = resolveResolvedEntityIds(data, entity => entity.inScene);
+  if (resolvedIds.length) return resolvedIds;
   const activeCharacters = Array.isArray(data.activeCharacters) ? uniqueStrings(data.activeCharacters) : [];
   return resolveTrackerEntityIdsForOwners(context, activeCharacters);
 }
@@ -735,18 +768,10 @@ export function resolveTrackerActiveEntityIds(
     ));
     if (explicitIds.length) return explicitIds;
   }
-  const explicitSceneEntityIds = uniqueStrings(data.entityResolution?.sceneEntityIds ?? []);
-  if (explicitSceneEntityIds.length) return explicitSceneEntityIds;
-  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
-    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
-    : [];
-  if (sceneOwners.length) return resolveTrackerEntityIdsForOwners(context, sceneOwners);
-  const explicitMessageEntityIds = uniqueStrings(data.entityResolution?.messageEntityIds ?? []);
-  if (explicitMessageEntityIds.length) return explicitMessageEntityIds;
-  const messageOwners = Array.isArray(data.entityResolution?.messageOwners)
-    ? uniqueStrings(data.entityResolution?.messageOwners ?? [])
-    : [];
-  if (messageOwners.length) return resolveTrackerEntityIdsForOwners(context, messageOwners);
+  const resolvedMessageIds = resolveResolvedEntityIds(data, entity => entity.inMessage);
+  if (resolvedMessageIds.length) return resolvedMessageIds;
+  const resolvedSceneIds = resolveResolvedEntityIds(data, entity => entity.inScene);
+  if (resolvedSceneIds.length) return resolvedSceneIds;
   return resolveTrackerEntityIdsForOwners(context, explicitActiveCharacters);
 }
 

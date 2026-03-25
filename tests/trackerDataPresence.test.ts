@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { defaultSettings } from "../src/settings";
 import { hasTrackedValueForOwner, hasTrackedValueForSelection } from "../src/trackerDataPresence";
@@ -75,13 +76,13 @@ test("hasTrackedValueForOwner resolves alias values through byEntityId shadow st
   const data: TrackerData = {
     timestamp: 1,
     activeCharacters: ["Ash"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ash"],
       messageOwners: ["Ash"],
       sceneEntityIds: ["ent-ashley"],
       messageEntityIds: ["ent-ashley"],
-    },
+    }),
     entityOwnerMap: {
       Ash: {
         entityId: "ent-ashley",

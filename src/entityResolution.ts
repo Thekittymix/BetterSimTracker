@@ -10,8 +10,10 @@ import type {
   STContext,
   Statistics,
   TrackerData,
+  TrackerResolvedEntity,
 } from "./types";
 import { USER_TRACKER_KEY } from "./constants";
+import { resolveTrackerEntityIdsForOwners, resolveTrackerSceneOwners } from "./entityRegistry";
 
 export type EntityTrackingMode = "standard" | "multi_character";
 
@@ -550,10 +552,14 @@ export function constrainFallbackOwnerScopesToPreviousUserScene(input: {
   if (input.userExtraction) return null;
   if (input.settings.entityTrackingMode !== "multi_character") return null;
   if (!input.previousMessage?.is_user) return null;
-  const rawSceneOwners = input.previousTrackerData?.entityResolution?.sceneOwners;
-  if (!Array.isArray(rawSceneOwners)) return null;
-
-  const previousSceneOwners = resolvePersistedActiveOwners(rawSceneOwners);
+  if (input.previousTrackerData?.entityResolution && !resolveTrackerSceneOwners(null, input.previousTrackerData).length) {
+    return {
+      sceneActiveCharacters: [],
+      requestCharacters: [],
+    };
+  }
+  const previousSceneOwners = resolveTrackerSceneOwners(null, input.previousTrackerData);
+  if (!previousSceneOwners.length) return null;
   const allowed = new Set(previousSceneOwners.map(owner => normalizeKey(owner)));
   const requestCharacters = input.fallbackRequestCharacters.filter(owner => allowed.has(normalizeKey(owner)));
 
@@ -580,10 +586,14 @@ export function constrainResolvedOwnerScopesToPreviousUserScene(input: {
   if (input.settings.entityTrackingMode !== "multi_character") return null;
   if (!input.previousMessage?.is_user) return null;
   if (input.resolvedRequestCharacters.length) return null;
-  const rawSceneOwners = input.previousTrackerData?.entityResolution?.sceneOwners;
-  if (!Array.isArray(rawSceneOwners)) return null;
-
-  const previousSceneOwners = resolvePersistedActiveOwners(rawSceneOwners);
+  if (input.previousTrackerData?.entityResolution && !resolveTrackerSceneOwners(null, input.previousTrackerData).length) {
+    return {
+      sceneActiveCharacters: [],
+      requestCharacters: [],
+    };
+  }
+  const previousSceneOwners = resolveTrackerSceneOwners(null, input.previousTrackerData);
+  if (!previousSceneOwners.length) return null;
   const allowed = new Set(previousSceneOwners.map(owner => normalizeKey(owner)));
 
   return {
@@ -623,44 +633,39 @@ export function resolvePersistedSnapshotActiveOwners(input: {
   );
 }
 
-export function resolveExtractionRequestOwners(input: {
+export function resolvePersistedSnapshotResolvedEntities(input: {
+  context: STContext | null;
   sceneActiveCharacters: string[];
   requestCharacters: string[];
+  resolvedEntities: TrackerResolvedEntity[];
   userExtraction: boolean;
-  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
-}): string[] {
-  return [...input.requestCharacters];
-}
+}): TrackerResolvedEntity[] {
+  if (input.resolvedEntities.length) {
+    return input.resolvedEntities.map(entity => ({
+      ...entity,
+      aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+      created: Boolean(entity.created),
+      inMessage: input.userExtraction ? false : Boolean(entity.inMessage),
+    }));
+  }
 
-export function resolveExtractionRequestEntityIds(input: {
-  sceneEntityIds: string[];
-  requestEntityIds: string[];
-  userExtraction: boolean;
-  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
-}): string[] {
-  return [...input.requestEntityIds];
-}
-
-export function resolvePersistedSnapshotEntityResolution(input: {
-  sceneActiveCharacters: string[];
-  requestCharacters: string[];
-  resolvedSceneOwners: string[];
-  resolvedMessageOwners: string[];
-  userExtraction: boolean;
-}): {
-  sceneOwners: string[];
-  messageOwners: string[];
-} {
-  const sceneOwners = resolvePersistedActiveOwners(
-    input.resolvedSceneOwners.length ? input.resolvedSceneOwners : input.sceneActiveCharacters,
-  );
+  const sceneOwners = resolvePersistedActiveOwners(input.sceneActiveCharacters);
   const messageOwners = resolvePersistedActiveOwners(
-    input.userExtraction
-      ? input.requestCharacters
-      : (input.resolvedMessageOwners.length ? input.resolvedMessageOwners : input.requestCharacters),
-    { includeUserOwner: input.userExtraction },
+    input.userExtraction ? [] : input.requestCharacters,
+    { includeUserOwner: false },
   );
-  return { sceneOwners, messageOwners };
+  const messageOwnerKeys = new Set(messageOwners.map(owner => normalizeKey(owner)));
+
+  return sceneOwners.map(ownerName => ({
+    entityId: resolveTrackerEntityIdsForOwners(input.context, [ownerName])[0] ?? `bst_owner:${normalizeKey(ownerName)}`,
+    kind: "st-character",
+    name: ownerName,
+    avatar: null,
+    aliases: undefined,
+    inScene: true,
+    inMessage: messageOwnerKeys.has(normalizeKey(ownerName)),
+    created: false,
+  }));
 }
 
 function normalizeOwnerForTracking(
@@ -717,22 +722,10 @@ function collectStoredResolverSceneOwners(
     pushUniqueString(out, seen, ownerName);
   };
 
-  for (const ownerName of data.entityResolution?.sceneOwners ?? []) {
+  for (const ownerName of resolveTrackerSceneOwners(context ?? null, data)) {
     pushOwner(ownerName);
   }
   if (out.length) return out;
-
-  const snapshotsByEntityId = new Map<string, NonNullable<TrackerData["entityOwnerMap"]>[string]>();
-  for (const snapshot of Object.values(data.entityOwnerMap ?? {})) {
-    const entityId = normalizeToken(snapshot?.entityId);
-    if (!entityId) continue;
-    snapshotsByEntityId.set(entityId, snapshot);
-  }
-  for (const entityId of data.entityResolution?.sceneEntityIds ?? []) {
-    const snapshot = snapshotsByEntityId.get(normalizeToken(entityId));
-    if (!snapshot) continue;
-    pushOwner(snapshot.ownerName);
-  }
   return out;
 }
 
@@ -749,13 +742,21 @@ export function resolveInitialExtractionOwners(input: {
     return [USER_TRACKER_KEY];
   }
   const preferExistingOwnersOnRetrack = input.preferExistingOwnersOnRetrack !== false;
-  const storedResolverSceneOwners = collectStoredResolverSceneOwners(input.context, input.existingTrackerData, false);
-  if (input.forceRetrack && preferExistingOwnersOnRetrack && storedResolverSceneOwners.length) {
-    return storedResolverSceneOwners;
-  }
-  const storedBuiltInOwners = collectStoredBuiltInOwnerNames(input.context, input.existingTrackerData, false);
-  if (input.forceRetrack && preferExistingOwnersOnRetrack && storedBuiltInOwners.length) {
-    return storedBuiltInOwners;
+  if (input.forceRetrack && preferExistingOwnersOnRetrack && input.existingTrackerData) {
+    const hasStoredResolvedEntities = Boolean(input.existingTrackerData.entityResolution?.resolvedEntities?.length);
+    const storedResolverSceneOwners = hasStoredResolvedEntities
+      ? resolvePersistedActiveOwners(
+          resolveTrackerSceneOwners(input.context ?? null, input.existingTrackerData),
+          { includeUserOwner: false },
+        )
+      : [];
+    if (storedResolverSceneOwners.length) {
+      return storedResolverSceneOwners;
+    }
+    const storedBuiltInOwners = collectStoredBuiltInOwnerNames(input.context, input.existingTrackerData, false);
+    if (storedBuiltInOwners.length) {
+      return storedBuiltInOwners;
+    }
   }
   const existingActiveCharacters = Array.isArray(input.existingActiveCharacters)
     ? input.existingActiveCharacters
@@ -883,6 +884,39 @@ function remapClearedCustomBuckets<T extends ClearedCustomStatistics | ClearedCu
   return (changed ? next : stats) as T | undefined;
 }
 
+function resolveProjectedEntitySnapshot(
+  entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
+  ownerName: string,
+): NonNullable<TrackerData["entityOwnerMap"]>[string] | null {
+  if (!entityOwnerMap) return null;
+  const ownerKey = normalizeKey(ownerName);
+  for (const snapshot of Object.values(entityOwnerMap)) {
+    if (!snapshot) continue;
+    const keys = new Set<string>([
+      normalizeKey(snapshot.ownerName),
+      normalizeKey(snapshot.canonicalName),
+      ...((snapshot.aliases ?? []).map(alias => normalizeKey(alias))),
+    ]);
+    if (keys.has(ownerKey)) return snapshot;
+  }
+  return null;
+}
+
+function buildProjectedEntityId(
+  context: STContext | null,
+  sourceEntity: { entityId: string; name: string },
+  projectedOwnerName: string,
+): string {
+  const identity = resolveCharacterIdentity(context, projectedOwnerName, "multi_character");
+  if (!identity) return sourceEntity.entityId;
+  const sourceKey = `${normalizeKey(identity.sourceAvatar ?? "")}|${normalizeKey(identity.sourceName)}`;
+  if (!sourceKey) return sourceEntity.entityId;
+  if (identity.matchedBy === "alias") {
+    return `bst_mc_alias:${sourceKey}:${normalizeKey(identity.resolvedName)}`;
+  }
+  return `bst_owner:${sourceKey}`;
+}
+
 export function projectTrackerDataToMessageScopedOwners(
   context: STContext | null,
   data: TrackerData,
@@ -907,16 +941,26 @@ export function projectTrackerDataToMessageScopedOwners(
   const remapOwners = (owners: string[] | undefined): string[] => uniqueStrings(
     (owners ?? []).map(ownerName => ownerMap.get(ownerName) ?? ownerName),
   );
-  const remappedSceneOwners = remapOwners(data.entityResolution?.sceneOwners);
-  const remappedMessageOwners = remapOwners(data.entityResolution?.messageOwners);
-
   return {
     ...data,
     activeCharacters: (data.activeCharacters ?? []).map(ownerName => ownerMap.get(ownerName) ?? ownerName),
     entityResolution: data.entityResolution
       ? {
-          sceneOwners: remappedSceneOwners,
-          messageOwners: remappedMessageOwners.length ? remappedMessageOwners : remappedSceneOwners,
+          ...data.entityResolution,
+          resolvedEntities: (data.entityResolution.resolvedEntities ?? []).map(entity => ({
+            ...entity,
+            entityId: (() => {
+              const projectedOwnerName = ownerMap.get(entity.name) ?? entity.name;
+              return resolveProjectedEntitySnapshot(
+                data.entityOwnerMap,
+                projectedOwnerName,
+              )?.entityId ?? buildProjectedEntityId(context, entity, projectedOwnerName);
+            })(),
+            name: ownerMap.get(entity.name) ?? entity.name,
+            aliases: entity.aliases?.length
+              ? uniqueStrings(entity.aliases.map(alias => ownerMap.get(alias) ?? alias))
+              : undefined,
+          })),
           source: data.entityResolution.source,
         }
       : undefined,

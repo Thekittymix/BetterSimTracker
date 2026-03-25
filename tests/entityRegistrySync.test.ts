@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { syncEntityRegistryFromRender, readEntityRegistry } from "../src/entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "../src/entityRegistrySync";
@@ -78,13 +79,13 @@ test("syncEntityRegistryFromTrackerData prefers explicit resolver scene owners o
 
   const current = {
     ...makeTrackerData(["Garret"]),
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model" as const,
-    },
+    }),
   };
   writeTrackerDataToMessage(context, current, 1);
 
@@ -117,13 +118,13 @@ test("syncEntityRegistryFromTrackerData prefers resolver scene entity ids over s
 
   const current = {
     ...makeTrackerData(["Garret"]),
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Garret"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model" as const,
-    },
+    }),
   };
   writeTrackerDataToMessage(context, current, 1);
 
@@ -190,13 +191,13 @@ test("syncEntityRegistryFromTrackerData does not depend on showInactive to keep 
 
   const current = {
     ...makeTrackerData(["Blake"]),
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model" as const,
-    },
+    }),
   };
   writeTrackerDataToMessage(context, current, 1);
 
@@ -237,13 +238,13 @@ test("syncEntityRegistryFromTrackerData updates multi-character lifecycle on use
 
   const current = {
     ...makeTrackerData(["Blake"]),
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model" as const,
-    },
+    }),
     statistics: {
       affection: { Ashley: 45, Blake: 45 },
       trust: { Ashley: 45, Blake: 46 },
@@ -290,7 +291,7 @@ test("syncEntityRegistryFromTrackerData keeps scene continuity while deriving li
 
   const current = {
     ...makeTrackerData(["Blake"]),
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
       messageOwners: ["Blake"],
       sceneEntityIds: [
@@ -301,7 +302,7 @@ test("syncEntityRegistryFromTrackerData keeps scene continuity while deriving li
       ],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model" as const,
-    },
+    }),
   };
   writeTrackerDataToMessage(context, current, 1);
 
@@ -353,13 +354,13 @@ test("syncEntityRegistryFromTrackerData backfills inactive continuity for aliase
 
   const current = {
     ...makeTrackerData(["Blake"]),
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model" as const,
-    },
+    }),
   } satisfies TrackerData;
   writeTrackerDataToMessage(context, current, 1);
 
@@ -430,13 +431,13 @@ test("syncEntityRegistryFromTrackerData archives inactive aliases on no-active c
 
   const current = {
     ...makeTrackerData([]),
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: [],
       messageOwners: [],
       sceneEntityIds: [],
       messageEntityIds: [],
       source: "model" as const,
-    },
+    }),
   } satisfies TrackerData;
   writeTrackerDataToMessage(context, current, 2);
 

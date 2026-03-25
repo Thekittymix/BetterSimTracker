@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
+import { resolveTrackerMessageOwners, resolveTrackerSceneEntityIds, resolveTrackerSceneOwners } from "../src/entityRegistry";
 import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot, syncEditedTrackerEntityState } from "../src/trackerEditState";
 import type { TrackerData } from "../src/types";
 
@@ -8,13 +10,13 @@ function makeTrackerData(): TrackerData {
   return {
     timestamp: 1000,
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:test:blake"],
       messageEntityIds: ["bst_mc_alias:test:blake"],
       source: "model",
-    },
+    }),
     statistics: {
       affection: { Blake: 55 },
       trust: {},
@@ -94,13 +96,13 @@ test("applyEditedTrackerActiveState removes inactive owner from resolver-backed 
   const current = {
     ...makeTrackerData(),
     activeCharacters: ["Blake", "Ashley"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake", "Ashley"],
       messageOwners: ["Blake", "Ashley"],
       sceneEntityIds: ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"],
       messageEntityIds: ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"],
       source: "model" as const,
-    },
+    }),
     entityOwnerMap: {
       ...makeTrackerData().entityOwnerMap,
       Ashley: {
@@ -117,23 +119,26 @@ test("applyEditedTrackerActiveState removes inactive owner from resolver-backed 
   const next = applyEditedTrackerActiveState(current, "Ashley", false);
 
   assert.deepEqual(next.activeCharacters, ["Blake"]);
-  assert.deepEqual(next.entityResolution?.sceneOwners, ["Blake"]);
-  assert.deepEqual(next.entityResolution?.messageOwners, ["Blake"]);
-  assert.deepEqual(next.entityResolution?.sceneEntityIds, ["bst_mc_alias:test:blake"]);
-  assert.deepEqual(next.entityResolution?.messageEntityIds, ["bst_mc_alias:test:blake"]);
+  assert.deepEqual(resolveTrackerSceneOwners(null, next), ["Blake"]);
+  assert.deepEqual(resolveTrackerMessageOwners(null, next), ["Blake"]);
+  assert.deepEqual(resolveTrackerSceneEntityIds(null, next), ["bst_mc_alias:test:blake"]);
+  assert.deepEqual(
+    next.entityResolution?.resolvedEntities?.filter(entity => entity.inMessage).map(entity => entity.entityId),
+    ["bst_mc_alias:test:blake"],
+  );
 });
 
 test("applyEditedTrackerActiveState adds manually activated owner back to resolver scene identity without forcing message ownership", () => {
   const current = {
     ...makeTrackerData(),
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:test:blake"],
       messageEntityIds: ["bst_mc_alias:test:blake"],
       source: "model" as const,
-    },
+    }),
     entityOwnerMap: {
       ...makeTrackerData().entityOwnerMap,
       Ashley: {
@@ -150,23 +155,26 @@ test("applyEditedTrackerActiveState adds manually activated owner back to resolv
   const next = applyEditedTrackerActiveState(current, "Ash", true);
 
   assert.deepEqual(next.activeCharacters, ["Blake", "Ashley"]);
-  assert.deepEqual(next.entityResolution?.sceneOwners, ["Blake", "Ashley"]);
-  assert.deepEqual(next.entityResolution?.messageOwners, ["Blake"]);
-  assert.deepEqual(next.entityResolution?.sceneEntityIds, ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"]);
-  assert.deepEqual(next.entityResolution?.messageEntityIds, ["bst_mc_alias:test:blake"]);
+  assert.deepEqual(resolveTrackerSceneOwners(null, next), ["Blake", "Ashley"]);
+  assert.deepEqual(resolveTrackerMessageOwners(null, next), ["Blake"]);
+  assert.deepEqual(resolveTrackerSceneEntityIds(null, next), ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"]);
+  assert.deepEqual(
+    next.entityResolution?.resolvedEntities?.filter(entity => entity.inMessage).map(entity => entity.entityId),
+    ["bst_mc_alias:test:blake"],
+  );
 });
 
 test("applyEditedTrackerActiveState prefers resolver scene owners over stale activeCharacters", () => {
   const current = {
     ...makeTrackerData(),
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake", "Ashley"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:test:blake", "bst_mc_alias:test:ashley"],
       messageEntityIds: ["bst_mc_alias:test:blake"],
       source: "model" as const,
-    },
+    }),
     entityOwnerMap: {
       ...makeTrackerData().entityOwnerMap,
       Ashley: {
@@ -189,13 +197,13 @@ test("buildEditedTrackerDataSnapshot prefers resolver scene owners over stale ac
   const current = {
     ...makeTrackerData(),
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:test:blake"],
       messageEntityIds: ["bst_mc_alias:test:blake"],
       source: "model" as const,
-    },
+    }),
   } satisfies TrackerData;
 
   const next = buildEditedTrackerDataSnapshot({

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
 import { __testables } from "../src/promptInjection";
@@ -431,13 +432,13 @@ test("buildPrompt prefers resolved scene owners over request-only activeCharacte
   });
   const data = makeTracker({
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: [],
       messageEntityIds: [],
-    },
+    }),
     statistics: {
       affection: {},
       trust: {},
@@ -462,13 +463,13 @@ test("buildPrompt prefers resolved scene owners over request-only activeCharacte
 test("resolveInjectionTargetOwner prefers resolver message entity ids over source-card fallback names", () => {
   const data = makeTracker({
     activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: [],
       sceneEntityIds: ["ent-ashley", "ent-blake"],
       messageEntityIds: ["ent-ashley"],
-    },
+    }),
   });
   const context = makeContext({
     name2: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
@@ -534,13 +535,13 @@ test("resolveInjectionTargetOwner prefers resolver message entity ids over sourc
 test("resolveInjectionTargetOwner can materialize message owners from messageEntityIds plus entityOwnerMap when registry lookup is unavailable", () => {
   const data = makeTracker({
     activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: [],
       sceneEntityIds: ["ent-ashley", "ent-blake"],
       messageEntityIds: ["ent-ashley"],
-    },
+    }),
     entityOwnerMap: {
       Ashley: {
         entityId: "ent-ashley",
@@ -609,13 +610,13 @@ test("buildPrompt resolves owner lines through tracker entityOwnerMap before raw
   const data: TrackerData = {
     timestamp: Date.now(),
     activeCharacters: ["Ash"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ash"],
       messageOwners: ["Ash"],
       sceneEntityIds: ["ent-ashley"],
       messageEntityIds: ["ent-ashley"],
-    },
+    }),
     entityOwnerMap: {
       Ash: {
         entityId: "ent-ashley",

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
   buildDiagnosticsReport,
@@ -13,13 +14,20 @@ function makeTracker(timestamp: number): TrackerData {
   return {
     timestamp,
     activeCharacters: ["Seraphina"],
-    entityResolution: {
-      sceneOwners: ["Seraphina"],
-      messageOwners: ["Seraphina"],
-      sceneEntityIds: ["bst_owner:seraphina.png|seraphina"],
-      messageEntityIds: ["bst_owner:seraphina.png|seraphina"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "bst_owner:seraphina.png|seraphina",
+          kind: "st-character",
+          name: "Seraphina",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
       source: "model",
-    },
+    }),
     statistics: {
       affection: { Seraphina: 55 },
       trust: { Seraphina: 52 },
@@ -307,13 +315,20 @@ test("buildDiagnosticsReport produces expected core fields", () => {
   );
   assert.deepEqual(
     ((report.promptInjection as { latestStoredTrackerData: { entityResolution: unknown } }).latestStoredTrackerData.entityResolution),
-      {
-        sceneOwners: ["Seraphina"],
-        messageOwners: ["Seraphina"],
-        sceneEntityIds: ["bst_owner:seraphina.png|seraphina"],
-        messageEntityIds: ["bst_owner:seraphina.png|seraphina"],
-        source: "model",
-      },
+    buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "bst_owner:seraphina.png|seraphina",
+          kind: "st-character",
+          name: "Seraphina",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
+      source: "model",
+    }),
   );
   assert.equal(
     (report.promptInjection as { currentPromptMatchesLatestDataMessage: boolean }).currentPromptMatchesLatestDataMessage,

@@ -15,10 +15,15 @@ import type {
   Statistics,
   TrackerData,
   TrackerDataEntityOwner,
+  TrackerResolvedEntity,
 } from "./types";
 import { normalizeCustomNonNumericValue } from "./customStatRuntime";
 import { buildTrackerDataEntityOwnerMap, clearEntityRegistry } from "./entityRegistry";
 const CHAT_STATE_KEY = `${EXTENSION_KEY}:chat`;
+
+function normalizeKey(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
 
 function createEmptyStatistics(): Statistics {
   return {
@@ -43,6 +48,83 @@ function normalizeStatistics(raw: unknown): Statistics {
     mood: { ...(record.mood ?? {}) },
     lastThought: { ...(record.lastThought ?? {}) },
   };
+}
+
+function normalizeResolvedEntities(raw: unknown): TrackerResolvedEntity[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TrackerResolvedEntity[] = [];
+  const seen = new Set<string>();
+  for (const value of raw) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const record = value as Record<string, unknown>;
+    const entityId = String(record.entityId ?? "").trim();
+    const name = String(record.name ?? "").trim();
+    if (!entityId || !name || seen.has(entityId)) continue;
+    seen.add(entityId);
+    const kind = record.kind === "persona" || record.kind === "narrative-entity"
+      ? record.kind
+      : "st-character";
+    const aliases = Array.isArray(record.aliases)
+      ? Array.from(new Set(record.aliases.map(item => String(item ?? "").trim()).filter(Boolean)))
+      : undefined;
+    out.push({
+      entityId,
+      kind,
+      name,
+      avatar: String(record.avatar ?? "").trim() || null,
+      aliases: aliases?.length ? aliases : undefined,
+      inScene: Boolean(record.inScene),
+      inMessage: Boolean(record.inMessage),
+      created: Boolean(record.created),
+    });
+  }
+  return out;
+}
+
+function cloneEntityResolution(
+  entityResolution: TrackerData["entityResolution"] | undefined,
+): TrackerData["entityResolution"] {
+  if (!entityResolution) return undefined;
+  const cloned: NonNullable<TrackerData["entityResolution"]> = {
+    resolvedEntities: entityResolution.resolvedEntities?.map(entity => ({
+      ...entity,
+      aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+      created: Boolean(entity.created),
+    })) ?? [],
+    source: entityResolution.source,
+  };
+  if (entityResolution.unresolvedMentions?.length) {
+    cloned.unresolvedMentions = [...entityResolution.unresolvedMentions];
+  }
+  return cloned;
+}
+
+function resolveNamesFromResolvedEntitiesWithOwnerMap(
+  resolvedEntities: TrackerResolvedEntity[] | undefined,
+  entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
+  predicate: (entity: TrackerResolvedEntity) => boolean,
+): string[] {
+  if (!resolvedEntities?.length) return [];
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = String(raw ?? "").trim();
+    const key = value.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+  const ownerByEntityId = new Map<string, TrackerDataEntityOwner>();
+  for (const snapshot of Object.values(entityOwnerMap ?? {})) {
+    if (!snapshot?.entityId) continue;
+    ownerByEntityId.set(String(snapshot.entityId).trim(), snapshot);
+  }
+  for (const entity of resolvedEntities) {
+    if (!predicate(entity)) continue;
+    const owner = ownerByEntityId.get(String(entity.entityId).trim());
+    push(owner?.ownerName ?? entity.name);
+  }
+  return names;
 }
 
 export function getTrackerDataFromMessage(message: ChatMessage): TrackerData | null {
@@ -80,21 +162,18 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   const clearedStatistics = normalizeClearedStatistics(data.clearedStatistics);
   const clearedCustomStatistics = normalizeClearedOwnerBuckets(data.clearedCustomStatistics);
   const clearedCustomNonNumericStatistics = normalizeClearedOwnerBuckets(data.clearedCustomNonNumericStatistics);
-  const normalizedEntityResolution = normalizeEntityResolution(data.entityResolution);
   const normalizedEntityOwnerMap = normalizeEntityOwnerMap(data.entityOwnerMap);
-  const normalizedSceneOwners = normalizedEntityResolution?.sceneOwners?.length
-    ? [...normalizedEntityResolution.sceneOwners]
-    : resolveOwnersFromEntityIdsWithOwnerMap(normalizedEntityResolution?.sceneEntityIds, normalizedEntityOwnerMap);
-  const normalizedMessageOwners = normalizedEntityResolution?.messageOwners?.length
-    ? [...normalizedEntityResolution.messageOwners]
-    : resolveOwnersFromEntityIdsWithOwnerMap(normalizedEntityResolution?.messageEntityIds, normalizedEntityOwnerMap);
-  const hydratedEntityResolution = normalizedEntityResolution
-    ? {
-        ...normalizedEntityResolution,
-        sceneOwners: normalizedSceneOwners,
-        messageOwners: normalizedMessageOwners,
-      }
-    : normalizedEntityResolution;
+  const normalizedEntityResolution = normalizeEntityResolution(data.entityResolution);
+  const normalizedSceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    normalizedEntityResolution?.resolvedEntities,
+    normalizedEntityOwnerMap,
+    entity => entity.inScene,
+  );
+  const normalizedMessageOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    normalizedEntityResolution?.resolvedEntities,
+    normalizedEntityOwnerMap,
+    entity => entity.inMessage,
+  );
   const normalizedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
     { activeCharacters: data.activeCharacters },
     normalizedSceneOwners,
@@ -103,7 +182,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   return normalizeTrackerDataEntityBuckets({
     timestamp: Number(data.timestamp ?? Date.now()),
     activeCharacters: normalizedActiveCharacters,
-    entityResolution: hydratedEntityResolution,
+    entityResolution: normalizedEntityResolution,
     statistics: {
       ...createEmptyStatistics(),
       ...(data.statistics as Statistics)
@@ -120,44 +199,31 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   });
 }
 
-function normalizeEntityResolution(raw: unknown): TrackerData["entityResolution"] {
+function normalizeEntityResolution(
+  raw: unknown,
+): TrackerData["entityResolution"] {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const record = raw as Record<string, unknown>;
-  const hasExplicitEntityResolutionShape =
-    Object.prototype.hasOwnProperty.call(record, "sceneOwners")
-    || Object.prototype.hasOwnProperty.call(record, "messageOwners")
-    || Object.prototype.hasOwnProperty.call(record, "sceneEntityIds")
-    || Object.prototype.hasOwnProperty.call(record, "messageEntityIds")
-    || Object.prototype.hasOwnProperty.call(record, "source");
-  const sceneOwners = Array.isArray(record.sceneOwners)
-    ? Array.from(new Set(record.sceneOwners.map(item => String(item ?? "").trim()).filter(Boolean)))
-    : [];
-  const messageOwners = Array.isArray(record.messageOwners)
-    ? Array.from(new Set(record.messageOwners.map(item => String(item ?? "").trim()).filter(Boolean)))
-    : [];
-  const sceneEntityIds = Array.isArray(record.sceneEntityIds)
-    ? Array.from(new Set(record.sceneEntityIds.map(item => String(item ?? "").trim()).filter(Boolean)))
-    : [];
-  const messageEntityIds = Array.isArray(record.messageEntityIds)
-    ? Array.from(new Set(record.messageEntityIds.map(item => String(item ?? "").trim()).filter(Boolean)))
+  const resolvedEntities = normalizeResolvedEntities(record.resolvedEntities);
+  const unresolvedMentions = Array.isArray(record.unresolvedMentions)
+    ? Array.from(new Set(record.unresolvedMentions.map(item => String(item ?? "").trim()).filter(Boolean)))
     : [];
   const source = record.source === "model" ? "model" : "fallback";
   if (
-    !sceneOwners.length
-    && !messageOwners.length
-    && !sceneEntityIds.length
-    && !messageEntityIds.length
-    && !hasExplicitEntityResolutionShape
+    !resolvedEntities.length
+    && !unresolvedMentions.length
+    && !Object.prototype.hasOwnProperty.call(record, "source")
   ) {
     return undefined;
   }
-  return {
-    sceneOwners,
-    messageOwners,
-    sceneEntityIds: sceneEntityIds.length ? sceneEntityIds : undefined,
-    messageEntityIds: messageEntityIds.length ? messageEntityIds : undefined,
+  const normalized: NonNullable<TrackerData["entityResolution"]> = {
+    resolvedEntities,
     source,
   };
+  if (unresolvedMentions.length) {
+    normalized.unresolvedMentions = unresolvedMentions;
+  }
+  return normalized;
 }
 
 function normalizeEntityOwnerMap(raw: unknown): TrackerData["entityOwnerMap"] {
@@ -399,23 +465,37 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
     derivedCustomNonNumericStatisticsByEntityId,
     normalizeCustomNonNumericStatistics(data.customNonNumericStatisticsByEntityId),
   );
+  const remappedResolvedEntities = data.entityResolution?.resolvedEntities?.length
+    ? data.entityResolution.resolvedEntities.map(entity => ({
+        ...entity,
+        name: ownerToTarget[entity.name] || entity.name,
+      }))
+    : [];
   const remappedEntityResolution = data.entityResolution
-    ? {
-        sceneOwners: Array.from(new Set((data.entityResolution.sceneOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
-        messageOwners: Array.from(new Set((data.entityResolution.messageOwners ?? []).map(owner => ownerToTarget[owner] || owner))),
-        sceneEntityIds: Array.from(new Set(data.entityResolution.sceneEntityIds ?? [])),
-        messageEntityIds: Array.from(new Set(data.entityResolution.messageEntityIds ?? [])),
+    ? cloneEntityResolution({
+        resolvedEntities: remappedResolvedEntities,
+        unresolvedMentions: data.entityResolution.unresolvedMentions,
         source: data.entityResolution.source,
-      }
+      })
     : undefined;
+  const remappedSceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    remappedResolvedEntities,
+    mergedEntityOwnerMap,
+    entity => entity.inScene,
+  );
+  const remappedMessageOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    remappedResolvedEntities,
+    mergedEntityOwnerMap,
+    entity => entity.inMessage,
+  );
   const remappedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
     {
       activeCharacters: Array.isArray(data.activeCharacters)
         ? Array.from(new Set(data.activeCharacters.map(owner => ownerToTarget[owner] || owner)))
         : data.activeCharacters,
     },
-    remappedEntityResolution?.sceneOwners ?? [],
-    remappedEntityResolution?.messageOwners ?? [],
+    remappedSceneOwners,
+    remappedMessageOwners,
   );
   return {
     ...data,
@@ -625,8 +705,7 @@ function isTrackerPayload(raw: unknown): raw is Partial<TrackerData> {
   if (!raw || typeof raw !== "object") return false;
   const data = raw as Partial<TrackerData>;
   const hasResolverSceneIdentity = Boolean(
-    Array.isArray(data.entityResolution?.sceneEntityIds) && data.entityResolution.sceneEntityIds.length
-    || Array.isArray(data.entityResolution?.sceneOwners) && data.entityResolution.sceneOwners.length,
+    Array.isArray(data.entityResolution?.resolvedEntities) && data.entityResolution.resolvedEntities.length,
   );
   if (!data.statistics) return false;
   if (!data.activeCharacters && !hasResolverSceneIdentity) return false;
@@ -1311,19 +1390,21 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     );
     mergedTimestamp = Math.max(mergedTimestamp, Number(entry.timestamp ?? 0));
     if (entry.entityResolution) {
-      mergedEntityResolution = {
-        source: entry.entityResolution.source,
-        sceneOwners: [...(entry.entityResolution.sceneOwners ?? [])],
-        messageOwners: [...(entry.entityResolution.messageOwners ?? [])],
-        sceneEntityIds: [...(entry.entityResolution.sceneEntityIds ?? [])],
-        messageEntityIds: [...(entry.entityResolution.messageEntityIds ?? [])],
-      };
+      mergedEntityResolution = cloneEntityResolution(entry.entityResolution);
       const hasExplicitActiveCharacters = Array.isArray(entry.activeCharacters);
       const explicitActiveCharacters = hasExplicitActiveCharacters
         ? entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
         : [];
-      const sceneOwners = (entry.entityResolution.sceneOwners ?? []).map(name => String(name ?? "").trim()).filter(Boolean);
-      const messageOwners = (entry.entityResolution.messageOwners ?? []).map(name => String(name ?? "").trim()).filter(Boolean);
+      const sceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+        entry.entityResolution.resolvedEntities,
+        entry.entityOwnerMap,
+        entity => entity.inScene,
+      );
+      const messageOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+        entry.entityResolution.resolvedEntities,
+        entry.entityOwnerMap,
+        entity => entity.inMessage,
+      );
       if (hasExplicitActiveCharacters) {
         fallbackActiveCharacters = explicitActiveCharacters;
       } else if (messageOwners.length) {
@@ -1343,21 +1424,16 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
   }
 
   const mergedEntityOwnerMap = mergeEntityOwnerMapsChronologically(sorted);
-  const hydratedSceneOwners = mergedEntityResolution?.sceneOwners?.length
-    ? [...mergedEntityResolution.sceneOwners]
-    : resolveOwnersFromEntityIdsWithOwnerMap(mergedEntityResolution?.sceneEntityIds, mergedEntityOwnerMap);
-  const hydratedMessageOwners = mergedEntityResolution?.messageOwners?.length
-    ? [...mergedEntityResolution.messageOwners]
-    : resolveOwnersFromEntityIdsWithOwnerMap(mergedEntityResolution?.messageEntityIds, mergedEntityOwnerMap);
-  const hydratedEntityResolution = mergedEntityResolution
-    ? {
-        ...mergedEntityResolution,
-        sceneOwners: hydratedSceneOwners,
-        messageOwners: hydratedMessageOwners.length
-          ? hydratedMessageOwners
-          : (hydratedSceneOwners.length ? hydratedSceneOwners : mergedEntityResolution.messageOwners),
-      }
-    : mergedEntityResolution;
+  const hydratedSceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    mergedEntityResolution?.resolvedEntities,
+    mergedEntityOwnerMap,
+    entity => entity.inScene,
+  );
+  const hydratedMessageOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    mergedEntityResolution?.resolvedEntities,
+    mergedEntityOwnerMap,
+    entity => entity.inMessage,
+  );
   const normalizedFallbackActiveCharacters = resolveNormalizedTrackerActiveCharacters(
     { activeCharacters: fallbackActiveCharacters },
     hydratedSceneOwners,
@@ -1367,7 +1443,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
   return normalizeTrackerDataEntityBuckets({
     timestamp: mergedTimestamp || Date.now(),
     activeCharacters: normalizedFallbackActiveCharacters,
-    entityResolution: hydratedEntityResolution,
+    entityResolution: mergedEntityResolution,
     statistics: mergedStatistics ?? createEmptyStatistics(),
     statisticsByEntityId: mergedStatisticsByEntityId ?? createEmptyStatistics(),
     customStatistics: mergedCustomStatistics ?? {},

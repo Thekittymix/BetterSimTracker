@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { buildFallbackSummaryProse, buildSummaryTrackerStateLines, collectSummaryCharacters } from "../src/trackerSummary";
 import { defaultSettings } from "../src/settings";
@@ -74,13 +75,13 @@ function makeTracker(): TrackerData {
   return {
     timestamp: 1,
     activeCharacters: ["Ash"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ash"],
       messageOwners: ["Ash"],
       sceneEntityIds: ["ent-ashley"],
       messageEntityIds: ["ent-ashley"],
-    },
+    }),
     entityOwnerMap: {
       Ash: {
         entityId: "ent-ashley",
@@ -148,13 +149,13 @@ test("collectSummaryCharacters ignores raw stat owner keys once explicit resolve
 test("collectSummaryCharacters can materialize scene owners from sceneEntityIds plus entityOwnerMap without context", () => {
   const tracker = makeTracker();
   tracker.activeCharacters = ["Garret"];
-  tracker.entityResolution = {
+  tracker.entityResolution = buildEntityResolution({
     source: "model",
     sceneOwners: [],
     messageOwners: [],
     sceneEntityIds: ["ent-ashley"],
     messageEntityIds: ["ent-ashley"],
-  };
+  });
   tracker.entityOwnerMap = {
     Ashley: {
       entityId: "ent-ashley",
@@ -182,13 +183,13 @@ test("collectSummaryCharacters can materialize scene owners from sceneEntityIds 
 test("collectSummaryCharacters without context prefers sceneEntityIds plus ownerMap over stale sceneOwners", () => {
   const tracker = makeTracker();
   tracker.activeCharacters = ["Garret"];
-  tracker.entityResolution = {
+  tracker.entityResolution = buildEntityResolution({
     source: "model",
     sceneOwners: ["Garret"],
     messageOwners: ["Garret"],
     sceneEntityIds: ["ent-ashley"],
     messageEntityIds: ["ent-ashley"],
-  };
+  });
   tracker.entityOwnerMap = {
     Ashley: {
       entityId: "ent-ashley",

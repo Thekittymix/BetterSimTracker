@@ -22,13 +22,13 @@ test("buildMultiCharacterResolverPrompt lists candidate owners and latest messag
     } as any,
   });
 
-  assert.match(prompt, /\"entityRef\": \"ent1\"/);
-  assert.match(prompt, /\"ownerName\": \"Blake\"/);
+  assert.match(prompt, /"entityRef": "ent1"/);
+  assert.match(prompt, /"ownerName": "Blake"/);
   assert.match(prompt, /Latest message:/);
   assert.match(prompt, /role: ai/);
   assert.match(prompt, /Blake watched the door click shut\./);
-  assert.match(prompt, /sceneOwners is the end-of-message roster/i);
-  assert.match(prompt, /messageOwner without being a sceneOwner if the message shows them leaving/i);
+  assert.match(prompt, /inScene=true.*end of the latest message/i);
+  assert.match(prompt, /`inMessage` may be true while `inScene` is false/i);
 });
 
 test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", () => {
@@ -48,15 +48,18 @@ test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", ()
   assert.match(prompt, /Latest message:/);
   assert.match(prompt, /role: user/);
   assert.match(prompt, /Ashley leaves the room\. Blake stays here alone now\./);
-  assert.match(prompt, /If the latest message or instruction makes it clear that only the user remains, sceneOwners should be an empty array\./);
-  assert.match(prompt, /For user-turn instructions about who leaves, stays, or remains, treat those explicit scene instructions as authoritative/i);
+  assert.match(prompt, /return an empty `resolved` array/i);
+  assert.match(prompt, /Resolve which already-known entities are present in the scene at the end of the latest message/i);
 });
 
-test("parseMultiCharacterResolverResponse keeps scene owners separate when messageOwners are empty", () => {
+test("parseMultiCharacterResolverResponse keeps scene entities separate when no entity advances the message", () => {
   const parsed = parseMultiCharacterResolverResponse(
     JSON.stringify({
-      sceneOwners: ["Blake", "Kuba", "Blake"],
-      messageOwners: [],
+      resolved: [
+        { entityRef: "ent2", inScene: true, inMessage: false },
+      ],
+      created: [],
+      unresolvedMentions: ["Kuba", "Kuba"],
     }),
     [
       { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley" },
@@ -67,18 +70,30 @@ test("parseMultiCharacterResolverResponse keeps scene owners separate when messa
   );
 
   assert.deepEqual(parsed, {
-    sceneOwners: ["Blake"],
-    messageOwners: [],
-    sceneEntityIds: [],
-    messageEntityIds: [],
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:test:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+      },
+    ],
+    unresolvedMentions: ["Kuba"],
   });
 });
 
-test("parseMultiCharacterResolverResponse accepts narrowed message owners from a broader scene owner set", () => {
+test("parseMultiCharacterResolverResponse accepts narrowed message entities from a broader scene set", () => {
   const parsed = parseMultiCharacterResolverResponse(
     JSON.stringify({
-      sceneOwners: ["Blake", "Raleigh"],
-      messageOwners: ["Blake"],
+      resolved: [
+        { entityRef: "ent2", inScene: true, inMessage: true },
+        { entityRef: "ent4", inScene: true, inMessage: false },
+      ],
+      created: [],
+      unresolvedMentions: [],
     }),
     [
       { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley" },
@@ -89,18 +104,39 @@ test("parseMultiCharacterResolverResponse accepts narrowed message owners from a
   );
 
   assert.deepEqual(parsed, {
-    sceneOwners: ["Blake", "Raleigh"],
-    messageOwners: ["Blake"],
-    sceneEntityIds: [],
-    messageEntityIds: [],
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:test:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "bst_mc_alias:test:raleigh",
+        kind: "st-character",
+        name: "Raleigh",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+      },
+    ],
+    unresolvedMentions: [],
   });
 });
 
 test("parseMultiCharacterResolverResponse maps entity refs back to stable entity ids", () => {
   const parsed = parseMultiCharacterResolverResponse(
     JSON.stringify({
-      sceneEntityRefs: ["ent2", "ent4"],
-      messageEntityRefs: ["ent2"],
+      resolved: [
+        { entityRef: "ent2", inScene: true, inMessage: true },
+        { entityRef: "ent4", inScene: true, inMessage: false },
+      ],
+      created: [],
+      unresolvedMentions: [],
     }),
     [
       { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley" },
@@ -111,18 +147,38 @@ test("parseMultiCharacterResolverResponse maps entity refs back to stable entity
   );
 
   assert.deepEqual(parsed, {
-    sceneOwners: ["Blake", "Raleigh"],
-    messageOwners: ["Blake"],
-    sceneEntityIds: ["bst_mc_alias:test:blake", "bst_mc_alias:test:raleigh"],
-    messageEntityIds: ["bst_mc_alias:test:blake"],
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:test:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "bst_mc_alias:test:raleigh",
+        kind: "st-character",
+        name: "Raleigh",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+      },
+    ],
+    unresolvedMentions: [],
   });
 });
 
-test("parseMultiCharacterResolverResponse keeps messageEntityIds empty when only scene entity refs are provided", () => {
+test("parseMultiCharacterResolverResponse keeps inMessage false when only scene entities are provided", () => {
   const parsed = parseMultiCharacterResolverResponse(
     JSON.stringify({
-      sceneEntityRefs: ["ent2"],
-      messageEntityRefs: [],
+      resolved: [
+        { entityRef: "ent2", inScene: true, inMessage: false },
+      ],
+      created: [],
+      unresolvedMentions: [],
     }),
     [
       { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley" },
@@ -131,9 +187,17 @@ test("parseMultiCharacterResolverResponse keeps messageEntityIds empty when only
   );
 
   assert.deepEqual(parsed, {
-    sceneOwners: ["Blake"],
-    messageOwners: [],
-    sceneEntityIds: ["bst_mc_alias:test:blake"],
-    messageEntityIds: [],
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:test:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+      },
+    ],
+    unresolvedMentions: [],
   });
 });

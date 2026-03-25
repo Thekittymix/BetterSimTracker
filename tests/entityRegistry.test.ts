@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
   buildLifecycleHistorySnapshotsFromTrackerEntries,
@@ -343,26 +344,26 @@ test("resolveTrackerSceneOwners prefers scene entity ids over stale owner-name a
 
   const resolved = resolveTrackerSceneOwners(context, makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Garret"],
       messageOwners: ["Blake"],
       sceneEntityIds: [blakeEntityId],
       messageEntityIds: [blakeEntityId],
       source: "model",
-    },
+    }),
   }));
 
   assert.deepEqual(resolved, ["Blake"]);
   assert.deepEqual(
     resolveTrackerSceneEntityIds(context, makeTracker({
       activeCharacters: ["Garret"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         sceneOwners: ["Garret"],
         messageOwners: ["Blake"],
         sceneEntityIds: [blakeEntityId],
         messageEntityIds: [blakeEntityId],
         source: "model",
-      },
+      }),
     })),
     [blakeEntityId],
   );
@@ -371,13 +372,13 @@ test("resolveTrackerSceneOwners prefers scene entity ids over stale owner-name a
 test("resolveTrackerSceneOwners can materialize scene owners from sceneEntityIds plus entityOwnerMap without context", () => {
   const resolved = resolveTrackerSceneOwners(null, makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: [],
       messageOwners: [],
       sceneEntityIds: ["ent-blake"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
     entityOwnerMap: {
       Blake: {
         entityId: "ent-blake",
@@ -419,13 +420,13 @@ test("resolveTrackerMessageOwners prefers message entity ids over stale message 
 
   const resolved = resolveTrackerMessageOwners(context, makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: ["Garret"],
       sceneEntityIds: [blakeEntityId],
       messageEntityIds: [blakeEntityId],
       source: "model",
-    },
+    }),
   }));
 
   assert.deepEqual(resolved, ["Blake"]);
@@ -434,13 +435,13 @@ test("resolveTrackerMessageOwners prefers message entity ids over stale message 
 test("resolveTrackerMessageOwners can materialize message owners from messageEntityIds plus entityOwnerMap without context", () => {
   const resolved = resolveTrackerMessageOwners(null, makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Garret"],
       messageOwners: [],
       sceneEntityIds: ["ent-garret"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
     entityOwnerMap: {
       Blake: {
         entityId: "ent-blake",
@@ -485,13 +486,13 @@ test("buildLifecycleHistorySnapshotsFromTrackerEntries uses explicit active owne
       messageIndex: 8,
       data: makeTracker({
         activeCharacters: [],
-        entityResolution: {
+        entityResolution: buildEntityResolution({
           sceneOwners: ["Garret"],
           messageOwners: ["Blake"],
           sceneEntityIds: [blakeEntityId],
           messageEntityIds: [blakeEntityId],
           source: "model",
-        },
+        }),
       }),
     } as never,
     (() => {
@@ -524,13 +525,13 @@ test("resolveTrackerActiveOwners and entity ids preserve explicit empty active s
   const context = makeContext();
   const tracker = makeTracker({
     activeCharacters: [],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: [],
       sceneEntityIds: ["ent-ashley", "ent-blake"],
       messageEntityIds: [],
       source: "model",
-    },
+    }),
   });
 
   assert.deepEqual(resolveTrackerActiveOwners(context, tracker), []);
@@ -542,13 +543,13 @@ test("resolveTrackerActiveOwners and entity ids preserve explicit empty active s
 test("resolveTrackerActiveOwners and entity ids prefer message owners over broader scene owners", () => {
   const tracker = makeTracker({
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
     entityOwnerMap: {
       Blake: {
         entityId: "ent-blake",
@@ -563,7 +564,7 @@ test("resolveTrackerActiveOwners and entity ids prefer message owners over broad
 
   assert.deepEqual(resolveTrackerActiveOwners(null, tracker), ["Blake"]);
   assert.deepEqual(resolveTrackerActiveEntityIds(null, tracker), ["ent-blake"]);
-  assert.deepEqual(resolveTrackerSceneOwners(null, tracker), ["Blake"]);
+  assert.deepEqual(resolveTrackerSceneOwners(null, tracker), ["Ashley", "Blake", "Garret", "Raleigh"]);
 });
 
 test("resolveTrackerActiveOwners and entity ids fall back to resolver scene owners when explicit activeCharacters are missing", () => {
@@ -579,17 +580,18 @@ test("resolveTrackerActiveOwners and entity ids fall back to resolver scene owne
     },
     customStatistics: {},
     customNonNumericStatistics: {},
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
   } as TrackerData;
 
-  assert.deepEqual(resolveTrackerActiveOwners(null, tracker), ["Ashley", "Blake", "Garret", "Raleigh"]);
-  assert.deepEqual(resolveTrackerActiveEntityIds(null, tracker), ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"]);
+  assert.deepEqual(resolveTrackerActiveOwners(null, tracker), ["Blake"]);
+  assert.deepEqual(resolveTrackerActiveEntityIds(null, tracker), ["ent-blake"]);
+  assert.deepEqual(resolveTrackerSceneOwners(null, tracker), ["Ashley", "Blake", "Garret", "Raleigh"]);
   assert.deepEqual(resolveTrackerMessageOwners(null, tracker), ["Blake"]);
 });
 
@@ -955,13 +957,13 @@ test("buildTrackerDataEntityOwnerMap prefers resolver scene/message owners over 
 
   const tracker = makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Blake", "Ashley"],
       messageOwners: ["Blake"],
       sceneEntityIds: [],
       messageEntityIds: [],
-    },
+    }),
     statistics: {
       affection: { Blake: 61 },
       trust: {},
@@ -991,13 +993,13 @@ test("buildTrackerDataEntityOwnerMap ignores stale activeCharacters when resolve
 
   const tracker = makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Blake", "Ashley"],
       messageOwners: ["Blake"],
       sceneEntityIds: [],
       messageEntityIds: [],
-    },
+    }),
     statistics: {
       affection: { Blake: 61 },
       trust: {},
@@ -1030,13 +1032,13 @@ test("buildTrackerDataEntityOwnerMap prefers resolver scene entity ids over stal
 
   const tracker = makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: [],
       messageOwners: ["Blake"],
       sceneEntityIds: [blakeEntityId],
       messageEntityIds: [blakeEntityId],
-    },
+    }),
     statistics: {
       affection: { Blake: 61 },
       trust: {},
@@ -1068,13 +1070,13 @@ test("buildTrackerDataEntityOwnerMap prefers resolver message entity ids over st
 
   const tracker = makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: [],
       messageOwners: [],
       sceneEntityIds: [],
       messageEntityIds: [blakeEntityId],
-    },
+    }),
     statistics: {
       affection: { Blake: 61 },
       trust: {},
@@ -1110,13 +1112,13 @@ test("buildTrackerDataEntityOwnerMap ignores raw stat owner keys once resolver/e
 
   const tracker = makeTracker({
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Blake", "Ashley"],
       messageOwners: ["Blake"],
       sceneEntityIds: [],
       messageEntityIds: [],
-    },
+    }),
     statistics: {
       affection: { Billie: 61 },
       trust: {},

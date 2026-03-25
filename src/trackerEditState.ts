@@ -63,11 +63,6 @@ export function applyEditedTrackerActiveState(
   const entityId = normalizeToken(snapshot?.entityId);
   const removeOwner = (values: string[] | undefined): string[] =>
     (values ?? []).filter(value => normalizeNameKey(value) !== ownerNeedle);
-  const removeEntity = (values: string[] | undefined): string[] | undefined => {
-    if (!values) return values;
-    if (!entityId) return [...values];
-    return values.filter(value => normalizeToken(value) !== entityId);
-  };
 
   const nextActiveCharacters = removeOwner(resolveTrackerSceneOwners(null, data));
   if (active) nextActiveCharacters.push(resolvedOwnerName);
@@ -75,36 +70,34 @@ export function applyEditedTrackerActiveState(
   const nextEntityResolution = data.entityResolution
     ? {
         ...data.entityResolution,
-        sceneOwners: removeOwner(data.entityResolution.sceneOwners),
-        messageOwners: removeOwner(data.entityResolution.messageOwners),
-        sceneEntityIds: removeEntity(data.entityResolution.sceneEntityIds),
-        messageEntityIds: removeEntity(data.entityResolution.messageEntityIds),
+        resolvedEntities: (data.entityResolution.resolvedEntities ?? [])
+          .filter(entity => {
+            if (entityId) return normalizeToken(entity.entityId) !== entityId;
+            return normalizeNameKey(entity.name) !== ownerNeedle;
+          })
+          .map(entity => ({
+            ...entity,
+            aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+          })),
       }
     : undefined;
 
   if (active && nextEntityResolution) {
-    nextEntityResolution.sceneOwners.push(resolvedOwnerName);
-    if (entityId) {
-      nextEntityResolution.sceneEntityIds = [...(nextEntityResolution.sceneEntityIds ?? []), entityId];
-    }
+    nextEntityResolution.resolvedEntities.push({
+      entityId: entityId || `bst_manual:${resolvedOwnerName.toLowerCase()}`,
+      kind: "st-character",
+      name: resolvedOwnerName,
+      avatar: null,
+      aliases: snapshot?.aliases?.length ? [...snapshot.aliases] : undefined,
+      inScene: true,
+      inMessage: false,
+    });
   }
 
   return {
     ...data,
     activeCharacters: Array.from(new Set(nextActiveCharacters)),
-    entityResolution: nextEntityResolution
-      ? {
-          ...nextEntityResolution,
-          sceneOwners: Array.from(new Set(nextEntityResolution.sceneOwners)),
-          messageOwners: Array.from(new Set(nextEntityResolution.messageOwners)),
-          sceneEntityIds: nextEntityResolution.sceneEntityIds?.length
-            ? Array.from(new Set(nextEntityResolution.sceneEntityIds))
-            : undefined,
-          messageEntityIds: nextEntityResolution.messageEntityIds?.length
-            ? Array.from(new Set(nextEntityResolution.messageEntityIds))
-            : undefined,
-        }
-      : nextEntityResolution,
+    entityResolution: nextEntityResolution,
   };
 }
 
@@ -114,15 +107,7 @@ export function buildEditedTrackerDataSnapshot(input: BuildEditedTrackerDataSnap
   return {
     timestamp: input.timestamp,
     activeCharacters: resolvedSceneOwners.length ? resolvedSceneOwners : [...input.activeCharacters],
-    entityResolution: current.entityResolution
-      ? {
-          sceneOwners: [...(current.entityResolution.sceneOwners ?? [])],
-          messageOwners: [...(current.entityResolution.messageOwners ?? [])],
-          sceneEntityIds: current.entityResolution.sceneEntityIds ? [...current.entityResolution.sceneEntityIds] : undefined,
-          messageEntityIds: current.entityResolution.messageEntityIds ? [...current.entityResolution.messageEntityIds] : undefined,
-          source: current.entityResolution.source,
-        }
-      : undefined,
+    entityResolution: current.entityResolution ? structuredClone(current.entityResolution) : undefined,
     statistics: input.statistics,
     statisticsByEntityId: current.statisticsByEntityId ? structuredClone(current.statisticsByEntityId) : undefined,
     customStatistics: input.customStatistics,

@@ -4,7 +4,7 @@ import type { CustomNonNumericValue, TrackerData } from "./types";
 
 export function cloneTrackerDataForEdit(data: TrackerData): TrackerData {
   const resolvedSceneOwners = resolveTrackerSceneOwners(null, data);
-  const resolvedMessageOwners = data.entityResolution?.messageOwners ?? [];
+  const resolvedMessageOwners = data.entityResolution?.resolvedEntities?.filter(entity => entity.inMessage).map(entity => entity.name) ?? [];
   const cloneCustomNumeric: TrackerData["customStatistics"] = {};
   for (const [statId, byOwner] of Object.entries(data.customStatistics ?? {})) {
     cloneCustomNumeric[statId] = { ...(byOwner ?? {}) };
@@ -22,15 +22,7 @@ export function cloneTrackerDataForEdit(data: TrackerData): TrackerData {
   return {
     timestamp: data.timestamp,
     activeCharacters: resolveNormalizedTrackerActiveCharacters(data, resolvedSceneOwners, resolvedMessageOwners),
-    entityResolution: data.entityResolution
-      ? {
-          sceneOwners: [...(data.entityResolution.sceneOwners ?? [])],
-          messageOwners: [...(data.entityResolution.messageOwners ?? [])],
-          sceneEntityIds: data.entityResolution.sceneEntityIds ? [...data.entityResolution.sceneEntityIds] : undefined,
-          messageEntityIds: data.entityResolution.messageEntityIds ? [...data.entityResolution.messageEntityIds] : undefined,
-          source: data.entityResolution.source,
-        }
-      : undefined,
+    entityResolution: data.entityResolution ? structuredClone(data.entityResolution) : undefined,
     statistics: {
       affection: { ...(data.statistics.affection ?? {}) },
       trust: { ...(data.statistics.trust ?? {}) },

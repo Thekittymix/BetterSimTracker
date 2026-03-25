@@ -1,5 +1,6 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { USER_TRACKER_KEY } from "../src/constants";
 import { defaultSettings } from "../src/settings";
@@ -281,13 +282,13 @@ test("syncBstMacros uses resolved scene owners for bst_image_state instead of re
   const { context, registeredNewEngine } = makeContext();
   const tracker = makeTracker();
   tracker.activeCharacters = ["Blake"];
-  tracker.entityResolution = {
+  tracker.entityResolution = buildEntityResolution({
     source: "model",
     sceneOwners: ["Ashley", "Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: [],
     messageEntityIds: [],
-  };
+  });
   tracker.customNonNumericStatistics = {
     ...tracker.customNonNumericStatistics,
     clothes: {
@@ -355,13 +356,13 @@ test("syncBstMacros resolves alias macro values through entityOwnerMap and byEnt
   const tracker: TrackerData = {
     timestamp: 1,
     activeCharacters: ["Ash"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ash"],
       messageOwners: ["Ash"],
       sceneEntityIds: ["ent-ashley"],
       messageEntityIds: ["ent-ashley"],
-    },
+    }),
     entityOwnerMap: {
       Ash: {
         entityId: "ent-ashley",

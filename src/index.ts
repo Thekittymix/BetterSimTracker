@@ -17,15 +17,16 @@ import {
   resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
   resolveInitialExtractionOwners,
-  resolvePersistedActiveOwners,
-  resolveExtractionRequestEntityIds,
-  resolveExtractionRequestOwners,
+  resolvePersistedSnapshotResolvedEntities,
   resolvePersistedSnapshotActiveOwners,
-  resolvePersistedSnapshotEntityResolution,
 } from "./entityResolution";
 import {
   buildMultiCharacterResolverPrompt,
   parseMultiCharacterResolverResponse,
+  resolveMessageEntityIdsFromResolvedEntities,
+  resolveMessageOwnersFromResolvedEntities,
+  resolveSceneEntityIdsFromResolvedEntities,
+  resolveSceneOwnersFromResolvedEntities,
 } from "./entityResolver";
 import {
   buildEntitySourceKey,
@@ -156,7 +157,6 @@ import {
 import { isManualExtractionReason } from "./extractorHelpers";
 import { buildCharacterCardsContext } from "./characterCardContext";
 import { computeManualPlaceholderMessageIndices } from "./renderQueueHelpers";
-import { resolvePersistedSnapshotEntityIds } from "./persistedSnapshotResolution";
 import {
   isRetryableUserTurnReplayFailure,
   resolveUserTurnReplayRetryDelayMs,
@@ -1075,9 +1075,8 @@ function resolveReplaySceneCharacterIndicesFromLatestUserTracker(context: STCont
         projectOwnerScopedCustomNonNumeric: false,
       })
     : rawData;
-  const hasExplicitSceneResolution =
-    Array.isArray(scopedData.entityResolution?.sceneOwners) ||
-    Array.isArray(scopedData.entityResolution?.sceneEntityIds);
+  const hasExplicitSceneResolution = Array.isArray(scopedData.entityResolution?.resolvedEntities)
+    && scopedData.entityResolution.resolvedEntities.length > 0;
   if (!hasExplicitSceneResolution) {
     return null;
   }
@@ -3463,15 +3462,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           source: "model" | "fallback";
         }
       | null = null;
-    let resolvedEntityResolution:
-      | {
-          sceneOwners: string[];
-          messageOwners: string[];
-          sceneEntityIds: string[];
-          messageEntityIds: string[];
-          source: "model" | "fallback";
-        }
-      | null = null;
+    let resolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> | null = null;
     if (activeSettings.entityTrackingMode === "multi_character" && lastMessage && !lastMessage.is_system) {
       const candidateOwners = resolveEntityResolverCandidateOwners(
         context,
@@ -3494,29 +3485,46 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           });
           const resolverResponse = await generateJson(resolverPrompt, activeSettings);
           const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
-          if (parsedResolver?.sceneOwners.length) {
+          const parsedSceneOwners = parsedResolver
+            ? resolveSceneOwnersFromResolvedEntities(parsedResolver.resolvedEntities)
+            : [];
+          const parsedMessageOwners = parsedResolver
+            ? resolveMessageOwnersFromResolvedEntities(parsedResolver.resolvedEntities)
+            : [];
+          const parsedSceneEntityIds = parsedResolver
+            ? resolveSceneEntityIdsFromResolvedEntities(parsedResolver.resolvedEntities)
+            : [];
+          const parsedMessageEntityIds = parsedResolver
+            ? resolveMessageEntityIdsFromResolvedEntities(parsedResolver.resolvedEntities)
+            : [];
+          if (parsedResolver && parsedSceneOwners.length) {
             resolvedOwnerScopes = {
-              sceneActiveCharacters: parsedResolver.sceneOwners,
-              requestCharacters: parsedResolver.messageOwners.length
-                ? parsedResolver.messageOwners
-                : parsedResolver.sceneOwners,
+              sceneActiveCharacters: parsedSceneOwners,
+              requestCharacters: parsedMessageOwners.length
+                ? parsedMessageOwners
+                : parsedSceneOwners,
               source: "model",
             };
-            resolvedEntityResolution = {
-              sceneOwners: parsedResolver.sceneOwners,
-              messageOwners: parsedResolver.messageOwners,
-              sceneEntityIds: parsedResolver.sceneEntityIds,
-              messageEntityIds: parsedResolver.messageEntityIds.length
-                ? parsedResolver.messageEntityIds
-                : parsedResolver.sceneEntityIds,
+            const nextResolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
+              resolvedEntities: parsedResolver.resolvedEntities.map(entity => ({
+                ...entity,
+                aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+                created: Boolean(entity.created),
+              })),
               source: "model",
             };
+            if (parsedResolver.unresolvedMentions.length) {
+              nextResolvedEntityResolution.unresolvedMentions = [...parsedResolver.unresolvedMentions];
+            }
+            resolvedEntityResolution = nextResolvedEntityResolution;
             pushTrace("entity.resolve", {
               source: "model",
               sceneActiveCharacters: resolvedOwnerScopes.sceneActiveCharacters,
               requestCharacters: resolvedOwnerScopes.requestCharacters,
-              sceneEntityIds: resolvedEntityResolution.sceneEntityIds,
-              messageEntityIds: resolvedEntityResolution.messageEntityIds,
+              sceneEntityIds: parsedSceneEntityIds,
+              messageEntityIds: parsedMessageEntityIds.length
+                ? parsedMessageEntityIds
+                : parsedSceneEntityIds,
             });
           }
         } catch (error) {
@@ -3575,12 +3583,22 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         sceneActiveCharacters: constrainedResolvedOwnerScopes.sceneActiveCharacters,
         requestCharacters: constrainedResolvedOwnerScopes.requestCharacters,
       };
+      const constrainedSceneEntityIds = new Set(
+        resolveTrackerEntityIdsForOwners(context, constrainedResolvedOwnerScopes.sceneActiveCharacters),
+      );
+      const constrainedMessageEntityIds = new Set(
+        resolveTrackerEntityIdsForOwners(context, constrainedResolvedOwnerScopes.requestCharacters),
+      );
       resolvedEntityResolution = {
         ...resolvedEntityResolution,
-        sceneOwners: constrainedResolvedOwnerScopes.sceneActiveCharacters,
-        messageOwners: constrainedResolvedOwnerScopes.requestCharacters,
-        sceneEntityIds: resolveTrackerEntityIdsForOwners(context, constrainedResolvedOwnerScopes.sceneActiveCharacters),
-        messageEntityIds: resolveTrackerEntityIdsForOwners(context, constrainedResolvedOwnerScopes.requestCharacters),
+        resolvedEntities: (resolvedEntityResolution.resolvedEntities ?? [])
+          .map(entity => ({
+            ...entity,
+            inScene: constrainedSceneEntityIds.has(entity.entityId),
+            inMessage: constrainedMessageEntityIds.has(entity.entityId),
+            aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+          }))
+          .filter(entity => entity.inScene || entity.inMessage),
       };
     }
     const constrainedFallbackOwnerScopes = !resolvedOwnerScopes
@@ -3605,24 +3623,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const requestCharacters = ownerScopes.requestCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
-    const sceneActiveEntityIds = resolvedEntityResolution?.sceneEntityIds?.length
-      ? [...resolvedEntityResolution.sceneEntityIds]
+    const sceneActiveEntityIds = resolvedEntityResolution?.resolvedEntities?.length
+      ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
       : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
-    const requestEntityIds = resolvedEntityResolution?.messageEntityIds?.length
-      ? [...resolvedEntityResolution.messageEntityIds]
+    const requestEntityIds = resolvedEntityResolution?.resolvedEntities?.length
+      ? resolveMessageEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
       : resolveTrackerEntityIdsForOwners(context, requestCharacters);
-    const activeCharacters = resolveExtractionRequestOwners({
-      sceneActiveCharacters,
-      requestCharacters,
-      userExtraction,
-      settings: activeSettings,
-    }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
-    const activeEntityIds = resolveExtractionRequestEntityIds({
-      sceneEntityIds: sceneActiveEntityIds,
-      requestEntityIds,
-      userExtraction,
-      settings: activeSettings,
-    });
+    const activeCharacters = [...requestCharacters];
+    const activeEntityIds = [...requestEntityIds];
     pushTrace("activity.resolve", {
       allCharacterNames,
       activeCharacters,
@@ -3848,8 +3856,8 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     }
     let contextText = buildRecentContext(context, settings.contextMessages, lastIndex);
     if (activeSettings.includeCharacterCardsInPrompt) {
-      const sceneEntityIdsForCardContext = resolvedEntityResolution?.sceneEntityIds?.length
-        ? resolvedEntityResolution.sceneEntityIds
+      const sceneEntityIdsForCardContext = resolvedEntityResolution?.resolvedEntities?.length
+        ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
         : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
       contextText = `${contextText}${buildCharacterCardsContext(
         context,
@@ -4032,36 +4040,31 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       requestCharacters: activeCharacters,
       userExtraction,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
-    const persistedResolverOwners = resolvePersistedSnapshotEntityResolution({
+    const persistedResolvedEntities = resolvePersistedSnapshotResolvedEntities({
+      context,
       sceneActiveCharacters,
       requestCharacters: activeCharacters,
-      resolvedSceneOwners: resolvedEntityResolution?.sceneOwners ?? [],
-      resolvedMessageOwners: resolvedEntityResolution?.messageOwners ?? [],
+      resolvedEntities: resolvedEntityResolution?.resolvedEntities ?? [],
       userExtraction,
-    });
-    const persistedResolverSceneOwners = persistedResolverOwners.sceneOwners
-      .filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
-    const persistedResolverMessageOwners = persistedResolverOwners.messageOwners
-      .filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
-    const persistedResolverEntityIds = resolvePersistedSnapshotEntityIds({
-      context,
-      persistedSceneOwners: persistedResolverSceneOwners,
-      persistedMessageOwners: persistedResolverMessageOwners,
-      resolvedSceneEntityIds: resolvedEntityResolution?.sceneEntityIds ?? [],
-      resolvedMessageEntityIds: resolvedEntityResolution?.messageEntityIds ?? [],
-      userExtraction,
-    });
+    }).filter(entity => isTrackerEnabledForOwner(context, activeSettings, entity.name));
 
     latestData = {
       timestamp: Date.now(),
       activeCharacters: persistedSceneActiveCharacters,
-      entityResolution: {
-        sceneOwners: persistedResolverSceneOwners,
-        messageOwners: persistedResolverMessageOwners,
-        sceneEntityIds: persistedResolverEntityIds.sceneEntityIds,
-        messageEntityIds: persistedResolverEntityIds.messageEntityIds,
-        source: resolvedEntityResolution?.source ?? ownerScopes.source,
-      },
+      entityResolution: (() => {
+        const persistedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
+          resolvedEntities: persistedResolvedEntities.map(entity => ({
+            ...entity,
+            aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+            created: Boolean(entity.created),
+          })),
+          source: resolvedEntityResolution?.source ?? ownerScopes.source,
+        };
+        if (resolvedEntityResolution?.unresolvedMentions?.length) {
+          persistedEntityResolution.unresolvedMentions = [...resolvedEntityResolution.unresolvedMentions];
+        }
+        return persistedEntityResolution;
+      })(),
       statistics: merged,
       customStatistics: mergedCustom,
       customNonNumericStatistics: mergedCustomNonNumeric,

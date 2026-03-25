@@ -48,18 +48,19 @@ function summarizeTrackerData(data: TrackerData | null): Record<string, unknown>
   if (!data) return null;
   const sceneOwners = resolveTrackerSceneOwners(null, data);
   const messageOwners = resolveTrackerMessageOwners(null, data);
+  const entityResolution = data.entityResolution
+    ? {
+        resolvedEntities: structuredClone(data.entityResolution.resolvedEntities ?? []),
+        ...(data.entityResolution.unresolvedMentions?.length
+          ? { unresolvedMentions: [...data.entityResolution.unresolvedMentions] }
+          : {}),
+        source: data.entityResolution.source,
+      }
+    : null;
   return {
     timestamp: Number(data.timestamp ?? 0),
     activeCharacters: resolveNormalizedTrackerActiveCharacters(data, sceneOwners, messageOwners),
-    entityResolution: data.entityResolution
-      ? {
-          sceneOwners: sceneOwners.length ? sceneOwners : [...(data.entityResolution.sceneOwners ?? [])],
-          messageOwners: messageOwners.length ? messageOwners : [...(data.entityResolution.messageOwners ?? [])],
-          sceneEntityIds: [...(data.entityResolution.sceneEntityIds ?? [])],
-          messageEntityIds: [...(data.entityResolution.messageEntityIds ?? [])],
-          source: data.entityResolution.source,
-        }
-      : null,
+    entityResolution,
     statistics: {
       affection: data.statistics.affection ?? {},
       trust: data.statistics.trust ?? {},

@@ -1,5 +1,6 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { USER_TRACKER_KEY } from "../src/constants";
 import { EXTENSION_KEY } from "../src/constants";
@@ -231,13 +232,13 @@ test("getTrackerDataFromMessage materializes by-entity shadow projections from e
 test("getTrackerDataFromMessage preserves explicit entity resolution payload", () => {
   const tracker = makeTracker(1001, {
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model",
-    },
+    }),
   });
   const message = {
     mes: "Reply",
@@ -252,25 +253,25 @@ test("getTrackerDataFromMessage preserves explicit entity resolution payload", (
     },
   };
   const stored = getTrackerDataFromMessage(message);
-  assert.deepEqual(stored?.entityResolution, {
+  assert.deepEqual(stored?.entityResolution, buildEntityResolution({
     sceneOwners: ["Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
     messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
     source: "model",
-  });
+  }));
 });
 
 test("getTrackerDataFromMessage preserves explicit empty messageEntityIds when only sceneEntityIds exist", () => {
   const tracker = makeTracker(1001, {
     activeCharacters: [USER_TRACKER_KEY],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: [USER_TRACKER_KEY],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: [],
       source: "model",
-    },
+    }),
   });
   const message = {
     mes: "User reply",
@@ -285,25 +286,25 @@ test("getTrackerDataFromMessage preserves explicit empty messageEntityIds when o
     },
   };
   const stored = getTrackerDataFromMessage(message);
-  assert.deepEqual(stored?.entityResolution, {
+  assert.deepEqual(stored?.entityResolution, buildEntityResolution({
     sceneOwners: ["Blake"],
-    messageOwners: [USER_TRACKER_KEY],
+    messageOwners: [],
     sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-    messageEntityIds: undefined,
+    messageEntityIds: [],
     source: "model",
-  });
+  }));
 });
 
 test("getTrackerDataFromMessage preserves explicit empty messageOwners when only sceneOwners exist", () => {
   const tracker = makeTracker(1001, {
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: [],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: [],
       source: "model",
-    },
+    }),
   });
   const message = {
     mes: "Reply",
@@ -318,25 +319,25 @@ test("getTrackerDataFromMessage preserves explicit empty messageOwners when only
     },
   };
   const stored = getTrackerDataFromMessage(message);
-  assert.deepEqual(stored?.entityResolution, {
+  assert.deepEqual(stored?.entityResolution, buildEntityResolution({
     sceneOwners: ["Blake"],
     messageOwners: [],
     sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-    messageEntityIds: undefined,
+    messageEntityIds: [],
     source: "model",
-  });
+  }));
 });
 
 test("getTrackerDataFromMessage preserves explicit activeCharacters instead of widening them to resolver scene owners", () => {
   const tracker = makeTracker(1002, {
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
   });
   const message = {
     mes: "Reply",
@@ -352,25 +353,25 @@ test("getTrackerDataFromMessage preserves explicit activeCharacters instead of w
   };
   const stored = getTrackerDataFromMessage(message as any);
   assert.deepEqual(stored?.activeCharacters, ["Blake"]);
-  assert.deepEqual(stored?.entityResolution, {
+  assert.deepEqual(stored?.entityResolution, buildEntityResolution({
     sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
     messageEntityIds: ["ent-blake"],
     source: "model",
-  });
+  }));
 });
 
 test("getTrackerDataFromMessage accepts resolver-backed payloads without raw activeCharacters", () => {
   const tracker = {
     timestamp: 1001,
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model" as const,
-    },
+    }),
     statistics: {
       affection: { Blake: 55 },
       trust: {},
@@ -404,13 +405,13 @@ test("getTrackerDataFromMessage accepts resolver-backed payloads without raw act
 test("getTrackerDataFromMessage preserves explicit activeCharacters during entity normalization", () => {
   const tracker = makeTracker(1001, {
     activeCharacters: ["Garret"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
       source: "model",
-    },
+    }),
     entityOwnerMap: {
       Blake: {
         entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
@@ -445,26 +446,32 @@ test("getTrackerDataFromMessage preserves explicit activeCharacters during entit
 
   const stored = getTrackerDataFromMessage(message);
   assert.deepEqual(stored?.activeCharacters, ["Garret"]);
-  assert.deepEqual(stored?.entityResolution, {
+  assert.deepEqual(stored?.entityResolution, buildEntityResolution({
     sceneOwners: ["Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
     messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
     source: "model",
-  });
+  }));
 });
 
 test("getTrackerDataFromMessage preserves explicit activeCharacters before falling back to entity-derived owners", () => {
   const blakeEntityId = "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake";
   const tracker = makeTracker(1001, {
     activeCharacters: ["Garret"],
-    entityResolution: {
-      sceneOwners: [],
-      messageOwners: [],
-      sceneEntityIds: [blakeEntityId],
-      messageEntityIds: [blakeEntityId],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: blakeEntityId,
+          kind: "st-character",
+          name: "Blake",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+        },
+      ],
       source: "model",
-    },
+    }),
     entityOwnerMap: {
       Blake: {
         entityId: blakeEntityId,
@@ -499,13 +506,19 @@ test("getTrackerDataFromMessage preserves explicit activeCharacters before falli
 
   const stored = getTrackerDataFromMessage(message);
   assert.deepEqual(stored?.activeCharacters, ["Garret"]);
-  assert.deepEqual(stored?.entityResolution, {
-    sceneOwners: ["Blake"],
-    messageOwners: ["Blake"],
-    sceneEntityIds: [blakeEntityId],
-    messageEntityIds: [blakeEntityId],
+  assert.deepEqual(stored?.entityResolution, buildEntityResolution({
+    resolvedEntities: [
+      {
+        entityId: blakeEntityId,
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
     source: "model",
-  });
+  }));
 });
 
 test("mergeStatisticsWithFallback and custom merges preserve previous missing values", () => {
@@ -702,13 +715,13 @@ test("buildMergedPromptMacroData falls back to resolver message owners before sc
   const context = makeContext();
   const entry = {
     timestamp: 2000,
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
     statistics: {
       affection: { Blake: 49 },
       trust: { Blake: 49 },
@@ -728,8 +741,14 @@ test("buildMergedPromptMacroData falls back to resolver message owners before sc
   const merged = buildMergedPromptMacroData(context, entry);
   assert.ok(merged);
   assert.deepEqual(merged?.activeCharacters, ["Blake"]);
-  assert.deepEqual(merged?.entityResolution?.sceneOwners, ["Ashley", "Blake", "Garret", "Raleigh"]);
-  assert.deepEqual(merged?.entityResolution?.messageOwners, ["Blake"]);
+  assert.deepEqual(
+    merged?.entityResolution?.resolvedEntities?.filter(entity => entity.inScene).map(entity => entity.name),
+    ["Ashley", "Blake", "Garret", "Raleigh"],
+  );
+  assert.deepEqual(
+    merged?.entityResolution?.resolvedEntities?.filter(entity => entity.inMessage).map(entity => entity.name),
+    ["Blake"],
+  );
 });
 
 test("buildMergedPromptMacroData keeps user-only activeCharacters even when resolver scene owners point at a character", () => {
@@ -737,13 +756,13 @@ test("buildMergedPromptMacroData keeps user-only activeCharacters even when reso
   const preferred: TrackerData = {
     timestamp: 2000,
     activeCharacters: [USER_TRACKER_KEY],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-blake"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
     statistics: {
       affection: {},
       trust: {},
@@ -772,13 +791,13 @@ test("writeTrackerDataToMessage preserves user-only activeCharacters when entity
   const data: TrackerData = {
     timestamp: 2000,
     activeCharacters: [USER_TRACKER_KEY],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-blake"],
       messageEntityIds: ["ent-blake"],
       source: "model",
-    },
+    }),
     statistics: {
       affection: {},
       trust: {},
@@ -999,33 +1018,33 @@ test("mergeTrackerDataChronologically canonicalizes alias-owner buckets by entit
 test("mergeTrackerDataChronologically preserves the latest entityResolution payload and explicit active owners", () => {
   const older = makeTracker(1000, {
     activeCharacters: ["Ashley", "Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "fallback",
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: ["Ashley", "Blake"],
       sceneEntityIds: ["ent-ashley", "ent-blake"],
       messageEntityIds: ["ent-ashley", "ent-blake"],
-    },
+    }),
   });
   const newer = makeTracker(1100, {
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-ashley", "ent-blake"],
       messageEntityIds: ["ent-blake"],
-    },
+    }),
   });
 
   const merged = mergeTrackerDataChronologically([older, newer]);
-  assert.deepEqual(merged?.entityResolution, {
+  assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
     sceneOwners: ["Ashley", "Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["ent-ashley", "ent-blake"],
     messageEntityIds: ["ent-blake"],
-  });
+  }));
   assert.deepEqual(merged?.activeCharacters, ["Blake"]);
 });
 
@@ -1033,24 +1052,24 @@ test("mergeTrackerDataChronologically preserves explicit activeCharacters over r
   const merged = mergeTrackerDataChronologically([
     makeTracker(1000, {
       activeCharacters: ["Garret", "Raleigh"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         source: "model",
         sceneOwners: ["Blake"],
         messageOwners: ["Blake"],
         sceneEntityIds: ["ent-blake"],
         messageEntityIds: ["ent-blake"],
-      },
+      }),
     }),
   ]);
 
   assert.deepEqual(merged?.activeCharacters, ["Garret", "Raleigh"]);
-  assert.deepEqual(merged?.entityResolution, {
+  assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
     sceneOwners: ["Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["ent-blake"],
     messageEntityIds: ["ent-blake"],
-  });
+  }));
 });
 
 test("mergeTrackerDataChronologically preserves explicit activeCharacters before entity-derived fallback owners", () => {
@@ -1058,13 +1077,19 @@ test("mergeTrackerDataChronologically preserves explicit activeCharacters before
   const merged = mergeTrackerDataChronologically([
     makeTracker(1000, {
       activeCharacters: ["Garret"],
-      entityResolution: {
+      entityResolution: buildEntityResolution({
         source: "model",
-        sceneOwners: [],
-        messageOwners: [],
-        sceneEntityIds: [blakeEntityId],
-        messageEntityIds: [blakeEntityId],
-      },
+        resolvedEntities: [
+          {
+            entityId: blakeEntityId,
+            kind: "st-character",
+            name: "Blake",
+            avatar: null,
+            inScene: true,
+            inMessage: true,
+          },
+        ],
+      }),
       entityOwnerMap: {
         Blake: {
           entityId: blakeEntityId,
@@ -1087,25 +1112,31 @@ test("mergeTrackerDataChronologically preserves explicit activeCharacters before
   ]);
 
   assert.deepEqual(merged?.activeCharacters, ["Garret"]);
-  assert.deepEqual(merged?.entityResolution, {
+  assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
-    sceneOwners: ["Blake"],
-    messageOwners: ["Blake"],
-    sceneEntityIds: [blakeEntityId],
-    messageEntityIds: [blakeEntityId],
-  });
+    resolvedEntities: [
+      {
+        entityId: blakeEntityId,
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+  }));
 });
 
 test("getTrackerDataFromMessage preserves explicit empty entityResolution state", () => {
   const tracker = makeTracker(1000, {
     activeCharacters: [],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "fallback",
       sceneOwners: [],
       messageOwners: [],
       sceneEntityIds: [],
       messageEntityIds: [],
-    },
+    }),
   });
   const message = {
     mes: "Ambient reply",
@@ -1122,25 +1153,25 @@ test("getTrackerDataFromMessage preserves explicit empty entityResolution state"
 
   const stored = getTrackerDataFromMessage(message);
   assert.deepEqual(stored?.activeCharacters, []);
-  assert.deepEqual(stored?.entityResolution, {
+  assert.deepEqual(stored?.entityResolution, buildEntityResolution({
     source: "fallback",
     sceneOwners: [],
     messageOwners: [],
-    sceneEntityIds: undefined,
-    messageEntityIds: undefined,
-  });
+    sceneEntityIds: [],
+    messageEntityIds: [],
+  }));
 });
 
 test("mergeTrackerDataChronologically preserves explicit by-entity buckets when owner buckets are absent", () => {
   const entityOnlySnapshot = makeTracker(1000, {
     activeCharacters: ["Ashley"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ashley"],
       messageOwners: ["Ashley"],
       sceneEntityIds: ["bst_mc_alias:test:ashley"],
       messageEntityIds: ["bst_mc_alias:test:ashley"],
-    },
+    }),
     entityOwnerMap: {
       Ashley: {
         entityId: "bst_mc_alias:test:ashley",
@@ -1187,72 +1218,72 @@ test("buildMergedPromptMacroData preserves the latest entityResolution for merge
   const context = makeContext();
   const older = makeTracker(1000, {
     activeCharacters: ["Ashley", "Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "fallback",
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: ["Ashley", "Blake"],
       sceneEntityIds: ["ent-ashley", "ent-blake"],
       messageEntityIds: ["ent-ashley", "ent-blake"],
-    },
+    }),
   });
   const newer = makeTracker(1100, {
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Ashley", "Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-ashley", "ent-blake"],
       messageEntityIds: ["ent-blake"],
-    },
+    }),
   });
 
   writeTrackerDataToMessage(context, older, 0);
   writeTrackerDataToMessage(context, newer, 2);
 
   const merged = buildMergedPromptMacroData(context, newer);
-  assert.deepEqual(merged?.entityResolution, {
+  assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
     sceneOwners: ["Ashley", "Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["ent-ashley", "ent-blake"],
     messageEntityIds: ["ent-blake"],
-  });
+  }));
 });
 
 test("buildMergedPromptMacroData preserves preferred explicit activeCharacters over broader resolver continuity", () => {
   const context = makeContext();
   const older = makeTracker(1000, {
     activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "fallback",
       sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
       messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
       sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
       messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
-    },
+    }),
   });
   const preferred = makeTracker(1100, {
     activeCharacters: ["Garret", "Raleigh"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-blake"],
       messageEntityIds: ["ent-blake"],
-    },
+    }),
   });
 
   writeTrackerDataToMessage(context, older, 0);
 
   const merged = buildMergedPromptMacroData(context, preferred);
   assert.deepEqual(merged?.activeCharacters, ["Garret", "Raleigh"]);
-  assert.deepEqual(merged?.entityResolution, {
+  assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
     sceneOwners: ["Blake"],
     messageOwners: ["Blake"],
     sceneEntityIds: ["ent-blake"],
     messageEntityIds: ["ent-blake"],
-  });
+  }));
 });
 
 test("buildMergedPromptMacroData preserves preferred explicit activeCharacters even when resolver entity ids resolve a different scene owner", () => {
@@ -1280,24 +1311,36 @@ test("buildMergedPromptMacroData preserves preferred explicit activeCharacters e
 
   const preferred = makeTracker(1100, {
     activeCharacters: ["Garret", "Raleigh"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
-      sceneOwners: ["Garret", "Raleigh"],
-      messageOwners: ["Blake"],
-      sceneEntityIds: [blakeEntityId],
-      messageEntityIds: [blakeEntityId],
-    },
+      resolvedEntities: [
+        {
+          entityId: blakeEntityId,
+          kind: "st-character",
+          name: "Blake",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+        },
+      ],
+    }),
   });
 
   const merged = buildMergedPromptMacroData(context, preferred);
   assert.deepEqual(merged?.activeCharacters, ["Garret", "Raleigh"]);
-  assert.deepEqual(merged?.entityResolution, {
+  assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
-    sceneOwners: ["Blake"],
-    messageOwners: ["Blake"],
-    sceneEntityIds: [blakeEntityId],
-    messageEntityIds: [blakeEntityId],
-  });
+    resolvedEntities: [
+      {
+        entityId: blakeEntityId,
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+  }));
 });
 
 test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () => {
@@ -1323,13 +1366,13 @@ test("resolveLatestStoredTrackerData preserves explicit activeCharacters on inpu
   const context = makeContext();
   const messageTracker = makeTracker(2000, {
     activeCharacters: ["Garret", "Raleigh"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-blake"],
       messageEntityIds: ["ent-blake"],
-    },
+    }),
   });
 
   writeTrackerDataToMessage(context, messageTracker, 2);
@@ -1338,13 +1381,19 @@ test("resolveLatestStoredTrackerData preserves explicit activeCharacters on inpu
   assert.equal(resolved.source, "message");
   assert.ok(resolved.data);
   assert.deepEqual(resolved.data.activeCharacters, ["Garret", "Raleigh"]);
-  assert.deepEqual(resolved.data.entityResolution, {
+  assert.deepEqual(resolved.data.entityResolution, buildEntityResolution({
     source: "model",
-    sceneOwners: ["Blake"],
-    messageOwners: ["Blake"],
-    sceneEntityIds: ["ent-blake"],
-    messageEntityIds: ["ent-blake"],
-  });
+    resolvedEntities: [
+      {
+        entityId: "ent-blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+  }));
 });
 
 test("clearTrackerDataForMessage removes the current message tracker and rebuilds persisted latest state from earlier messages", () => {
@@ -1352,23 +1401,23 @@ test("clearTrackerDataForMessage removes the current message tracker and rebuild
   context.chat.push({ mes: "Later reply", name: "Seraphina", is_user: false, is_system: false, extra: {} } as any);
   const earlier = makeTracker(1000, {
     activeCharacters: ["Blake"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: ["Blake"],
       messageOwners: ["Blake"],
       sceneEntityIds: ["ent-blake"],
       messageEntityIds: ["ent-blake"],
-    },
+    }),
   });
   const staleLatest = makeTracker(2000, {
     activeCharacters: ["Garret", "Raleigh"],
-    entityResolution: {
+    entityResolution: buildEntityResolution({
       source: "fallback",
       sceneOwners: ["Garret", "Raleigh"],
       messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
       sceneEntityIds: ["ent-garret", "ent-raleigh"],
       messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
-    },
+    }),
   });
 
   writeTrackerDataToMessage(context, earlier, 2);
@@ -1383,13 +1432,19 @@ test("clearTrackerDataForMessage removes the current message tracker and rebuild
   assert.ok(resolved.data);
   assert.equal(resolved.data.timestamp, earlier.timestamp);
   assert.deepEqual(resolved.data.activeCharacters, ["Blake"]);
-  assert.deepEqual(resolved.data.entityResolution, {
+  assert.deepEqual(resolved.data.entityResolution, buildEntityResolution({
     source: "model",
-    sceneOwners: ["Blake"],
-    messageOwners: ["Blake"],
-    sceneEntityIds: ["ent-blake"],
-    messageEntityIds: ["ent-blake"],
-  });
+    resolvedEntities: [
+      {
+        entityId: "ent-blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+  }));
 });
 
 test("clearTrackerDataForCurrentChat removes persisted tracker data", () => {

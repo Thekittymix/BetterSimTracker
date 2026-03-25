@@ -114,11 +114,22 @@ export interface TrackerData {
   entityOwnerMap?: Record<string, TrackerDataEntityOwner>;
 }
 
+export type TrackerResolvedEntityKind = "st-character" | "persona" | "narrative-entity";
+
+export interface TrackerResolvedEntity {
+  entityId: string;
+  kind: TrackerResolvedEntityKind;
+  name: string;
+  avatar?: string | null;
+  aliases?: string[];
+  inScene: boolean;
+  inMessage: boolean;
+  created?: boolean;
+}
+
 export interface TrackerDataEntityResolution {
-  sceneOwners: string[];
-  messageOwners: string[];
-  sceneEntityIds?: string[];
-  messageEntityIds?: string[];
+  resolvedEntities?: TrackerResolvedEntity[];
+  unresolvedMentions?: string[];
   source: "model" | "fallback";
 }
 

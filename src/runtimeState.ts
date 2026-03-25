@@ -70,19 +70,7 @@ export function buildMergedPromptMacroData(
 
   return {
     ...merged,
-    entityResolution: merged.entityResolution
-      ? {
-          ...merged.entityResolution,
-          sceneOwners: preferredResolvedSceneOwners.length
-            ? preferredResolvedSceneOwners
-            : merged.entityResolution.sceneOwners,
-          messageOwners: preferredResolvedMessageOwners.length
-            ? preferredResolvedMessageOwners
-            : (preferredResolvedSceneOwners.length
-              ? preferredResolvedSceneOwners
-              : merged.entityResolution.messageOwners),
-        }
-      : merged.entityResolution,
+    entityResolution: merged.entityResolution ? structuredClone(merged.entityResolution) : merged.entityResolution,
     activeCharacters: preferredActiveCharacters.length ? preferredActiveCharacters : merged.activeCharacters,
   };
 }

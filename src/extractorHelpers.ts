@@ -9,7 +9,7 @@ import type {
   TrackerData,
 } from "./types";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
-import { resolveTrackerSceneOwners } from "./entityRegistry";
+import { resolveTrackerEntityIdsForOwners, resolveTrackerSceneOwners } from "./entityRegistry";
 
 export function enabledBuiltInAndTextStats(settings: BetterSimTrackerSettings): StatKey[] {
   const selected: StatKey[] = [];
@@ -124,6 +124,7 @@ export function buildPromptCurrentTrackerData(input: {
 }
 
 export function buildNoActiveContinuityTrackerData(input: {
+  context?: STContext | null;
   previousTrackerData?: TrackerData | null;
   latestSceneTrackerData?: TrackerData | null;
   source?: NonNullable<TrackerData["entityResolution"]>["source"];
@@ -216,14 +217,31 @@ export function buildNoActiveContinuityTrackerData(input: {
     timestamp: input.timestamp ?? Date.now(),
     activeCharacters: [],
     entityResolution: {
-      sceneOwners: latestResolver
-        ? [...(latestResolver.sceneOwners ?? [])]
-        : [...(previous.entityResolution?.sceneOwners ?? previous.activeCharacters ?? [])],
-      messageOwners: [],
-      sceneEntityIds: latestResolver
-        ? [...(latestResolver.sceneEntityIds ?? [])]
-        : [...(previous.entityResolution?.sceneEntityIds ?? [])],
-      messageEntityIds: [],
+      resolvedEntities: latestResolver
+        ? (latestResolver.resolvedEntities ?? [])
+            .filter(entity => entity.inScene)
+            .map(entity => ({
+              ...entity,
+              aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+              inMessage: false,
+            }))
+        : (previous.entityResolution?.resolvedEntities?.length
+            ? previous.entityResolution.resolvedEntities
+                .filter(entity => entity.inScene)
+                .map(entity => ({
+                  ...entity,
+                  aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+                  inMessage: false,
+                }))
+            : resolveTrackerSceneOwners(input.context ?? null, previous).map(ownerName => ({
+                entityId: resolveTrackerEntityIdsForOwners(input.context ?? null, [ownerName])[0]
+                  ?? `bst_legacy:${ownerName.toLowerCase()}`,
+                kind: "st-character" as const,
+                name: ownerName,
+                avatar: null,
+                inScene: true,
+                inMessage: false,
+              }))),
       source: input.source ?? previous.entityResolution?.source ?? "fallback",
     },
     statistics,
