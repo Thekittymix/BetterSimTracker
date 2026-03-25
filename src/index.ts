@@ -3652,6 +3652,13 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         latestData = continuitySnapshot;
         latestDataMessageIndex = lastIndex;
         writeTrackerDataToMessage(context, continuitySnapshot, lastIndex);
+        syncEntityRegistryFromTrackerData({
+          context,
+          messageIndex: lastIndex,
+          data: continuitySnapshot,
+          settings: activeSettings,
+          allKnownCharacters: allCharacterNames.filter(name => isTrackerEnabledForOwner(context, activeSettings, name)),
+        });
         refreshPromptMacroData(context);
         queuePromptSync(context);
         queueRender();

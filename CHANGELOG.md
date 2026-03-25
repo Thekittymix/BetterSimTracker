@@ -1,3 +1,7 @@
+## [2.2.4.16-exp151] - 2026-03-25
+### Fixed
+- Experimental multi-character `no_active_characters` continuity turns now synchronize entity-registry lifecycle state before render, so inactive aliases can actually reach `Archived` instead of staying stuck as visible `Inactive` cards forever.
+
 ## [2.2.4.16-exp150] - 2026-03-25
 ### Fixed
 - Experimental multi-character card rendering no longer creates empty alias shell-cards from registry presence alone; aliases now need current tracked state, continuity state, or active participation before they are backfilled into the visible card pool.

@@ -404,6 +404,57 @@ test("syncEntityRegistryFromTrackerData backfills inactive continuity for aliase
   );
 });
 
+test("syncEntityRegistryFromTrackerData archives inactive aliases on no-active continuity turns", () => {
+  const context = makeContext();
+  context.chat.push({
+    is_user: false,
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    mes: "The room falls quiet after everyone leaves.",
+    extra: {},
+    swipe_id: 0,
+  } as never);
+  const settings = {
+    ...makeSettings(),
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 1,
+  } as BetterSimTrackerSettings;
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 0,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const current = {
+    ...makeTrackerData([]),
+    entityResolution: {
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: [],
+      messageEntityIds: [],
+      source: "model" as const,
+    },
+  } satisfies TrackerData;
+  writeTrackerDataToMessage(context, current, 2);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 2,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, true);
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "archived");
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "archived");
+});
+
 test("syncEntityRegistryFromTrackerData is a no-op outside multi-character mode", () => {
   const context = makeContext();
   const settings = {
