@@ -64,17 +64,14 @@ export function resolveNormalizedTrackerActiveCharacters(
   if (rawActiveCharacters.includes(USER_TRACKER_KEY)) {
     return rawActiveCharacters;
   }
-  if (hasExplicitActiveCharacters && rawActiveCharacters.length === 0) {
+  if (hasExplicitActiveCharacters) {
     return rawActiveCharacters;
-  }
-  if (resolvedSceneOwners.length) {
-    return [...resolvedSceneOwners];
   }
   if (resolvedMessageOwners.length) {
     return [...resolvedMessageOwners];
   }
-  if (hasExplicitActiveCharacters) {
-    return rawActiveCharacters;
+  if (resolvedSceneOwners.length) {
+    return [...resolvedSceneOwners];
   }
   return rawActiveCharacters;
 }
@@ -1307,12 +1304,18 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
         sceneEntityIds: [...(entry.entityResolution.sceneEntityIds ?? [])],
         messageEntityIds: [...(entry.entityResolution.messageEntityIds ?? [])],
       };
+      const hasExplicitActiveCharacters = Array.isArray(entry.activeCharacters);
+      const explicitActiveCharacters = hasExplicitActiveCharacters
+        ? entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
+        : [];
       const sceneOwners = (entry.entityResolution.sceneOwners ?? []).map(name => String(name ?? "").trim()).filter(Boolean);
       const messageOwners = (entry.entityResolution.messageOwners ?? []).map(name => String(name ?? "").trim()).filter(Boolean);
-      if (sceneOwners.length) {
-        fallbackActiveCharacters = sceneOwners;
+      if (hasExplicitActiveCharacters) {
+        fallbackActiveCharacters = explicitActiveCharacters;
       } else if (messageOwners.length) {
         fallbackActiveCharacters = messageOwners;
+      } else if (sceneOwners.length) {
+        fallbackActiveCharacters = sceneOwners;
       }
       if (messageOwners.includes(USER_TRACKER_KEY)) {
         const currentFallbackActiveCharacters: string[] = fallbackActiveCharacters ?? [];

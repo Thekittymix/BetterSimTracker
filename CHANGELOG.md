@@ -1,3 +1,7 @@
+## [2.2.4.16-exp143] - 2026-03-25
+### Fixed
+- Experimental multi-character storage, runtime merges, and diagnostics now preserve explicit message-level `activeCharacters` instead of silently widening them back to broader scene continuity during normalization, history reads, and merged prompt/runtime snapshots.
+
 ## [2.2.4.16-exp142] - 2026-03-25
 ### Fixed
 - Experimental multi-character snapshots now persist `activeCharacters` from the actual message/request owners instead of the broader scene continuity set, and registry lifecycle sync now derives `Active/Inactive/Archived` from those explicit active owners instead of treating every in-scene alias as currently active.

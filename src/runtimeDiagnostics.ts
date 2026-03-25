@@ -50,7 +50,7 @@ function summarizeTrackerData(data: TrackerData | null): Record<string, unknown>
   const messageOwners = resolveTrackerMessageOwners(null, data);
   return {
     timestamp: Number(data.timestamp ?? 0),
-    activeCharacters: resolveNormalizedTrackerActiveCharacters(data, sceneOwners),
+    activeCharacters: resolveNormalizedTrackerActiveCharacters(data, sceneOwners, messageOwners),
     entityResolution: data.entityResolution
       ? {
           sceneOwners: sceneOwners.length ? sceneOwners : [...(data.entityResolution.sceneOwners ?? [])],
@@ -158,7 +158,8 @@ export function buildHistorySample(entries: Array<{ data: TrackerData; timestamp
     timestamp: entry.timestamp,
     activeCharacters: (() => {
       const sceneOwners = resolveTrackerSceneOwners(null, entry.data);
-      return resolveNormalizedTrackerActiveCharacters(entry.data, sceneOwners);
+      const messageOwners = resolveTrackerMessageOwners(null, entry.data);
+      return resolveNormalizedTrackerActiveCharacters(entry.data, sceneOwners, messageOwners);
     })(),
     statistics: {
       affection: entry.data.statistics.affection,

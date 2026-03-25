@@ -173,13 +173,13 @@ test("buildHistorySample keeps tracked snapshot structure", () => {
   assert.equal(sample[0].statistics.mood.Seraphina, "Hopeful");
 });
 
-test("buildHistorySample prefers resolver scene owners over stale activeCharacters", () => {
+test("buildHistorySample preserves explicit activeCharacters over broader resolver continuity", () => {
   const tracker = makeTracker(1234);
   tracker.activeCharacters = ["Garret"];
 
   const sample = buildHistorySample([{ messageIndex: 4, timestamp: 1234, data: tracker }]);
 
-  assert.deepEqual(sample[0].activeCharacters, ["Seraphina"]);
+  assert.deepEqual(sample[0].activeCharacters, ["Garret"]);
 });
 
 test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
@@ -336,7 +336,7 @@ test("buildDiagnosticsReport produces expected core fields", () => {
   );
 });
 
-test("buildDiagnosticsReport prefers resolver owners in tracker summaries over stale activeCharacters", () => {
+test("buildDiagnosticsReport preserves explicit activeCharacters in tracker summaries", () => {
   const context = {
     chat: [{}, {}],
     groupId: null,
@@ -377,6 +377,6 @@ test("buildDiagnosticsReport prefers resolver owners in tracker summaries over s
 
   assert.deepEqual(
     ((report.promptInjection as { latestStoredTrackerData: { activeCharacters: string[] } }).latestStoredTrackerData.activeCharacters),
-    ["Seraphina"],
+    ["Garret"],
   );
 });
