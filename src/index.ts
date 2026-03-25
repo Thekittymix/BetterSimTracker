@@ -3475,6 +3475,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       }) ?? getLatestTrackerDataWithIndexBefore(context, lastIndex);
       const continuitySnapshot = buildNoActiveContinuityTrackerData({
         previousTrackerData: priorContinuityEntry?.data ?? null,
+        latestSceneTrackerData: previousMessageTrackerData,
         source: resolvedEntityResolution?.source ?? priorContinuityEntry?.data?.entityResolution?.source ?? "fallback",
       });
       if (continuitySnapshot) {

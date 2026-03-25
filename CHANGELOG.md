@@ -1,3 +1,7 @@
+## [2.2.4.16-exp144] - 2026-03-25
+### Fixed
+- Experimental multi-character `no_active_characters` AI turns now keep prior alias continuity while overlaying the latest scene/global continuity from the immediately preceding message, so empty-participant turns stop reviving stale scene cards and stale global scene state from older snapshots.
+
 ## [2.2.4.16-exp143] - 2026-03-25
 ### Fixed
 - Experimental multi-character storage, runtime merges, and diagnostics now preserve explicit message-level `activeCharacters` instead of silently widening them back to broader scene continuity during normalization, history reads, and merged prompt/runtime snapshots.

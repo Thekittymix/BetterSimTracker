@@ -125,22 +125,110 @@ export function buildPromptCurrentTrackerData(input: {
 
 export function buildNoActiveContinuityTrackerData(input: {
   previousTrackerData?: TrackerData | null;
+  latestSceneTrackerData?: TrackerData | null;
   source?: NonNullable<TrackerData["entityResolution"]>["source"];
   timestamp?: number;
 }): TrackerData | null {
   const previous = input.previousTrackerData;
   if (!previous) return null;
+  const latestSceneTrackerData = input.latestSceneTrackerData ?? null;
+  const latestResolver = latestSceneTrackerData?.entityResolution;
+
+  const statistics: Statistics = {
+    affection: { ...(previous.statistics?.affection ?? {}) },
+    trust: { ...(previous.statistics?.trust ?? {}) },
+    desire: { ...(previous.statistics?.desire ?? {}) },
+    connection: { ...(previous.statistics?.connection ?? {}) },
+    mood: { ...(previous.statistics?.mood ?? {}) },
+    lastThought: { ...(previous.statistics?.lastThought ?? {}) },
+  };
+  if (latestSceneTrackerData?.statistics) {
+    for (const ownerKey of [USER_TRACKER_KEY, GLOBAL_TRACKER_KEY]) {
+      for (const statKey of ["affection", "trust", "desire", "connection", "mood", "lastThought"] as const) {
+        if (Object.prototype.hasOwnProperty.call(latestSceneTrackerData.statistics[statKey] ?? {}, ownerKey)) {
+          const value = latestSceneTrackerData.statistics[statKey]?.[ownerKey];
+          if (value == null || value === "") {
+            delete statistics[statKey][ownerKey];
+          } else {
+            statistics[statKey][ownerKey] = value as never;
+          }
+        }
+      }
+    }
+  }
+
+  const customStatistics: CustomStatistics = {};
+  const allNumericCustomStatIds = new Set([
+    ...Object.keys(previous.customStatistics ?? {}),
+    ...Object.keys(latestSceneTrackerData?.customStatistics ?? {}),
+  ]);
+  for (const statId of allNumericCustomStatIds) {
+    const mergedBucket = {
+      ...(previous.customStatistics?.[statId] ?? {}),
+    };
+    if (latestSceneTrackerData?.customStatistics?.[statId]) {
+      for (const ownerKey of [USER_TRACKER_KEY, GLOBAL_TRACKER_KEY]) {
+        if (Object.prototype.hasOwnProperty.call(latestSceneTrackerData.customStatistics[statId], ownerKey)) {
+          const value = latestSceneTrackerData.customStatistics[statId]?.[ownerKey];
+          if (value == null) {
+            delete mergedBucket[ownerKey];
+          } else {
+            mergedBucket[ownerKey] = value;
+          }
+        }
+      }
+    }
+    if (Object.keys(mergedBucket).length) {
+      customStatistics[statId] = mergedBucket;
+    }
+  }
+
+  const customNonNumericStatistics: CustomNonNumericStatistics = {};
+  const allNonNumericCustomStatIds = new Set([
+    ...Object.keys(previous.customNonNumericStatistics ?? {}),
+    ...Object.keys(latestSceneTrackerData?.customNonNumericStatistics ?? {}),
+  ]);
+  for (const statId of allNonNumericCustomStatIds) {
+    const mergedBucket = {
+      ...(previous.customNonNumericStatistics?.[statId] ?? {}),
+    };
+    if (latestSceneTrackerData?.customNonNumericStatistics?.[statId]) {
+      for (const ownerKey of [USER_TRACKER_KEY, GLOBAL_TRACKER_KEY]) {
+        if (Object.prototype.hasOwnProperty.call(latestSceneTrackerData.customNonNumericStatistics[statId], ownerKey)) {
+          const value = latestSceneTrackerData.customNonNumericStatistics[statId]?.[ownerKey];
+          if (value == null) {
+            delete mergedBucket[ownerKey];
+          } else {
+            mergedBucket[ownerKey] = Array.isArray(value)
+              ? [...value]
+              : value;
+          }
+        }
+      }
+    }
+    if (Object.keys(mergedBucket).length) {
+      customNonNumericStatistics[statId] = mergedBucket;
+    }
+  }
+
   return {
     ...previous,
     timestamp: input.timestamp ?? Date.now(),
     activeCharacters: [],
     entityResolution: {
-      sceneOwners: [...(previous.entityResolution?.sceneOwners ?? previous.activeCharacters ?? [])],
+      sceneOwners: latestResolver
+        ? [...(latestResolver.sceneOwners ?? [])]
+        : [...(previous.entityResolution?.sceneOwners ?? previous.activeCharacters ?? [])],
       messageOwners: [],
-      sceneEntityIds: [...(previous.entityResolution?.sceneEntityIds ?? [])],
+      sceneEntityIds: latestResolver
+        ? [...(latestResolver.sceneEntityIds ?? [])]
+        : [...(previous.entityResolution?.sceneEntityIds ?? [])],
       messageEntityIds: [],
       source: input.source ?? previous.entityResolution?.source ?? "fallback",
     },
+    statistics,
+    customStatistics,
+    customNonNumericStatistics,
   };
 }
 

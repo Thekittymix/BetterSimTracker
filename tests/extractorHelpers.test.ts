@@ -16,7 +16,7 @@ import {
   selectNoActiveContinuityTrackerEntry,
   shouldBypassConfidenceControls,
 } from "../src/extractorHelpers";
-import { USER_TRACKER_KEY } from "../src/constants";
+import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
 import type { BetterSimTrackerSettings, CustomStatDefinition } from "../src/types";
 
 function makeSettings(overrides: Partial<BetterSimTrackerSettings> = {}): BetterSimTrackerSettings {
@@ -282,6 +282,109 @@ test("buildNoActiveContinuityTrackerData preserves continuity stats while keepin
       aliases: ["Blackout Blake"],
       sourceKey: "camp.png|camp",
       kind: "multi_character_alias",
+    },
+  });
+});
+
+test("buildNoActiveContinuityTrackerData overlays latest scene and user continuity without wiping prior character continuity", () => {
+  const snapshot = buildNoActiveContinuityTrackerData({
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Blake"],
+      entityResolution: {
+        sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+        messageEntityIds: ["ent-blake"],
+        source: "model",
+      },
+      statistics: {
+        affection: { Blake: 48 },
+        trust: { Blake: 50 },
+        desire: { Blake: 50 },
+        connection: { Blake: 49 },
+        mood: { [USER_TRACKER_KEY]: "Neutral", Blake: "Frustrated" },
+        lastThought: {
+          [USER_TRACKER_KEY]: "I want to see if Blake will actually follow my instructions.",
+          Blake: "Great, another would-be director trying to script my lines.",
+        },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        clothes: {
+          [USER_TRACKER_KEY]: ["t-shirt", "jeans"],
+          Blake: ["oversized baggy dark emo goth clothes", "heavy charcoal eyeliner"],
+        },
+        characters_in_scene: {
+          [GLOBAL_TRACKER_KEY]: ["Jones", "Blake", "Raleigh", "Ashley", "Garret", "Kuba"],
+        },
+        pose: {
+          [USER_TRACKER_KEY]: "Unknown",
+          Blake: "Smirking with arms crossed over his chest",
+        },
+        scene_date_time: {
+          [GLOBAL_TRACKER_KEY]: "2026-03-04 20:05",
+        },
+      },
+    },
+    latestSceneTrackerData: {
+      timestamp: 2,
+      activeCharacters: [USER_TRACKER_KEY],
+      entityResolution: {
+        sceneOwners: [],
+        messageOwners: [USER_TRACKER_KEY],
+        sceneEntityIds: [],
+        messageEntityIds: [],
+        source: "fallback",
+      },
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { [USER_TRACKER_KEY]: "Neutral" },
+        lastThought: { [USER_TRACKER_KEY]: "Finally, I have a moment of peace and quiet to myself in this office." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        clothes: { [USER_TRACKER_KEY]: ["t-shirt", "jeans"] },
+        characters_in_scene: { [GLOBAL_TRACKER_KEY]: ["Kuba"] },
+        pose: { [USER_TRACKER_KEY]: "standing alone inside the office" },
+        scene_date_time: { [GLOBAL_TRACKER_KEY]: "2026-03-04 20:10" },
+      },
+    },
+    timestamp: 999,
+  });
+
+  assert.ok(snapshot);
+  assert.equal(snapshot?.timestamp, 999);
+  assert.deepEqual(snapshot?.activeCharacters, []);
+  assert.deepEqual(snapshot?.entityResolution, {
+    sceneOwners: [],
+    messageOwners: [],
+    sceneEntityIds: [],
+    messageEntityIds: [],
+    source: "model",
+  });
+  assert.deepEqual(snapshot?.statistics.affection, { Blake: 48 });
+  assert.deepEqual(snapshot?.statistics.lastThought, {
+    [USER_TRACKER_KEY]: "Finally, I have a moment of peace and quiet to myself in this office.",
+    Blake: "Great, another would-be director trying to script my lines.",
+  });
+  assert.deepEqual(snapshot?.customNonNumericStatistics, {
+    clothes: {
+      [USER_TRACKER_KEY]: ["t-shirt", "jeans"],
+      Blake: ["oversized baggy dark emo goth clothes", "heavy charcoal eyeliner"],
+    },
+    characters_in_scene: {
+      [GLOBAL_TRACKER_KEY]: ["Kuba"],
+    },
+    pose: {
+      [USER_TRACKER_KEY]: "standing alone inside the office",
+      Blake: "Smirking with arms crossed over his chest",
+    },
+    scene_date_time: {
+      [GLOBAL_TRACKER_KEY]: "2026-03-04 20:10",
     },
   });
 });
