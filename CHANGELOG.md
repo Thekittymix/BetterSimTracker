@@ -1,3 +1,8 @@
+## [2.2.4.16-exp139] - 2026-03-25
+### Fixed
+- Experimental multi-character lifecycle now treats resolver message owners as the active-owner source instead of broad scene owners, so silent scene members stop being revived as active just because they remain present in continuity.
+- Experimental extraction placeholder no longer shows a fake `stage 1/1` during the resolver preflight phase before real extraction stage totals exist.
+
 ## [2.2.4.16-exp138] - 2026-03-24
 ### Fixed
 - Experimental multi-character storage/runtime normalization now repairs stale legacy `activeCharacters` from resolver `messageOwners` first, so explicit message-owner scope survives storage merges, prompt/runtime reads, and edit clones instead of silently re-expanding to full scene owners.

@@ -50,7 +50,7 @@ function makeContext(): STContext {
 function makeTracker(overrides: Partial<TrackerData> = {}): TrackerData {
   return {
     timestamp: 1,
-    activeCharacters: [],
+    activeCharacters: overrides.activeCharacters ?? [],
     statistics: {
       affection: {},
       trust: {},
@@ -537,6 +537,33 @@ test("resolveTrackerActiveOwners and entity ids preserve explicit empty active s
   assert.deepEqual(resolveTrackerActiveEntityIds(context, tracker), []);
   assert.deepEqual(resolveTrackerSceneOwners(context, tracker), ["Ashley", "Blake"]);
   assert.deepEqual(resolveTrackerSceneEntityIds(context, tracker), ["ent-ashley", "ent-blake"]);
+});
+
+test("resolveTrackerActiveOwners and entity ids prefer message owners over broader scene owners", () => {
+  const tracker = makeTracker({
+    activeCharacters: ["Blake"],
+    entityResolution: {
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    },
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp|camp whispering pines",
+        kind: "multi_character_alias",
+      },
+    },
+  });
+
+  assert.deepEqual(resolveTrackerActiveOwners(null, tracker), ["Blake"]);
+  assert.deepEqual(resolveTrackerActiveEntityIds(null, tracker), ["ent-blake"]);
+  assert.deepEqual(resolveTrackerSceneOwners(null, tracker), ["Blake"]);
 });
 
 test("entity registry reactivation restores archived aliases for later messages without reviving them in archived history windows", () => {

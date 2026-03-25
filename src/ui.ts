@@ -653,6 +653,29 @@ export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | 
   };
 }
 
+export function resolveExtractionProgressDisplay(done: number, total: number): {
+  stageText: string;
+  percent: number;
+  ratio: number;
+} {
+  const normalizedTotal = Math.max(0, Math.floor(Number(total) || 0));
+  const normalizedDone = Math.max(0, Math.floor(Number(done) || 0));
+  if (normalizedTotal <= 0) {
+    return {
+      stageText: "preparing",
+      percent: 0,
+      ratio: 0,
+    };
+  }
+  const clampedDone = Math.max(0, Math.min(normalizedTotal, normalizedDone));
+  const ratio = Math.max(0, Math.min(1, clampedDone / normalizedTotal));
+  return {
+    stageText: `stage ${Math.min(clampedDone + 1, normalizedTotal)}/${normalizedTotal}`,
+    percent: Math.round(ratio * 100),
+    ratio,
+  };
+}
+
 export function filterTechnicalSourceOwnersFromTargets(
   targets: string[],
   resolveOwnerRenderIdentity?: (ownerName: string) => OwnerRenderIdentity | null,
@@ -5281,11 +5304,8 @@ export function renderTracker(
       root.dataset.bstRenderPhase = "extracting";
       root.dataset.bstRenderSignature = "";
       root.innerHTML = "";
-      const total = Math.max(1, uiState.total);
-      const done = Math.max(0, Math.min(total, uiState.done));
-      const ratio = Math.max(0, Math.min(1, done / total));
-      const percent = Math.round(ratio * 100);
-      const left = `stage ${Math.min(done + 1, total)}/${total}`;
+      const done = Math.max(0, Math.floor(Number(uiState.done) || 0));
+      const progress = resolveExtractionProgressDisplay(uiState.done, uiState.total);
       const copy = resolveExtractionLoadingCopy(done, uiState.stepLabel);
       const title = copy.title;
       const subtitle = copy.subtitle;
@@ -5294,9 +5314,9 @@ export function renderTracker(
       loadingBox.innerHTML = `
         <div class="bst-loading-row">
           <span>${title}</span>
-          <span>${left} (${percent}%)</span>
+          <span>${progress.stageText}${progress.stageText === "preparing" ? "" : ` (${progress.percent}%)`}</span>
         </div>
-        <div class="bst-loading-track"><div class="bst-loading-fill" style="width:${Math.round(ratio * 100)}%"></div></div>
+        <div class="bst-loading-track"><div class="bst-loading-fill" style="width:${Math.round(progress.ratio * 100)}%"></div></div>
         <div class="bst-loading-sub">${subtitle}</div>
         <div class="bst-loading-actions">
           <button class="bst-btn bst-btn-danger bst-loading-stop" data-bst-action="cancel-extraction">Stop</button>

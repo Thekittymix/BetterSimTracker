@@ -3234,7 +3234,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
   setTrackerUi(context, {
     phase: "extracting",
     done: 0,
-    total: 1,
+    total: 0,
     messageIndex: lastIndex,
     stepLabel: buildProgressResolveActive(
       activeSettings.entityTrackingMode === "multi_character" ? "multi_character" : "standard",
