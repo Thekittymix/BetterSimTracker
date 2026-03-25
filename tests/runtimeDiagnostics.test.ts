@@ -181,13 +181,26 @@ test("buildHistorySample keeps tracked snapshot structure", () => {
   assert.equal(sample[0].statistics.mood.Seraphina, "Hopeful");
 });
 
-test("buildHistorySample preserves explicit activeCharacters over broader resolver continuity", () => {
+test("buildHistorySample prefers resolver-backed activeCharacters over stale non-user explicit arrays", () => {
   const tracker = makeTracker(1234);
   tracker.activeCharacters = ["Garret"];
+  tracker.entityResolution = buildEntityResolution({
+    resolvedEntities: [
+      {
+        entityId: "ent-blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    source: "model",
+  });
 
   const sample = buildHistorySample([{ messageIndex: 4, timestamp: 1234, data: tracker }]);
 
-  assert.deepEqual(sample[0].activeCharacters, ["Garret"]);
+  assert.deepEqual(sample[0].activeCharacters, ["Blake"]);
 });
 
 test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
@@ -351,7 +364,7 @@ test("buildDiagnosticsReport produces expected core fields", () => {
   );
 });
 
-test("buildDiagnosticsReport preserves explicit activeCharacters in tracker summaries", () => {
+test("buildDiagnosticsReport prefers resolver-backed activeCharacters in tracker summaries", () => {
   const context = {
     chat: [{}, {}],
     groupId: null,
@@ -359,6 +372,19 @@ test("buildDiagnosticsReport preserves explicit activeCharacters in tracker summ
   } as unknown as STContext;
   const tracker = makeTracker(123456);
   tracker.activeCharacters = ["Garret"];
+  tracker.entityResolution = buildEntityResolution({
+    resolvedEntities: [
+      {
+        entityId: "ent-blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    source: "model",
+  });
 
   const report = buildDiagnosticsReport({
     context,
@@ -392,6 +418,6 @@ test("buildDiagnosticsReport preserves explicit activeCharacters in tracker summ
 
   assert.deepEqual(
     ((report.promptInjection as { latestStoredTrackerData: { activeCharacters: string[] } }).latestStoredTrackerData.activeCharacters),
-    ["Garret"],
+    ["Blake"],
   );
 });

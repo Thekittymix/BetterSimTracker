@@ -1,3 +1,7 @@
+## [2.2.4.16-exp155] - 2026-03-25
+### Fixed
+- Experimental storage/runtime normalization, merged prompt state, edit clones, and diagnostics now prefer resolver-backed active owners over stale non-user `activeCharacters`, so legacy owner arrays stop overriding entity-resolved multi-character state after persistence.
+
 ## [2.2.4.16-exp154] - 2026-03-25
 ### Fixed
 - Experimental multi-character user-turn extraction now preserves the non-user scene roster in entity-first resolver state instead of collapsing fallback scene ownership to `__bst_user__`, which lets the following AI turn inherit the correct prior scene when model-side resolution falls back.

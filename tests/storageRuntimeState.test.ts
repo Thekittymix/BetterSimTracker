@@ -402,7 +402,7 @@ test("getTrackerDataFromMessage accepts resolver-backed payloads without raw act
   assert.deepEqual(stored?.activeCharacters, ["Blake"]);
 });
 
-test("getTrackerDataFromMessage preserves explicit activeCharacters during entity normalization", () => {
+test("getTrackerDataFromMessage prefers resolver-backed activeCharacters during entity normalization", () => {
   const tracker = makeTracker(1001, {
     activeCharacters: ["Garret"],
     entityResolution: buildEntityResolution({
@@ -445,7 +445,7 @@ test("getTrackerDataFromMessage preserves explicit activeCharacters during entit
   };
 
   const stored = getTrackerDataFromMessage(message);
-  assert.deepEqual(stored?.activeCharacters, ["Garret"]);
+  assert.deepEqual(stored?.activeCharacters, ["Blake"]);
   assert.deepEqual(stored?.entityResolution, buildEntityResolution({
     sceneOwners: ["Blake"],
     messageOwners: ["Blake"],
@@ -455,7 +455,7 @@ test("getTrackerDataFromMessage preserves explicit activeCharacters during entit
   }));
 });
 
-test("getTrackerDataFromMessage preserves explicit activeCharacters before falling back to entity-derived owners", () => {
+test("getTrackerDataFromMessage prefers resolver-backed activeCharacters before stale explicit non-user arrays", () => {
   const blakeEntityId = "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake";
   const tracker = makeTracker(1001, {
     activeCharacters: ["Garret"],
@@ -505,7 +505,7 @@ test("getTrackerDataFromMessage preserves explicit activeCharacters before falli
   };
 
   const stored = getTrackerDataFromMessage(message);
-  assert.deepEqual(stored?.activeCharacters, ["Garret"]);
+  assert.deepEqual(stored?.activeCharacters, ["Blake"]);
   assert.deepEqual(stored?.entityResolution, buildEntityResolution({
     resolvedEntities: [
       {
@@ -659,7 +659,7 @@ test("buildMergedPromptMacroData prefers the latest owner array value over older
   assert.deepEqual(merged?.customNonNumericStatistics?.clothes, { [USER_TRACKER_KEY]: ["jeans"] });
 });
 
-test("resolveNormalizedTrackerActiveCharacters preserves explicit active owners and otherwise prefers message owners before scene owners", () => {
+test("resolveNormalizedTrackerActiveCharacters prefers resolver owners over explicit non-user active owners", () => {
   assert.deepEqual(
     resolveNormalizedTrackerActiveCharacters(
       { activeCharacters: [USER_TRACKER_KEY] } as TrackerData,
@@ -674,7 +674,7 @@ test("resolveNormalizedTrackerActiveCharacters preserves explicit active owners 
       ["Blake"],
       ["Ashley"],
     ),
-    ["Garret", "Raleigh"],
+    ["Ashley"],
   );
 
   assert.deepEqual(
@@ -682,7 +682,7 @@ test("resolveNormalizedTrackerActiveCharacters preserves explicit active owners 
       { activeCharacters: ["Garret", "Raleigh"] } as TrackerData,
       ["Blake"],
     ),
-    ["Garret", "Raleigh"],
+    ["Blake"],
   );
 
   assert.deepEqual(
@@ -690,7 +690,7 @@ test("resolveNormalizedTrackerActiveCharacters preserves explicit active owners 
       { activeCharacters: [] } as unknown as TrackerData,
       ["Blake"],
     ),
-    [],
+    ["Blake"],
   );
 
   assert.deepEqual(
@@ -1048,7 +1048,7 @@ test("mergeTrackerDataChronologically preserves the latest entityResolution payl
   assert.deepEqual(merged?.activeCharacters, ["Blake"]);
 });
 
-test("mergeTrackerDataChronologically preserves explicit activeCharacters over resolver continuity", () => {
+test("mergeTrackerDataChronologically prefers resolver-derived activeCharacters over stale non-user explicit arrays", () => {
   const merged = mergeTrackerDataChronologically([
     makeTracker(1000, {
       activeCharacters: ["Garret", "Raleigh"],
@@ -1062,7 +1062,7 @@ test("mergeTrackerDataChronologically preserves explicit activeCharacters over r
     }),
   ]);
 
-  assert.deepEqual(merged?.activeCharacters, ["Garret", "Raleigh"]);
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
   assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
     sceneOwners: ["Blake"],
@@ -1072,11 +1072,11 @@ test("mergeTrackerDataChronologically preserves explicit activeCharacters over r
   }));
 });
 
-test("mergeTrackerDataChronologically preserves explicit activeCharacters before entity-derived fallback owners", () => {
+test("mergeTrackerDataChronologically preserves explicit user activeCharacters before entity-derived fallback owners", () => {
   const blakeEntityId = "bst_mc_alias:test:blake";
   const merged = mergeTrackerDataChronologically([
     makeTracker(1000, {
-      activeCharacters: ["Garret"],
+      activeCharacters: [USER_TRACKER_KEY],
       entityResolution: buildEntityResolution({
         source: "model",
         resolvedEntities: [
@@ -1111,7 +1111,7 @@ test("mergeTrackerDataChronologically preserves explicit activeCharacters before
     }),
   ]);
 
-  assert.deepEqual(merged?.activeCharacters, ["Garret"]);
+  assert.deepEqual(merged?.activeCharacters, [USER_TRACKER_KEY]);
   assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
     resolvedEntities: [
@@ -1250,7 +1250,7 @@ test("buildMergedPromptMacroData preserves the latest entityResolution for merge
   }));
 });
 
-test("buildMergedPromptMacroData preserves preferred explicit activeCharacters over broader resolver continuity", () => {
+test("buildMergedPromptMacroData prefers resolver-backed activeCharacters over stale preferred non-user arrays", () => {
   const context = makeContext();
   const older = makeTracker(1000, {
     activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
@@ -1276,7 +1276,7 @@ test("buildMergedPromptMacroData preserves preferred explicit activeCharacters o
   writeTrackerDataToMessage(context, older, 0);
 
   const merged = buildMergedPromptMacroData(context, preferred);
-  assert.deepEqual(merged?.activeCharacters, ["Garret", "Raleigh"]);
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
   assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
     sceneOwners: ["Blake"],
@@ -1286,7 +1286,7 @@ test("buildMergedPromptMacroData preserves preferred explicit activeCharacters o
   }));
 });
 
-test("buildMergedPromptMacroData preserves preferred explicit activeCharacters even when resolver entity ids resolve a different scene owner", () => {
+test("buildMergedPromptMacroData prefers resolver-backed activeCharacters even when entity ids resolve a different scene owner", () => {
   const context = {
     ...makeContext(),
     groupId: "group-1",
@@ -1327,7 +1327,7 @@ test("buildMergedPromptMacroData preserves preferred explicit activeCharacters e
   });
 
   const merged = buildMergedPromptMacroData(context, preferred);
-  assert.deepEqual(merged?.activeCharacters, ["Garret", "Raleigh"]);
+  assert.deepEqual(merged?.activeCharacters, ["Blake"]);
   assert.deepEqual(merged?.entityResolution, buildEntityResolution({
     source: "model",
     resolvedEntities: [
@@ -1362,7 +1362,7 @@ test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () =
   assert.deepEqual(resolved.data.customNonNumericStatistics, messageTracker.customNonNumericStatistics);
 });
 
-test("resolveLatestStoredTrackerData preserves explicit activeCharacters on input", () => {
+test("resolveLatestStoredTrackerData prefers resolver-backed activeCharacters on input", () => {
   const context = makeContext();
   const messageTracker = makeTracker(2000, {
     activeCharacters: ["Garret", "Raleigh"],
@@ -1380,7 +1380,7 @@ test("resolveLatestStoredTrackerData preserves explicit activeCharacters on inpu
   const resolved = resolveLatestStoredTrackerData(context, 2);
   assert.equal(resolved.source, "message");
   assert.ok(resolved.data);
-  assert.deepEqual(resolved.data.activeCharacters, ["Garret", "Raleigh"]);
+  assert.deepEqual(resolved.data.activeCharacters, ["Blake"]);
   assert.deepEqual(resolved.data.entityResolution, buildEntityResolution({
     source: "model",
     resolvedEntities: [

@@ -76,7 +76,7 @@ test("cloneTrackerDataForEdit preserves resolver and by-entity state for edit mo
   assert.deepEqual(data.entityOwnerMap!.Blake.aliases, ["Blackout Blake"]);
 });
 
-test("cloneTrackerDataForEdit preserves explicit activeCharacters over resolver continuity", () => {
+test("cloneTrackerDataForEdit prefers resolver-backed activeCharacters over stale non-user explicit arrays", () => {
   const data: TrackerData = {
     timestamp: 1000,
     activeCharacters: ["Garret"],
@@ -101,5 +101,5 @@ test("cloneTrackerDataForEdit preserves explicit activeCharacters over resolver 
 
   const cloned = cloneTrackerDataForEdit(data);
 
-  assert.deepEqual(cloned.activeCharacters, ["Garret"]);
+  assert.deepEqual(cloned.activeCharacters, ["Blake"]);
 });

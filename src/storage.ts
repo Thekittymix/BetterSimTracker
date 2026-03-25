@@ -139,14 +139,10 @@ export function resolveNormalizedTrackerActiveCharacters(
   resolvedSceneOwners: string[] = [],
   resolvedMessageOwners: string[] = [],
 ): string[] {
-  const hasExplicitActiveCharacters = Array.isArray(data.activeCharacters);
-  const rawActiveCharacters = hasExplicitActiveCharacters
+  const rawActiveCharacters = Array.isArray(data.activeCharacters)
     ? Array.from(new Set((data.activeCharacters ?? []).map(item => String(item ?? "").trim()).filter(Boolean)))
     : [];
   if (rawActiveCharacters.includes(USER_TRACKER_KEY)) {
-    return rawActiveCharacters;
-  }
-  if (hasExplicitActiveCharacters) {
     return rawActiveCharacters;
   }
   if (resolvedMessageOwners.length) {
@@ -1391,8 +1387,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     mergedTimestamp = Math.max(mergedTimestamp, Number(entry.timestamp ?? 0));
     if (entry.entityResolution) {
       mergedEntityResolution = cloneEntityResolution(entry.entityResolution);
-      const hasExplicitActiveCharacters = Array.isArray(entry.activeCharacters);
-      const explicitActiveCharacters = hasExplicitActiveCharacters
+      const explicitActiveCharacters = Array.isArray(entry.activeCharacters)
         ? entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
         : [];
       const sceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
@@ -1405,12 +1400,14 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
         entry.entityOwnerMap,
         entity => entity.inMessage,
       );
-      if (hasExplicitActiveCharacters) {
+      if (explicitActiveCharacters.includes(USER_TRACKER_KEY)) {
         fallbackActiveCharacters = explicitActiveCharacters;
       } else if (messageOwners.length) {
         fallbackActiveCharacters = messageOwners;
       } else if (sceneOwners.length) {
         fallbackActiveCharacters = sceneOwners;
+      } else if (explicitActiveCharacters.length) {
+        fallbackActiveCharacters = explicitActiveCharacters;
       }
       if (messageOwners.includes(USER_TRACKER_KEY)) {
         const currentFallbackActiveCharacters: string[] = fallbackActiveCharacters ?? [];
