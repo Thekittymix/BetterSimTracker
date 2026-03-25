@@ -1,3 +1,8 @@
+## [2.2.4.16-exp153] - 2026-03-25
+### Fixed
+- Experimental user-turn replay in multi-character group chats now respects resolver-backed end-of-user-message scene owners when choosing a replay target, instead of blindly forcing the last AI speaker or first enabled member.
+- Experimental user-turn replay now skips the forced AI replay entirely when the user-turn resolver explicitly ends the scene with no remaining tracked group entities, preventing ghost replays on empty-scene turns.
+
 ## [2.2.4.16-exp152] - 2026-03-25
 ### Fixed
 - Experimental extraction placeholder now keeps zero-progress single-step startup states in `preparing` instead of showing misleading fake stage labels like `stage 1/1 (0%)` before real extraction progress begins.

@@ -161,13 +161,14 @@ import {
   isRetryableUserTurnReplayFailure,
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
+  shouldDeferUserTurnExtraction,
   shouldIssueUserTurnGateStop,
   shouldScheduleImmediateUserTurnExtraction,
   shouldScheduleUserTurnExtractionAfterGenerationEnd,
-  shouldDeferUserTurnExtraction,
   USER_MESSAGE_RENDERED_RETRY_REASON,
   isUserMessageRenderedRetryReason,
 } from "./userTurnExtractionGate";
+import { resolveGroupReplayTarget } from "./userTurnReplayTarget";
 
 declare const __BST_VERSION__: string;
 
@@ -1062,6 +1063,37 @@ function findCharacterIndexByName(context: STContext, name: string): number | nu
   return null;
 }
 
+function resolveReplaySceneCharacterIndicesFromLatestUserTracker(context: STContext): number[] | null {
+  const lastUserIndex = getLastUserMessageIndex(context);
+  if (lastUserIndex == null || lastUserIndex < 0 || lastUserIndex >= context.chat.length) {
+    return null;
+  }
+  const rawData = getTrackerDataFromMessage(context.chat[lastUserIndex]);
+  if (!rawData) return null;
+  const scopedData = settings
+    ? getMessageScopedTrackerData(context, lastUserIndex, rawData, settings, {
+        projectOwnerScopedCustomNonNumeric: false,
+      })
+    : rawData;
+  const hasExplicitSceneResolution =
+    Array.isArray(scopedData.entityResolution?.sceneOwners) ||
+    Array.isArray(scopedData.entityResolution?.sceneEntityIds);
+  if (!hasExplicitSceneResolution) {
+    return null;
+  }
+  const sceneOwners = resolveTrackerSceneOwners(context, scopedData)
+    .filter(name => name !== USER_TRACKER_KEY);
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const ownerName of sceneOwners) {
+    const characterIndex = findCharacterIndexByName(context, ownerName);
+    if (characterIndex == null || seen.has(characterIndex)) continue;
+    seen.add(characterIndex);
+    out.push(characterIndex);
+  }
+  return out;
+}
+
 type GroupDisabledSnapshot = {
   avatarKeys: Set<string>;
   names: Set<string>;
@@ -1218,64 +1250,39 @@ function normalizeReplayGenerationIntent(
   // path when no member is activated. Force the last AI speaker as a safe target.
   if (context.groupId && type.toLowerCase() === "normal") {
     const group = (context.groups ?? []).find(item => String(item?.id ?? "").trim() === String(context.groupId ?? "").trim());
-    const disabled = buildGroupDisabledSnapshot(group?.disabled_members);
     const enabledIndices = getEnabledGroupCharacterIndices(context);
+    const resolvedSceneOwnerIndices = resolveReplaySceneCharacterIndicesFromLatestUserTracker(context);
     const hasForcedChar =
       typeof options.force_chid === "number" &&
       Number.isInteger(options.force_chid) &&
       Number(options.force_chid) >= 0;
     const currentForcedChar = hasForcedChar ? Number(options.force_chid) : null;
-    const hasEnabledForcedChar = currentForcedChar != null && enabledIndices.includes(currentForcedChar);
-    if (!hasEnabledForcedChar && enabledIndices.length) {
-      const lastAiIndex = getLastAiMessageIndex(context);
-      let selected: number | null = null;
-      if (lastAiIndex != null && lastAiIndex >= 0 && lastAiIndex < context.chat.length) {
-        const lastAiName = String(context.chat[lastAiIndex]?.name ?? "").trim();
-        const charIndex = findCharacterIndexByName(context, lastAiName);
-        if (charIndex != null && enabledIndices.includes(charIndex)) {
-          selected = charIndex;
-        }
-      }
-      if (selected == null) {
-        selected = enabledIndices[0] ?? null;
-      }
-      if (selected != null) {
-        options.force_chid = selected;
-        forcedGroupCharacterId = selected;
-      }
-    } else if (!hasEnabledForcedChar) {
-      let fallback: number | null = null;
-      const lastAiIndex = getLastAiMessageIndex(context);
-      if (lastAiIndex != null && lastAiIndex >= 0 && lastAiIndex < context.chat.length) {
-        const lastAiName = String(context.chat[lastAiIndex]?.name ?? "").trim();
-        fallback = findCharacterIndexByName(context, lastAiName);
-      }
-      if (fallback == null && typeof context.characterId === "number" && Number.isInteger(context.characterId) && context.characterId >= 0) {
-        fallback = Number(context.characterId);
-      }
-      if (fallback != null && !isCharacterDisabledBySnapshot(context, disabled, fallback)) {
-        options.force_chid = fallback;
-        forcedGroupCharacterId = fallback;
-      } else {
-        delete options.force_chid;
-      }
-    } else if (hasEnabledForcedChar) {
-      forcedGroupCharacterId = currentForcedChar;
+    let lastAiCharacterIndex: number | null = null;
+    const lastAiIndex = getLastAiMessageIndex(context);
+    if (lastAiIndex != null && lastAiIndex >= 0 && lastAiIndex < context.chat.length) {
+      const lastAiName = String(context.chat[lastAiIndex]?.name ?? "").trim();
+      lastAiCharacterIndex = findCharacterIndexByName(context, lastAiName);
     }
-
-    // If we still cannot resolve a concrete target, replaying normal generation in group mode
-    // may create a synthetic empty user message. Skip replay instead of producing ghost turns.
-    const hasConcreteTarget =
-      typeof options.force_chid === "number" &&
-      Number.isInteger(options.force_chid) &&
-      Number(options.force_chid) >= 0;
-    if (!hasConcreteTarget) {
-      skipReplay = true;
-      skipReason = "group_replay_no_resolved_target";
-    } else if (hasEnabledForcedChar) {
-      skipReplay = false;
-      skipReason = null;
+    const currentCharacterId =
+      typeof context.characterId === "number" && Number.isInteger(context.characterId) && context.characterId >= 0
+        ? Number(context.characterId)
+        : null;
+    const replayTarget = resolveGroupReplayTarget({
+      currentForcedChar,
+      enabledIndices,
+      resolvedSceneOwnerIndices,
+      lastAiCharacterIndex,
+      currentCharacterId,
+    });
+    if (replayTarget.forceChid != null) {
+      options.force_chid = replayTarget.forceChid;
+      forcedGroupCharacterId = replayTarget.forceChid;
+    } else {
+      delete options.force_chid;
+      forcedGroupCharacterId = null;
     }
+    skipReplay = replayTarget.skipReplay;
+    skipReason = replayTarget.skipReason;
   }
 
   return { type, options, dryRun: intent.dryRun, forcedAutomaticTrigger, forcedGroupCharacterId, skipReplay, skipReason };
