@@ -1,3 +1,7 @@
+## [2.2.4.16-exp145] - 2026-03-25
+### Fixed
+- Experimental user-turn extraction now waits for the intercepted generation to fully end before starting the first tracker request, and retryable first-pass user-turn API failures now get two delayed automatic retries instead of dropping straight into a failed tracker box on the opening user turn.
+
 ## [2.2.4.16-exp144] - 2026-03-25
 ### Fixed
 - Experimental multi-character `no_active_characters` AI turns now keep prior alias continuity while overlaying the latest scene/global continuity from the immediately preceding message, so empty-participant turns stop reviving stale scene cards and stale global scene state from older snapshots.

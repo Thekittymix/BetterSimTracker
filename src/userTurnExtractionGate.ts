@@ -4,6 +4,35 @@ export function isUserMessageRenderedRetryReason(reason: string): boolean {
   return reason === USER_MESSAGE_RENDERED_RETRY_REASON;
 }
 
+export function shouldScheduleImmediateUserTurnExtraction(input: {
+  reason: string;
+  adoptedInflightGeneration: boolean;
+}): boolean {
+  if (input.reason !== "USER_MESSAGE_RENDERED") return true;
+  return !input.adoptedInflightGeneration;
+}
+
+export function shouldScheduleUserTurnExtractionAfterGenerationEnd(input: {
+  userTurnGateActive: boolean;
+  chatGenerationSawCharacterRender: boolean;
+}): boolean {
+  return input.userTurnGateActive && !input.chatGenerationSawCharacterRender;
+}
+
+export function resolveUserTurnRetryDelayMs(input: {
+  reason: string;
+  retryableFailure: boolean;
+  attempt: number;
+}): number | null {
+  if (!input.retryableFailure) return null;
+  if (input.reason !== "USER_MESSAGE_RENDERED" && input.reason !== USER_MESSAGE_RENDERED_RETRY_REASON) {
+    return null;
+  }
+  if (input.attempt < 1) return 500;
+  if (input.attempt < 2) return 1200;
+  return null;
+}
+
 export function shouldDeferUserTurnExtraction(input: {
   reason: string;
   userTurnGateActive: boolean;
