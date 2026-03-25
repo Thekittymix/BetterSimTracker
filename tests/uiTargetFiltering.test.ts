@@ -373,15 +373,14 @@ test("isUserOwnerToken recognizes both the internal user key and legacy visible 
   assert.equal(isUserOwnerToken("Blake", resolveDisplayName), false);
 });
 
-test("shouldKeepOwnerInRenderTargetPool keeps registry-visible owners even without current stat payload", () => {
+test("shouldKeepOwnerInRenderTargetPool requires real state evidence, not registry presence alone", () => {
   assert.equal(
     shouldKeepOwnerInRenderTargetPool({
       ownerName: "Blake",
       hasAnyStat: false,
       isActive: false,
-      registryOwners: new Set(["blake", "garret"]),
     }),
-    true,
+    false,
   );
 
   assert.equal(
@@ -389,9 +388,26 @@ test("shouldKeepOwnerInRenderTargetPool keeps registry-visible owners even witho
       ownerName: "Raleigh",
       hasAnyStat: false,
       isActive: false,
-      registryOwners: new Set(["blake", "garret"]),
     }),
     false,
+  );
+
+  assert.equal(
+    shouldKeepOwnerInRenderTargetPool({
+      ownerName: "Ashley",
+      hasAnyStat: true,
+      isActive: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldKeepOwnerInRenderTargetPool({
+      ownerName: "Garret",
+      hasAnyStat: false,
+      isActive: true,
+    }),
+    true,
   );
 });
 

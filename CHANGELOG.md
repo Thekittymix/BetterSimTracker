@@ -1,3 +1,7 @@
+## [2.2.4.16-exp150] - 2026-03-25
+### Fixed
+- Experimental multi-character card rendering no longer creates empty alias shell-cards from registry presence alone; aliases now need current tracked state, continuity state, or active participation before they are backfilled into the visible card pool.
+
 ## [2.2.4.16-exp149] - 2026-03-25
 ### Fixed
 - Experimental custom numeric stat defaults now preserve an explicit `0` instead of falling back to `50` when saving/editing stats, rebuilding numeric stat definitions, or generating custom numeric extraction prompts.

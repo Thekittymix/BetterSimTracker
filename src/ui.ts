@@ -889,11 +889,10 @@ export function shouldKeepOwnerInRenderTargetPool(input: {
   ownerName: string;
   hasAnyStat: boolean;
   isActive: boolean;
-  registryOwners: Set<string>;
 }): boolean {
   const normalized = normalizeName(input.ownerName);
   if (!normalized) return false;
-  return input.hasAnyStat || input.isActive || input.registryOwners.has(normalized);
+  return input.hasAnyStat || input.isActive;
 }
 
 export function resolveTrackerCardCollapsed(input: {
@@ -5525,7 +5524,6 @@ export function renderTracker(
     const registryOwnersForMessage = registryEntriesForMessage.length > 0
       ? resolveRegistryOwnersFromEntries(registryEntriesForMessage)
       : (resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? []);
-    const registryOwnerSet = new Set(registryOwnersForMessage.map(name => normalizeName(name)));
     const mergedWithRegistryOwners = registryEntriesForMessage.length > 0
       ? mergeRegistryEntitiesIntoTargets({
         targets: mergedCharacters,
@@ -5536,12 +5534,23 @@ export function renderTracker(
         mergedCharacters,
         registryOwnersForMessage,
       );
+    const renderableRegistryOwners = mergedWithRegistryOwners.filter(name => shouldKeepOwnerInRenderTargetPool({
+      ownerName: name,
+      hasAnyStat: hasAnyStatFor(name, resolveRegistryEntryForOwnerInMessageData({
+        ownerName: name,
+        messageIndex: entry.messageIndex,
+        data,
+        resolveRegistryEntryForMessage,
+        resolveRegistryEntryByEntityIdForMessage,
+      })),
+      isActive: activeSet.has(normalizeName(name)),
+    }));
     const displayPool = buildDisplayPoolWithRegistry({
       entityTrackingMode: settings.entityTrackingMode,
       includeAllTargets: forceAllInGroup || settings.showInactive,
       activeCharacters: resolvedSceneOwners,
       dataCharacterNames,
-      mergedWithRegistryOwners,
+      mergedWithRegistryOwners: renderableRegistryOwners,
     });
     const isRenderedUserOwner = (name: string): boolean => isUserOwnerToken(name, resolveDisplayName);
     const scopedDisplayPool = userMessageEntry
@@ -5561,7 +5570,6 @@ export function renderTracker(
           resolveRegistryEntryByEntityIdForMessage,
         })),
         isActive: activeSet.has(normalizeName(name)),
-        registryOwners: registryOwnerSet,
       }));
     const uniqueTargets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)));
     const getLifecycleState = (name: string) => resolveCardLifecycleState({
