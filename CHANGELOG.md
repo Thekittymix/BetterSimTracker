@@ -1,3 +1,7 @@
+## [2.2.4.16-exp148] - 2026-03-25
+### Fixed
+- Experimental user-turn gate now issues only one stop request per intercepted generation and retries transient replay failures instead of dropping the turn immediately when the backend returns retryable proxy/API errors during replay.
+
 ## [2.2.4.16-exp147] - 2026-03-25
 ### Fixed
 - Experimental storage/runtime normalization now preserves explicit empty `entityResolution` state on no-active turns instead of collapsing it away, so later continuity/lifecycle reads can distinguish an intentionally empty end-of-message scene from missing resolver data.

@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  isRetryableUserTurnReplayFailure,
+  resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
+  shouldIssueUserTurnGateStop,
   shouldScheduleImmediateUserTurnExtraction,
   shouldScheduleUserTurnExtractionAfterGenerationEnd,
   shouldDeferUserTurnExtraction,
@@ -46,6 +49,44 @@ test("shouldDeferUserTurnExtraction only defers rendered user-turn extraction wh
       userTurnGateActive: true,
       chatGenerationInFlight: true,
       stopGenerationScheduled: true,
+    }),
+    false,
+  );
+});
+
+test("shouldIssueUserTurnGateStop only allows one stop request per active gate", () => {
+  assert.equal(
+    shouldIssueUserTurnGateStop({
+      userTurnGateActive: true,
+      stopGenerationScheduled: false,
+      stopAlreadyIssued: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldIssueUserTurnGateStop({
+      userTurnGateActive: true,
+      stopGenerationScheduled: true,
+      stopAlreadyIssued: false,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldIssueUserTurnGateStop({
+      userTurnGateActive: true,
+      stopGenerationScheduled: false,
+      stopAlreadyIssued: true,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldIssueUserTurnGateStop({
+      userTurnGateActive: false,
+      stopGenerationScheduled: false,
+      stopAlreadyIssued: false,
     }),
     false,
   );
@@ -139,4 +180,15 @@ test("resolveUserTurnRetryDelayMs gives user-turn extraction two delayed retries
     }),
     null,
   );
+});
+
+test("user-turn replay retry helpers only retry transient backend failures", () => {
+  assert.equal(isRetryableUserTurnReplayFailure("Proxy connection closed unexpectedly"), true);
+  assert.equal(isRetryableUserTurnReplayFailure("{\"statusCode\":500,\"message\":\"Servers restarting\"}"), true);
+  assert.equal(isRetryableUserTurnReplayFailure("Validation failed"), false);
+
+  assert.equal(resolveUserTurnReplayRetryDelayMs({ retryableFailure: true, attempt: 0 }), 700);
+  assert.equal(resolveUserTurnReplayRetryDelayMs({ retryableFailure: true, attempt: 1 }), 1600);
+  assert.equal(resolveUserTurnReplayRetryDelayMs({ retryableFailure: true, attempt: 2 }), null);
+  assert.equal(resolveUserTurnReplayRetryDelayMs({ retryableFailure: false, attempt: 0 }), null);
 });

@@ -158,7 +158,10 @@ import { buildCharacterCardsContext } from "./characterCardContext";
 import { computeManualPlaceholderMessageIndices } from "./renderQueueHelpers";
 import { resolvePersistedSnapshotEntityIds } from "./persistedSnapshotResolution";
 import {
+  isRetryableUserTurnReplayFailure,
+  resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
+  shouldIssueUserTurnGateStop,
   shouldScheduleImmediateUserTurnExtraction,
   shouldScheduleUserTurnExtractionAfterGenerationEnd,
   shouldDeferUserTurnExtraction,
@@ -209,9 +212,22 @@ let userTurnGateMessageIndex: number | null = null;
 let userTurnGateMessageText = "";
 let userTurnGatePendingIntent: CapturedGenerationIntent | null = null;
 let userTurnGateStopTimer: number | null = null;
+let userTurnGateStopIssued = false;
 let userTurnGateReplayAttempts = 0;
 let userTurnGateExtractionRetryAttempt = 0;
 let chatGenerationIntent: CapturedGenerationIntent | null = null;
+type PendingUserTurnReplay = {
+  type: string;
+  options: Record<string, unknown>;
+  dryRun: boolean;
+  forcedAutomaticTrigger: boolean;
+  forcedGroupCharacterId: number | null;
+  messageIndex: number;
+  messageText: string;
+  attempts: number;
+};
+let pendingUserTurnReplay: PendingUserTurnReplay | null = null;
+let pendingUserTurnReplayTimer: number | null = null;
 type PromptInjectionGenerationSnapshot = {
   prompt: string;
   capturedAt: number;
@@ -1265,6 +1281,112 @@ function normalizeReplayGenerationIntent(
   return { type, options, dryRun: intent.dryRun, forcedAutomaticTrigger, forcedGroupCharacterId, skipReplay, skipReason };
 }
 
+function clearPendingUserTurnReplay(reason: string): void {
+  if (pendingUserTurnReplayTimer !== null) {
+    window.clearTimeout(pendingUserTurnReplayTimer);
+    pendingUserTurnReplayTimer = null;
+  }
+  if (pendingUserTurnReplay) {
+    pushTrace("user_gate.replay_pending_clear", {
+      reason,
+      attempts: pendingUserTurnReplay.attempts,
+      type: pendingUserTurnReplay.type,
+      forcedAutomaticTrigger: pendingUserTurnReplay.forcedAutomaticTrigger,
+      forcedGroupCharacterId: pendingUserTurnReplay.forcedGroupCharacterId,
+    });
+  }
+  pendingUserTurnReplay = null;
+}
+
+function validatePendingUserTurnReplay(context: STContext, replay: PendingUserTurnReplay): { ok: boolean; reason: string } {
+  const index = replay.messageIndex;
+  if (index < 0 || index >= context.chat.length) return { ok: false, reason: "message_index_out_of_range" };
+  const message = context.chat[index];
+  if (!isTrackableUserMessage(message)) return { ok: false, reason: "message_not_user" };
+  const currentUserIndex = getLastUserMessageIndex(context);
+  if (currentUserIndex !== index) return { ok: false, reason: "newer_user_message_present" };
+  const text = String(message.mes ?? "").trim();
+  if (replay.messageText && text !== replay.messageText) {
+    return { ok: false, reason: "user_message_changed" };
+  }
+  const hasAiReplyAfterUser = context.chat.slice(index + 1).some(item => isTrackableAiMessage(item));
+  if (hasAiReplyAfterUser) return { ok: false, reason: "ai_reply_already_present" };
+  return { ok: true, reason: "ok" };
+}
+
+function runPendingUserTurnReplay(triggerReason: string): void {
+  const replay = pendingUserTurnReplay;
+  if (!replay) return;
+  const context = getSafeContext();
+  if (!context) {
+    clearPendingUserTurnReplay("context_unavailable");
+    return;
+  }
+  if (chatGenerationInFlight) {
+    pendingUserTurnReplayTimer = window.setTimeout(() => {
+      pendingUserTurnReplayTimer = null;
+      runPendingUserTurnReplay("wait_generation_end");
+    }, 180);
+    pushTrace("user_gate.replay_pending_wait", {
+      triggerReason,
+      attempts: replay.attempts,
+      type: replay.type,
+    });
+    return;
+  }
+  const validation = validatePendingUserTurnReplay(context, replay);
+  if (!validation.ok) {
+    clearPendingUserTurnReplay(validation.reason);
+    return;
+  }
+  pushTrace("user_gate.replay_retry_start", {
+    triggerReason,
+    attempts: replay.attempts,
+    type: replay.type,
+    forcedAutomaticTrigger: replay.forcedAutomaticTrigger,
+    forcedGroupCharacterId: replay.forcedGroupCharacterId,
+  });
+  void (async () => {
+    try {
+      await context.generate?.(replay.type, replay.options, replay.dryRun);
+      pushTrace("user_gate.replay_retry_done", {
+        attempts: replay.attempts,
+        type: replay.type,
+        forcedAutomaticTrigger: replay.forcedAutomaticTrigger,
+        forcedGroupCharacterId: replay.forcedGroupCharacterId,
+      });
+      clearPendingUserTurnReplay("replay_retry_done");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const retryDelayMs = resolveUserTurnReplayRetryDelayMs({
+        retryableFailure: isRetryableUserTurnReplayFailure(message),
+        attempt: replay.attempts,
+      });
+      pushTrace("user_gate.replay_retry_error", {
+        attempts: replay.attempts,
+        type: replay.type,
+        forcedAutomaticTrigger: replay.forcedAutomaticTrigger,
+        forcedGroupCharacterId: replay.forcedGroupCharacterId,
+        message,
+        retryDelayMs,
+      });
+      console.error("[BetterSimTracker] Failed to replay generation intent:", error);
+      if (retryDelayMs == null) {
+        clearPendingUserTurnReplay("replay_retry_error");
+        return;
+      }
+      pendingUserTurnReplay = {
+        ...replay,
+        attempts: replay.attempts + 1,
+      };
+      pendingUserTurnReplayTimer = window.setTimeout(() => {
+        pendingUserTurnReplayTimer = null;
+        runPendingUserTurnReplay("retryable_replay_error");
+      }, retryDelayMs);
+    }
+  })();
+}
+
 function resetUserTurnGate(reason: string): void {
   const hadIntent = Boolean(userTurnGatePendingIntent);
   if (userTurnGateStopTimer !== null) {
@@ -1275,6 +1397,7 @@ function resetUserTurnGate(reason: string): void {
   userTurnGateMessageIndex = null;
   userTurnGateMessageText = "";
   userTurnGatePendingIntent = null;
+  userTurnGateStopIssued = false;
   userTurnGateReplayAttempts = 0;
   userTurnGateExtractionRetryAttempt = 0;
   pushTrace("user_gate.reset", { reason, hadIntent });
@@ -1285,6 +1408,7 @@ function startUserTurnGate(context: STContext, messageIndex: number | null): { a
     window.clearTimeout(userTurnGateStopTimer);
     userTurnGateStopTimer = null;
   }
+  clearPendingUserTurnReplay("new_gate_start");
   const resolvedIndex =
     typeof messageIndex === "number" && messageIndex >= 0 && messageIndex < context.chat.length
       ? messageIndex
@@ -1301,6 +1425,7 @@ function startUserTurnGate(context: STContext, messageIndex: number | null): { a
   userTurnGateMessageIndex = resolvedIndex;
   userTurnGateMessageText = messageText;
   userTurnGatePendingIntent = null;
+  userTurnGateStopIssued = false;
   userTurnGateReplayAttempts = 0;
   userTurnGateExtractionRetryAttempt = 0;
   let adoptedInflightGeneration = false;
@@ -1329,11 +1454,17 @@ function startUserTurnGate(context: STContext, messageIndex: number | null): { a
 }
 
 function requestUserTurnGateStop(context: STContext, type: string): void {
-  if (!userTurnGateActive) return;
-  if (userTurnGateStopTimer !== null) return;
+  if (!shouldIssueUserTurnGateStop({
+    userTurnGateActive,
+    stopGenerationScheduled: userTurnGateStopTimer !== null,
+    stopAlreadyIssued: userTurnGateStopIssued,
+  })) {
+    return;
+  }
   userTurnGateStopTimer = window.setTimeout(() => {
     userTurnGateStopTimer = null;
     if (!userTurnGateActive) return;
+    userTurnGateStopIssued = true;
     const stopped = Boolean(context.stopGeneration?.());
     pushTrace("user_gate.stop_generation", { stopped, type });
   }, 0);
@@ -1424,6 +1555,16 @@ function finalizeUserTurnGateReplay(triggerReason: string): void {
     resetUserTurnGate(normalizedReplay.skipReason ?? "replay_guard");
     return;
   }
+  pendingUserTurnReplay = {
+    type: normalizedReplay.type,
+    options: sanitizeGenerationOptions(normalizedReplay.options),
+    dryRun: normalizedReplay.dryRun,
+    forcedAutomaticTrigger: normalizedReplay.forcedAutomaticTrigger,
+    forcedGroupCharacterId: normalizedReplay.forcedGroupCharacterId,
+    messageIndex: userTurnGateMessageIndex ?? -1,
+    messageText: userTurnGateMessageText,
+    attempts: 0,
+  };
   resetUserTurnGate("replay_start");
   chatGenerationInFlight = false;
   chatGenerationIntent = null;
@@ -1449,14 +1590,33 @@ function finalizeUserTurnGateReplay(triggerReason: string): void {
         forcedAutomaticTrigger: normalizedReplay.forcedAutomaticTrigger,
         forcedGroupCharacterId: normalizedReplay.forcedGroupCharacterId,
       });
+      clearPendingUserTurnReplay("replay_done");
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const retryDelayMs = resolveUserTurnReplayRetryDelayMs({
+        retryableFailure: isRetryableUserTurnReplayFailure(message),
+        attempt: pendingUserTurnReplay?.attempts ?? 0,
+      });
       pushTrace("user_gate.replay_error", {
         type: normalizedReplay.type,
         forcedAutomaticTrigger: normalizedReplay.forcedAutomaticTrigger,
         forcedGroupCharacterId: normalizedReplay.forcedGroupCharacterId,
-        message: error instanceof Error ? error.message : String(error),
+        message,
+        retryDelayMs,
       });
       console.error("[BetterSimTracker] Failed to replay generation intent:", error);
+      if (retryDelayMs == null || !pendingUserTurnReplay) {
+        clearPendingUserTurnReplay("replay_error");
+        return;
+      }
+      pendingUserTurnReplay = {
+        ...pendingUserTurnReplay,
+        attempts: pendingUserTurnReplay.attempts + 1,
+      };
+      pendingUserTurnReplayTimer = window.setTimeout(() => {
+        pendingUserTurnReplayTimer = null;
+        runPendingUserTurnReplay("retryable_replay_error");
+      }, retryDelayMs);
     }
   })();
 }
