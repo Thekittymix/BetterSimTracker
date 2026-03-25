@@ -19,6 +19,7 @@ import {
   resolveInitialExtractionOwners,
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
+  resolveUserExtractionOwnerScopes,
 } from "../src/entityResolution";
 import { USER_TRACKER_KEY } from "../src/constants";
 
@@ -273,6 +274,40 @@ test("resolveExtractionOwnerScopes narrows scene-active aliases when a recent us
 
   assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley"]);
   assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
+});
+
+test("resolveUserExtractionOwnerScopes keeps non-user scene continuity while pinning request ownership to the user", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Raleigh greeted Kuba while Ashley, Blake, and Garret lingered nearby.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+      },
+      {
+        mes: "Blake, answer only for yourself in one short reply. Ashley, Garret, and Raleigh stay silent.",
+        name: "Kuba",
+        is_user: true,
+      },
+    ],
+  } as any;
+
+  const resolved = resolveUserExtractionOwnerScopes({
+    context,
+    detectedActiveCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    message: context.chat[1],
+    settings: { entityTrackingMode: "multi_character" } as any,
+    resolvedSceneActiveCharacters: null,
+  });
+
+  assert.deepEqual(resolved, {
+    sceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    requestCharacters: [USER_TRACKER_KEY],
+    source: "fallback",
+  });
 });
 
 test("resolvePersistedActiveOwners excludes User by default for AI-side tracker targets", () => {

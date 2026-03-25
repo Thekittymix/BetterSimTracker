@@ -1,3 +1,7 @@
+## [2.2.4.16-exp154] - 2026-03-25
+### Fixed
+- Experimental multi-character user-turn extraction now preserves the non-user scene roster in entity-first resolver state instead of collapsing fallback scene ownership to `__bst_user__`, which lets the following AI turn inherit the correct prior scene when model-side resolution falls back.
+
 ## [2.2.4.16-exp153] - 2026-03-25
 ### Fixed
 - Experimental user-turn replay in multi-character group chats now respects resolver-backed end-of-user-message scene owners when choosing a replay target, instead of blindly forcing the last AI speaker or first enabled member.

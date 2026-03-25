@@ -538,6 +538,46 @@ export function resolveExtractionOwnerScopes(
   };
 }
 
+export function resolveUserExtractionOwnerScopes(input: {
+  context: STContext | null;
+  detectedActiveCharacters: string[];
+  message: ChatMessage | null | undefined;
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
+  resolvedSceneActiveCharacters?: string[] | null;
+}): {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+  source: "model" | "fallback";
+} {
+  const resolvedSceneActiveCharacters = resolvePersistedActiveOwners(
+    input.resolvedSceneActiveCharacters ?? [],
+    { includeUserOwner: false },
+  );
+  if (resolvedSceneActiveCharacters.length) {
+    return {
+      sceneActiveCharacters: resolvedSceneActiveCharacters,
+      requestCharacters: [USER_TRACKER_KEY],
+      source: "model",
+    };
+  }
+
+  const fallbackSceneActiveCharacters = resolvePersistedActiveOwners(
+    resolveExtractionOwnerScopes(
+      input.context,
+      input.detectedActiveCharacters,
+      input.message,
+      input.settings,
+    ).sceneActiveCharacters,
+    { includeUserOwner: false },
+  );
+
+  return {
+    sceneActiveCharacters: fallbackSceneActiveCharacters,
+    requestCharacters: [USER_TRACKER_KEY],
+    source: "fallback",
+  };
+}
+
 export function constrainFallbackOwnerScopesToPreviousUserScene(input: {
   userExtraction: boolean;
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;

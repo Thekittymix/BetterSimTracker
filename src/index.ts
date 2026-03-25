@@ -19,6 +19,7 @@ import {
   resolveInitialExtractionOwners,
   resolvePersistedSnapshotResolvedEntities,
   resolvePersistedSnapshotActiveOwners,
+  resolveUserExtractionOwnerScopes,
 } from "./entityResolution";
 import {
   buildMultiCharacterResolverPrompt,
@@ -3556,13 +3557,13 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       ? getTrackerDataFromMessage(previousMessage)
       : null;
     const baseOwnerScopes = userExtraction
-      ? {
-          sceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters.length
-            ? resolvedOwnerScopes.sceneActiveCharacters
-            : fallbackInitialActiveCharacters,
-          requestCharacters: fallbackInitialActiveCharacters,
-          source: (resolvedOwnerScopes?.source ?? "fallback") as "model" | "fallback",
-        }
+      ? resolveUserExtractionOwnerScopes({
+          context,
+          detectedActiveCharacters: activity.activeCharacters,
+          message: lastMessage,
+          settings: activeSettings,
+          resolvedSceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters ?? null,
+        })
       : (resolvedOwnerScopes ?? {
           ...resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings),
           source: "fallback" as const,
