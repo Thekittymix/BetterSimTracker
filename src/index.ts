@@ -13,6 +13,7 @@ import {
   resolveCharacterFromContext,
   resolveEntityResolverCandidateOwners,
   constrainFallbackOwnerScopesToPreviousUserScene,
+  constrainResolvedOwnerScopesToPreviousUserScene,
   resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
   resolveInitialExtractionOwners,
@@ -3358,6 +3359,30 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           ...resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings),
           source: "fallback" as const,
         });
+    const constrainedResolvedOwnerScopes = resolvedOwnerScopes
+      ? constrainResolvedOwnerScopesToPreviousUserScene({
+          userExtraction,
+          settings: activeSettings,
+          previousMessage,
+          previousTrackerData: previousMessageTrackerData,
+          resolvedSceneActiveCharacters: resolvedOwnerScopes.sceneActiveCharacters,
+          resolvedRequestCharacters: resolvedOwnerScopes.requestCharacters,
+        })
+      : null;
+    if (constrainedResolvedOwnerScopes && resolvedOwnerScopes && resolvedEntityResolution) {
+      resolvedOwnerScopes = {
+        ...resolvedOwnerScopes,
+        sceneActiveCharacters: constrainedResolvedOwnerScopes.sceneActiveCharacters,
+        requestCharacters: constrainedResolvedOwnerScopes.requestCharacters,
+      };
+      resolvedEntityResolution = {
+        ...resolvedEntityResolution,
+        sceneOwners: constrainedResolvedOwnerScopes.sceneActiveCharacters,
+        messageOwners: constrainedResolvedOwnerScopes.requestCharacters,
+        sceneEntityIds: resolveTrackerEntityIdsForOwners(context, constrainedResolvedOwnerScopes.sceneActiveCharacters),
+        messageEntityIds: resolveTrackerEntityIdsForOwners(context, constrainedResolvedOwnerScopes.requestCharacters),
+      };
+    }
     const constrainedFallbackOwnerScopes = !resolvedOwnerScopes
       ? constrainFallbackOwnerScopesToPreviousUserScene({
           userExtraction,

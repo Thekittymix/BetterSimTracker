@@ -1,3 +1,7 @@
+## [2.2.4.16-exp141] - 2026-03-25
+### Fixed
+- Experimental multi-character AI ambient replies with no resolved message participants now clamp their scene continuity to the latest user-declared scene instead of re-expanding back to the full source-card ensemble.
+
 ## [2.2.4.16-exp140] - 2026-03-25
 ### Changed
 - Experimental multi-character tracker snapshots now keep scene presence separate from speaker/message ownership more consistently across persistence, storage normalization, lifecycle reads, and merged runtime state, so silent in-scene aliases can remain part of scene continuity without being mistaken for the current speaker.

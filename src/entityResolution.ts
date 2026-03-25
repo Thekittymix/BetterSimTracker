@@ -565,6 +565,33 @@ export function constrainFallbackOwnerScopesToPreviousUserScene(input: {
   };
 }
 
+export function constrainResolvedOwnerScopesToPreviousUserScene(input: {
+  userExtraction: boolean;
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
+  previousMessage: ChatMessage | null | undefined;
+  previousTrackerData: TrackerData | null | undefined;
+  resolvedSceneActiveCharacters: string[];
+  resolvedRequestCharacters: string[];
+}): {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+} | null {
+  if (input.userExtraction) return null;
+  if (input.settings.entityTrackingMode !== "multi_character") return null;
+  if (!input.previousMessage?.is_user) return null;
+  if (input.resolvedRequestCharacters.length) return null;
+  const rawSceneOwners = input.previousTrackerData?.entityResolution?.sceneOwners;
+  if (!Array.isArray(rawSceneOwners)) return null;
+
+  const previousSceneOwners = resolvePersistedActiveOwners(rawSceneOwners);
+  const allowed = new Set(previousSceneOwners.map(owner => normalizeKey(owner)));
+
+  return {
+    sceneActiveCharacters: input.resolvedSceneActiveCharacters.filter(owner => allowed.has(normalizeKey(owner))),
+    requestCharacters: [],
+  };
+}
+
 export function resolvePersistedActiveOwners(
   sceneActiveCharacters: string[],
   input: { includeUserOwner?: boolean } = {},

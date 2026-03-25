@@ -12,6 +12,7 @@ import {
   resolveCharacterIdentity,
   resolveCharacterFromContext,
   constrainFallbackOwnerScopesToPreviousUserScene,
+  constrainResolvedOwnerScopesToPreviousUserScene,
   resolveExtractionRequestEntityIds,
   resolveExtractionRequestOwners,
   resolveExtractionOwnerScopes,
@@ -336,6 +337,55 @@ test("constrainFallbackOwnerScopesToPreviousUserScene can preserve an explicitly
     sceneActiveCharacters: [],
     requestCharacters: [],
   });
+});
+
+test("constrainResolvedOwnerScopesToPreviousUserScene keeps no-speaker AI scopes inside the latest user-declared scene", () => {
+  const constrained = constrainResolvedOwnerScopesToPreviousUserScene({
+    userExtraction: false,
+    settings: { entityTrackingMode: "multi_character" } as any,
+    previousMessage: {
+      is_user: true,
+      name: "Kuba",
+      mes: "Raleigh exits too. Nobody from the group stays here with me now.",
+    } as any,
+    previousTrackerData: {
+      entityResolution: {
+        sceneOwners: [],
+        messageOwners: [USER_TRACKER_KEY],
+        source: "fallback",
+      },
+    } as any,
+    resolvedSceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    resolvedRequestCharacters: [],
+  });
+
+  assert.deepEqual(constrained, {
+    sceneActiveCharacters: [],
+    requestCharacters: [],
+  });
+});
+
+test("constrainResolvedOwnerScopesToPreviousUserScene does not clamp replies that still have explicit participants", () => {
+  const constrained = constrainResolvedOwnerScopesToPreviousUserScene({
+    userExtraction: false,
+    settings: { entityTrackingMode: "multi_character" } as any,
+    previousMessage: {
+      is_user: true,
+      name: "Kuba",
+      mes: "Blake stays and answers.",
+    } as any,
+    previousTrackerData: {
+      entityResolution: {
+        sceneOwners: ["Blake"],
+        messageOwners: [USER_TRACKER_KEY],
+        source: "model",
+      },
+    } as any,
+    resolvedSceneActiveCharacters: ["Ashley", "Blake"],
+    resolvedRequestCharacters: ["Blake"],
+  });
+
+  assert.equal(constrained, null);
 });
 
 test("resolvePersistedActiveOwners excludes User from resolver-backed entity owner sets by default", () => {
