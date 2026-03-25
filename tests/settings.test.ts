@@ -259,6 +259,29 @@ test("sanitizeSettings supports collapseCardsByDefault and trackerEnabled in cha
   );
 });
 
+test("sanitizeSettings preserves explicit zero default for custom numeric stats", () => {
+  const sanitized = sanitizeSettings({
+    customStats: [
+      {
+        id: "test_numeric",
+        kind: "numeric",
+        label: "Test Numeric",
+        defaultValue: 0,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: true,
+        includeInInjection: true,
+      },
+    ],
+  });
+
+  assert.equal(sanitized.customStats[0]?.defaultValue, 0);
+});
+
 test("sanitizeSettings clamps sceneCardArrayCollapsedLimit to MAX_CUSTOM_ARRAY_ITEMS", () => {
   const sanitized = sanitizeSettings({
     sceneCardArrayCollapsedLimit: 999,

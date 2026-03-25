@@ -23,6 +23,12 @@ export function normalizeCustomTextMaxLength(value: unknown, fallback = DEFAULT_
   return Math.max(MIN_CUSTOM_TEXT_MAX_LENGTH, Math.min(MAX_CUSTOM_TEXT_MAX_LENGTH, parsed));
 }
 
+export function normalizeCustomNumericDefaultValue(value: unknown, fallback = 50): number {
+  const parsed = Number(value);
+  const normalized = Number.isFinite(parsed) ? Math.round(parsed) : fallback;
+  return Math.max(0, Math.min(100, normalized));
+}
+
 export function hasScriptLikeContent(value: string): boolean {
   return /<\s*\/?\s*script\b|javascript\s*:|data\s*:\s*text\/html|on[a-z]+\s*=/i.test(value);
 }
@@ -132,8 +138,7 @@ export function normalizeCustomStatDefaultValue(
   const kind = normalizeCustomStatKind(stat.kind);
   const textMaxLength = normalizeCustomTextMaxLength(stat.textMaxLength);
   if (kind === "numeric") {
-    const parsed = Math.round(Number(stat.defaultValue) || 50);
-    return Math.max(0, Math.min(100, parsed));
+    return normalizeCustomNumericDefaultValue(stat.defaultValue);
   }
   if (kind === "boolean") {
     if (typeof stat.defaultValue === "boolean") return stat.defaultValue;

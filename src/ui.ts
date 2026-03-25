@@ -66,6 +66,7 @@ import {
 import {
   MAX_CUSTOM_ARRAY_ITEMS,
   normalizeCustomEnumOptions,
+  normalizeCustomNumericDefaultValue,
   normalizeCustomStatDefaultValue,
   normalizeCustomStatKind,
   normalizeCustomTextMaxLength,
@@ -247,7 +248,7 @@ export function getNumericStatDefinitions(settings: BetterSimTrackerSettings): U
     label: def.label,
     short: shortLabelFrom(def.label),
     color: def.color || "#9cff8f",
-    defaultValue: Math.max(0, Math.min(100, Math.round(Number(def.defaultValue) || 50))),
+    defaultValue: normalizeCustomNumericDefaultValue(def.defaultValue),
     trackCharacters: def.builtIn
       ? Boolean(def.track)
       : (Boolean(customScopeById.get(def.id)?.track ?? def.track)

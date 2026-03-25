@@ -48,6 +48,7 @@ import {
   MAX_CUSTOM_ARRAY_ITEMS,
   MAX_CUSTOM_ENUM_OPTIONS,
   normalizeCustomEnumOptions,
+  normalizeCustomNumericDefaultValue,
   normalizeCustomStatKind,
   normalizeNonNumericArrayItems,
   normalizeNonNumericTextValue,
@@ -1727,7 +1728,7 @@ export function openSettingsModal(input: {
     };
 
     if (kind === "numeric") {
-      base.defaultValue = Math.max(0, Math.min(100, Math.round(Number(candidate.defaultValue) || 50)));
+      base.defaultValue = normalizeCustomNumericDefaultValue(candidate.defaultValue);
       const parsedMaxDelta = Number(candidate.maxDeltaPerTurn);
       base.maxDeltaPerTurn = Number.isFinite(parsedMaxDelta)
         ? Math.max(1, Math.min(30, Math.round(parsedMaxDelta)))

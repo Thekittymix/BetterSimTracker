@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16.2] - 2026-03-25
+### Fixed
+- Fixed custom numeric stat defaults so an explicit `0` no longer falls back to `50` when saving/editing stats, rebuilding numeric stat definitions, or generating custom numeric extraction prompts.
+
 ## [2.2.4.16.1] - 2026-03-21
 ### Added
 - Prompt Injection settings now include a live preview for the non-dynamic placeholder blocks, so template editing no longer requires guessing what the static placeholders expand to.
