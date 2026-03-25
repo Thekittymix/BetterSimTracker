@@ -1,4 +1,5 @@
 import { resolveTrackerEntityIdsForOwners } from "./entityRegistry";
+import { resolveStableEntityIdForOwner, type EntityTrackingMode } from "./entityResolution";
 import type {
   CustomNonNumericStatistics,
   CustomStatistics,
@@ -24,6 +25,7 @@ export function buildTargetToEntityMap(
   context: STContext | null,
   ownerNames: string[],
   explicitEntityIds?: string[] | null,
+  entityTrackingMode: EntityTrackingMode = "standard",
 ): Record<string, string> {
   const owners = ownerNames
     .map(name => String(name ?? "").trim())
@@ -40,7 +42,8 @@ export function buildTargetToEntityMap(
       out[owner] = explicit;
       continue;
     }
-    const resolved = resolveTrackerEntityIdsForOwners(context, [owner])[0];
+    const resolved = resolveTrackerEntityIdsForOwners(context, [owner])[0]
+      ?? resolveStableEntityIdForOwner(context, owner, entityTrackingMode);
     if (resolved) {
       out[owner] = resolved;
     }

@@ -19,6 +19,7 @@ import {
   resolveInitialExtractionOwners,
   resolvePersistedSnapshotResolvedEntities,
   resolvePersistedSnapshotActiveOwners,
+  resolveStableEntityIdForOwner,
   resolveUserExtractionOwnerScopes,
 } from "./entityResolution";
 import {
@@ -2495,7 +2496,12 @@ function seedHistoryForActiveCharacters(
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): TrackerData[] {
-  const targetToEntity = buildTargetToEntityMap(context, activeCharacters, activeEntityIds);
+  const targetToEntity = buildTargetToEntityMap(
+    context,
+    activeCharacters,
+    activeEntityIds,
+    resolveEntityTrackingMode(settingsInput),
+  );
   return history.map(entry => {
     const statistics = buildSeededStatisticsForActiveCharacters(entry.statistics, activeCharacters, settingsInput, context);
     const customStatistics = buildSeededCustomStatisticsForActiveCharacters(
@@ -2694,7 +2700,12 @@ function buildBaselineData(
     }
   }
 
-  const targetToEntity = buildTargetToEntityMap(context, activeCharacters, activeEntityIds);
+  const targetToEntity = buildTargetToEntityMap(
+    context,
+    activeCharacters,
+    activeEntityIds,
+    resolveEntityTrackingMode(s),
+  );
   const statistics: Statistics = {
     affection: s.trackAffection
       ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.affection ?? s.defaultAffection]))
@@ -3476,7 +3487,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           const candidateEntities = candidateOwners.map((ownerName, index) => ({
             entityRef: `ent${index + 1}`,
             ownerName,
-            entityId: resolveTrackerEntityIdsForOwners(context, [ownerName])[0] ?? null,
+            entityId: resolveStableEntityIdForOwner(context, ownerName, "multi_character") || null,
           }));
           const resolverContextText = buildRecentContext(context, settings.contextMessages, lastIndex);
           const resolverPrompt = buildMultiCharacterResolverPrompt({
@@ -3498,7 +3509,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           const parsedMessageEntityIds = parsedResolver
             ? resolveMessageEntityIdsFromResolvedEntities(parsedResolver.resolvedEntities)
             : [];
-          if (parsedResolver && parsedSceneOwners.length) {
+          if (parsedResolver) {
             resolvedOwnerScopes = {
               sceneActiveCharacters: parsedSceneOwners,
               requestCharacters: parsedMessageOwners.length
@@ -4047,6 +4058,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       requestCharacters: activeCharacters,
       resolvedEntities: resolvedEntityResolution?.resolvedEntities ?? [],
       userExtraction,
+      entityTrackingMode: resolveEntityTrackingMode(activeSettings),
     }).filter(entity => isTrackerEnabledForOwner(context, activeSettings, entity.name));
 
     latestData = {

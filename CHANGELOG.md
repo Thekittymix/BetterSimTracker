@@ -1,3 +1,9 @@
+## [2.2.4.16-exp156] - 2026-03-25
+### Fixed
+- Experimental multi-character resolver now accepts explicit empty-scene model results instead of discarding them and falling back to stale scene-owner heuristics, so end-of-scene turns can resolve to a truly empty tracked scene.
+- Experimental multi-character resolver parsing is now more tolerant of minor model output drift, including owner-name-based resolved entries when the model omits `entityRef`.
+- Experimental multi-character entity shadow state now synthesizes stable alias entity IDs before the registry is hydrated, so early-turn resolver writes can populate `byEntityId` state more consistently.
+
 ## [2.2.4.16-exp155] - 2026-03-25
 ### Fixed
 - Experimental storage/runtime normalization, merged prompt state, edit clones, and diagnostics now prefer resolver-backed active owners over stale non-user `activeCharacters`, so legacy owner arrays stop overriding entity-resolved multi-character state after persistence.

@@ -33,6 +33,7 @@ export type MultiCharacterResolutionResult = {
 
 type ParsedResolvedRef = {
   entityRef: string;
+  ownerName: string;
   inScene: boolean;
   inMessage: boolean;
 };
@@ -43,6 +44,12 @@ function hasExplicitResolverShape(record: Record<string, unknown>): boolean {
     || Object.prototype.hasOwnProperty.call(record, "created")
     || Object.prototype.hasOwnProperty.call(record, "unresolvedMentions")
   );
+}
+
+function normalizeBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  const normalized = normalizeToken(value).toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
 }
 
 export function buildMultiCharacterResolverPrompt(input: {
@@ -125,18 +132,76 @@ export function parseMultiCharacterResolverResponse(
       .filter(candidate => normalizeToken(candidate.entityRef))
       .map(candidate => [normalizeToken(candidate.entityRef), candidate] as const),
   );
+  const candidateByEntityId = new Map(
+    candidateEntities
+      .filter(candidate => normalizeToken(candidate.entityId))
+      .map(candidate => [normalizeToken(candidate.entityId), candidate] as const),
+  );
+  const candidateByName = new Map<string, MultiCharacterResolverCandidate>();
+  for (const candidate of candidateEntities) {
+    const ownerName = normalizeToken(candidate.ownerName);
+    if (ownerName && !candidateByName.has(ownerName.toLowerCase())) {
+      candidateByName.set(ownerName.toLowerCase(), candidate);
+    }
+    for (const alias of candidate.aliases ?? []) {
+      const normalizedAlias = normalizeToken(alias).toLowerCase();
+      if (normalizedAlias && !candidateByName.has(normalizedAlias)) {
+        candidateByName.set(normalizedAlias, candidate);
+      }
+    }
+  }
 
-  const resolvedRefs: ParsedResolvedRef[] = Array.isArray(record.resolved)
+  const resolveCandidate = (item: Record<string, unknown>): MultiCharacterResolverCandidate | null => {
+    const entityRef = normalizeToken(item.entityRef);
+    if (entityRef && candidateByRef.has(entityRef)) {
+      return candidateByRef.get(entityRef) ?? null;
+    }
+    const entityId = normalizeToken(item.entityId);
+    if (entityId && candidateByEntityId.has(entityId)) {
+      return candidateByEntityId.get(entityId) ?? null;
+    }
+    const directName = [
+      item.ownerName,
+      item.name,
+      item.owner,
+      item.canonicalName,
+      item.alias,
+    ]
+      .map(value => normalizeToken(value))
+      .find(Boolean);
+    if (directName) {
+      return candidateByName.get(directName.toLowerCase()) ?? null;
+    }
+    if (Array.isArray(item.aliases)) {
+      for (const alias of item.aliases) {
+        const normalizedAlias = normalizeToken(alias).toLowerCase();
+        if (!normalizedAlias) continue;
+        const candidate = candidateByName.get(normalizedAlias);
+        if (candidate) return candidate;
+      }
+    }
+    return null;
+  };
+
+  const rawResolved = Array.isArray(record.resolved)
     ? record.resolved
+    : (Array.isArray(record.resolvedEntities)
+      ? record.resolvedEntities
+      : (Array.isArray(record.entities) ? record.entities : []));
+
+  const resolvedRefs: ParsedResolvedRef[] = Array.isArray(rawResolved)
+    ? rawResolved
         .map(value => {
           if (!value || typeof value !== "object" || Array.isArray(value)) return null;
           const item = value as Record<string, unknown>;
-          const entityRef = normalizeToken(item.entityRef);
-          if (!entityRef || !candidateByRef.has(entityRef)) return null;
+          const candidate = resolveCandidate(item);
+          const ownerName = normalizeToken(candidate?.ownerName);
+          if (!candidate || !ownerName) return null;
           return {
-            entityRef,
-            inScene: Boolean(item.inScene),
-            inMessage: Boolean(item.inMessage),
+            entityRef: normalizeToken(candidate.entityRef),
+            ownerName,
+            inScene: normalizeBoolean(item.inScene),
+            inMessage: normalizeBoolean(item.inMessage),
           };
         })
         .filter((value): value is ParsedResolvedRef => Boolean(value))
@@ -145,7 +210,7 @@ export function parseMultiCharacterResolverResponse(
   const seenEntityIds = new Set<string>();
   const resolvedEntities: TrackerResolvedEntity[] = [];
   for (const resolved of resolvedRefs) {
-    const candidate = candidateByRef.get(resolved.entityRef);
+    const candidate = candidateByRef.get(resolved.entityRef) ?? candidateByName.get(resolved.ownerName.toLowerCase());
     const entityId = normalizeToken(candidate?.entityId);
     const name = normalizeToken(candidate?.ownerName);
     if (!candidate || !entityId || !name || seenEntityIds.has(entityId)) continue;
@@ -163,8 +228,11 @@ export function parseMultiCharacterResolverResponse(
     });
   }
 
-  const unresolvedMentions = Array.isArray(record.unresolvedMentions)
-    ? Array.from(new Set(record.unresolvedMentions.map(value => normalizeToken(value)).filter(Boolean)))
+  const rawUnresolvedMentions = Array.isArray(record.unresolvedMentions)
+    ? record.unresolvedMentions
+    : (Array.isArray(record.unresolved) ? record.unresolved : []);
+  const unresolvedMentions = rawUnresolvedMentions.length
+    ? Array.from(new Set(rawUnresolvedMentions.map(value => normalizeToken(value)).filter(Boolean)))
     : [];
 
   return {

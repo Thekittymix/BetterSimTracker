@@ -339,6 +339,32 @@ export function resolveCharacterIdentity(
   return null;
 }
 
+export function resolveStableEntityIdForOwner(
+  context: STContext | null,
+  ownerName: string,
+  mode: EntityTrackingMode,
+): string {
+  const normalizedOwner = normalizeToken(ownerName);
+  if (!normalizedOwner) return "";
+  const fromRegistry = resolveTrackerEntityIdsForOwners(context, [normalizedOwner])[0];
+  if (fromRegistry) return fromRegistry;
+
+  if (mode === "multi_character") {
+    const identity = resolveCharacterIdentity(context, normalizedOwner, mode);
+    if (identity) {
+      const sourceKey = `${normalizeKey(identity.sourceAvatar ?? "")}|${normalizeKey(identity.sourceName)}`;
+      if (sourceKey) {
+        if (identity.matchedBy === "alias") {
+          return `bst_mc_alias:${sourceKey}:${normalizeKey(identity.resolvedName)}`;
+        }
+        return `bst_owner:${sourceKey}`;
+      }
+    }
+  }
+
+  return `bst_owner:${normalizeKey(normalizedOwner)}`;
+}
+
 export function resolveCharacterFromContext(
   context: STContext | null,
   ownerName: string,
@@ -679,6 +705,7 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
   requestCharacters: string[];
   resolvedEntities: TrackerResolvedEntity[];
   userExtraction: boolean;
+  entityTrackingMode?: EntityTrackingMode;
 }): TrackerResolvedEntity[] {
   if (input.resolvedEntities.length) {
     return input.resolvedEntities.map(entity => ({
@@ -697,7 +724,11 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
   const messageOwnerKeys = new Set(messageOwners.map(owner => normalizeKey(owner)));
 
   return sceneOwners.map(ownerName => ({
-    entityId: resolveTrackerEntityIdsForOwners(input.context, [ownerName])[0] ?? `bst_owner:${normalizeKey(ownerName)}`,
+    entityId: resolveStableEntityIdForOwner(
+      input.context,
+      ownerName,
+      input.entityTrackingMode ?? "standard",
+    ),
     kind: "st-character",
     name: ownerName,
     avatar: null,

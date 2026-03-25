@@ -12,6 +12,7 @@ import {
   resolvePersistedSnapshotResolvedEntities,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
+  resolveStableEntityIdForOwner,
   constrainFallbackOwnerScopesToPreviousUserScene,
   constrainResolvedOwnerScopesToPreviousUserScene,
   resolveExtractionOwnerScopes,
@@ -849,5 +850,23 @@ test("resolvePersistedSnapshotResolvedEntities can synthesize entity-first conti
         created: false,
       },
     ],
+  );
+});
+
+test("resolveStableEntityIdForOwner can synthesize multi-character alias ids before registry exists", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  assert.equal(
+    resolveStableEntityIdForOwner(context, "Blake", "multi_character"),
+    "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+  );
+
+  assert.equal(
+    resolveStableEntityIdForOwner(context, "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "multi_character"),
+    "bst_owner:camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
   );
 });

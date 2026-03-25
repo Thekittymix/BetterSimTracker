@@ -54,6 +54,21 @@ test("buildTargetToEntityMap prefers explicit resolver entity ids and falls back
   );
 });
 
+test("buildTargetToEntityMap can synthesize multi-character alias ids without a populated registry", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    buildTargetToEntityMap(context, ["Blake"], undefined, "multi_character"),
+    {
+      Blake: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+    },
+  );
+});
+
 test("entity-scoped bucket builders mirror owner buckets onto entity ids", () => {
   const targetToEntity = {
     Blake: "bst_mc_alias:test:blake",

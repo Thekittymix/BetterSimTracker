@@ -201,3 +201,53 @@ test("parseMultiCharacterResolverResponse keeps inMessage false when only scene 
     unresolvedMentions: [],
   });
 });
+
+test("parseMultiCharacterResolverResponse accepts ownerName fallback when the model omits entityRef", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [
+        { ownerName: "Blake", inScene: true, inMessage: true },
+      ],
+      created: [],
+      unresolvedMentions: [],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley", aliases: ["Ash"] },
+      { entityRef: "ent2", ownerName: "Blake", entityId: "bst_mc_alias:test:blake", aliases: ["Blackout Blake"] },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:test:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        aliases: ["Blackout Blake"],
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
+test("parseMultiCharacterResolverResponse preserves explicit empty-scene resolutions", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [],
+      created: [],
+      unresolvedMentions: [],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley" },
+      { entityRef: "ent2", ownerName: "Blake", entityId: "bst_mc_alias:test:blake" },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    resolvedEntities: [],
+    unresolvedMentions: [],
+  });
+});
