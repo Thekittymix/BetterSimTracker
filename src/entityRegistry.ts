@@ -660,6 +660,18 @@ export function resolveTrackerActiveOwners(
   if (Array.isArray(data.activeCharacters) && explicitActiveCharacters.length === 0) {
     return [];
   }
+  if (explicitActiveCharacters.length) {
+    return explicitActiveCharacters;
+  }
+  const sceneEntityIds = data.entityResolution?.sceneEntityIds ?? [];
+  const sceneOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, sceneEntityIds);
+  if (sceneOwnersFromEntityIds.length) return sceneOwnersFromEntityIds;
+  const sceneOwnersFromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, sceneEntityIds);
+  if (sceneOwnersFromOwnerMap.length) return sceneOwnersFromOwnerMap;
+  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
+    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
+    : [];
+  if (sceneOwners.length) return sceneOwners;
   const messageEntityIds = data.entityResolution?.messageEntityIds ?? [];
   const messageOwnersFromEntityIds = resolveTrackerOwnersForEntityIds(context, messageEntityIds);
   if (messageOwnersFromEntityIds.length) return messageOwnersFromEntityIds;
@@ -717,6 +729,18 @@ export function resolveTrackerActiveEntityIds(
   if (Array.isArray(data.activeCharacters) && explicitActiveCharacters.length === 0) {
     return [];
   }
+  if (explicitActiveCharacters.length) {
+    const explicitIds = uniqueStrings(explicitActiveCharacters.flatMap(ownerName =>
+      listTrackerDataEntityIdsForOwner(context, data, ownerName),
+    ));
+    if (explicitIds.length) return explicitIds;
+  }
+  const explicitSceneEntityIds = uniqueStrings(data.entityResolution?.sceneEntityIds ?? []);
+  if (explicitSceneEntityIds.length) return explicitSceneEntityIds;
+  const sceneOwners = Array.isArray(data.entityResolution?.sceneOwners)
+    ? uniqueStrings(data.entityResolution?.sceneOwners ?? [])
+    : [];
+  if (sceneOwners.length) return resolveTrackerEntityIdsForOwners(context, sceneOwners);
   const explicitMessageEntityIds = uniqueStrings(data.entityResolution?.messageEntityIds ?? []);
   if (explicitMessageEntityIds.length) return explicitMessageEntityIds;
   const messageOwners = Array.isArray(data.entityResolution?.messageOwners)

@@ -1,3 +1,7 @@
+## [2.2.4.16-exp140] - 2026-03-25
+### Changed
+- Experimental multi-character tracker snapshots now keep scene presence separate from speaker/message ownership more consistently across persistence, storage normalization, lifecycle reads, and merged runtime state, so silent in-scene aliases can remain part of scene continuity without being mistaken for the current speaker.
+
 ## [2.2.4.16-exp139] - 2026-03-25
 ### Fixed
 - Experimental multi-character lifecycle now treats resolver message owners as the active-owner source instead of broad scene owners, so silent scene members stop being revived as active just because they remain present in continuity.

@@ -566,6 +566,33 @@ test("resolveTrackerActiveOwners and entity ids prefer message owners over broad
   assert.deepEqual(resolveTrackerSceneOwners(null, tracker), ["Blake"]);
 });
 
+test("resolveTrackerActiveOwners and entity ids fall back to resolver scene owners when explicit activeCharacters are missing", () => {
+  const tracker = {
+    timestamp: 1,
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+    entityResolution: {
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    },
+  } as TrackerData;
+
+  assert.deepEqual(resolveTrackerActiveOwners(null, tracker), ["Ashley", "Blake", "Garret", "Raleigh"]);
+  assert.deepEqual(resolveTrackerActiveEntityIds(null, tracker), ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"]);
+  assert.deepEqual(resolveTrackerMessageOwners(null, tracker), ["Blake"]);
+});
+
 test("entity registry reactivation restores archived aliases for later messages without reviving them in archived history windows", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
