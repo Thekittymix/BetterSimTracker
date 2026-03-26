@@ -47,6 +47,7 @@ function toAvatarSlug(value: string): string {
 
 type CharacterMacroTarget = {
   ownerName: string;
+  entityId: string | null;
   macroSlug: string;
   legacyNameSlug: string | null;
   displayName: string;
@@ -80,36 +81,106 @@ function canUseSceneRosterStatInImageState(
   return true;
 }
 
-function buildCharacterMacroTargets(context: STContext, allCharacterNames: string[]): CharacterMacroTarget[] {
-  const ownerNameSet = new Set<string>();
+function resolveMacroTargetIdentity(
+  context: STContext,
+  data: TrackerData | null,
+  rawName: string,
+): { ownerName: string; entityId: string | null; lookupNames: string[] } {
+  const normalizedRawName = normalizeName(rawName);
+  if (data?.entityOwnerMap && typeof data.entityOwnerMap === "object") {
+    for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
+      const snapshotNames = [
+        snapshotOwner,
+        snapshot?.ownerName,
+        snapshot?.canonicalName,
+        ...(snapshot?.aliases ?? []),
+      ]
+        .map(value => String(value ?? "").trim())
+        .filter(Boolean);
+      if (!snapshotNames.some(name => normalizeName(name) === normalizedRawName)) continue;
+      return {
+        ownerName: String(snapshot?.ownerName ?? rawName).trim() || rawName,
+        entityId: String(snapshot?.entityId ?? "").trim() || null,
+        lookupNames: Array.from(new Set(snapshotNames)),
+      };
+    }
+  }
+
+  const registryEntry = getEntityRegistryEntryByOwnerName(context, rawName);
+  const entityId = String(registryEntry?.id ?? "").trim() || null;
+  const ownerName = String(registryEntry?.ownerName ?? rawName).trim() || rawName;
+  const lookupNames = [
+    rawName,
+    ownerName,
+    String(registryEntry?.canonicalName ?? "").trim(),
+    ...((registryEntry?.aliases ?? []).map(alias => String(alias ?? "").trim())),
+  ].filter(Boolean);
+  return {
+    ownerName,
+    entityId,
+    lookupNames: Array.from(new Set(lookupNames)),
+  };
+}
+
+function buildCharacterMacroTargets(
+  context: STContext,
+  data: TrackerData | null,
+  allCharacterNames: string[],
+): CharacterMacroTarget[] {
+  const targetIdentities: Array<{ ownerName: string; entityId: string | null; lookupNames: string[] }> = [];
+  const seenOwnerKeys = new Set<string>();
   const seenEntityIds = new Set<string>();
   for (const rawName of allCharacterNames ?? []) {
     const ownerName = String(rawName ?? "").trim();
     if (!ownerName || ownerName === USER_TRACKER_KEY || ownerName === GLOBAL_TRACKER_KEY) continue;
-    const registryEntry = getEntityRegistryEntryByOwnerName(context, ownerName);
-    const entityId = String(registryEntry?.id ?? "").trim();
+    const identity = resolveMacroTargetIdentity(context, data, ownerName);
+    const entityId = String(identity.entityId ?? "").trim();
     if (entityId) {
       if (seenEntityIds.has(entityId)) continue;
       seenEntityIds.add(entityId);
     }
-    ownerNameSet.add(String(registryEntry?.ownerName ?? ownerName).trim() || ownerName);
+    const ownerKey = normalizeName(identity.ownerName || ownerName);
+    if (!entityId && seenOwnerKeys.has(ownerKey)) continue;
+    seenOwnerKeys.add(ownerKey);
+    targetIdentities.push(identity);
   }
-  const ownerNameKeySet = new Set(Array.from(ownerNameSet, normalizeName));
 
-  const candidates: Array<{ ownerName: string; displayName: string; avatar: string | null; baseSlug: string }> = [];
+  const candidates: Array<{
+    ownerName: string;
+    entityId: string | null;
+    displayName: string;
+    avatar: string | null;
+    baseSlug: string;
+  }> = [];
 
-  for (const character of context.characters ?? []) {
-    const name = String(character?.name ?? "").trim();
-    if (!name || !ownerNameKeySet.has(normalizeName(name))) continue;
-    const avatar = String(character?.avatar ?? "").trim() || null;
-    const baseSlug = avatar ? toAvatarSlug(avatar) : toCharacterSlug(name);
-    candidates.push({ ownerName: name, displayName: name, avatar, baseSlug });
+  for (const identity of targetIdentities) {
+    const lookupNameKeys = new Set(identity.lookupNames.map(normalizeName).filter(Boolean));
+    for (const character of context.characters ?? []) {
+      const name = String(character?.name ?? "").trim();
+      if (!name || !lookupNameKeys.has(normalizeName(name))) continue;
+      const avatar = String(character?.avatar ?? "").trim() || null;
+      const baseSlug = avatar ? toAvatarSlug(avatar) : toCharacterSlug(name);
+      candidates.push({
+        ownerName: identity.ownerName,
+        entityId: identity.entityId,
+        displayName: identity.ownerName,
+        avatar,
+        baseSlug,
+      });
+    }
   }
 
   if (!candidates.length) {
-    for (const ownerName of ownerNameSet) {
+    for (const identity of targetIdentities) {
+      const ownerName = String(identity.ownerName ?? "").trim();
       const baseSlug = toCharacterSlug(ownerName);
-      candidates.push({ ownerName, displayName: ownerName, avatar: null, baseSlug });
+      candidates.push({
+        ownerName,
+        entityId: identity.entityId,
+        displayName: ownerName,
+        avatar: null,
+        baseSlug,
+      });
     }
   }
 
@@ -132,6 +203,7 @@ function buildCharacterMacroTargets(context: STContext, allCharacterNames: strin
       : null;
     targets.push({
       ownerName: candidate.ownerName,
+      entityId: candidate.entityId,
       macroSlug,
       legacyNameSlug,
       displayName: candidate.displayName,
@@ -285,6 +357,7 @@ function resolveMacroStatValue(
   statId: string,
   scope: string,
   explicitOwner?: string,
+  explicitEntityIds?: string[] | null,
 ): string {
   if (!data || !currentSettings) return "";
   const normalized = String(statId ?? "").trim().toLowerCase();
@@ -305,6 +378,7 @@ function resolveMacroStatValue(
       byOwner: bucket,
       byEntityId: data.statisticsByEntityId?.[normalized],
       ownerName: owner,
+      explicitEntityIds,
     }));
     if (Number.isNaN(value)) return "";
     return String(Math.max(0, Math.min(100, Math.round(value))));
@@ -318,6 +392,7 @@ function resolveMacroStatValue(
       byOwner: data.statistics.mood,
       byEntityId: data.statisticsByEntityId?.mood,
       ownerName: owner,
+      explicitEntityIds,
     }) ?? "").trim();
   }
   if (normalized === "lastthought" || normalized === "last_thought") {
@@ -328,6 +403,7 @@ function resolveMacroStatValue(
       byOwner: data.statistics.lastThought,
       byEntityId: data.statisticsByEntityId?.lastThought,
       ownerName: owner,
+      explicitEntityIds,
     }) ?? "").trim();
   }
   if (!customDef) return "";
@@ -341,6 +417,7 @@ function resolveMacroStatValue(
       byOwner: bucket,
       byEntityId: data.customStatisticsByEntityId?.[normalized],
       ownerName: owner,
+      explicitEntityIds,
     });
     if (raw === undefined && owner !== GLOBAL_TRACKER_KEY && customDef.globalScope) {
       raw = bucket[GLOBAL_TRACKER_KEY];
@@ -358,6 +435,7 @@ function resolveMacroStatValue(
     byOwner: bucket,
     byEntityId: data.customNonNumericStatisticsByEntityId?.[normalized],
     ownerName: owner,
+    explicitEntityIds,
   });
   if (raw === undefined && owner !== GLOBAL_TRACKER_KEY && customDef.globalScope) {
     raw = bucket[GLOBAL_TRACKER_KEY];
@@ -470,13 +548,15 @@ export function syncBstMacros(input: {
   getLastInjectedPrompt: () => string;
 }): void {
   const { context, settings, allCharacterNames, getLatestPromptMacroData, getLastInjectedPrompt } = input;
+  const latestPromptMacroData = getLatestPromptMacroData();
   const customDefs = (settings.customStats ?? [])
     .map(def => ({ ...def, id: String(def.id ?? "").trim().toLowerCase() }))
     .filter(def => def.id.length > 0);
   const customStatIds = customDefs.map(def => def.id);
-  const characterTargets = buildCharacterMacroTargets(context, allCharacterNames);
+  const characterTargets = buildCharacterMacroTargets(context, latestPromptMacroData, allCharacterNames);
   const debugCharacterTargets = characterTargets.map(target => ({
     ownerName: target.ownerName,
+    entityId: target.entityId,
     displayName: target.displayName,
     macroSlug: target.macroSlug,
     legacyNameSlug: target.legacyNameSlug,
@@ -484,7 +564,7 @@ export function syncBstMacros(input: {
   }));
   const currentCharacterTarget = resolveCurrentCharacterMacroTarget(context, characterTargets);
   const characterSignature = characterTargets
-    .map(target => `${target.ownerName}:${target.macroSlug}:${target.legacyNameSlug ?? ""}:${target.avatar ?? ""}`)
+    .map(target => `${target.ownerName}:${target.entityId ?? ""}:${target.macroSlug}:${target.legacyNameSlug ?? ""}:${target.avatar ?? ""}`)
     .join("|");
   const signature = [
     "v1",
@@ -518,6 +598,7 @@ export function syncBstMacros(input: {
       currentCharacterTarget: currentCharacterTarget
         ? {
           ownerName: currentCharacterTarget.ownerName,
+          entityId: currentCharacterTarget.entityId,
           displayName: currentCharacterTarget.displayName,
           macroSlug: currentCharacterTarget.macroSlug,
           legacyNameSlug: currentCharacterTarget.legacyNameSlug,
@@ -612,7 +693,15 @@ export function syncBstMacros(input: {
           context,
           `bst_stat_char_${segment}`,
           `BetterSimTracker stat macro for "${statId}" (current chat character).`,
-          () => resolveMacroStatValue(context, getLatestPromptMacroData(), settings, statId, "char_target", currentCharacterTarget.ownerName),
+          () => resolveMacroStatValue(
+            context,
+            getLatestPromptMacroData(),
+            settings,
+            statId,
+            "char_target",
+            currentCharacterTarget.ownerName,
+            currentCharacterTarget.entityId ? [currentCharacterTarget.entityId] : undefined,
+          ),
         );
       }
       for (const target of characterTargets) {
@@ -620,14 +709,30 @@ export function syncBstMacros(input: {
           context,
           `bst_stat_char_${segment}_${target.macroSlug}`,
           `BetterSimTracker stat macro for "${statId}" (character "${target.displayName}").`,
-          () => resolveMacroStatValue(context, getLatestPromptMacroData(), settings, statId, "char_target", target.ownerName),
+          () => resolveMacroStatValue(
+            context,
+            getLatestPromptMacroData(),
+            settings,
+            statId,
+            "char_target",
+            target.ownerName,
+            target.entityId ? [target.entityId] : undefined,
+          ),
         );
         if (target.legacyNameSlug) {
           registerBstMacro(
             context,
             `bst_stat_char_${segment}_${target.legacyNameSlug}`,
             `BetterSimTracker legacy stat macro alias for "${statId}" (character "${target.displayName}").`,
-            () => resolveMacroStatValue(context, getLatestPromptMacroData(), settings, statId, "char_target", target.ownerName),
+            () => resolveMacroStatValue(
+              context,
+              getLatestPromptMacroData(),
+              settings,
+              statId,
+              "char_target",
+              target.ownerName,
+              target.entityId ? [target.entityId] : undefined,
+            ),
           );
         }
       }
@@ -642,6 +747,7 @@ export function syncBstMacros(input: {
     currentCharacterTarget: currentCharacterTarget
       ? {
         ownerName: currentCharacterTarget.ownerName,
+        entityId: currentCharacterTarget.entityId,
         displayName: currentCharacterTarget.displayName,
         macroSlug: currentCharacterTarget.macroSlug,
         legacyNameSlug: currentCharacterTarget.legacyNameSlug,

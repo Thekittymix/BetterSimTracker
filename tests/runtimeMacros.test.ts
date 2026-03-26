@@ -516,6 +516,89 @@ test("syncBstMacros resolves alias macro values through entityOwnerMap and byEnt
   assert.match(block, /^Ashley: clothes=worn hoodie; pose=fidgeting near the door; physicality=bushy brown braided pigtails, hazel eyes/m);
 });
 
+test("syncBstMacros keeps character stat macros scoped to the current entity id instead of stale same-name registry aliases", () => {
+  const { context, registeredNewEngine } = makeContext();
+  context.name2 = "Blake";
+  context.characters = [{ name: "Blake", avatar: "blake-current.png" }] as unknown as STContext["characters"];
+  (context as STContext & { chatMetadata?: unknown }).chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "ent-blake-stale": {
+          id: "ent-blake-stale",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["B-stale"],
+          sourceName: "Old Blake",
+          sourceAvatar: "blake-stale.png",
+          sourceKey: "blake-stale.png|old blake",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "inactive",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        blake: "ent-blake-stale",
+        "b-stale": "ent-blake-stale",
+      },
+    },
+  };
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Blake"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake-current"],
+      messageEntityIds: ["ent-blake-current"],
+    }),
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake-current",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["B-current"],
+        sourceKey: "blake-current.png|blake current",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: {
+        "B-current": ["oversized black hoodie"],
+        "B-stale": ["old wrong jacket"],
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Blake"],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "oversized black hoodie");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_blake")?.(), "oversized black hoodie");
+  const debug = getBstMacroDebugSnapshot();
+  const currentCharacterTarget = debug?.["currentCharacterTarget"] as Record<string, unknown> | undefined;
+  assert.equal(currentCharacterTarget?.entityId, "ent-blake-current");
+});
+
 test("syncBstMacros falls back to legacy registration only when new engine is unavailable", () => {
   const { context, registered, registeredNewEngine } = makeContext({ includeNewEngine: false });
   syncBstMacros({
@@ -732,4 +815,5 @@ test("syncBstMacros deduplicates character macro targets by registry entity id",
   const characterTargets = Array.isArray(debug?.["characterTargets"]) ? debug?.["characterTargets"] as Array<Record<string, unknown>> : [];
   assert.equal(characterTargets.length, 1);
   assert.equal(characterTargets[0]?.ownerName, "Ashley");
+  assert.equal(characterTargets[0]?.entityId, "ent-ashley");
 });

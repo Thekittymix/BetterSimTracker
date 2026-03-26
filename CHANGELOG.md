@@ -1,3 +1,7 @@
+## [2.2.4.16-exp171] - 2026-03-26
+### Fixed
+- Experimental runtime character stat macros now keep their target identity scoped to the current entity-backed macro target instead of broad same-name registry aliases, so stale owner-to-entity registry mappings no longer hijack `bst_stat_char_*` lookups when the live tracker payload already points at a different entity.
+
 ## [2.2.4.16-exp170] - 2026-03-26
 ### Fixed
 - Experimental continuity/presence selection now keeps owner-scoped lookup names narrowed to explicit entity ids when they are already known, so baseline relevance checks and tracked-value presence reads no longer reuse same-name state from a different registry-backed entity through broad owner-name fallback.
