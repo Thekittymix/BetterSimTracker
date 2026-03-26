@@ -15,10 +15,10 @@ import {
 } from "./entityRegistry";
 import { isMultiCharacterEntityTrackingMode, resolveEntityTrackingMode } from "./entityResolution";
 import { getRecentTrackerHistoryEntries } from "./storage";
-import type { BetterSimTrackerSettings, STContext, TrackerData, TrackerResolvedEntity } from "./types";
+import type { BetterSimTrackerSettings, STContext, TrackerData, TrackerRegistrySyncTarget, TrackerResolvedEntity } from "./types";
 import {
   collectCharacterNamesFromTrackerData,
-  mergeRegistryEntitiesIntoTargets,
+  mergeRegistryRenderTargets,
   mergeRegistryOwnersIntoTargets,
   resolveRegistryOwnersFromEntries,
 } from "./ui";
@@ -104,13 +104,19 @@ export function syncEntityRegistryFromTrackerData(input: {
     mergeRegistryOwnersIntoTargets(resolverAndDataTargets, registryOwnersForMessage),
     registryOwnersForContinuity,
   );
-  const uniqueTargets = registryEntriesForContinuity.length > 0
-    ? mergeRegistryEntitiesIntoTargets({
+  const uniqueTargets: TrackerRegistrySyncTarget[] = registryEntriesForContinuity.length > 0
+    ? mergeRegistryRenderTargets({
         targets: continuityTargets,
         registryEntries: registryEntriesForContinuity,
         resolveRegistryEntry: ownerName => getEntityRegistryEntryForMessage(input.context, ownerName, input.messageIndex),
-      })
-    : continuityTargets;
+      }).map(target => ({
+        ownerName: target.ownerName,
+        registryEntry: target.registryEntry,
+      }))
+    : continuityTargets.map(ownerName => ({
+        ownerName,
+        registryEntry: getEntityRegistryEntryForMessage(input.context, ownerName, input.messageIndex),
+      }));
   if (!uniqueTargets.length) return false;
 
   const lifecycleSnapshots = buildLifecycleHistorySnapshotsFromTrackerEntries(
@@ -144,8 +150,11 @@ export function syncEntityRegistryFromTrackerData(input: {
     context: input.context,
     mode: resolveEntityTrackingMode(input.settings),
     messageIndex: input.messageIndex,
-    owners: uniqueTargets,
-    getLifecycleState: ownerName => getLifecycleState(ownerName),
+    targets: uniqueTargets,
+    getLifecycleStateByTarget: target => getLifecycleState(
+      target.ownerName,
+      target.registryEntry?.id ?? null,
+    ),
   });
   return narrativeChanged || renderChanged;
 }

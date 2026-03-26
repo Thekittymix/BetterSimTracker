@@ -1850,8 +1850,8 @@ function queueRender(): void {
         context: liveContext,
         mode: resolveEntityTrackingMode(settings),
         messageIndex: payload.messageIndex,
-        owners: payload.owners,
-        getLifecycleState: payload.getLifecycleState,
+        targets: payload.targets,
+        getLifecycleStateByTarget: payload.getLifecycleState,
       });
     }, messageIndex => {
       clearTrackerRecovery(messageIndex);

@@ -232,6 +232,94 @@ test("syncEntityRegistryFromRender preserves latest metadata while backfilling h
   );
 });
 
+test("syncEntityRegistryFromRender keeps same-name registry entries distinct when targets carry entity ids", () => {
+  const context = makeContext();
+  const sourceEntityId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Ashley",
+    matchedBy: "alias",
+  });
+  const shadowEntityId = buildTrackerEntityId({
+    sourceName: "Billie",
+    sourceAvatar: "billie.png",
+    ownerName: "Ashley",
+    matchedBy: "source",
+  });
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        [sourceEntityId]: {
+          id: sourceEntityId,
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: [],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [{ messageIndex: 8, state: "active" }],
+        },
+        [shadowEntityId]: {
+          id: shadowEntityId,
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: [],
+          sourceName: "Billie",
+          sourceAvatar: "billie.png",
+          sourceKey: buildEntitySourceKey("Billie", "billie.png"),
+          kind: "owner",
+          introducedAtMessageIndex: 10,
+          lastSeenMessageIndex: 10,
+          lastActiveMessageIndex: 10,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [{ messageIndex: 10, state: "active" }],
+        },
+      },
+      ownerToEntityId: {},
+    },
+  };
+
+  const changed = syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 15,
+    targets: [
+      {
+        ownerName: "Ashley",
+        registryEntry: readEntityRegistry(context).entities[sourceEntityId],
+      },
+      {
+        ownerName: "Ashley",
+        registryEntry: readEntityRegistry(context).entities[shadowEntityId],
+      },
+    ],
+    getLifecycleStateByTarget: target =>
+      target.registryEntry?.id === sourceEntityId ? "active" : "inactive",
+  });
+
+  assert.equal(changed, true);
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[sourceEntityId]?.lifecycleState, "active");
+  assert.equal(registry.entities[sourceEntityId]?.lastSeenMessageIndex, 15);
+  assert.equal(registry.entities[shadowEntityId]?.lifecycleState, "inactive");
+  assert.equal(registry.entities[shadowEntityId]?.lastSeenMessageIndex, 15);
+  assert.deepEqual(
+    registry.entities[shadowEntityId]?.lifecycleEvents,
+    [
+      { messageIndex: 10, state: "active" },
+      { messageIndex: 15, state: "inactive" },
+    ],
+  );
+});
+
 test("getEntityRegistryLifecycleStateForMessage resolves last active message from lifecycle events at that message", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

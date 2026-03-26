@@ -1,3 +1,7 @@
+## [2.2.4.16-exp166] - 2026-03-26
+### Fixed
+- Experimental entity-registry sync now keeps same-name cards distinct by their entity-backed render targets during UI and continuity lifecycle updates, so registry writes no longer collapse different tracked entities back onto one owner-name path after render.
+
 ## [2.2.4.16-exp165] - 2026-03-26
 ### Fixed
 - Experimental tracker rendering now keeps entity-backed cards distinct when different tracked entities share the same visible owner label, so registry-backed multi-character and dynamic-entity cards no longer collapse back into a single render target by owner name alone.

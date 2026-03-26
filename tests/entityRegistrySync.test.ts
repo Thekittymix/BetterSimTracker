@@ -546,6 +546,91 @@ test("syncEntityRegistryFromTrackerData persists narrative entities in dynamic e
   assert.equal(readEntityRegistry(context).entities["ent-forest-spirit"]?.kind, "narrative-entity");
 });
 
+test("syncEntityRegistryFromTrackerData keeps same-name continuity entries distinct by registry entity id", () => {
+  const context = makeContext();
+  const settings = makeSettings();
+  const sourceEntityId = "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley";
+  const shadowEntityId = "bst_owner:billie.png|billie";
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        [sourceEntityId]: {
+          id: sourceEntityId,
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: [],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+        },
+        [shadowEntityId]: {
+          id: shadowEntityId,
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: [],
+          sourceName: "Billie",
+          sourceAvatar: "billie.png",
+          sourceKey: "billie.png|billie",
+          kind: "owner",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+        },
+      },
+      ownerToEntityId: {},
+    },
+  };
+  const current = {
+    ...makeTrackerData([]),
+    entityResolution: buildEntityResolution({
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: [],
+      messageEntityIds: [],
+      source: "model" as const,
+    }),
+  };
+  writeTrackerDataToMessage(context, current, 1);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, true);
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[sourceEntityId]?.lastSeenMessageIndex, 1);
+  assert.equal(registry.entities[shadowEntityId]?.lastSeenMessageIndex, 1);
+  assert.deepEqual(
+    registry.entities[sourceEntityId]?.lifecycleEvents,
+    [
+      { messageIndex: 0, state: "active" },
+      { messageIndex: 1, state: "inactive" },
+    ],
+  );
+  assert.deepEqual(
+    registry.entities[shadowEntityId]?.lifecycleEvents,
+    [
+      { messageIndex: 0, state: "active" },
+      { messageIndex: 1, state: "inactive" },
+    ],
+  );
+});
+
 test("syncEntityRegistryFromTrackerData is a no-op outside multi-character mode", () => {
   const context = makeContext();
   const settings = {

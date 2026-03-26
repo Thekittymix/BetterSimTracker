@@ -164,6 +164,11 @@ export interface TrackerEntityRegistryEntry {
   }>;
 }
 
+export interface TrackerRegistrySyncTarget {
+  ownerName: string;
+  registryEntry?: TrackerEntityRegistryEntry | null;
+}
+
 export interface TrackerEntityRegistry {
   version: 1;
   entities: Record<string, TrackerEntityRegistryEntry>;

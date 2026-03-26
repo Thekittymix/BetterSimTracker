@@ -5,6 +5,7 @@ import type {
   TrackerEntityLifecycleState,
   TrackerEntityRegistry,
   TrackerEntityRegistryEntry,
+  TrackerRegistrySyncTarget,
   TrackerResolvedEntity,
 } from "./types";
 import {
@@ -336,30 +337,79 @@ export function syncEntityRegistryFromRender(input: {
   context: STContext | null;
   mode: EntityTrackingMode;
   messageIndex: number;
-  owners: string[];
-  getLifecycleState: (ownerName: string) => TrackerEntityLifecycleState;
+  owners?: string[];
+  targets?: TrackerRegistrySyncTarget[];
+  getLifecycleState?: (ownerName: string) => TrackerEntityLifecycleState;
+  getLifecycleStateByTarget?: (target: TrackerRegistrySyncTarget) => TrackerEntityLifecycleState;
 }): boolean {
   const context = input.context;
-  if (!context || !isMultiCharacterEntityTrackingMode(input.mode) || !input.owners.length) return false;
+  const rawTargets = Array.isArray(input.targets) && input.targets.length
+    ? input.targets
+    : (input.owners ?? []).map(ownerName => ({ ownerName, registryEntry: null }));
+  if (!context || !isMultiCharacterEntityTrackingMode(input.mode) || !rawTargets.length) return false;
   const registry = readRegistry(context);
   let changed = false;
+  const seenTargetKeys = new Set<string>();
 
-  for (const rawOwnerName of input.owners) {
-    const ownerName = normalizeToken(rawOwnerName);
+  for (const rawTarget of rawTargets) {
+    const ownerName = normalizeToken(rawTarget?.ownerName ?? rawTarget?.registryEntry?.ownerName);
     if (!ownerName) continue;
-    const identity = resolveCharacterIdentity(context, ownerName, input.mode);
-    if (!identity) continue;
-    const entry = ensureEntry(registry, identity, ownerName, input.messageIndex);
-    const lifecycleState = input.getLifecycleState(ownerName);
-    const aliases = identity.matchedBy === "alias"
-      ? uniqueStrings([...(entry.aliases ?? []), identity.resolvedName])
-      : entry.aliases;
+    const registryEntry = rawTarget?.registryEntry ?? null;
+    const targetKey = normalizeToken(registryEntry?.id) || normalizeKey(ownerName);
+    if (!targetKey || seenTargetKeys.has(targetKey)) continue;
+    seenTargetKeys.add(targetKey);
+    const existingRegistryEntry = normalizeToken(registryEntry?.id)
+      ? registry.entities[normalizeToken(registryEntry?.id)] ?? null
+      : null;
+    if (registryEntry?.kind === "narrative-entity" && !existingRegistryEntry) {
+      continue;
+    }
+    const identity = existingRegistryEntry ? null : resolveCharacterIdentity(context, ownerName, input.mode);
+    if (!existingRegistryEntry && !identity) continue;
+    const entry = existingRegistryEntry ?? ensureEntry(registry, identity!, ownerName, input.messageIndex);
+    const lifecycleState = input.getLifecycleStateByTarget
+      ? input.getLifecycleStateByTarget({ ownerName, registryEntry })
+      : (input.getLifecycleState?.(ownerName) ?? "inactive");
+    const aliases = registryEntry
+      ? uniqueStrings(registryEntry.aliases ?? [])
+      : identity?.matchedBy === "alias"
+        ? uniqueStrings([...(entry.aliases ?? []), identity.resolvedName])
+        : entry.aliases;
     if (entry.ownerName !== ownerName) {
       entry.ownerName = ownerName;
       changed = true;
     }
-    if (entry.canonicalName !== identity.resolvedName) {
-      entry.canonicalName = identity.resolvedName;
+    const canonicalName = normalizeToken(registryEntry?.canonicalName)
+      || identity?.resolvedName
+      || entry.canonicalName;
+    if (entry.canonicalName !== canonicalName) {
+      entry.canonicalName = canonicalName;
+      changed = true;
+    }
+    if (registryEntry && entry.kind !== registryEntry.kind) {
+      entry.kind = registryEntry.kind;
+      changed = true;
+    }
+    const sourceName = normalizeToken(registryEntry?.sourceName)
+      || identity?.sourceName
+      || entry.sourceName;
+    if (entry.sourceName !== sourceName) {
+      entry.sourceName = sourceName;
+      changed = true;
+    }
+    const sourceAvatar = registryEntry
+      ? (registryEntry.sourceAvatar ? normalizeToken(registryEntry.sourceAvatar) || null : null)
+      : identity?.sourceAvatar ?? entry.sourceAvatar;
+    if (entry.sourceAvatar !== sourceAvatar) {
+      entry.sourceAvatar = sourceAvatar;
+      changed = true;
+    }
+    const sourceKey = normalizeToken(registryEntry?.sourceKey)
+      || (entry.kind === "narrative-entity"
+        ? buildNarrativeEntitySourceKey(entry.id, ownerName, canonicalName)
+        : buildEntitySourceKey(sourceName, sourceAvatar));
+    if (entry.sourceKey !== sourceKey) {
+      entry.sourceKey = sourceKey;
       changed = true;
     }
     if (aliases.join("\n") !== (entry.aliases ?? []).join("\n")) {

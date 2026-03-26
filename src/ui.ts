@@ -21,6 +21,7 @@ import type {
   StatValue,
   TrackerData,
   TrackerEntityRegistryEntry,
+  TrackerRegistrySyncTarget,
 } from "./types";
 import {
   DEFAULT_INJECTION_PROMPT_TEMPLATE,
@@ -4856,8 +4857,8 @@ export function renderTracker(
   onRequestRerender?: () => void,
   onSyncEntityRegistry?: (payload: {
     messageIndex: number;
-    owners: string[];
-    getLifecycleState: (ownerName: string) => CardLifecycleState;
+    targets: TrackerRegistrySyncTarget[];
+    getLifecycleState: (target: TrackerRegistrySyncTarget) => CardLifecycleState;
   }) => void,
   onRecoverTracker?: (messageIndex: number) => void,
 ): void {
@@ -5735,15 +5736,22 @@ export function renderTracker(
         });
       onSyncEntityRegistry?.({
         messageIndex: entry.messageIndex,
-        owners: Array.from(new Set(uniqueTargets.map(target => target.ownerName))),
-        getLifecycleState: ownerName => getLifecycleState(
-          buildUiRenderTarget(ownerName, resolveRegistryEntryForOwnerInMessageData({
-            ownerName,
-            messageIndex: entry.messageIndex,
-            data,
-            resolveRegistryEntryForMessage,
-            resolveRegistryEntryByEntityIdForMessage,
-          })) ?? { ownerName, uiKey: normalizeName(ownerName), registryEntry: null },
+        targets: uniqueTargets.map(target => ({
+          ownerName: target.ownerName,
+          registryEntry: target.registryEntry,
+        })),
+        getLifecycleState: target => getLifecycleState(
+          buildUiRenderTarget(
+            target.ownerName,
+            target.registryEntry
+              ?? resolveRegistryEntryForOwnerInMessageData({
+                ownerName: target.ownerName,
+                messageIndex: entry.messageIndex,
+                data,
+                resolveRegistryEntryForMessage,
+                resolveRegistryEntryByEntityIdForMessage,
+              }),
+          ) ?? { ownerName: target.ownerName, uiKey: normalizeName(target.ownerName), registryEntry: null },
         ),
       });
 
