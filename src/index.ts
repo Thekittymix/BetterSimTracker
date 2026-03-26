@@ -32,6 +32,7 @@ import {
   resolveSceneEntityIdsFromResolvedEntities,
   resolveSceneOwnersFromResolvedEntities,
 } from "./entityResolver";
+import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
 import {
   buildEntitySourceKey,
   getEntityRegistryEntryForMessage,
@@ -3457,7 +3458,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     total: 0,
     messageIndex: lastIndex,
     stepLabel: buildProgressResolveActive(
-      activeSettings.entityTrackingMode === "multi_character" ? "multi_character" : "standard",
+      resolveEntityTrackingMode(activeSettings),
     ),
   });
   queueRender();
@@ -3483,7 +3484,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         }
       | null = null;
     let resolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> | null = null;
-    if (activeSettings.entityTrackingMode === "multi_character" && lastMessage && !lastMessage.is_system) {
+    if (resolveEntityTrackingMode(activeSettings) !== "standard" && lastMessage && !lastMessage.is_system) {
       const candidateOwners = resolveEntityResolverCandidateOwners(
         context,
         allCharacterNames.filter(name => name !== USER_TRACKER_KEY),
@@ -3495,31 +3496,54 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           const candidateEntities = candidateOwners.map((ownerName, index) => ({
             entityRef: `ent${index + 1}`,
             ownerName,
-            entityId: resolveStableEntityIdForOwner(context, ownerName, "multi_character") || null,
-            aliases: [ownerName],
+            kind: getEntityRegistryEntryForMessage(context, ownerName, lastIndex)?.kind === "narrative-entity"
+              ? "narrative-entity" as const
+              : "st-character" as const,
+            entityId: resolveStableEntityIdForOwner(context, ownerName, resolveEntityTrackingMode(activeSettings)) || null,
+            aliases: (() => {
+              const entry = getEntityRegistryEntryForMessage(context, ownerName, lastIndex);
+              const aliases = Array.from(new Set(
+                [ownerName, ...(entry?.aliases ?? [])]
+                  .map(value => String(value ?? "").trim())
+                  .filter(Boolean),
+              ));
+              return aliases;
+            })(),
           }));
           const resolverContextText = buildResolverContextUpToMessageIndex(context, lastIndex);
           const resolverPrompt = buildMultiCharacterResolverPrompt({
             candidateEntities,
             contextText: resolverContextText,
             message: lastMessage,
+            allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_entities",
           });
           const resolverResponse = await generateJson(resolverPrompt, activeSettings);
           const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
           const constrainedResolvedEntities = parsedResolver
             ? constrainResolvedEntitiesToMessageFocus(parsedResolver.resolvedEntities, candidateEntities, lastMessage)
             : [];
+          const materializedResolution = parsedResolver
+            ? materializeNarrativeEntityCreations({
+                context,
+                settings: activeSettings,
+                candidateEntities,
+                resolvedEntities: constrainedResolvedEntities,
+                createdEntities: parsedResolver.createdEntities,
+                unresolvedMentions: parsedResolver.unresolvedMentions,
+              })
+            : null;
+          const finalResolvedEntities = materializedResolution?.resolvedEntities ?? constrainedResolvedEntities;
           const parsedSceneOwners = parsedResolver
-            ? resolveSceneOwnersFromResolvedEntities(constrainedResolvedEntities)
+            ? resolveSceneOwnersFromResolvedEntities(finalResolvedEntities)
             : [];
           const parsedMessageOwners = parsedResolver
-            ? resolveMessageOwnersFromResolvedEntities(constrainedResolvedEntities)
+            ? resolveMessageOwnersFromResolvedEntities(finalResolvedEntities)
             : [];
           const parsedSceneEntityIds = parsedResolver
-            ? resolveSceneEntityIdsFromResolvedEntities(constrainedResolvedEntities)
+            ? resolveSceneEntityIdsFromResolvedEntities(finalResolvedEntities)
             : [];
           const parsedMessageEntityIds = parsedResolver
-            ? resolveMessageEntityIdsFromResolvedEntities(constrainedResolvedEntities)
+            ? resolveMessageEntityIdsFromResolvedEntities(finalResolvedEntities)
             : [];
           if (parsedResolver) {
             resolvedOwnerScopes = {
@@ -3530,15 +3554,15 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               source: "model",
             };
             const nextResolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
-              resolvedEntities: constrainedResolvedEntities.map(entity => ({
+              resolvedEntities: finalResolvedEntities.map(entity => ({
                 ...entity,
                 aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
                 created: Boolean(entity.created),
               })),
               source: "model",
             };
-            if (parsedResolver.unresolvedMentions.length) {
-              nextResolvedEntityResolution.unresolvedMentions = [...parsedResolver.unresolvedMentions];
+            if (materializedResolution?.unresolvedMentions.length) {
+              nextResolvedEntityResolution.unresolvedMentions = [...materializedResolution.unresolvedMentions];
             }
             resolvedEntityResolution = nextResolvedEntityResolution;
             pushTrace("entity.resolve", {
@@ -3549,6 +3573,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               messageEntityIds: parsedMessageEntityIds.length
                 ? parsedMessageEntityIds
                 : parsedSceneEntityIds,
+              createdEntities: finalResolvedEntities.filter(entity => entity.kind === "narrative-entity" && entity.created).map(entity => entity.name),
             });
           }
         } catch (error) {

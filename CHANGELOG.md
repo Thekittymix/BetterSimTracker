@@ -1,3 +1,11 @@
+## [2.2.4.16-exp160] - 2026-03-26
+### Added
+- Experimental `Entity Tracking Mode` now exposes an opt-in `Dynamic Entities` path, allowing the resolver to promote clearly new story entities into runtime-owned `narrative-entity` IDs instead of forcing everything through known ST-owner aliases.
+
+### Fixed
+- Experimental runtime macro scene summaries now ignore stale scene-roster history when the related custom stat exists but is no longer tracked, so `{{bst_image_state}}` falls back to current resolver scene owners instead of reviving old roster payloads.
+- Experimental resolver parsing and registry sync now preserve `narrative-entity` kinds end-to-end, reuse archived narrative entities by exact/normalized registry match before minting new IDs, and prevent mistaken `created` proposals from splitting existing tracked entities into duplicates.
+
 ## [2.2.4.16-exp159] - 2026-03-26
 ### Fixed
 - Experimental tracker edit clones now resolve multi-character message owners through `entityOwnerMap` before preferring resolver-backed active state, so technical entity IDs stop leaking into edit-modal active owner lists when the resolver payload already went entity-first.

@@ -229,6 +229,44 @@ test("getTrackerDataFromMessage materializes by-entity shadow projections from e
   });
 });
 
+test("getTrackerDataFromMessage preserves narrative-entity owner maps with derived narrative source keys", () => {
+  const tracker = makeTracker(1001, {
+    activeCharacters: ["Forest Spirit"],
+    customNonNumericStatistics: {
+      pose: { "Forest Spirit": "watching from the trees" },
+    },
+    entityOwnerMap: {
+      "Forest Spirit": {
+        entityId: "ent-forest-spirit",
+        ownerName: "Forest Spirit",
+        canonicalName: "Forest Spirit",
+        aliases: ["Spirit"],
+        sourceKey: "",
+        kind: "narrative-entity",
+      },
+    },
+  });
+  const message = {
+    mes: "Reply",
+    name: "Narrator",
+    is_user: false,
+    is_system: false,
+    swipe_id: 1,
+    extra: {
+      [EXTENSION_KEY]: {
+        "1": tracker,
+      },
+    },
+  };
+
+  const stored = getTrackerDataFromMessage(message);
+  assert.equal(stored?.entityOwnerMap?.["Forest Spirit"]?.kind, "narrative-entity");
+  assert.equal(stored?.entityOwnerMap?.["Forest Spirit"]?.sourceKey, "narrative:ent-forest-spirit");
+  assert.deepEqual(stored?.customNonNumericStatisticsByEntityId?.pose, {
+    "ent-forest-spirit": "watching from the trees",
+  });
+});
+
 test("getTrackerDataFromMessage preserves explicit entity resolution payload", () => {
   const tracker = makeTracker(1001, {
     activeCharacters: ["Blake"],

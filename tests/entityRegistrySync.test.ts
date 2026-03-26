@@ -456,6 +456,96 @@ test("syncEntityRegistryFromTrackerData archives inactive aliases on no-active c
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "archived");
 });
 
+test("syncEntityRegistryFromTrackerData persists narrative entities from resolver-backed tracker data", () => {
+  const context = makeContext();
+  context.chat[1].name = "Narrator";
+  context.chat[1].mes = "The forest spirit watches Blake from the trees.";
+  const settings = makeSettings();
+  const current = {
+    ...makeTrackerData(["Forest Spirit"]),
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "ent-forest-spirit",
+          kind: "narrative-entity",
+          name: "Forest Spirit",
+          aliases: ["Spirit"],
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: true,
+        },
+      ],
+      source: "model",
+    }),
+    statistics: {
+      affection: { "Forest Spirit": 50 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { "Forest Spirit": "Neutral" },
+      lastThought: { "Forest Spirit": "Still watching." },
+    },
+  } satisfies TrackerData;
+  writeTrackerDataToMessage(context, current, 1);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, true);
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.ownerToEntityId["forest spirit"], "ent-forest-spirit");
+  assert.equal(registry.ownerToEntityId.spirit, "ent-forest-spirit");
+  assert.equal(registry.entities["ent-forest-spirit"]?.kind, "narrative-entity");
+  assert.equal(registry.entities["ent-forest-spirit"]?.lifecycleState, "active");
+  assert.equal(registry.entities["ent-forest-spirit"]?.sourceKey, "narrative:ent-forest-spirit");
+});
+
+test("syncEntityRegistryFromTrackerData persists narrative entities in dynamic entity mode", () => {
+  const context = makeContext();
+  context.chat[1].name = "Narrator";
+  context.chat[1].mes = "The forest spirit watches Blake from the trees.";
+  const settings = {
+    ...makeSettings(),
+    entityTrackingMode: "dynamic_entities",
+  } as BetterSimTrackerSettings;
+  const current = {
+    ...makeTrackerData(["Forest Spirit"]),
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "ent-forest-spirit",
+          kind: "narrative-entity",
+          name: "Forest Spirit",
+          aliases: ["Spirit"],
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: true,
+        },
+      ],
+      source: "model",
+    }),
+  } satisfies TrackerData;
+  writeTrackerDataToMessage(context, current, 1);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, true);
+  assert.equal(readEntityRegistry(context).entities["ent-forest-spirit"]?.kind, "narrative-entity");
+});
+
 test("syncEntityRegistryFromTrackerData is a no-op outside multi-character mode", () => {
   const context = makeContext();
   const settings = {

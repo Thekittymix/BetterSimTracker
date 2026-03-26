@@ -37,6 +37,10 @@ Key groups:
 
 - Runtime toggles:
   - `enabled`
+  - `entityTrackingMode`
+    - `standard`
+    - `multi_character`
+    - `dynamic_entities`
   - `sequentialExtraction`
   - `injectTrackerIntoPrompt`
   - `lastThoughtPrivate`
@@ -66,6 +70,16 @@ Key groups:
   - mood source/mapping/frame settings
 
 Sanitization is centralized in `src/settings.ts`.
+
+## Entity Resolution / Registry Contracts
+
+- `TrackerResolvedEntity.kind` can be:
+  - `st-character`
+  - `persona`
+  - `narrative-entity`
+- `TrackerData.entityResolution.resolvedEntities` remains entity-first and is the runtime source of truth for scene/message entity scope.
+- `TrackerData.entityOwnerMap` is a projection/materialization layer for owner-facing lookups, not the source of truth for resolver identity.
+- In `dynamic_entities` mode, new narrative entities receive runtime-owned IDs (for example `bst_narrative:*`) and are then synchronized into chat-scoped registry entries with `kind: narrative-entity`.
 
 ## Custom Stat Definition (`CustomStatDefinition`)
 

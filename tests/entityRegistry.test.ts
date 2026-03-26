@@ -127,6 +127,37 @@ test("syncEntityRegistryFromRender stores multi-character alias lifecycle in cha
   );
 });
 
+test("readEntityRegistry preserves narrative-entity entries with derived narrative source metadata", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "ent-forest-spirit": {
+          id: "ent-forest-spirit",
+          ownerName: "Forest Spirit",
+          canonicalName: "Forest Spirit",
+          aliases: ["Spirit"],
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 3,
+          lastSeenMessageIndex: 5,
+          lastActiveMessageIndex: 5,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {},
+    },
+  };
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities["ent-forest-spirit"]?.kind, "narrative-entity");
+  assert.equal(registry.entities["ent-forest-spirit"]?.sourceName, "Forest Spirit");
+  assert.equal(registry.entities["ent-forest-spirit"]?.sourceKey, "narrative:ent-forest-spirit");
+  assert.equal(registry.ownerToEntityId["forest spirit"], "ent-forest-spirit");
+  assert.equal(registry.ownerToEntityId.spirit, "ent-forest-spirit");
+});
+
 test("syncEntityRegistryFromRender marks archived aliases without deleting them", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

@@ -29,6 +29,11 @@ function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+function buildNarrativeEntitySourceKey(entityId: string, ownerName: string, canonicalName: string): string {
+  const seed = normalizeKey(entityId) || normalizeKey(canonicalName) || normalizeKey(ownerName);
+  return seed ? `narrative:${seed}` : "";
+}
+
 function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
   const normalizedEntityId = normalizeToken(entityId);
   if (!normalizedEntityId) return "";
@@ -262,8 +267,11 @@ function normalizeEntityOwnerMap(raw: unknown): TrackerData["entityOwnerMap"] {
     const entityId = String(record.entityId ?? "").trim();
     const normalizedOwnerName = String(record.ownerName ?? ownerName).trim();
     const canonicalName = String(record.canonicalName ?? "").trim() || normalizedOwnerName;
-    const sourceKey = String(record.sourceKey ?? "").trim();
-    const kind = record.kind === "multi_character_alias" ? "multi_character_alias" : "owner";
+    const kind = record.kind === "multi_character_alias" || record.kind === "narrative-entity"
+      ? record.kind
+      : "owner";
+    const sourceKey = String(record.sourceKey ?? "").trim()
+      || (kind === "narrative-entity" ? buildNarrativeEntitySourceKey(entityId, normalizedOwnerName, canonicalName) : "");
     if (!entityId || !normalizedOwnerName || !canonicalName || !sourceKey) continue;
     const aliases = Array.isArray(record.aliases)
       ? Array.from(new Set(record.aliases.map(item => String(item ?? "").trim()).filter(Boolean)))

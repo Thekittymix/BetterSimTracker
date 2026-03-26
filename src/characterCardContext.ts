@@ -1,6 +1,6 @@
 import { buildEntitySourceKey, getEntityRegistryEntryByEntityIdForMessage } from "./entityRegistry";
-import type { Character, STContext } from "./types";
-import { resolveCharacterIdentity, resolveEntityTrackingMode } from "./entityResolution";
+import type { Character, EntityTrackingMode as SettingsEntityTrackingMode, STContext } from "./types";
+import { isMultiCharacterEntityTrackingMode, resolveCharacterIdentity, resolveEntityTrackingMode } from "./entityResolution";
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
@@ -31,10 +31,11 @@ export function buildCharacterCardsContext(
   context: STContext,
   activeCharacters: string[],
   activeEntityIds: string[] = [],
-  entityTrackingMode: "standard" | "multi_character" = "standard",
+  entityTrackingMode: SettingsEntityTrackingMode = "standard",
 ): string {
   const allCharacters = Array.isArray(context?.characters) ? context.characters : [];
   if (!allCharacters.length) return "";
+  const resolvedMode = resolveEntityTrackingMode({ entityTrackingMode });
 
   const inGroup = Boolean(String(context?.groupId ?? "").trim());
   const focusedCharacterId = Number(context?.characterId);
@@ -86,13 +87,13 @@ export function buildCharacterCardsContext(
 
     const isActiveByAvatar = !hasExplicitEntityTargets && avatarKey ? activeAvatarKeys.has(avatarKey) : false;
     const isActiveByName = !hasExplicitEntityTargets && nameKey ? activeNameKeys.has(nameKey) : false;
-    const isActiveByEntitySource = entityTrackingMode === "multi_character"
+    const isActiveByEntitySource = isMultiCharacterEntityTrackingMode(resolvedMode)
       && sourceKey
       && activeSourceKeys.has(sourceKey);
     const isActiveByAlias = !hasExplicitEntityTargets
-      && entityTrackingMode === "multi_character"
+      && isMultiCharacterEntityTrackingMode(resolvedMode)
       && activeCharacters.some(token => {
-        const resolved = resolveCharacterIdentity(context, token, resolveEntityTrackingMode({ entityTrackingMode }));
+        const resolved = resolveCharacterIdentity(context, token, resolvedMode);
         return Boolean(resolved && normalizeNameKey(resolved.sourceName) === nameKey);
       });
     if (!isActiveByAvatar && !isActiveByName && !isActiveByAlias && !isActiveByEntitySource) continue;

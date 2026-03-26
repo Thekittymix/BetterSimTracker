@@ -15,7 +15,7 @@ import type {
 import { USER_TRACKER_KEY } from "./constants";
 import { resolveTrackerEntityIdsForOwners, resolveTrackerOwnersForEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
 
-export type EntityTrackingMode = "standard" | "multi_character";
+export type EntityTrackingMode = "standard" | "multi_character" | "dynamic_entities";
 
 export type ResolvedCharacterIdentity = {
   sourceName: string;
@@ -44,6 +44,14 @@ function uniqueStrings(values: string[]): string[] {
     out.push(value);
   }
   return out;
+}
+
+export function isMultiCharacterEntityTrackingMode(mode: EntityTrackingMode): boolean {
+  return mode === "multi_character" || mode === "dynamic_entities";
+}
+
+export function allowsNarrativeEntities(mode: EntityTrackingMode): boolean {
+  return mode === "dynamic_entities";
 }
 
 function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
@@ -124,7 +132,7 @@ export function extractMultiCharacterAliases(sourceName: string): string[] {
 function getCharacterAliases(character: Character, mode: EntityTrackingMode): string[] {
   const sourceName = normalizeToken(character?.name);
   if (!sourceName) return [];
-  if (mode !== "multi_character") return [sourceName];
+  if (!isMultiCharacterEntityTrackingMode(mode)) return [sourceName];
   const aliases = extractMultiCharacterAliases(sourceName);
   return uniqueStrings([sourceName, ...aliases]);
 }
@@ -329,7 +337,11 @@ function inferMessageAliasSpeaker(messageText: string, aliases: string[]): strin
 export function resolveEntityTrackingMode(
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): EntityTrackingMode {
-  return settings.entityTrackingMode === "multi_character" ? "multi_character" : "standard";
+  return settings.entityTrackingMode === "dynamic_entities"
+    ? "dynamic_entities"
+    : settings.entityTrackingMode === "multi_character"
+      ? "multi_character"
+      : "standard";
 }
 
 export function resolveCharacterIdentity(
@@ -369,7 +381,7 @@ export function resolveStableEntityIdForOwner(
   const fromRegistry = resolveTrackerEntityIdsForOwners(context, [normalizedOwner])[0];
   if (fromRegistry) return fromRegistry;
 
-  if (mode === "multi_character") {
+  if (isMultiCharacterEntityTrackingMode(mode)) {
     const identity = resolveCharacterIdentity(context, normalizedOwner, mode);
     if (identity) {
       const sourceKey = `${normalizeKey(identity.sourceAvatar ?? "")}|${normalizeKey(identity.sourceName)}`;
@@ -406,7 +418,7 @@ export function isAliasResolvedOwner(
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): boolean {
   const mode = resolveEntityTrackingMode(settings);
-  if (mode !== "multi_character") return false;
+  if (!isMultiCharacterEntityTrackingMode(mode)) return false;
   const resolved = resolveCharacterIdentity(context, ownerName, mode);
   return resolved?.matchedBy === "alias";
 }
@@ -431,7 +443,7 @@ export function resolveMessageScopedActiveCharacters(
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): string[] {
   const mode = resolveEntityTrackingMode(settings);
-  if (mode !== "multi_character") {
+  if (!isMultiCharacterEntityTrackingMode(mode)) {
     return activeCharacters.map(ownerName => resolveMessageScopedOwnerName(context, ownerName, message, settings));
   }
 
@@ -469,7 +481,7 @@ export function resolveEntityResolverCandidateOwners(
 ): string[] {
   const mode = resolveEntityTrackingMode(settings);
   const normalizedOwners = uniqueStrings(ownerNames.map(normalizeToken));
-  if (mode !== "multi_character") return normalizedOwners;
+  if (!isMultiCharacterEntityTrackingMode(mode)) return normalizedOwners;
   return resolveMessageScopedActiveCharacters(context, normalizedOwners, message, settings);
 }
 
@@ -480,7 +492,7 @@ export function resolveMessageScopedParticipants(
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): string[] {
   const mode = resolveEntityTrackingMode(settings);
-  if (mode !== "multi_character") return [...activeCharacters];
+  if (!isMultiCharacterEntityTrackingMode(mode)) return [...activeCharacters];
   if (!message || message.is_user || message.is_system) return [...activeCharacters];
 
   const messageText = normalizeToken(message.mes);
@@ -636,7 +648,7 @@ export function constrainFallbackOwnerScopesToPreviousUserScene(input: {
   requestCharacters: string[];
 } | null {
   if (input.userExtraction) return null;
-  if (input.settings.entityTrackingMode !== "multi_character") return null;
+  if (!isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings))) return null;
   if (!input.previousMessage?.is_user) return null;
   if (input.previousTrackerData?.entityResolution && !resolveTrackerSceneOwners(null, input.previousTrackerData).length) {
     return {
@@ -669,7 +681,7 @@ export function constrainResolvedOwnerScopesToPreviousUserScene(input: {
   requestCharacters: string[];
 } | null {
   if (input.userExtraction) return null;
-  if (input.settings.entityTrackingMode !== "multi_character") return null;
+  if (!isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings))) return null;
   if (!input.previousMessage?.is_user) return null;
   if (input.resolvedRequestCharacters.length) return null;
   if (input.previousTrackerData?.entityResolution && !resolveTrackerSceneOwners(null, input.previousTrackerData).length) {
@@ -900,7 +912,7 @@ export function resolveMessageScopedOwnerName(
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): string {
   const mode = resolveEntityTrackingMode(settings);
-  if (mode !== "multi_character") return ownerName;
+  if (!isMultiCharacterEntityTrackingMode(mode)) return ownerName;
   if (!message || message.is_user || message.is_system) return ownerName;
 
   const messageText = normalizeToken(message.mes);

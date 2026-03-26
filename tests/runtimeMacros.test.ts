@@ -278,6 +278,98 @@ test("syncBstMacros exposes compact bst_image_state using configured owner-scope
   assert.equal(block.includes("scene date/time"), false);
 });
 
+test("syncBstMacros uses enabled visible scene roster stats for bst_image_state when available", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+  tracker.activeCharacters = ["Seraphina"];
+  tracker.customNonNumericStatistics = {
+    ...tracker.customNonNumericStatistics,
+    characters_in_scene: {
+      __bst_global__: ["Ashley", "Blake", "Garret"],
+    },
+  };
+  const settings = makeSettings();
+  settings.customStats = [
+    ...settings.customStats,
+    {
+      id: "characters_in_scene",
+      kind: "array",
+      label: "Characters in Scene",
+      defaultValue: [],
+      textMaxLength: 80,
+      track: true,
+      trackCharacters: true,
+      trackUser: true,
+      globalScope: true,
+      privateToOwner: false,
+      showOnCard: true,
+      showInGraph: false,
+      includeInInjection: false,
+    },
+  ];
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: ["Seraphina", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
+  assert.match(block, /^Scene: Ashley, Blake, Garret/m);
+});
+
+test("syncBstMacros ignores disabled scene roster stats for bst_image_state and falls back to resolver scene owners", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+  tracker.activeCharacters = ["Blake"];
+  tracker.entityResolution = buildEntityResolution({
+    source: "model",
+    sceneOwners: ["Ashley", "Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: [],
+    messageEntityIds: [],
+  });
+  tracker.customNonNumericStatistics = {
+    ...tracker.customNonNumericStatistics,
+    characters_in_scene: {
+      __bst_global__: ["Ashley", "Blake", "Garret", "Raleigh"],
+    },
+  };
+  const settings = makeSettings();
+  settings.customStats = [
+    ...settings.customStats,
+    {
+      id: "characters_in_scene",
+      kind: "array",
+      label: "Characters in Scene",
+      defaultValue: [],
+      textMaxLength: 80,
+      track: false,
+      trackCharacters: true,
+      trackUser: true,
+      globalScope: true,
+      privateToOwner: false,
+      showOnCard: true,
+      showInGraph: false,
+      includeInInjection: false,
+    },
+  ];
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: ["Ashley", "Blake", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
+  assert.match(block, /^Scene: Ashley, Blake/m);
+  assert.doesNotMatch(block, /^Scene: Ashley, Blake, Garret, Raleigh/m);
+});
+
 test("syncBstMacros uses resolved scene owners for bst_image_state instead of request-only activeCharacters", () => {
   const { context, registeredNewEngine } = makeContext();
   const tracker = makeTracker();

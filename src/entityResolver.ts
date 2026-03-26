@@ -1,5 +1,5 @@
 import { USER_TRACKER_KEY } from "./constants";
-import type { ChatMessage, TrackerResolvedEntity } from "./types";
+import type { ChatMessage, TrackerResolvedEntity, TrackerResolvedEntityKind } from "./types";
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
@@ -62,13 +62,22 @@ function safeJsonParse(raw: string): unknown {
 export type MultiCharacterResolverCandidate = {
   entityRef: string;
   ownerName: string;
+  kind?: TrackerResolvedEntityKind;
   entityId?: string | null;
   avatar?: string | null;
   aliases?: string[];
 };
 
+export type NarrativeEntityCreationProposal = {
+  name: string;
+  aliases?: string[];
+  inScene: boolean;
+  inMessage: boolean;
+};
+
 export type MultiCharacterResolutionResult = {
   resolvedEntities: TrackerResolvedEntity[];
+  createdEntities: NarrativeEntityCreationProposal[];
   unresolvedMentions: string[];
 };
 
@@ -116,11 +125,13 @@ export function buildMultiCharacterResolverPrompt(input: {
   candidateEntities: MultiCharacterResolverCandidate[];
   contextText: string;
   message: ChatMessage;
+  allowNarrativeEntityCreation?: boolean;
 }): string {
   const candidateEntities = input.candidateEntities
     .map(candidate => ({
       entityRef: normalizeToken(candidate.entityRef),
       ownerName: normalizeToken(candidate.ownerName),
+      kind: candidate.kind === "narrative-entity" || candidate.kind === "persona" ? candidate.kind : "st-character",
       entityId: normalizeToken(candidate.entityId),
       avatar: normalizeToken(candidate.avatar),
       aliases: Array.isArray(candidate.aliases)
@@ -132,12 +143,15 @@ export function buildMultiCharacterResolverPrompt(input: {
   const messageName = normalizeToken(input.message?.name);
   const messageText = normalizeToken(input.message?.mes);
   const messageRole = input.message?.is_user ? "user" : "ai";
+  const allowNarrativeEntityCreation = input.allowNarrativeEntityCreation === true;
 
   return [
     "SYSTEM:",
     "You are the BetterSimTracker entity resolver.",
     "Resolve which already-known entities are present in the scene at the end of the latest message, and which entities this latest message is actively advancing.",
-    "Return only known entities from the provided candidate list. Do not invent IDs or names.",
+    allowNarrativeEntityCreation
+      ? "Resolve known entities from the provided candidate list, and only use `created` for clearly new story entities that are not already known."
+      : "Return only known entities from the provided candidate list. Do not invent IDs or names.",
     "Do not include the user as a resolved entity.",
     "Return strict JSON only.",
     "",
@@ -147,6 +161,13 @@ export function buildMultiCharacterResolverPrompt(input: {
     "- `inMessage` may be true while `inScene` is false if the message shows the entity leaving by the end.",
     "- Silent/background entities may remain `inScene=true`, but must stay `inMessage=false` unless the latest message itself directly advances them.",
     "- If the latest user instruction or AI message makes it clear that no known tracked entity remains in scene, return an empty `resolved` array.",
+    ...(allowNarrativeEntityCreation
+      ? [
+          "- Use `created` only for clearly new non-user story entities that are distinct, scene-relevant, and not already covered by the known candidate list.",
+          "- `created` entries must use human-readable `name` and optional `aliases` only. Never invent stable IDs.",
+          "- Do not create narrator, user, pronouns, generic body parts, locations, groups, or ambiguous references.",
+        ]
+      : []),
     "",
     "Examples:",
     '- If the user says `Blake, answer only for yourself. Ashley, Garret, and Raleigh stay silent.`, resolve the silent characters as `inScene=true, inMessage=false` if they remain present.',
@@ -157,6 +178,7 @@ export function buildMultiCharacterResolverPrompt(input: {
       candidateEntities.map(candidate => ({
         entityRef: candidate.entityRef,
         ownerName: candidate.ownerName,
+        kind: candidate.kind ?? "st-character",
         aliases: candidate.aliases,
       })),
       null,
@@ -177,7 +199,9 @@ export function buildMultiCharacterResolverPrompt(input: {
     '  "resolved": [',
     '    { "entityRef": "ent1", "inScene": true, "inMessage": true }',
     "  ],",
-    '  "created": [],',
+    allowNarrativeEntityCreation
+      ? '  "created": [{ "name": "Forest Spirit", "aliases": ["Spirit"], "inScene": true, "inMessage": true }],'
+      : '  "created": [],',
     '  "unresolvedMentions": []',
     "}",
   ].join("\n");
@@ -282,7 +306,7 @@ export function parseMultiCharacterResolverResponse(
     seenEntityIds.add(entityId);
     resolvedEntities.push({
       entityId,
-      kind: "st-character",
+      kind: candidate.kind ?? "st-character",
       name,
       avatar: normalizeToken(candidate.avatar) || null,
       aliases: Array.isArray(candidate.aliases) && candidate.aliases.length
@@ -291,6 +315,42 @@ export function parseMultiCharacterResolverResponse(
       inScene: resolved.inScene,
       inMessage: resolved.inMessage,
     });
+  }
+
+  const rawCreated = Array.isArray(record.created)
+    ? record.created
+    : (Array.isArray(record.createdEntities) ? record.createdEntities : []);
+  const createdEntities: NarrativeEntityCreationProposal[] = [];
+  const seenCreated = new Set<string>();
+  if (Array.isArray(rawCreated)) {
+    for (const value of rawCreated) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const item = value as Record<string, unknown>;
+      const name = [
+        item.name,
+        item.ownerName,
+        item.owner,
+        item.canonicalName,
+      ]
+        .map(candidate => normalizeToken(candidate))
+        .find(Boolean) ?? "";
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seenCreated.has(key)) continue;
+      seenCreated.add(key);
+      const aliases = Array.isArray(item.aliases)
+        ? Array.from(new Set(item.aliases.map(alias => normalizeToken(alias)).filter(Boolean)))
+        : [];
+      const hasInScene = Object.prototype.hasOwnProperty.call(item, "inScene");
+      const hasInMessage = Object.prototype.hasOwnProperty.call(item, "inMessage");
+      const inMessage = hasInMessage ? normalizeBoolean(item.inMessage) : true;
+      createdEntities.push({
+        name,
+        aliases: aliases.length ? aliases : undefined,
+        inScene: hasInScene ? normalizeBoolean(item.inScene) : inMessage,
+        inMessage,
+      });
+    }
   }
 
   const rawUnresolvedMentions = Array.isArray(record.unresolvedMentions)
@@ -302,6 +362,7 @@ export function parseMultiCharacterResolverResponse(
 
   return {
     resolvedEntities,
+    createdEntities,
     unresolvedMentions,
   };
 }

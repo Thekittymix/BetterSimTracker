@@ -856,7 +856,7 @@ export function buildDisplayPoolWithRegistry(input: {
   dataCharacterNames: string[];
   mergedWithRegistryOwners: string[];
 }): string[] {
-  const preferRegistryOwners = input.entityTrackingMode === "multi_character"
+  const preferRegistryOwners = (input.entityTrackingMode === "multi_character" || input.entityTrackingMode === "dynamic_entities")
     && input.mergedWithRegistryOwners.length > 0;
   if (input.includeAllTargets) {
     return preferRegistryOwners

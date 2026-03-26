@@ -67,6 +67,19 @@ type ImageMacroStatDef = {
   includeForCharacter: boolean;
 };
 
+function canUseSceneRosterStatInImageState(
+  stat: BetterSimTrackerSettings["customStats"][number] | null | undefined,
+): boolean {
+  if (!stat) return false;
+  if (String(stat.id ?? "").trim().toLowerCase() !== "characters_in_scene") return false;
+  if ((stat.kind ?? "numeric") === "numeric") return false;
+  if (!stat.globalScope) return false;
+  if (!stat.track) return false;
+  if (!stat.showOnCard) return false;
+  if (stat.privateToOwner) return false;
+  return true;
+}
+
 function buildCharacterMacroTargets(context: STContext, allCharacterNames: string[]): CharacterMacroTarget[] {
   const ownerNameSet = new Set<string>();
   const seenEntityIds = new Set<string>();
@@ -211,8 +224,10 @@ function formatImageStateBlock(
 ): string {
   if (!data) return "";
   const imageStatDefs = buildImageMacroStatDefs(settings);
-
-  const preferredSceneRoster = resolveMacroStatValue(context, data, settings, "characters_in_scene", BST_MACRO_STAT_SCOPE_SCENE);
+  const sceneRosterStat = (settings.customStats ?? []).find(def => String(def.id ?? "").trim().toLowerCase() === "characters_in_scene");
+  const preferredSceneRoster = canUseSceneRosterStatInImageState(sceneRosterStat)
+    ? resolveMacroStatValue(context, data, settings, "characters_in_scene", BST_MACRO_STAT_SCOPE_SCENE)
+    : "";
   const activeOwners = resolveTrackerSceneOwners(context as STContext, data)
     .map(name => String(name ?? "").trim())
     .filter(name => name && name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY);

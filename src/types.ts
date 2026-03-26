@@ -25,7 +25,7 @@ export type MoodLabel =
   | "Neutral";
 export type MoodSource = "bst_images" | "st_expressions";
 export type MoodSymbolMap = Partial<Record<MoodLabel, string>>;
-export type EntityTrackingMode = "standard" | "multi_character";
+export type EntityTrackingMode = "standard" | "multi_character" | "dynamic_entities";
 export type SceneCardPosition = "above_tracker_cards" | "above_message";
 export type SceneCardLayout = "chips" | "rows";
 export type SceneStatLayout = "auto" | "chips" | "rows";
@@ -139,7 +139,7 @@ export interface TrackerDataEntityOwner {
   canonicalName: string;
   aliases: string[];
   sourceKey: string;
-  kind: "owner" | "multi_character_alias";
+  kind: "owner" | "multi_character_alias" | "narrative-entity";
 }
 
 export type TrackerEntityLifecycleState = "active" | "inactive" | "archived";
@@ -152,7 +152,7 @@ export interface TrackerEntityRegistryEntry {
   sourceName: string;
   sourceAvatar: string | null;
   sourceKey: string;
-  kind: "owner" | "multi_character_alias";
+  kind: "owner" | "multi_character_alias" | "narrative-entity";
   introducedAtMessageIndex: number;
   lastSeenMessageIndex: number;
   lastActiveMessageIndex: number | null;

@@ -4,6 +4,24 @@ Last verified commit: `000d643`
 
 Primary implementation: `src/extractor.ts`.
 
+## Resolver Prepass
+
+Before stat extraction, BST can run an entity-resolution prepass for non-standard entity tracking modes.
+
+- `standard`
+  - skips resolver prepass and uses normal owner-target selection.
+- `multi_character`
+  - resolves scene/message ownership against already-known entities only.
+- `dynamic_entities`
+  - uses the same entity-first resolver flow, but may additionally accept conservative `created` proposals for clearly new narrative entities.
+
+Important rules:
+
+- Stable IDs remain runtime-owned.
+- Resolver output is still entity-first (`resolvedEntities`), not owner-array-first.
+- `created` proposals are matched against existing candidates and full registry state before any new `narrative-entity` ID is minted.
+- Archived narrative entities can therefore be reactivated instead of duplicated when their exact/normalized name reappears later.
+
 ## Inputs
 
 Extractor is called with:

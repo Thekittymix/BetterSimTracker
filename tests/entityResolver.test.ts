@@ -55,6 +55,27 @@ test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", ()
   assert.match(prompt, /Resolve which already-known entities are present in the scene at the end of the latest message/i);
 });
 
+test("buildMultiCharacterResolverPrompt enables conservative created entities only in dynamic mode", () => {
+  const prompt = buildMultiCharacterResolverPrompt({
+    candidateEntities: [
+      { entityRef: "ent1", ownerName: "Blake", entityId: "bst_mc_alias:test:blake", kind: "st-character" },
+      { entityRef: "ent2", ownerName: "Forest Spirit", entityId: "bst_narrative:forest-spirit", kind: "narrative-entity" },
+    ],
+    contextText: "Blake heard branches move behind him.",
+    message: {
+      name: "Narrator",
+      mes: "A forest spirit stepped out of the fog and watched Blake closely.",
+      is_user: false,
+    } as any,
+    allowNarrativeEntityCreation: true,
+  });
+
+  assert.match(prompt, /Use `created` only for clearly new non-user story entities/i);
+  assert.match(prompt, /Never invent stable IDs/i);
+  assert.match(prompt, /"kind": "narrative-entity"/);
+  assert.match(prompt, /"created": \[\{ "name": "Forest Spirit"/);
+});
+
 test("parseMultiCharacterResolverResponse keeps scene entities separate when no entity advances the message", () => {
   const parsed = parseMultiCharacterResolverResponse(
     JSON.stringify({
@@ -84,6 +105,7 @@ test("parseMultiCharacterResolverResponse keeps scene entities separate when no 
         inMessage: false,
       },
     ],
+    createdEntities: [],
     unresolvedMentions: ["Kuba"],
   });
 });
@@ -127,6 +149,7 @@ test("parseMultiCharacterResolverResponse accepts narrowed message entities from
         inMessage: false,
       },
     ],
+    createdEntities: [],
     unresolvedMentions: [],
   });
 });
@@ -170,6 +193,7 @@ test("parseMultiCharacterResolverResponse maps entity refs back to stable entity
         inMessage: false,
       },
     ],
+    createdEntities: [],
     unresolvedMentions: [],
   });
 });
@@ -201,6 +225,7 @@ test("parseMultiCharacterResolverResponse keeps inMessage false when only scene 
         inMessage: false,
       },
     ],
+    createdEntities: [],
     unresolvedMentions: [],
   });
 });
@@ -232,6 +257,7 @@ test("parseMultiCharacterResolverResponse accepts ownerName fallback when the mo
         inMessage: true,
       },
     ],
+    createdEntities: [],
     unresolvedMentions: [],
   });
 });
@@ -251,6 +277,67 @@ test("parseMultiCharacterResolverResponse preserves explicit empty-scene resolut
 
   assert.deepEqual(parsed, {
     resolvedEntities: [],
+    createdEntities: [],
+    unresolvedMentions: [],
+  });
+});
+
+test("parseMultiCharacterResolverResponse preserves narrative creation proposals without inventing ids", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [],
+      created: [
+        { name: "Forest Spirit", aliases: ["Spirit"], inScene: true, inMessage: true },
+      ],
+      unresolvedMentions: ["Forest Spirit"],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Blake", entityId: "bst_mc_alias:test:blake", kind: "st-character" },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    resolvedEntities: [],
+    createdEntities: [
+      {
+        name: "Forest Spirit",
+        aliases: ["Spirit"],
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    unresolvedMentions: ["Forest Spirit"],
+  });
+});
+
+test("parseMultiCharacterResolverResponse preserves narrative candidate kinds", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [
+        { entityRef: "ent2", inScene: true, inMessage: true },
+      ],
+      created: [],
+      unresolvedMentions: [],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Blake", entityId: "bst_mc_alias:test:blake", kind: "st-character" },
+      { entityRef: "ent2", ownerName: "Forest Spirit", entityId: "bst_narrative:forest-spirit", kind: "narrative-entity", aliases: ["Spirit"] },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:forest-spirit",
+        kind: "narrative-entity",
+        name: "Forest Spirit",
+        avatar: null,
+        aliases: ["Spirit"],
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    createdEntities: [],
     unresolvedMentions: [],
   });
 });

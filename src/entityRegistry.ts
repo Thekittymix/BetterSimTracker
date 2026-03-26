@@ -7,7 +7,12 @@ import type {
   TrackerEntityRegistryEntry,
   TrackerResolvedEntity,
 } from "./types";
-import { resolveCharacterIdentity, type EntityTrackingMode, type ResolvedCharacterIdentity } from "./entityResolution";
+import {
+  isMultiCharacterEntityTrackingMode,
+  resolveCharacterIdentity,
+  type EntityTrackingMode,
+  type ResolvedCharacterIdentity,
+} from "./entityResolution";
 import type { CardLifecycleRegistryState, CardLifecycleSnapshot } from "./cardLifecycle";
 import { USER_TRACKER_KEY } from "./constants";
 
@@ -205,11 +210,14 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
       const id = normalizeToken(entry.id) || entityId;
       const ownerName = normalizeToken(entry.ownerName);
       const canonicalName = normalizeToken(entry.canonicalName) || ownerName;
-      const sourceName = normalizeToken(entry.sourceName);
+      const sourceName = normalizeToken(entry.sourceName) || canonicalName || ownerName;
       const sourceAvatar = normalizeToken(entry.sourceAvatar) || null;
-      const sourceKey = normalizeToken(entry.sourceKey) || buildEntitySourceKey(sourceName, sourceAvatar);
+      const kind = normalizeRegistryEntryKind(entry.kind);
+      const sourceKey = normalizeToken(entry.sourceKey)
+        || (kind === "narrative-entity"
+          ? buildNarrativeEntitySourceKey(id, ownerName, canonicalName)
+          : buildEntitySourceKey(sourceName, sourceAvatar));
       const aliases = Array.isArray(entry.aliases) ? uniqueStrings(entry.aliases.map(item => normalizeToken(item))) : [];
-      const kind = entry.kind === "multi_character_alias" ? "multi_character_alias" : "owner";
       const introducedAtMessageIndex = entry.introducedAtMessageIndex == null
         ? 0
         : (Number.isFinite(Number(entry.introducedAtMessageIndex)) ? Number(entry.introducedAtMessageIndex) : 0);
@@ -332,7 +340,7 @@ export function syncEntityRegistryFromRender(input: {
   getLifecycleState: (ownerName: string) => TrackerEntityLifecycleState;
 }): boolean {
   const context = input.context;
-  if (!context || input.mode !== "multi_character" || !input.owners.length) return false;
+  if (!context || !isMultiCharacterEntityTrackingMode(input.mode) || !input.owners.length) return false;
   const registry = readRegistry(context);
   let changed = false;
 
@@ -402,6 +410,118 @@ export function syncEntityRegistryFromRender(input: {
     registry.ownerToEntityId[normalizeKey(entry.canonicalName)] = entry.id;
     for (const alias of entry.aliases) {
       registry.ownerToEntityId[normalizeKey(alias)] = entry.id;
+    }
+  }
+
+  if (!changed) return false;
+  writeRegistry(context, registry);
+  return true;
+}
+
+export function syncNarrativeEntityRegistryFromResolvedEntities(input: {
+  context: STContext | null;
+  messageIndex: number;
+  resolvedEntities: TrackerResolvedEntity[];
+  getLifecycleState: (ownerName: string, entityId: string) => TrackerEntityLifecycleState;
+}): boolean {
+  const context = input.context;
+  if (!context) return false;
+  const narrativeEntities = (input.resolvedEntities ?? [])
+    .filter(entity => entity?.kind === "narrative-entity")
+    .filter(entity => normalizeToken(entity?.entityId) && normalizeToken(entity?.name));
+  if (!narrativeEntities.length) return false;
+
+  const registry = readRegistry(context);
+  let changed = false;
+  const seenEntityIds = new Set<string>();
+
+  for (const entity of narrativeEntities) {
+    const entityId = normalizeToken(entity.entityId);
+    const ownerName = normalizeToken(entity.name);
+    if (!entityId || !ownerName || seenEntityIds.has(entityId)) continue;
+    seenEntityIds.add(entityId);
+    const aliases = uniqueStrings(
+      (entity.aliases ?? []).filter(alias => normalizeKey(alias) !== normalizeKey(ownerName)),
+    );
+    const sourceKey = buildNarrativeEntitySourceKey(entityId, ownerName, ownerName);
+    const existing = registry.entities[entityId];
+    const entry: TrackerEntityRegistryEntry = existing ?? {
+      id: entityId,
+      ownerName,
+      canonicalName: ownerName,
+      aliases,
+      sourceName: ownerName,
+      sourceAvatar: null,
+      sourceKey,
+      kind: "narrative-entity",
+      introducedAtMessageIndex: input.messageIndex,
+      lastSeenMessageIndex: input.messageIndex,
+      lastActiveMessageIndex: null,
+      lifecycleState: "inactive",
+      archivedAtMessageIndex: null,
+      lifecycleEvents: [{ messageIndex: input.messageIndex, state: "inactive" }],
+    };
+    if (!existing) {
+      registry.entities[entityId] = entry;
+      changed = true;
+    }
+    if (entry.ownerName !== ownerName) {
+      entry.ownerName = ownerName;
+      changed = true;
+    }
+    if (entry.canonicalName !== ownerName) {
+      entry.canonicalName = ownerName;
+      changed = true;
+    }
+    if (entry.kind !== "narrative-entity") {
+      entry.kind = "narrative-entity";
+      changed = true;
+    }
+    if (entry.sourceName !== ownerName) {
+      entry.sourceName = ownerName;
+      changed = true;
+    }
+    if (entry.sourceAvatar !== null) {
+      entry.sourceAvatar = null;
+      changed = true;
+    }
+    if (entry.sourceKey !== sourceKey) {
+      entry.sourceKey = sourceKey;
+      changed = true;
+    }
+    if ((entry.aliases ?? []).join("\n") !== aliases.join("\n")) {
+      entry.aliases = aliases;
+      changed = true;
+    }
+    const lifecycleState = input.getLifecycleState(ownerName, entityId);
+    if (upsertLifecycleEvent(entry, input.messageIndex, lifecycleState)) {
+      changed = true;
+    }
+    const derived = resolveDerivedLifecycleMetadata(entry);
+    if (entry.introducedAtMessageIndex !== derived.introducedAtMessageIndex) {
+      entry.introducedAtMessageIndex = derived.introducedAtMessageIndex;
+      changed = true;
+    }
+    if (entry.lastSeenMessageIndex !== derived.lastSeenMessageIndex) {
+      entry.lastSeenMessageIndex = derived.lastSeenMessageIndex;
+      changed = true;
+    }
+    if (entry.lastActiveMessageIndex !== derived.lastActiveMessageIndex) {
+      entry.lastActiveMessageIndex = derived.lastActiveMessageIndex;
+      changed = true;
+    }
+    if (entry.lifecycleState !== derived.lifecycleState) {
+      entry.lifecycleState = derived.lifecycleState;
+      changed = true;
+    }
+    if (entry.archivedAtMessageIndex !== derived.archivedAtMessageIndex) {
+      entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
+      changed = true;
+    }
+    registry.ownerToEntityId[normalizeKey(ownerName)] = entityId;
+    registry.ownerToEntityId[normalizeKey(entry.canonicalName)] = entityId;
+    for (const alias of entry.aliases) {
+      registry.ownerToEntityId[normalizeKey(alias)] = entityId;
     }
   }
 
@@ -663,6 +783,17 @@ function resolveTrackerResolvedEntities(
     });
   }
   return out;
+}
+
+function buildNarrativeEntitySourceKey(entityId: string, ownerName: string, canonicalName: string): string {
+  const seed = normalizeKey(entityId) || normalizeKey(canonicalName) || normalizeKey(ownerName);
+  return seed ? `narrative:${seed}` : "";
+}
+
+function normalizeRegistryEntryKind(value: unknown): TrackerEntityRegistryEntry["kind"] {
+  return value === "multi_character_alias" || value === "narrative-entity"
+    ? value
+    : "owner";
 }
 
 function resolveOwnerNameForResolvedEntity(
@@ -955,7 +1086,12 @@ export function listEntityRegistryEntriesForMessage(
         return a.introducedAtMessageIndex - b.introducedAtMessageIndex;
       }
       if (a.kind !== b.kind) {
-        return a.kind === "multi_character_alias" ? -1 : 1;
+        const kindRank = (kind: TrackerEntityRegistryEntry["kind"]): number => {
+          if (kind === "multi_character_alias") return 0;
+          if (kind === "narrative-entity") return 1;
+          return 2;
+        };
+        return kindRank(a.kind) - kindRank(b.kind);
       }
       return a.ownerName.localeCompare(b.ownerName);
     });

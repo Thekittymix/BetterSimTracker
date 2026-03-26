@@ -118,6 +118,110 @@ test("getAllTrackedCharacterNames expands multi-character source cards into alia
   );
 });
 
+test("getAllTrackedCharacterNames includes visible registry-backed narrative entities in multi-character mode", () => {
+  const context = {
+    groupId: undefined,
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-forest-spirit": {
+            id: "ent-forest-spirit",
+            ownerName: "Forest Spirit",
+            canonicalName: "Forest Spirit",
+            aliases: ["Spirit"],
+            sourceName: "Forest Spirit",
+            sourceAvatar: null,
+            sourceKey: "narrative:ent-forest-spirit",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          "forest spirit": "ent-forest-spirit",
+          spirit: "ent-forest-spirit",
+        },
+      },
+    },
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "A forest spirit watches from the trees.", is_user: false, is_system: false },
+      { name: "User", mes: "Keep going.", is_user: true, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "multi_character" }),
+    [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Forest Spirit",
+    ],
+  );
+});
+
+test("getAllTrackedCharacterNames includes registry-backed narrative entities in dynamic entity mode", () => {
+  const context = {
+    groupId: undefined,
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-forest-spirit": {
+            id: "ent-forest-spirit",
+            ownerName: "Forest Spirit",
+            canonicalName: "Forest Spirit",
+            aliases: ["Spirit"],
+            sourceName: "Forest Spirit",
+            sourceAvatar: null,
+            sourceKey: "narrative:ent-forest-spirit",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          "forest spirit": "ent-forest-spirit",
+          spirit: "ent-forest-spirit",
+        },
+      },
+    },
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "A forest spirit watches from the trees.", is_user: false, is_system: false },
+      { name: "User", mes: "Keep going.", is_user: true, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_entities" }),
+    [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Forest Spirit",
+    ],
+  );
+});
+
 test("activity analysis keeps the full alias pool active for a multi-character source-card reply", () => {
   const context = {
     groupId: undefined,

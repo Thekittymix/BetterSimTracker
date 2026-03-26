@@ -14,7 +14,7 @@ It tracks character relationship stats over time, stores them per AI message, vi
 - Lorebook extraction prefers already-activated ST lorebook context, with an optional internal fallback scan toggle.
 - Current ST builds use the modern macro engine path, reducing BST macro warning noise while keeping prompt macros working.
 - The settings modal is split into clearer sections (`Setup`, `Extraction`, `Context Sources`, `User Tracking`, `Prompt Injection`, `Tracking Schema`, `Display`, `Prompts`, `Diagnostics`) with cleaner subdrawer grouping.
-- Experimental builds expose `Entity Tracking Mode` with a `Multi-Character` option for source cards that represent multiple named characters, with scene continuity kept separate from current-message speaker ownership.
+- Experimental builds expose `Entity Tracking Mode` with `Multi-Character` and opt-in `Dynamic Entities` options, keeping scene continuity separate from current-message speaker ownership while letting dynamic mode create conservative runtime-owned narrative entities.
 - Character/persona defaults, mood-image integrations (BST + ST expressions), graphing, and diagnostics are built-in.
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dogzera)
@@ -25,6 +25,7 @@ It tracks character relationship stats over time, stores them per AI message, vi
 - Historical tracking (older AI messages keep their own past state)
 - Group chat support (multiple character cards in one message)
 - Experimental multi-character source-card mode for cards that represent multiple named characters, while keeping current speaker targeting separate from broader scene continuity
+- Experimental dynamic-entity mode for conservative runtime-owned narrative entities that can be archived and later reactivated through the entity registry
 - Scene activity detection (active vs inactive character state)
 - Polished tracker action controls for `Collapse cards`, `Summarize`, and `Retrack`
 - Polished extension settings modal with sticky header/footer actions and one-click `Expand all` / `Collapse all` section control
