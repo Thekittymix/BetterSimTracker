@@ -82,6 +82,7 @@ import {
 import { isTrackableAiMessage, isTrackableMessage, isTrackableUserMessage } from "./messageFilter";
 import { clearPromptInjection, getLastInjectedPrompt, getLastInjectedPromptDebug } from "./promptInjection";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
+import { enforceDebugStorageBudget, persistDebugStorageValue, trimDebugRecordForStorage, trimTraceLinesForStorage } from "./debugStorage";
 import {
   buildTrackerSummaryGenerationPrompt,
   buildTrackerSummaryLengthenPrompt,
@@ -636,9 +637,10 @@ function readTraceLines(context: STContext): string[] {
 function writeTraceLines(context: STContext, lines: string[]): void {
   try {
     const key = getTraceStorageKey(context);
+    const trimmedLines = trimTraceLinesForStorage(lines);
     traceCacheKey = key;
-    traceCacheLines = [...lines];
-    localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), lines }));
+    traceCacheLines = [...trimmedLines];
+    persistDebugStorageValue(localStorage, key, JSON.stringify({ savedAt: Date.now(), lines: trimmedLines }));
   } catch {
     // ignore
   }
@@ -761,9 +763,9 @@ function scheduleLateRenderPoll(context: STContext): void {
 function saveDebugRecord(context: STContext, record: DeltaDebugRecord | null): void {
   try {
     if (!record) return;
-    localStorage.setItem(getDebugScopeKey(context), JSON.stringify({
+    persistDebugStorageValue(localStorage, getDebugScopeKey(context), JSON.stringify({
       savedAt: Date.now(),
-      record
+      record: trimDebugRecordForStorage(record),
     }));
   } catch {
     // ignore
@@ -792,6 +794,7 @@ function clearDebugRecord(context: STContext): void {
     localStorage.removeItem(getTraceStorageKey(context));
     traceCacheKey = null;
     traceCacheLines = [];
+    enforceDebugStorageBudget(localStorage, getDebugScopeKey(context));
   } catch {
     // ignore
   }

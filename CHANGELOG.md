@@ -1,3 +1,7 @@
+## [2.2.4.16-exp186] - 2026-03-26
+### Fixed
+- BST debug persistence now trims oversized prompt/raw-output traces and evicts old chat-scoped diagnostics, so debug mode no longer fills `localStorage` badly enough to break SillyTavern's normal user-input save path.
+
 ## [2.2.4.16-exp185] - 2026-03-26
 ### Fixed
 - Standard mode no longer renders persisted `narrative-entity` cards from mixed/dynamic chat history, so switching off `Dynamic Characters` stops leaked dynamic cards from lingering in the visible tracker UI.
