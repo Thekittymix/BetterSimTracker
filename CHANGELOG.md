@@ -1,3 +1,7 @@
+## [2.2.4.16-exp181] - 2026-03-26
+### Fixed
+- Experimental resolver candidate scoping now applies the same scene-first narrowing to AI turns once a prior tracked scene exists, so follow-up replies no longer revive the whole source-card alias roster after a correctly narrowed mixed-scene user turn unless the reply itself explicitly brings another owner back into scope.
+
 ## [2.2.4.16-exp180] - 2026-03-26
 ### Fixed
 - Experimental user-turn resolver candidate scoping now starts from the previous tracked scene plus names explicitly mentioned in the current user message, so dynamic and multi-character chats no longer leak the whole source-card roster back into entity resolution while still allowing explicit off-scene mentions to widen the candidate set on purpose.

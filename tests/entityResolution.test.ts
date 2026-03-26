@@ -1151,6 +1151,138 @@ test("resolveEntityResolverCandidateOwners can widen a user-turn candidate set w
   );
 });
 
+test("resolveEntityResolverCandidateOwners keeps ai-turn candidates scoped to the previous scene when the reply only advances one alias", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        mes: "*Blake folded his arms over his chest.* \"My existence is simply a performance.\"",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolveEntityResolverCandidateOwners(
+      context,
+      ["Ashley", "Blake", "Garret", "Raleigh", "spirit"],
+      context.chat[0],
+      { entityTrackingMode: "dynamic_entities" },
+      {
+        previousTrackerData: {
+          timestamp: 1,
+          activeCharacters: ["Blake", "spirit"],
+          entityResolution: buildEntityResolution({
+            sceneOwners: ["Blake", "spirit"],
+            messageOwners: ["Blake", "spirit"],
+            sceneEntityIds: [
+              "bst_mc_alias:camp.png|camp whispering pines:blake",
+              "bst_narrative:spirit",
+            ],
+            messageEntityIds: [
+              "bst_mc_alias:camp.png|camp whispering pines:blake",
+              "bst_narrative:spirit",
+            ],
+            source: "model",
+          }),
+          statistics: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            mood: {},
+            lastThought: {},
+          },
+          customStatistics: {},
+          customNonNumericStatistics: {},
+          entityOwnerMap: {
+            Blake: {
+              entityId: "bst_mc_alias:camp.png|camp whispering pines:blake",
+              ownerName: "Blake",
+              canonicalName: "Blake",
+              aliases: ["Blake"],
+              sourceKey: "camp.png|camp whispering pines",
+              kind: "multi_character_alias",
+            },
+            spirit: {
+              entityId: "bst_narrative:spirit",
+              ownerName: "spirit",
+              canonicalName: "spirit",
+              aliases: ["the spirit"],
+              sourceKey: "narrative:bst_narrative:spirit",
+              kind: "narrative-entity",
+            },
+          },
+        } as any,
+      },
+    ),
+    ["Blake", "spirit"],
+  );
+});
+
+test("resolveEntityResolverCandidateOwners can widen an ai-turn candidate set with explicit off-scene mentions", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        mes: "*Blake glanced at Ashley before answering her.*",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolveEntityResolverCandidateOwners(
+      context,
+      ["Ashley", "Blake", "Garret", "Raleigh"],
+      context.chat[0],
+      { entityTrackingMode: "multi_character" },
+      {
+        previousTrackerData: {
+          timestamp: 1,
+          activeCharacters: ["Blake"],
+          entityResolution: buildEntityResolution({
+            sceneOwners: ["Blake"],
+            messageOwners: ["Blake"],
+            sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines:blake"],
+            messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines:blake"],
+            source: "model",
+          }),
+          statistics: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            mood: {},
+            lastThought: {},
+          },
+          customStatistics: {},
+          customNonNumericStatistics: {},
+          entityOwnerMap: {
+            Blake: {
+              entityId: "bst_mc_alias:camp.png|camp whispering pines:blake",
+              ownerName: "Blake",
+              canonicalName: "Blake",
+              aliases: ["Blake"],
+              sourceKey: "camp.png|camp whispering pines",
+              kind: "multi_character_alias",
+            },
+          },
+        } as any,
+      },
+    ),
+    ["Blake", "Ashley"],
+  );
+});
+
 test("resolvePersistedSnapshotResolvedEntities can synthesize entity-first continuity without legacy owner arrays", () => {
   const context = {
     characters: [

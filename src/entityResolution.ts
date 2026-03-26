@@ -489,10 +489,10 @@ export function resolveEntityResolverCandidateOwners(
   const mode = resolveEntityTrackingMode(settings);
   const normalizedOwners = uniqueStrings(ownerNames.map(normalizeToken));
   if (!isMultiCharacterEntityTrackingMode(mode)) return normalizedOwners;
-  const previousSceneOwners = message?.is_user
+  const previousSceneOwners = message && !message.is_system
     ? resolveTrackerSceneOwners(null, options.previousTrackerData)
     : [];
-  const mentionedOwners = message?.is_user
+  const mentionedOwners = message && !message.is_system
     ? (() => {
         const mentioned: string[] = [];
         const mentionedSeen = new Set<string>();
@@ -511,7 +511,14 @@ export function resolveEntityResolverCandidateOwners(
         return mentioned;
       })()
     : [];
-  const scopedOwners = message?.is_user && (previousSceneOwners.length || mentionedOwners.length)
+  const shouldScopeBySceneAndMentions = Boolean(
+    message && !message.is_system && (
+      message.is_user
+        ? (previousSceneOwners.length || mentionedOwners.length)
+        : previousSceneOwners.length
+    ),
+  );
+  const scopedOwners = shouldScopeBySceneAndMentions
     ? uniqueStrings([...previousSceneOwners, ...mentionedOwners])
     : resolveMessageScopedActiveCharacters(context, normalizedOwners, message, settings);
   if (!allowsNarrativeEntities(mode) || !context) {
@@ -526,7 +533,7 @@ export function resolveEntityResolverCandidateOwners(
     .filter(entry => entry?.kind === "narrative-entity")
     .filter(entry => entry.introducedAtMessageIndex <= latestMessageIndex)
     .filter(entry => {
-      if (!message?.is_user) return true;
+      if (!shouldScopeBySceneAndMentions) return true;
       if (previousSceneOwnerKeys.has(normalizeKey(entry.ownerName))) return true;
       const lookupNames = uniqueStrings([entry.ownerName, entry.canonicalName ?? "", ...(entry.aliases ?? [])]);
       return collectMentionedAliases(messageText, lookupNames).length > 0;
