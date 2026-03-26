@@ -127,6 +127,17 @@ export function hasNumericSnapshot(
   return false;
 }
 
+export function selectGraphTimelineEntries(
+  history: TrackerData[],
+  character: GraphTargetSelection | ((entry: TrackerData) => GraphTargetSelection),
+  defs: GraphNumericStatDefinition[],
+): TrackerData[] {
+  return [...history]
+    .filter(item => Number.isFinite(item.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .filter(item => hasNumericSnapshot(item, character, defs));
+}
+
 export function buildStatSeries(
   timeline: TrackerData[],
   character: GraphTargetSelection | ((entry: TrackerData) => GraphTargetSelection),

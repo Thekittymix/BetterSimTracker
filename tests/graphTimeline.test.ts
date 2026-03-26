@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildStatSeries, hasNumericSnapshot, type GraphNumericStatDefinition } from "../src/graphTimeline";
+import { buildStatSeries, hasNumericSnapshot, selectGraphTimelineEntries, type GraphNumericStatDefinition } from "../src/graphTimeline";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
 import type { TrackerData } from "../src/types";
 
@@ -183,4 +183,53 @@ test("graph timeline helpers can target an explicit entity id when same-name ent
     ),
     [77],
   );
+});
+
+test("selectGraphTimelineEntries keeps same-name graph history scoped to the explicit entity id", () => {
+  const wrongEntity = makeTracker(1);
+  wrongEntity.statisticsByEntityId = {
+    affection: {
+      "ent-ashley-legacy": 12,
+    },
+    trust: {},
+    desire: {},
+    connection: {},
+    mood: {},
+    lastThought: {},
+  };
+  wrongEntity.customStatisticsByEntityId = {
+    owner_score: {
+      "ent-ashley-legacy": 33,
+    },
+  };
+
+  const correctEntity = makeTracker(2);
+  correctEntity.entityOwnerMap = {
+    Ashley: {
+      entityId: "ent-ashley-current",
+      ownerName: "Ashley",
+      canonicalName: "Ashley Current",
+      aliases: ["Ash"],
+      sourceKey: "camp|ashley-current",
+      kind: "multi_character_alias",
+    },
+  };
+  correctEntity.statisticsByEntityId = {
+    affection: {
+      "ent-ashley-current": 77,
+    },
+    trust: {},
+    desire: {},
+    connection: {},
+    mood: {},
+    lastThought: {},
+  };
+
+  const selected = selectGraphTimelineEntries(
+    [wrongEntity, correctEntity],
+    { ownerName: "Ashley", entityId: "ent-ashley-current" },
+    [{ key: "affection", defaultValue: 50, globalScope: false }],
+  );
+
+  assert.deepEqual(selected.map(item => item.timestamp), [2]);
 });

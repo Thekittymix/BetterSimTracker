@@ -1,3 +1,7 @@
+## [2.2.4.16-exp168] - 2026-03-26
+### Fixed
+- Experimental graph diagnostics and rendered graph modals now share the same entity-backed snapshot selector, so same-name cards no longer diverge between graph-open traces and the actual timeline data shown in the modal.
+
 ## [2.2.4.16-exp167] - 2026-03-26
 ### Fixed
 - Experimental graph targeting now keeps the clicked card's explicit entity identity through the full graph open path, so same-name tracked entities no longer collapse back to owner-name-only history lookups when opening timeline charts from rendered cards.

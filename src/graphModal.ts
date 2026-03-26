@@ -3,7 +3,7 @@ import {
   ensureStyles,
   getNumericStatsForHistory,
 } from "./ui";
-import { buildStatSeries, hasNumericSnapshot } from "./graphTimeline";
+import { buildStatSeries, selectGraphTimelineEntries } from "./graphTimeline";
 import {
   buildLastPointCircle,
   buildPointCircles,
@@ -42,10 +42,7 @@ export function openGraphModal(input: {
   modal.className = "bst-graph-modal";
 
   const enabledNumeric = getNumericStatsForHistory(input.history, input.target.ownerName, input.settings);
-  const timeline = [...input.history]
-    .filter(item => Number.isFinite(item.timestamp))
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .filter(item => hasNumericSnapshot(item, input.target, enabledNumeric));
+  const timeline = selectGraphTimelineEntries(input.history, input.target, enabledNumeric);
   const rawSnapshotCount = timeline.length;
   const windowPreference = getGraphWindowPreference();
   const windowSize = windowPreference === "all" ? null : Number(windowPreference);

@@ -120,7 +120,7 @@ import {
 } from "./ui";
 import { getGraphPreferences } from "./graphPreferences";
 import { closeGraphModal, openGraphModal } from "./graphModal";
-import { buildStatSeries, hasNumericSnapshot } from "./graphTimeline";
+import { buildStatSeries, selectGraphTimelineEntries } from "./graphTimeline";
 import { closeSettingsModal, openSettingsModal } from "./settingsModal";
 import { cancelActiveGenerations, generateJson } from "./generator";
 import { registerSlashCommands } from "./slashCommands";
@@ -3279,30 +3279,13 @@ function summarizeGraphSeries(context: STContext, history: TrackerData[], target
       .filter(def => (def.kind ?? "numeric") === "numeric")
       .map(def => [String(def.id ?? "").trim(), Boolean(def.globalScope)] as const),
   );
-  const numericStatIds = new Set<string>(allNumericDefs.map(def => def.id));
   const builtInKeys = new Set(["affection", "trust", "desire", "connection"]);
-  const lookupNamesForEntry = (item: TrackerData): string[] =>
-    listTrackerDataLookupNamesForOwnerWithEntityFallback(
-      context,
-      item,
-      target.ownerName,
-      target.entityId ? [target.entityId] : undefined,
-    );
-  const sorted = [...history]
-    .filter(item => Number.isFinite(item.timestamp))
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .filter(item => {
-      const lookupNames = lookupNamesForEntry(item);
-      const numericDefs = allNumericDefs.map(def => ({
-        key: def.id,
-        defaultValue: def.defaultValue,
-        globalScope: def.builtIn ? false : Boolean(customNumericGlobalScopeById.get(def.id)),
-      }));
-      const hasNumeric = hasNumericSnapshot(item, lookupNames, numericDefs);
-      const hasMood = lookupNames.some(name => item.statistics.mood?.[name] !== undefined);
-      const hasThought = lookupNames.some(name => item.statistics.lastThought?.[name] !== undefined);
-      return hasNumeric || hasMood || hasThought;
-    });
+  const numericDefs = allNumericDefs.map(def => ({
+    key: def.id,
+    defaultValue: def.defaultValue,
+    globalScope: def.builtIn ? false : Boolean(customNumericGlobalScopeById.get(def.id)),
+  }));
+  const sorted = selectGraphTimelineEntries(history, target, numericDefs);
   const build = (key: string, defaultValue = 50, globalScope = false): number[] => {
     return buildStatSeries(
       sorted,
