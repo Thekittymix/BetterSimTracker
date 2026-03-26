@@ -763,3 +763,82 @@ test("buildPrompt keeps built-in owner stats scoped to the current entity id ins
   assert.match(prompt, /- Blake: affection=82/);
   assert.doesNotMatch(prompt, /affection=15/);
 });
+
+test("buildPrompt prefers the current narrative entity id over colliding owner defaults", () => {
+  const settings = makeSettings({
+    entityTrackingMode: "dynamic_entities",
+    trackMood: true,
+    characterDefaults: {
+      "avatar:blake.png": {
+        statEnabled: {
+          mood: false,
+        },
+      },
+    },
+  });
+  const data: TrackerData = {
+    timestamp: Date.now(),
+    activeCharacters: ["Blake"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_narrative:blake-shadow"],
+      messageEntityIds: ["bst_narrative:blake-shadow"],
+    }),
+    entityOwnerMap: {
+      Blake: {
+        entityId: "bst_narrative:blake-shadow",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["Shadow Blake"],
+        sourceKey: "narrative:bst_narrative:blake-shadow",
+        kind: "narrative-entity",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Blake: "Guarded" },
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+  };
+  const context = makeContext({
+    name2: "Blake",
+    groupId: "group-1",
+    characters: [{ name: "Blake", avatar: "blake.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "bst_owner:blake.png|blake": {
+            id: "bst_owner:blake.png|blake",
+            ownerName: "Blake",
+            canonicalName: "Blake",
+            aliases: [],
+            sourceName: "Blake",
+            sourceAvatar: "blake.png",
+            sourceKey: "blake.png|blake",
+            kind: "owner",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          blake: "bst_owner:blake.png|blake",
+        },
+      },
+    } as any,
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Blake: mood=Guarded/);
+});

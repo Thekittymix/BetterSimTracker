@@ -1,3 +1,7 @@
+## [2.2.4.16-exp175] - 2026-03-26
+### Fixed
+- Experimental prompt-injection owner stat gating now carries the current entity-backed owner identity into `statEnabled` checks, so same-name ST owner defaults no longer suppress mood/thought/custom injection lines for a different live narrative entity already pinned by `entityOwnerMap`.
+
 ## [2.2.4.16-exp174] - 2026-03-26
 ### Fixed
 - Experimental extractor continuity and custom-stat seed selection now keep built-in/custom previous-state reads pinned to the current entity-backed tracker snapshot before any owner-name fallback, so stale same-name buckets no longer hijack live extraction continuity or trick first-run custom stats into reusing another entity's history.
