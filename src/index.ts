@@ -33,7 +33,11 @@ import {
   resolveSceneOwnersFromResolvedEntities,
 } from "./entityResolver";
 import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
-import { buildActiveSeedDefaultsPolicy, shouldUseConfiguredOwnerDefaults } from "./entitySeedPolicy";
+import {
+  buildActiveSeedDefaultsPolicy,
+  resolveSeededOwnerLookupValue,
+  shouldUseConfiguredOwnerDefaults,
+} from "./entitySeedPolicy";
 import {
   buildEntitySourceKey,
   getEntityRegistryEntryForMessage,
@@ -2406,29 +2410,30 @@ function buildSeededStatisticsForActiveCharacters(
   };
   const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
 
-  for (const name of activeCharacters) {
+  for (const [index, name] of activeCharacters.entries()) {
+    const entityId = activeEntityIds?.[index] ?? null;
     const configured = getConfiguredCharacterDefaults(
       context,
       settingsInput,
       name,
       allowOwnerDefaults.get(name) !== false,
     );
-    if (resolveEntityRegistryLookupValue(context, seeded.affection, name) === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.affection, name, entityId) === undefined) {
       seeded.affection[name] = configured.affection ?? settingsInput.defaultAffection;
     }
-    if (resolveEntityRegistryLookupValue(context, seeded.trust, name) === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.trust, name, entityId) === undefined) {
       seeded.trust[name] = configured.trust ?? settingsInput.defaultTrust;
     }
-    if (resolveEntityRegistryLookupValue(context, seeded.desire, name) === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.desire, name, entityId) === undefined) {
       seeded.desire[name] = configured.desire ?? settingsInput.defaultDesire;
     }
-    if (resolveEntityRegistryLookupValue(context, seeded.connection, name) === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.connection, name, entityId) === undefined) {
       seeded.connection[name] = configured.connection ?? settingsInput.defaultConnection;
     }
-    if (resolveEntityRegistryLookupValue(context, seeded.mood, name) === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.mood, name, entityId) === undefined) {
       seeded.mood[name] = configured.mood ?? settingsInput.defaultMood;
     }
-    if (resolveEntityRegistryLookupValue(context, seeded.lastThought, name) === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.lastThought, name, entityId) === undefined) {
       seeded.lastThought[name] = configured.lastThought ?? "";
     }
   }
@@ -2456,8 +2461,9 @@ function buildSeededCustomStatisticsForActiveCharacters(
     const statId = String(def.id ?? "").trim().toLowerCase();
     if (!statId) continue;
     if (!seeded[statId]) seeded[statId] = {};
-    for (const name of activeCharacters) {
-      if (resolveEntityRegistryLookupValue(context, seeded[statId], name) !== undefined) continue;
+    for (const [index, name] of activeCharacters.entries()) {
+      const entityId = activeEntityIds?.[index] ?? null;
+      if (resolveSeededOwnerLookupValue(context, seeded[statId], name, entityId) !== undefined) continue;
       const configured = getConfiguredCharacterDefaults(
         context,
         settingsInput,
@@ -2507,8 +2513,9 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
         preserveExplicitEmptyArray: true,
       }) ?? (kind === "boolean" ? false : kind === "array" ? [] : "");
     };
-    for (const name of activeCharacters) {
-      const existingValue = resolveEntityRegistryLookupValue(context, seeded[statId], name);
+    for (const [index, name] of activeCharacters.entries()) {
+      const entityId = activeEntityIds?.[index] ?? null;
+      const existingValue = resolveSeededOwnerLookupValue(context, seeded[statId], name, entityId);
       if (existingValue !== undefined) {
         seeded[statId][name] = normalizeValue(existingValue);
         continue;

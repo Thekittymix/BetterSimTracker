@@ -1,3 +1,7 @@
+## [2.2.4.16-exp169] - 2026-03-26
+### Fixed
+- Experimental seeded baseline/history owner-stat reads now keep same-name continuity scoped to the explicit active entity id, so seed/default hydration no longer treats a different registry-backed owner label as proof that the current dynamic or multi-character entity already has seeded state.
+
 ## [2.2.4.16-exp168] - 2026-03-26
 ### Fixed
 - Experimental graph diagnostics and rendered graph modals now share the same entity-backed snapshot selector, so same-name cards no longer diverge between graph-open traces and the actual timeline data shown in the modal.

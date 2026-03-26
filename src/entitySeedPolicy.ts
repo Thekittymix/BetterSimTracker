@@ -1,4 +1,8 @@
-import { getEntityRegistryEntryByEntityIdForMessage, getEntityRegistryEntryForMessage } from "./entityRegistry";
+import {
+  getEntityRegistryEntryByEntityIdForMessage,
+  getEntityRegistryEntryForMessage,
+  resolveEntityRegistryLookupValue,
+} from "./entityRegistry";
 import type { STContext } from "./types";
 
 function normalizeToken(value: unknown): string {
@@ -7,6 +11,57 @@ function normalizeToken(value: unknown): string {
 
 function isNarrativeRuntimeEntityId(entityId: string): boolean {
   return /^bst_narrative:/i.test(normalizeToken(entityId));
+}
+
+function listSeedLookupNamesForExplicitEntity(
+  context: STContext | null,
+  ownerName: string,
+  entityId?: string | null,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    const key = value.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+
+  push(ownerName);
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return names;
+
+  const entry = getEntityRegistryEntryByEntityIdForMessage(context, normalizedEntityId, Number.MAX_SAFE_INTEGER);
+  if (!entry) return names;
+
+  push(entry.ownerName);
+  push(entry.canonicalName);
+  for (const alias of entry.aliases ?? []) {
+    push(alias);
+  }
+  return names;
+}
+
+export function resolveSeededOwnerLookupValue<T>(
+  context: STContext | null,
+  byOwner: Record<string, T> | null | undefined,
+  ownerName: string,
+  entityId?: string | null,
+): T | undefined {
+  if (!byOwner) return undefined;
+
+  for (const lookupName of listSeedLookupNamesForExplicitEntity(context, ownerName, entityId)) {
+    const value = byOwner[lookupName];
+    if (value !== undefined) return value;
+  }
+
+  const normalizedEntityId = normalizeToken(entityId);
+  if (normalizedEntityId) {
+    return undefined;
+  }
+
+  return resolveEntityRegistryLookupValue(context, byOwner, ownerName);
 }
 
 export function shouldUseConfiguredOwnerDefaults(
