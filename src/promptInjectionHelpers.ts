@@ -52,6 +52,7 @@ export function customStatTracksScope(
   stat: { track?: boolean; trackCharacters?: boolean; trackUser?: boolean },
   scope: "character" | "user",
 ): boolean {
+  if (stat.track === false) return false;
   if (scope === "user") {
     if (stat.trackUser !== undefined) return Boolean(stat.trackUser);
     return Boolean(stat.track);

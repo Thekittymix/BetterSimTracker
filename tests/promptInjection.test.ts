@@ -165,6 +165,39 @@ test("buildPrompt excludes global custom stats when includeInInjection is disabl
   assert.equal(prompt, "");
 });
 
+test("buildPrompt excludes custom stats from semantics and lines when track is disabled", () => {
+  const settings = makeSettings({
+    customStats: [
+      {
+        id: "characters_in_scene",
+        kind: "array",
+        label: "Characters in Scene",
+        defaultValue: [],
+        textMaxLength: 64,
+        track: false,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+        description: "Global scene roster of all entities physically present right now.",
+      },
+    ],
+  });
+  const data = makeTracker({
+    customNonNumericStatistics: {
+      characters_in_scene: {
+        [GLOBAL_TRACKER_KEY]: ["Blake", "Kuba"],
+      },
+    },
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, makeContext());
+  assert.doesNotMatch(prompt, /characters_in_scene/i);
+});
+
 test("buildPrompt keeps BST tags when using custom injection template", () => {
   const settings = makeSettings({
     promptTemplateInjection: [

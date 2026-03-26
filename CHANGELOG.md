@@ -1,3 +1,7 @@
+## [2.2.4.16-exp176] - 2026-03-26
+### Fixed
+- Experimental prompt injection now treats `track: false` as a hard off-switch for custom stats, so disabled stats no longer leak back into injection semantics or scene lines just because stale per-scope flags still say `trackCharacters` or `trackUser`.
+
 ## [2.2.4.16-exp175] - 2026-03-26
 ### Fixed
 - Experimental prompt-injection owner stat gating now carries the current entity-backed owner identity into `statEnabled` checks, so same-name ST owner defaults no longer suppress mood/thought/custom injection lines for a different live narrative entity already pinned by `entityOwnerMap`.
