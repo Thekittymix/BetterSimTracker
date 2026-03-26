@@ -26,6 +26,26 @@ function normalizeKey(value: unknown): string {
   return normalizeToken(value).toLowerCase();
 }
 
+function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return "";
+  if (normalizedEntityId.startsWith("bst_mc_alias:")) {
+    return normalizedEntityId.slice(normalizedEntityId.lastIndexOf(":") + 1);
+  }
+  if (normalizedEntityId.includes(USER_TRACKER_KEY)) {
+    return USER_TRACKER_KEY;
+  }
+  return "";
+}
+
+function isTechnicalResolvedEntityName(name: string, entityId: string): boolean {
+  const normalizedName = normalizeToken(name);
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedName) return true;
+  if (normalizedEntityId && normalizedName === normalizedEntityId) return true;
+  return normalizedName.startsWith("bst_");
+}
+
 function uniqueStrings(values: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -656,7 +676,9 @@ function resolveOwnerNameForResolvedEntity(
   if (fromContext) return fromContext;
   const fromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, [entityId])[0];
   if (fromOwnerMap) return fromOwnerMap;
-  return normalizeToken(entity.name);
+  const entityName = normalizeToken(entity.name);
+  if (!isTechnicalResolvedEntityName(entityName, entityId)) return entityName;
+  return resolveOwnerNameFallbackFromEntityId(entityId) || entityName;
 }
 
 function resolveResolvedEntityNames(

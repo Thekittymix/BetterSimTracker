@@ -193,6 +193,51 @@ test("applyEditedTrackerActiveState prefers resolver scene owners over stale act
   assert.deepEqual(next.activeCharacters, ["Blake"]);
 });
 
+test("applyEditedTrackerActiveState removes technical resolved entities before owner-map hydration", () => {
+  const current = {
+    ...makeTrackerData(),
+    activeCharacters: ["Blake", "Ashley"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "bst_mc_alias:test:blake",
+          kind: "st-character",
+          name: "Blake",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+        {
+          entityId: "bst_mc_alias:test:ashley",
+          kind: "st-character",
+          name: "bst_mc_alias:test:ashley",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
+      source: "model" as const,
+    }),
+    entityOwnerMap: {
+      Blake: {
+        entityId: "bst_mc_alias:test:blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "test",
+        kind: "multi_character_alias" as const,
+      },
+    },
+  } satisfies TrackerData;
+
+  const next = applyEditedTrackerActiveState(current, "Ashley", false);
+
+  assert.deepEqual(next.activeCharacters, ["Blake"]);
+  assert.deepEqual(next.entityResolution?.resolvedEntities?.map(entity => entity.entityId), ["bst_mc_alias:test:blake"]);
+});
+
 test("buildEditedTrackerDataSnapshot prefers resolver scene owners over stale activeCharacters", () => {
   const current = {
     ...makeTrackerData(),

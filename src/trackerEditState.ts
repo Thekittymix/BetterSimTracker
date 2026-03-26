@@ -29,6 +29,15 @@ function normalizeNameKey(value: unknown): string {
   return normalizeToken(value).toLowerCase();
 }
 
+function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return "";
+  if (normalizedEntityId.startsWith("bst_mc_alias:") || normalizedEntityId.startsWith("bst_manual:")) {
+    return normalizedEntityId.slice(normalizedEntityId.lastIndexOf(":") + 1);
+  }
+  return "";
+}
+
 function resolveEditedOwnerSnapshot(
   entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
   ownerName: string,
@@ -73,7 +82,8 @@ export function applyEditedTrackerActiveState(
         resolvedEntities: (data.entityResolution.resolvedEntities ?? [])
           .filter(entity => {
             if (entityId) return normalizeToken(entity.entityId) !== entityId;
-            return normalizeNameKey(entity.name) !== ownerNeedle;
+            if (normalizeNameKey(entity.name) === ownerNeedle) return false;
+            return normalizeNameKey(resolveOwnerNameFallbackFromEntityId(entity.entityId)) !== ownerNeedle;
           })
           .map(entity => ({
             ...entity,

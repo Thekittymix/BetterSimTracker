@@ -1,7 +1,35 @@
+import { USER_TRACKER_KEY } from "./constants";
 import type { ChatMessage, TrackerResolvedEntity } from "./types";
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
+}
+
+function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return "";
+  if (normalizedEntityId.startsWith("bst_mc_alias:")) {
+    return normalizedEntityId.slice(normalizedEntityId.lastIndexOf(":") + 1);
+  }
+  if (normalizedEntityId.includes(USER_TRACKER_KEY)) {
+    return USER_TRACKER_KEY;
+  }
+  return "";
+}
+
+function isTechnicalResolvedEntityName(name: string, entityId: string): boolean {
+  const normalizedName = normalizeToken(name);
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedName) return true;
+  if (normalizedEntityId && normalizedName === normalizedEntityId) return true;
+  return normalizedName.startsWith("bst_");
+}
+
+function resolveOwnerNameFromResolvedEntity(entity: TrackerResolvedEntity): string {
+  const entityId = normalizeToken(entity.entityId);
+  const entityName = normalizeToken(entity.name);
+  if (!isTechnicalResolvedEntityName(entityName, entityId)) return entityName;
+  return resolveOwnerNameFallbackFromEntityId(entityId) || entityName;
 }
 
 function escapeRegex(value: string): string {
@@ -352,7 +380,7 @@ export function resolveSceneOwnersFromResolvedEntities(resolvedEntities: Tracker
   const out: string[] = [];
   for (const entity of resolvedEntities) {
     if (!entity?.inScene) continue;
-    const name = normalizeToken(entity.name);
+    const name = resolveOwnerNameFromResolvedEntity(entity);
     const key = name.toLowerCase();
     if (!name || seen.has(key)) continue;
     seen.add(key);
@@ -366,7 +394,7 @@ export function resolveMessageOwnersFromResolvedEntities(resolvedEntities: Track
   const out: string[] = [];
   for (const entity of resolvedEntities) {
     if (!entity?.inMessage) continue;
-    const name = normalizeToken(entity.name);
+    const name = resolveOwnerNameFromResolvedEntity(entity);
     const key = name.toLowerCase();
     if (!name || seen.has(key)) continue;
     seen.add(key);

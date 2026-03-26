@@ -5,6 +5,8 @@ import {
   buildMultiCharacterResolverPrompt,
   constrainResolvedEntitiesToMessageFocus,
   parseMultiCharacterResolverResponse,
+  resolveMessageOwnersFromResolvedEntities,
+  resolveSceneOwnersFromResolvedEntities,
 } from "../src/entityResolver";
 
 test("buildMultiCharacterResolverPrompt lists candidate owners and latest message metadata", () => {
@@ -298,4 +300,28 @@ test("constrainResolvedEntitiesToMessageFocus keeps only the explicit focused sp
     { name: "Blake", inScene: true, inMessage: true },
     { name: "Garret", inScene: true, inMessage: false },
   ]);
+});
+
+test("resolved-owner helpers recover alias owners from technical entity labels", () => {
+  const resolvedEntities = [
+    {
+      entityId: "bst_mc_alias:test:ashley",
+      kind: "st-character" as const,
+      name: "bst_mc_alias:test:ashley",
+      avatar: null,
+      inScene: true,
+      inMessage: false,
+    },
+    {
+      entityId: "bst_mc_alias:test:blake",
+      kind: "st-character" as const,
+      name: "bst_mc_alias:test:blake",
+      avatar: null,
+      inScene: true,
+      inMessage: true,
+    },
+  ];
+
+  assert.deepEqual(resolveSceneOwnersFromResolvedEntities(resolvedEntities), ["ashley", "blake"]);
+  assert.deepEqual(resolveMessageOwnersFromResolvedEntities(resolvedEntities), ["blake"]);
 });

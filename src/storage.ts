@@ -25,6 +25,30 @@ function normalizeKey(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function normalizeToken(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return "";
+  if (normalizedEntityId.startsWith("bst_mc_alias:")) {
+    return normalizedEntityId.slice(normalizedEntityId.lastIndexOf(":") + 1);
+  }
+  if (normalizedEntityId.includes(USER_TRACKER_KEY)) {
+    return USER_TRACKER_KEY;
+  }
+  return "";
+}
+
+function isTechnicalResolvedEntityName(name: string, entityId: string): boolean {
+  const normalizedName = normalizeToken(name);
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedName) return true;
+  if (normalizedEntityId && normalizedName === normalizedEntityId) return true;
+  return normalizedName.startsWith("bst_");
+}
+
 function createEmptyStatistics(): Statistics {
   return {
     affection: {},
@@ -121,8 +145,15 @@ function resolveNamesFromResolvedEntitiesWithOwnerMap(
   }
   for (const entity of resolvedEntities) {
     if (!predicate(entity)) continue;
-    const owner = ownerByEntityId.get(String(entity.entityId).trim());
-    push(owner?.ownerName ?? entity.name);
+    const entityId = normalizeToken(entity.entityId);
+    const entityName = normalizeToken(entity.name);
+    const owner = ownerByEntityId.get(entityId);
+    push(
+      owner?.ownerName
+      || (!isTechnicalResolvedEntityName(entityName, entityId) ? entityName : "")
+      || resolveOwnerNameFallbackFromEntityId(entityId)
+      || entityName,
+    );
   }
   return names;
 }
@@ -461,10 +492,21 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
     derivedCustomNonNumericStatisticsByEntityId,
     normalizeCustomNonNumericStatistics(data.customNonNumericStatisticsByEntityId),
   );
+  const ownerByEntityId = new Map<string, TrackerDataEntityOwner>();
+  for (const snapshot of Object.values(mergedEntityOwnerMap ?? {})) {
+    const entityId = String(snapshot?.entityId ?? "").trim();
+    if (!entityId) continue;
+    ownerByEntityId.set(entityId, snapshot);
+  }
   const remappedResolvedEntities = data.entityResolution?.resolvedEntities?.length
     ? data.entityResolution.resolvedEntities.map(entity => ({
         ...entity,
-        name: ownerToTarget[entity.name] || entity.name,
+        name: (() => {
+          const directOwner = ownerToTarget[entity.name];
+          if (directOwner) return directOwner;
+          const entityId = String(entity.entityId ?? "").trim();
+          return ownerByEntityId.get(entityId)?.ownerName || entity.name;
+        })(),
       }))
     : [];
   const remappedEntityResolution = data.entityResolution

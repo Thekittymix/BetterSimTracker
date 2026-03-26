@@ -13,7 +13,7 @@ import type {
   TrackerResolvedEntity,
 } from "./types";
 import { USER_TRACKER_KEY } from "./constants";
-import { resolveTrackerEntityIdsForOwners, resolveTrackerSceneOwners } from "./entityRegistry";
+import { resolveTrackerEntityIdsForOwners, resolveTrackerOwnersForEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
 
 export type EntityTrackingMode = "standard" | "multi_character";
 
@@ -44,6 +44,26 @@ function uniqueStrings(values: string[]): string[] {
     out.push(value);
   }
   return out;
+}
+
+function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return "";
+  if (normalizedEntityId.startsWith("bst_mc_alias:")) {
+    return normalizedEntityId.slice(normalizedEntityId.lastIndexOf(":") + 1);
+  }
+  if (normalizedEntityId.includes(USER_TRACKER_KEY)) {
+    return USER_TRACKER_KEY;
+  }
+  return "";
+}
+
+function isTechnicalResolvedEntityName(name: string, entityId: string): boolean {
+  const normalizedName = normalizeToken(name);
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedName) return true;
+  if (normalizedEntityId && normalizedName === normalizedEntityId) return true;
+  return normalizedName.startsWith("bst_");
 }
 
 function pushUniqueString(target: string[], seen: Set<string>, raw: unknown): void {
@@ -739,6 +759,39 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
   }));
 }
 
+export function filterResolvedEntitiesToTrackedOwners(input: {
+  context: STContext | null;
+  trackedOwners: string[];
+  resolvedEntities: TrackerResolvedEntity[];
+}): TrackerResolvedEntity[] {
+  const trackedOwnerKeys = new Set(
+    (input.trackedOwners ?? [])
+      .map(owner => normalizeKey(owner))
+      .filter(Boolean),
+  );
+  if (!trackedOwnerKeys.size || !input.resolvedEntities.length) return [];
+
+  return input.resolvedEntities
+    .filter(entity => {
+      const entityId = normalizeToken(entity.entityId);
+      const entityName = normalizeToken(entity.name);
+      const resolvedOwnerName = entityId
+        ? (
+            resolveTrackerOwnersForEntityIds(input.context, [entityId])[0]
+            || (!isTechnicalResolvedEntityName(entityName, entityId) ? entityName : "")
+            || resolveOwnerNameFallbackFromEntityId(entityId)
+            || entityName
+          )
+        : entityName;
+      return trackedOwnerKeys.has(normalizeKey(resolvedOwnerName));
+    })
+    .map(entity => ({
+      ...entity,
+      aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+      created: Boolean(entity.created),
+    }));
+}
+
 function normalizeOwnerForTracking(
   context: STContext | null | undefined,
   ownerName: unknown,
@@ -973,6 +1026,33 @@ function resolveProjectedEntitySnapshot(
   return null;
 }
 
+function resolveProjectedOwnerName(
+  context: STContext | null,
+  data: TrackerData,
+  ownerMap: Map<string, string>,
+  entity: TrackerResolvedEntity,
+): string {
+  const entityId = normalizeToken(entity.entityId);
+  const entityName = normalizeToken(entity.name);
+  const mappedEntityName = ownerMap.get(entityName);
+  if (mappedEntityName) return mappedEntityName;
+
+  if (entityId) {
+    const snapshotOwner = Object.values(data.entityOwnerMap ?? {}).find(snapshot =>
+      normalizeToken(snapshot?.entityId) === entityId,
+    )?.ownerName;
+    const mappedSnapshotOwner = ownerMap.get(normalizeToken(snapshotOwner)) ?? normalizeToken(snapshotOwner);
+    if (mappedSnapshotOwner) return mappedSnapshotOwner;
+
+    const registryOwner = resolveTrackerOwnersForEntityIds(context, [entityId])[0];
+    const mappedRegistryOwner = ownerMap.get(normalizeToken(registryOwner)) ?? normalizeToken(registryOwner);
+    if (mappedRegistryOwner) return mappedRegistryOwner;
+  }
+
+  if (!isTechnicalResolvedEntityName(entityName, entityId)) return entityName;
+  return resolveOwnerNameFallbackFromEntityId(entityId) || entityName;
+}
+
 function buildProjectedEntityId(
   context: STContext | null,
   sourceEntity: { entityId: string; name: string },
@@ -1018,20 +1098,20 @@ export function projectTrackerDataToMessageScopedOwners(
     entityResolution: data.entityResolution
       ? {
           ...data.entityResolution,
-          resolvedEntities: (data.entityResolution.resolvedEntities ?? []).map(entity => ({
-            ...entity,
-            entityId: (() => {
-              const projectedOwnerName = ownerMap.get(entity.name) ?? entity.name;
-              return resolveProjectedEntitySnapshot(
+          resolvedEntities: (data.entityResolution.resolvedEntities ?? []).map(entity => {
+            const projectedOwnerName = resolveProjectedOwnerName(context, data, ownerMap, entity);
+            return {
+              ...entity,
+              entityId: resolveProjectedEntitySnapshot(
                 data.entityOwnerMap,
                 projectedOwnerName,
-              )?.entityId ?? buildProjectedEntityId(context, entity, projectedOwnerName);
-            })(),
-            name: ownerMap.get(entity.name) ?? entity.name,
-            aliases: entity.aliases?.length
-              ? uniqueStrings(entity.aliases.map(alias => ownerMap.get(alias) ?? alias))
-              : undefined,
-          })),
+              )?.entityId ?? buildProjectedEntityId(context, entity, projectedOwnerName),
+              name: projectedOwnerName,
+              aliases: entity.aliases?.length
+                ? uniqueStrings(entity.aliases.map(alias => ownerMap.get(alias) ?? alias))
+                : undefined,
+            };
+          }),
           source: data.entityResolution.source,
         }
       : undefined,

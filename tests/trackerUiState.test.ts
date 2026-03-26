@@ -103,3 +103,48 @@ test("cloneTrackerDataForEdit prefers resolver-backed activeCharacters over stal
 
   assert.deepEqual(cloned.activeCharacters, ["Blake"]);
 });
+
+test("cloneTrackerDataForEdit resolves message owners through entityOwnerMap before using raw resolver names", () => {
+  const data: TrackerData = {
+    timestamp: 1000,
+    activeCharacters: ["Garret"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "bst_mc_alias:test:blake",
+          kind: "st-character",
+          name: "bst_mc_alias:test:blake",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
+      source: "model",
+    }),
+    statistics: {
+      affection: { Blake: 55 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+    entityOwnerMap: {
+      Blake: {
+        entityId: "bst_mc_alias:test:blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["Blackout Blake"],
+        sourceKey: "test",
+        kind: "multi_character_alias",
+      },
+    },
+  };
+
+  const cloned = cloneTrackerDataForEdit(data);
+
+  assert.deepEqual(cloned.activeCharacters, ["Blake"]);
+});

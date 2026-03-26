@@ -465,6 +465,50 @@ test("resolveTrackerMessageOwners can materialize message owners from messageEnt
   assert.deepEqual(resolved, ["Blake"]);
 });
 
+test("resolveTrackerSceneOwners can derive alias owner from technical entity id before registry hydration", () => {
+  const entityId = "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake";
+  const resolved = resolveTrackerSceneOwners(null, makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId,
+          kind: "st-character",
+          name: entityId,
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+        },
+      ],
+      source: "model",
+    }),
+  }));
+
+  assert.deepEqual(resolved, ["blake"]);
+});
+
+test("resolveTrackerMessageOwners can derive alias owner from technical entity id before registry hydration", () => {
+  const entityId = "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake";
+  const resolved = resolveTrackerMessageOwners(null, makeTracker({
+    activeCharacters: ["Garret"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId,
+          kind: "st-character",
+          name: entityId,
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+        },
+      ],
+      source: "model",
+    }),
+  }));
+
+  assert.deepEqual(resolved, ["blake"]);
+});
+
 test("buildLifecycleHistorySnapshotsFromTrackerEntries uses explicit active owners for lifecycle history and falls back to scene owners only when missing", () => {
   const context = makeContext();
   const blakeEntityId = buildTrackerEntityId({

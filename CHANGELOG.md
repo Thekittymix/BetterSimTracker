@@ -1,3 +1,11 @@
+## [2.2.4.16-exp159] - 2026-03-26
+### Fixed
+- Experimental tracker edit clones now resolve multi-character message owners through `entityOwnerMap` before preferring resolver-backed active state, so technical entity IDs stop leaking into edit-modal active owner lists when the resolver payload already went entity-first.
+- Experimental persisted multi-character resolver entities now filter against tracked owners via resolved alias identity instead of raw `entity.name`, so entity-first snapshots stop dropping valid scene/message entities or looping back through technical alias labels before registry hydration.
+- Experimental storage normalization now remaps resolver entity names through `entityId -> entityOwnerMap` instead of relying on raw resolver labels, so merged snapshots keep canonical owner names even when older payloads stored technical alias IDs.
+- Experimental resolver owner resolution now uses a one-way technical-entity fallback only when the resolver label is actually technical, preventing new fallback loops while still recovering alias owners from `bst_mc_alias:*` payloads before registry hydration.
+- Experimental message-scoped owner projection, resolver owner-array materialization, and manual active-state edits now recover owners from entity identity before using raw resolver labels, closing the remaining paths where `bst_mc_alias:*` names could survive into projected payloads or edited resolver state.
+
 ## [2.2.4.16-exp158] - 2026-03-26
 ### Fixed
 - Experimental user-turn multi-character persistence now forces `__bst_user__` writes into the user entity bucket instead of leaking `byEntityId` mood/thought/custom values onto the active alias entity.

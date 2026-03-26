@@ -5,6 +5,7 @@ import { buildEntityResolution } from "./helpers/entityResolution";
 import {
   collectResolvedCharacterNames,
   extractMultiCharacterAliases,
+  filterResolvedEntitiesToTrackedOwners,
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
   resolvePersistedActiveOwners,
@@ -681,6 +682,74 @@ test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload
   assert.equal(projected.entityOwnerMap, undefined);
 });
 
+test("projectTrackerDataToMessageScopedOwners remaps technical resolved entity labels through entity identity before fallback", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const projected = projectTrackerDataToMessageScopedOwners(
+    context,
+    {
+      timestamp: 1,
+      activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      entityResolution: buildEntityResolution({
+        resolvedEntities: [{
+          entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+          kind: "st-character",
+          name: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        }],
+        source: "model",
+      }),
+      entityOwnerMap: {
+        Ashley: {
+          entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: [],
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+        },
+      },
+      statistics: {
+        affection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 51 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+    },
+    {
+      mes: "Ashley flinched and stared toward the door.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "multi_character" },
+  );
+
+  assert.deepEqual(projected.activeCharacters, ["Ashley"]);
+  assert.deepEqual(projected.entityResolution, buildEntityResolution({
+    resolvedEntities: [{
+      entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+      kind: "st-character",
+      name: "Ashley",
+      avatar: null,
+      aliases: undefined,
+      inScene: true,
+      inMessage: true,
+      created: false,
+    }],
+    source: "model",
+  }));
+});
+
 test("projectTrackerDataToMessageScopedOwners can leave owner-scoped non-numeric custom stats unmapped for continuity reads", () => {
   const context = {
     characters: [
@@ -851,6 +920,43 @@ test("resolvePersistedSnapshotResolvedEntities can synthesize entity-first conti
       },
     ],
   );
+});
+
+test("filterResolvedEntitiesToTrackedOwners resolves technical entity ids back to tracked multi-character owners", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const filtered = filterResolvedEntitiesToTrackedOwners({
+    context,
+    trackedOwners: ["Blake"],
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+        kind: "st-character",
+        name: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+        kind: "st-character",
+        name: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+        avatar: null,
+        inScene: true,
+        inMessage: false,
+        created: false,
+      },
+    ],
+  });
+
+  assert.deepEqual(filtered.map(entity => entity.entityId), [
+    "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+  ]);
 });
 
 test("resolveStableEntityIdForOwner can synthesize multi-character alias ids before registry exists", () => {

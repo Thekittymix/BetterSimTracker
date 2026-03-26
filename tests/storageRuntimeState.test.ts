@@ -455,6 +455,42 @@ test("getTrackerDataFromMessage prefers resolver-backed activeCharacters during 
   }));
 });
 
+test("getTrackerDataFromMessage can recover resolver-backed activeCharacters from technical entity ids before owner-map hydration", () => {
+  const blakeEntityId = "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake";
+  const tracker = makeTracker(1001, {
+    activeCharacters: ["Garret"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: blakeEntityId,
+          kind: "st-character",
+          name: blakeEntityId,
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+        },
+      ],
+      source: "model",
+    }),
+    entityOwnerMap: undefined,
+  });
+  const message = {
+    mes: "Reply",
+    name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    is_user: false,
+    is_system: false,
+    swipe_id: 1,
+    extra: {
+      [EXTENSION_KEY]: {
+        "1": tracker,
+      },
+    },
+  };
+
+  const stored = getTrackerDataFromMessage(message);
+  assert.deepEqual(stored?.activeCharacters, ["blake"]);
+});
+
 test("getTrackerDataFromMessage prefers resolver-backed activeCharacters before stale explicit non-user arrays", () => {
   const blakeEntityId = "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake";
   const tracker = makeTracker(1001, {
@@ -1013,6 +1049,53 @@ test("mergeTrackerDataChronologically canonicalizes alias-owner buckets by entit
   assert.ok(merged?.entityOwnerMap?.Ashley);
   assert.equal(merged?.entityOwnerMap?.Ash, undefined);
   assert.deepEqual(merged?.entityOwnerMap?.Ashley.aliases, ["Ash"]);
+});
+
+test("mergeTrackerDataChronologically remaps technical resolver entity names through entityOwnerMap", () => {
+  const entityId = "bst_mc_alias:test:ashley";
+  const merged = mergeTrackerDataChronologically([
+    makeTracker(1000, {
+      activeCharacters: ["Ash"],
+      entityResolution: buildEntityResolution({
+        source: "model",
+        resolvedEntities: [
+          {
+            entityId,
+            kind: "st-character",
+            name: entityId,
+            avatar: null,
+            inScene: true,
+            inMessage: true,
+          },
+        ],
+      }),
+      entityOwnerMap: {
+        Ash: {
+          entityId,
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceKey: "camp.png|camp whispering pines",
+          kind: "multi_character_alias",
+        },
+      },
+    }),
+  ]);
+
+  assert.deepEqual(merged?.activeCharacters, ["Ashley"]);
+  assert.deepEqual(merged?.entityResolution, buildEntityResolution({
+    source: "model",
+    resolvedEntities: [
+      {
+        entityId,
+        kind: "st-character",
+        name: "Ashley",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+  }));
 });
 
 test("mergeTrackerDataChronologically preserves the latest entityResolution payload and explicit active owners", () => {

@@ -16,6 +16,7 @@ import {
   constrainResolvedOwnerScopesToPreviousUserScene,
   resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
+  filterResolvedEntitiesToTrackedOwners,
   resolveInitialExtractionOwners,
   resolvePersistedSnapshotResolvedEntities,
   resolvePersistedSnapshotActiveOwners,
@@ -4070,7 +4071,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       resolvedEntities: resolvedEntityResolution?.resolvedEntities ?? [],
       userExtraction,
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
-    }).filter(entity => isTrackerEnabledForOwner(context, activeSettings, entity.name));
+    });
+    const filteredPersistedResolvedEntities = filterResolvedEntitiesToTrackedOwners({
+      context,
+      trackedOwners: persistedSceneActiveCharacters,
+      resolvedEntities: persistedResolvedEntities,
+    });
     const persistedExplicitTargetToEntity = userExtraction
       ? { [USER_TRACKER_KEY]: resolveStableEntityIdForOwner(context, USER_TRACKER_KEY, resolveEntityTrackingMode(activeSettings)) }
       : undefined;
@@ -4081,7 +4087,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       activeEntityIds,
       explicitTargetToEntity: persistedExplicitTargetToEntity,
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
-      resolvedEntities: persistedResolvedEntities,
+      resolvedEntities: filteredPersistedResolvedEntities,
       source: resolvedEntityResolution?.source ?? ownerScopes.source,
       unresolvedMentions: resolvedEntityResolution?.unresolvedMentions,
       statistics: merged,
