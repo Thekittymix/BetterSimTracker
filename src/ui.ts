@@ -21,6 +21,7 @@ import type {
   StatValue,
   TrackerData,
   TrackerEntityRegistryEntry,
+  TrackerGraphTarget,
   TrackerRegistrySyncTarget,
 } from "./types";
 import {
@@ -4848,7 +4849,7 @@ export function renderTracker(
   resolveRegistryEntriesForMessage?: (messageIndex: number) => TrackerEntityRegistryEntry[],
   resolveRegistryEntryForMessage?: (ownerName: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
   resolveRegistryEntryByEntityIdForMessage?: (entityId: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
-  onOpenGraph?: (characterName: string) => void,
+  onOpenGraph?: (target: TrackerGraphTarget) => void,
   onRetrackMessage?: (messageIndex: number) => void,
   onSendSummaryMessage?: (messageIndex: number) => void,
   onCancelExtraction?: () => void,
@@ -5203,8 +5204,9 @@ export function renderTracker(
         const button = target?.closest('[data-bst-action="graph"]') as HTMLElement | null;
         if (button) {
           const name = String(button.getAttribute("data-character") ?? "").trim();
+          const entityId = String(button.getAttribute("data-entity-id") ?? "").trim();
           if (!name) return;
-          onOpenGraph?.(name);
+          onOpenGraph?.({ ownerName: name, entityId: entityId || null });
           return;
         }
         const edit = target?.closest('[data-bst-action="edit-stats"]') as HTMLElement | null;
@@ -5855,7 +5857,7 @@ export function renderTracker(
           <div class="bst-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</div>
           <div class="bst-actions">
             <button class="bst-mini-btn bst-mini-btn-icon" data-bst-action="toggle-card-collapse" data-bst-card-key="${escapeHtml(cardKey)}" data-bst-card-active="${isActive ? "true" : "false"}" title="${cardCollapsed ? `Expand ${escapeHtml(displayName)}` : `Collapse ${escapeHtml(displayName)}`}" aria-expanded="${cardCollapsed ? "false" : "true"}"><span aria-hidden="true">${cardCollapsed ? "&#9656;" : "&#9662;"}</span></button>
-            ${!isUserCard ? `<button class="bst-mini-btn" data-bst-action="graph" data-character="${name}" title="Open relationship graph"><span aria-hidden="true">&#128200;</span> <span class="bst-graph-label">Graph</span></button>` : ""}
+            ${!isUserCard ? `<button class="bst-mini-btn" data-bst-action="graph" data-character="${name}" data-entity-id="${escapeHtml(registryEntry?.id ?? "")}" title="Open relationship graph"><span aria-hidden="true">&#128200;</span> <span class="bst-graph-label">Graph</span></button>` : ""}
             ${canEdit ? `<button class="bst-mini-btn bst-mini-btn-icon" data-bst-action="edit-stats" data-bst-edit-message="${entry.messageIndex}" data-bst-edit-character="${escapeHtml(name)}" title="Edit last tracker stats for ${escapeHtml(displayName)}" aria-label="Edit last tracker stats for ${escapeHtml(displayName)}"><span aria-hidden="true">&#9998;</span></button>` : ""}
             ${!isUserCard ? `<div class="bst-state" title="${isActive ? "Active" : settings.inactiveLabel}">${isActive ? "Active" : `${settings.inactiveLabel} <span class="fa-solid fa-ghost bst-inactive-icon" aria-hidden="true"></span>`}</div>` : ""}
           </div>

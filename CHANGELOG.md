@@ -1,3 +1,7 @@
+## [2.2.4.16-exp167] - 2026-03-26
+### Fixed
+- Experimental graph targeting now keeps the clicked card's explicit entity identity through the full graph open path, so same-name tracked entities no longer collapse back to owner-name-only history lookups when opening timeline charts from rendered cards.
+
 ## [2.2.4.16-exp166] - 2026-03-26
 ### Fixed
 - Experimental entity-registry sync now keeps same-name cards distinct by their entity-backed render targets during UI and continuity lifecycle updates, so registry writes no longer collapse different tracked entities back onto one owner-name path after render.

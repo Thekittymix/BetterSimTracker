@@ -128,3 +128,59 @@ test("graph timeline helpers prefer by-entity numeric values through entityOwner
     [68],
   );
 });
+
+test("graph timeline helpers can target an explicit entity id when same-name entities collide", () => {
+  const entry = makeTracker(1);
+  entry.statistics.affection.Ashley = 41;
+  entry.entityOwnerMap = {
+    Ashley: {
+      entityId: "ent-ashley-current",
+      ownerName: "Ashley",
+      canonicalName: "Ashley Current",
+      aliases: ["Ash"],
+      sourceKey: "camp|ashley-current",
+      kind: "multi_character_alias",
+    },
+  };
+  entry.statisticsByEntityId = {
+    affection: {
+      "ent-ashley-legacy": 12,
+      "ent-ashley-current": 77,
+    },
+    trust: {},
+    desire: {},
+    connection: {},
+    mood: {},
+    lastThought: {},
+  };
+  entry.customStatisticsByEntityId = {
+    owner_score: {
+      "ent-ashley-legacy": 33,
+      "ent-ashley-current": 84,
+    },
+  };
+
+  assert.equal(
+    hasNumericSnapshot(entry, { ownerName: "Ashley", entityId: "ent-ashley-current" }, [
+      { key: "affection", defaultValue: 50, globalScope: false },
+      { key: "owner_score", defaultValue: 50, globalScope: false },
+    ]),
+    true,
+  );
+  assert.deepEqual(
+    buildStatSeries(
+      [entry],
+      { ownerName: "Ashley", entityId: "ent-ashley-current" },
+      { key: "owner_score", defaultValue: 50, globalScope: false },
+    ),
+    [84],
+  );
+  assert.deepEqual(
+    buildStatSeries(
+      [entry],
+      { ownerName: "Ashley", entityId: "ent-ashley-current" },
+      { key: "affection", defaultValue: 50, globalScope: false },
+    ),
+    [77],
+  );
+});

@@ -20,9 +20,10 @@ import {
   type GraphWindow,
 } from "./graphPreferences";
 import { closeEditStatsModal } from "./editStatsModal";
+import type { TrackerGraphTarget } from "./types";
 
 export function openGraphModal(input: {
-  character: string;
+  target: TrackerGraphTarget;
   history: TrackerData[];
   accentColor: string;
   settings: BetterSimTrackerSettings;
@@ -40,11 +41,11 @@ export function openGraphModal(input: {
   const modal = document.createElement("div");
   modal.className = "bst-graph-modal";
 
-  const enabledNumeric = getNumericStatsForHistory(input.history, input.character, input.settings);
+  const enabledNumeric = getNumericStatsForHistory(input.history, input.target.ownerName, input.settings);
   const timeline = [...input.history]
     .filter(item => Number.isFinite(item.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp)
-    .filter(item => hasNumericSnapshot(item, input.character, enabledNumeric));
+    .filter(item => hasNumericSnapshot(item, input.target, enabledNumeric));
   const rawSnapshotCount = timeline.length;
   const windowPreference = getGraphWindowPreference();
   const windowSize = windowPreference === "all" ? null : Number(windowPreference);
@@ -52,7 +53,7 @@ export function openGraphModal(input: {
   const renderedTimeline = downsampleTimeline(windowedTimeline, 140);
   const points: Record<string, number[]> = {};
   for (const def of enabledNumeric) {
-    points[def.key] = buildStatSeries(renderedTimeline, input.character, def);
+    points[def.key] = buildStatSeries(renderedTimeline, input.target, def);
   }
 
   const width = 780;
@@ -89,7 +90,8 @@ export function openGraphModal(input: {
 
   if (input.debug) {
     console.log("[BetterSimTracker] graph-open", {
-      character: input.character,
+      character: input.target.ownerName,
+      entityId: input.target.entityId ?? null,
       snapshotCount,
       rawSnapshotCount,
       windowPreference,
@@ -100,7 +102,7 @@ export function openGraphModal(input: {
   modal.innerHTML = `
     <div class="bst-graph-top bst-surface-header">
       <div class="bst-surface-header-copy">
-        <div class="bst-surface-title">${input.character} Relationship Trend</div>
+        <div class="bst-surface-title">${input.target.ownerName} Relationship Trend</div>
         <div class="bst-surface-subtitle">Numeric stat history for the selected owner across recorded tracker snapshots.</div>
       </div>
       <div class="bst-surface-actions">

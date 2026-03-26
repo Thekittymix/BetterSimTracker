@@ -169,6 +169,11 @@ export interface TrackerRegistrySyncTarget {
   registryEntry?: TrackerEntityRegistryEntry | null;
 }
 
+export interface TrackerGraphTarget {
+  ownerName: string;
+  entityId?: string | null;
+}
+
 export interface TrackerEntityRegistry {
   version: 1;
   entities: Record<string, TrackerEntityRegistryEntry>;

@@ -703,9 +703,14 @@ export function resolveTrackerDataLookupValue<T>(input: {
   byOwner: Record<string, T> | null | undefined;
   byEntityId?: Record<string, T> | null | undefined;
   ownerName: string;
+  explicitEntityIds?: string[] | null;
 }): T | undefined {
   if (input.byEntityId) {
-    for (const entityId of listTrackerDataEntityIdsForOwner(input.context, input.data, input.ownerName)) {
+    const entityIds = Array.from(new Set([
+      ...((input.explicitEntityIds ?? []).map(normalizeToken).filter(Boolean)),
+      ...listTrackerDataEntityIdsForOwner(input.context, input.data, input.ownerName),
+    ]));
+    for (const entityId of entityIds) {
       const direct = input.byEntityId[entityId];
       if (direct !== undefined) return direct;
     }
@@ -1106,6 +1111,7 @@ export function listTrackerDataLookupNamesForOwnerWithEntityFallback(
   context: STContext | null,
   data: TrackerData | null | undefined,
   ownerName: string,
+  explicitEntityIds?: string[] | null,
 ): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
@@ -1121,7 +1127,10 @@ export function listTrackerDataLookupNamesForOwnerWithEntityFallback(
   for (const name of listTrackerDataLookupNamesForEntityIds(
     context,
     data,
-    resolveTrackerEntityIdsForOwners(context, [ownerName]),
+    [
+      ...(explicitEntityIds ?? []),
+      ...resolveTrackerEntityIdsForOwners(context, [ownerName]),
+    ],
   )) push(name);
 
   return names;

@@ -109,7 +109,8 @@ import type {
   DeltaDebugRecord,
   STContext,
   Statistics,
-  TrackerData
+  TrackerData,
+  TrackerGraphTarget,
 } from "./types";
 import {
   removeTrackerUI,
@@ -1799,16 +1800,17 @@ function queueRender(): void {
     }, (entityId, messageIndex) => {
         const liveContext = getSafeContext();
         return getEntityRegistryEntryByEntityIdForMessage(liveContext, entityId, messageIndex);
-    }, characterName => {
+    }, target => {
       const context = getSafeContext();
       if (!context || !settings) return;
       const history = getRecentTrackerHistory(context, 120);
       if (history.length === 0 && latestData) {
         history.push(latestData);
       }
-      const graphSummary = summarizeGraphSeries(context, history, characterName);
+      const graphSummary = summarizeGraphSeries(context, history, target);
       pushTrace("graph.open", {
-        character: characterName,
+        character: target.ownerName,
+        entityId: target.entityId ?? null,
         historySnapshots: history.length,
         snapshots: graphSummary.snapshots,
         fromTs: graphSummary.fromTs,
@@ -1817,7 +1819,7 @@ function queueRender(): void {
         series: graphSummary.series
       });
       openGraphModal({
-        character: characterName,
+        target,
         history,
         accentColor: settings.accentColor,
         settings,
@@ -3262,7 +3264,7 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
   refreshFromStoredData();
 }
 
-function summarizeGraphSeries(context: STContext, history: TrackerData[], characterName: string): {
+function summarizeGraphSeries(context: STContext, history: TrackerData[], target: TrackerGraphTarget): {
   snapshots: number;
   fromTs: number | null;
   toTs: number | null;
@@ -3280,7 +3282,12 @@ function summarizeGraphSeries(context: STContext, history: TrackerData[], charac
   const numericStatIds = new Set<string>(allNumericDefs.map(def => def.id));
   const builtInKeys = new Set(["affection", "trust", "desire", "connection"]);
   const lookupNamesForEntry = (item: TrackerData): string[] =>
-    listTrackerDataLookupNamesForOwnerWithEntityFallback(context, item, characterName);
+    listTrackerDataLookupNamesForOwnerWithEntityFallback(
+      context,
+      item,
+      target.ownerName,
+      target.entityId ? [target.entityId] : undefined,
+    );
   const sorted = [...history]
     .filter(item => Number.isFinite(item.timestamp))
     .sort((a, b) => a.timestamp - b.timestamp)
@@ -3299,7 +3306,7 @@ function summarizeGraphSeries(context: STContext, history: TrackerData[], charac
   const build = (key: string, defaultValue = 50, globalScope = false): number[] => {
     return buildStatSeries(
       sorted,
-      lookupNamesForEntry,
+      target,
       { key, defaultValue, globalScope },
     );
   };
