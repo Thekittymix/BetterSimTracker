@@ -185,3 +185,80 @@ test("hasTrackedValueForSelection resolves tracked values directly from explicit
     true,
   );
 });
+
+test("hasTrackedValueForSelection does not treat a different same-name registry owner as current explicit entity continuity", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "ent-ashley": {
+          id: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 1,
+          lastActiveMessageIndex: 1,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+        "ent-ashley-shadow": {
+          id: "ent-ashley-shadow",
+          ownerName: "Ashley Shadow",
+          canonicalName: "Ashley Shadow",
+          aliases: ["Ashley"],
+          sourceName: "Ashley Shadow",
+          sourceAvatar: null,
+          sourceKey: "narrative:ent-ashley-shadow",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 2,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "ent-ashley",
+        ashley: "ent-ashley",
+        "ashley shadow": "ent-ashley-shadow",
+      },
+    },
+  } as Record<string, unknown>;
+
+  const data: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ashley"],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: {
+      clothes: {
+        Ash: ["worn hoodie"],
+      },
+    },
+    customNonNumericStatisticsByEntityId: {},
+  };
+
+  assert.equal(
+    hasTrackedValueForSelection(
+      data,
+      { ownerNames: ["Ashley"], entityIds: ["ent-ashley-shadow"] },
+      makeSettings(),
+      context,
+    ),
+    false,
+  );
+});

@@ -34,7 +34,7 @@ export function hasCharacterOwnedTrackedValueForSelection(
       .filter(Boolean),
   ));
   const lookupNames = Array.from(new Set([
-    ...ownerNames.flatMap(ownerName => listTrackerDataLookupNamesForOwnerWithEntityFallback(context, data, ownerName)),
+    ...ownerNames.flatMap(ownerName => listTrackerDataLookupNamesForOwnerWithEntityFallback(context, data, ownerName, entityIds)),
     ...listTrackerDataLookupNamesForEntityIds(context, data, entityIds),
   ]));
   const hasOwnerValue = <T>(input: {
@@ -53,6 +53,7 @@ export function hasCharacterOwnedTrackedValueForSelection(
         byOwner: input.byOwner,
         byEntityId: input.byEntityId,
         ownerName,
+        explicitEntityIds: entityIds,
       }) !== undefined) {
         return true;
       }

@@ -697,6 +697,38 @@ function listTrackerDataEntityIdsForOwner(
   return entityIds;
 }
 
+function listScopedTrackerDataLookupNamesForExplicitEntityIds(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  ownerName: string,
+  explicitEntityIds: string[],
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    const key = normalizeKey(value);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+
+  push(ownerName);
+
+  const wanted = explicitEntityIds
+    .map(normalizeToken)
+    .filter(Boolean);
+  if (!wanted.length) {
+    return names;
+  }
+
+  for (const name of listTrackerDataLookupNamesForEntityIds(context, data, wanted)) {
+    push(name);
+  }
+
+  return names;
+}
+
 export function resolveTrackerDataLookupValue<T>(input: {
   context: STContext | null;
   data: TrackerData | null | undefined;
@@ -714,6 +746,21 @@ export function resolveTrackerDataLookupValue<T>(input: {
       const direct = input.byEntityId[entityId];
       if (direct !== undefined) return direct;
     }
+  }
+  const explicitEntityIds = (input.explicitEntityIds ?? [])
+    .map(normalizeToken)
+    .filter(Boolean);
+  if (explicitEntityIds.length && input.byOwner) {
+    for (const lookupName of listScopedTrackerDataLookupNamesForExplicitEntityIds(
+      input.context,
+      input.data,
+      input.ownerName,
+      explicitEntityIds,
+    )) {
+      const direct = input.byOwner[lookupName];
+      if (direct !== undefined) return direct;
+    }
+    return undefined;
   }
   return resolveEntityRegistryLookupValue(input.context, input.byOwner, input.ownerName);
 }
@@ -1123,12 +1170,24 @@ export function listTrackerDataLookupNamesForOwnerWithEntityFallback(
     names.push(value);
   };
 
+  const normalizedExplicitEntityIds = (explicitEntityIds ?? [])
+    .map(normalizeToken)
+    .filter(Boolean);
+  if (normalizedExplicitEntityIds.length) {
+    for (const name of listScopedTrackerDataLookupNamesForExplicitEntityIds(
+      context,
+      data,
+      ownerName,
+      normalizedExplicitEntityIds,
+    )) push(name);
+    return names;
+  }
+
   for (const name of listTrackerDataLookupNamesForOwner(context, data, ownerName)) push(name);
   for (const name of listTrackerDataLookupNamesForEntityIds(
     context,
     data,
     [
-      ...(explicitEntityIds ?? []),
       ...resolveTrackerEntityIdsForOwners(context, [ownerName]),
     ],
   )) push(name);

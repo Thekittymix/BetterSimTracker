@@ -1,3 +1,7 @@
+## [2.2.4.16-exp170] - 2026-03-26
+### Fixed
+- Experimental continuity/presence selection now keeps owner-scoped lookup names narrowed to explicit entity ids when they are already known, so baseline relevance checks and tracked-value presence reads no longer reuse same-name state from a different registry-backed entity through broad owner-name fallback.
+
 ## [2.2.4.16-exp169] - 2026-03-26
 ### Fixed
 - Experimental seeded baseline/history owner-stat reads now keep same-name continuity scoped to the explicit active entity id, so seed/default hydration no longer treats a different registry-backed owner label as proof that the current dynamic or multi-character entity already has seeded state.

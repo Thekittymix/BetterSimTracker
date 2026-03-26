@@ -43,6 +43,7 @@ export function hasTrackedValueForSelection(
         byOwner: input.byOwner,
         byEntityId: input.byEntityId,
         ownerName,
+        explicitEntityIds: entityIds,
       }) !== undefined) {
         return true;
       }

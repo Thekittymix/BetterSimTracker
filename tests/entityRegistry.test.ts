@@ -1134,6 +1134,133 @@ test("resolveTrackerDataLookupValue prefers current entityOwnerMap alias matches
   assert.deepEqual(value, ["mirror shroud"]);
 });
 
+test("resolveTrackerDataLookupValue keeps by-owner fallback scoped to explicit entity ids", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+        "bst_narrative:ashley-shadow": {
+          id: "bst_narrative:ashley-shadow",
+          ownerName: "Ashley Shadow",
+          canonicalName: "Ashley Shadow",
+          aliases: ["Mirror Ashley"],
+          sourceName: "Ashley Shadow",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:ashley-shadow",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 9,
+          lastSeenMessageIndex: 9,
+          lastActiveMessageIndex: 9,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+        "ashley shadow": "bst_narrative:ashley-shadow",
+      },
+    },
+  };
+
+  const data = makeTracker({
+    entityOwnerMap: {
+      "Ashley Shadow": {
+        entityId: "bst_narrative:ashley-shadow",
+        ownerName: "Ashley Shadow",
+        canonicalName: "Ashley Shadow",
+        aliases: ["Mirror Ashley"],
+        sourceKey: "narrative:bst_narrative:ashley-shadow",
+        kind: "narrative-entity",
+      },
+    },
+    customNonNumericStatistics: {
+      clothes: { Ash: ["default dress"] },
+    },
+  });
+
+  const value = resolveTrackerDataLookupValue({
+    context,
+    data,
+    byOwner: data.customNonNumericStatistics?.clothes ?? {},
+    ownerName: "Ashley",
+    explicitEntityIds: ["bst_narrative:ashley-shadow"],
+  });
+
+  assert.equal(value, undefined);
+});
+
+test("listTrackerDataLookupNamesForOwnerWithEntityFallback scopes names to explicit entity ids", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+        "bst_narrative:ashley-shadow": {
+          id: "bst_narrative:ashley-shadow",
+          ownerName: "Ashley Shadow",
+          canonicalName: "Ashley Shadow",
+          aliases: ["Mirror Ashley"],
+          sourceName: "Ashley Shadow",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:ashley-shadow",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 9,
+          lastSeenMessageIndex: 9,
+          lastActiveMessageIndex: 9,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+        "ashley shadow": "bst_narrative:ashley-shadow",
+      },
+    },
+  };
+
+  const names = listTrackerDataLookupNamesForOwnerWithEntityFallback(
+    context,
+    null,
+    "Ashley",
+    ["bst_narrative:ashley-shadow"],
+  );
+
+  assert.deepEqual(names, ["Ashley", "Ashley Shadow", "Mirror Ashley"]);
+});
+
 test("buildTrackerDataEntityOwnerMap captures registry-backed alias owners present in tracker data", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

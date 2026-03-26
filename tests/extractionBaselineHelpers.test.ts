@@ -245,3 +245,71 @@ test("hasCharacterOwnedTrackedValueForSelection resolves relevance directly from
     true,
   );
 });
+
+test("hasCharacterOwnedTrackedValueForSelection does not reuse same-name continuity from a different explicit entity", () => {
+  const data = makeTracker(1, []);
+  data.customNonNumericStatistics = {
+    clothes: {
+      Ash: ["camp hoodie"],
+    },
+  };
+  const context = {
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "bst_mc_alias:test:ashley": {
+            id: "bst_mc_alias:test:ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            aliases: ["Ash"],
+            sourceName: "Camp",
+            sourceAvatar: null,
+            sourceKey: "|camp",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+          },
+          "bst_narrative:ashley-shadow": {
+            id: "bst_narrative:ashley-shadow",
+            ownerName: "Ashley Shadow",
+            canonicalName: "Ashley Shadow",
+            aliases: ["Ashley"],
+            sourceName: "Ashley Shadow",
+            sourceAvatar: null,
+            sourceKey: "narrative:bst_narrative:ashley-shadow",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 1,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 1, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          ashley: "bst_mc_alias:test:ashley",
+          ash: "bst_mc_alias:test:ashley",
+          "ashley shadow": "bst_narrative:ashley-shadow",
+        },
+      },
+    },
+  } as unknown as STContext;
+
+  assert.equal(
+    hasCharacterOwnedTrackedValueForSelection(
+      data,
+      {
+        ownerNames: ["Ashley"],
+        entityIds: ["bst_narrative:ashley-shadow"],
+      },
+      makeSettings(),
+      context,
+    ),
+    false,
+  );
+});
