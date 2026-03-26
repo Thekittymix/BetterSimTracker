@@ -3525,6 +3525,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         allCharacterNames = [...allCharacterNames, USER_TRACKER_KEY];
       }
     }
+    const previousMessage = !userExtraction && lastIndex > 0
+      ? context.chat[lastIndex - 1]
+      : null;
+    const previousMessageTrackerData = previousMessage
+      ? getTrackerDataFromMessage(previousMessage)
+      : null;
     let resolvedOwnerScopes:
       | {
           sceneActiveCharacters: string[];
@@ -3539,6 +3545,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         allCharacterNames.filter(name => name !== USER_TRACKER_KEY),
         lastMessage,
         activeSettings,
+        { previousTrackerData: previousMessageTrackerData },
       );
       if (candidateOwners.length) {
         try {
@@ -3652,12 +3659,6 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const initialActiveCharacters = !userExtraction && resolvedOwnerScopes?.sceneActiveCharacters.length
       ? resolvedOwnerScopes.sceneActiveCharacters
       : fallbackInitialActiveCharacters;
-    const previousMessage = !userExtraction && lastIndex > 0
-      ? context.chat[lastIndex - 1]
-      : null;
-    const previousMessageTrackerData = previousMessage
-      ? getTrackerDataFromMessage(previousMessage)
-      : null;
     const baseOwnerScopes = userExtraction
       ? resolveUserExtractionOwnerScopes({
           context,

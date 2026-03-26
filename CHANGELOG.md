@@ -1,3 +1,7 @@
+## [2.2.4.16-exp180] - 2026-03-26
+### Fixed
+- Experimental user-turn resolver candidate scoping now starts from the previous tracked scene plus names explicitly mentioned in the current user message, so dynamic and multi-character chats no longer leak the whole source-card roster back into entity resolution while still allowing explicit off-scene mentions to widen the candidate set on purpose.
+
 ## [2.2.4.16-exp179] - 2026-03-26
 ### Fixed
 - Experimental dynamic-entity resolver candidate construction now keeps archived narrative entities available for later user/AI reactivation and carries their real registry identity into candidate metadata, so reintroduced story entities no longer disappear from resolver selection just because their visible cards already aged into archived state.

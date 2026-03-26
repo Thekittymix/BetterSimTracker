@@ -13,7 +13,13 @@ import type {
   TrackerResolvedEntity,
 } from "./types";
 import { USER_TRACKER_KEY } from "./constants";
-import { readEntityRegistry, resolveTrackerEntityIdsForOwners, resolveTrackerOwnersForEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
+import {
+  getEntityRegistryEntryByOwnerName,
+  readEntityRegistry,
+  resolveTrackerEntityIdsForOwners,
+  resolveTrackerOwnersForEntityIds,
+  resolveTrackerSceneOwners,
+} from "./entityRegistry";
 
 export type EntityTrackingMode = "standard" | "multi_character" | "dynamic_entities";
 
@@ -478,20 +484,53 @@ export function resolveEntityResolverCandidateOwners(
   ownerNames: string[],
   message: ChatMessage | null | undefined,
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+  options: { previousTrackerData?: TrackerData | null } = {},
 ): string[] {
   const mode = resolveEntityTrackingMode(settings);
   const normalizedOwners = uniqueStrings(ownerNames.map(normalizeToken));
   if (!isMultiCharacterEntityTrackingMode(mode)) return normalizedOwners;
-  const scopedOwners = resolveMessageScopedActiveCharacters(context, normalizedOwners, message, settings);
+  const previousSceneOwners = message?.is_user
+    ? resolveTrackerSceneOwners(null, options.previousTrackerData)
+    : [];
+  const mentionedOwners = message?.is_user
+    ? (() => {
+        const mentioned: string[] = [];
+        const mentionedSeen = new Set<string>();
+        const messageText = normalizeToken(message.mes);
+        for (const ownerName of normalizedOwners) {
+          const registryEntry = getEntityRegistryEntryByOwnerName(context, ownerName);
+          const lookupNames = uniqueStrings([
+            ownerName,
+            registryEntry?.canonicalName ?? "",
+            ...(registryEntry?.aliases ?? []),
+          ]);
+          if (collectMentionedAliases(messageText, lookupNames).length) {
+            pushUniqueString(mentioned, mentionedSeen, ownerName);
+          }
+        }
+        return mentioned;
+      })()
+    : [];
+  const scopedOwners = message?.is_user && (previousSceneOwners.length || mentionedOwners.length)
+    ? uniqueStrings([...previousSceneOwners, ...mentionedOwners])
+    : resolveMessageScopedActiveCharacters(context, normalizedOwners, message, settings);
   if (!allowsNarrativeEntities(mode) || !context) {
     return scopedOwners;
   }
 
   const registry = readEntityRegistry(context);
   const latestMessageIndex = Math.max(0, (context.chat?.length ?? 1) - 1);
+  const previousSceneOwnerKeys = new Set(previousSceneOwners.map(owner => normalizeKey(owner)));
+  const messageText = normalizeToken(message?.mes);
   const narrativeRegistryOwners = Object.values(registry.entities)
     .filter(entry => entry?.kind === "narrative-entity")
     .filter(entry => entry.introducedAtMessageIndex <= latestMessageIndex)
+    .filter(entry => {
+      if (!message?.is_user) return true;
+      if (previousSceneOwnerKeys.has(normalizeKey(entry.ownerName))) return true;
+      const lookupNames = uniqueStrings([entry.ownerName, entry.canonicalName ?? "", ...(entry.aliases ?? [])]);
+      return collectMentionedAliases(messageText, lookupNames).length > 0;
+    })
     .map(entry => normalizeToken(entry.ownerName))
     .filter(Boolean);
 

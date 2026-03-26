@@ -1028,8 +1028,126 @@ test("resolveEntityResolverCandidateOwners keeps archived narrative entities ava
       ["Ashley", "Blake", "Garret", "Raleigh"],
       context.chat[22],
       { entityTrackingMode: "dynamic_entities" },
+      {
+        previousTrackerData: {
+          timestamp: 1,
+          activeCharacters: ["Blake", "Forest Spirit"],
+          entityResolution: buildEntityResolution({
+            resolvedEntities: [
+              {
+                entityId: "bst_mc_alias:camp.png|camp whispering pines:blake",
+                kind: "st-character",
+                name: "Blake",
+                avatar: null,
+                aliases: ["Blake"],
+                inScene: true,
+                inMessage: true,
+                created: false,
+              },
+              {
+                entityId: "bst_narrative:forest-spirit",
+                kind: "narrative-entity",
+                name: "Forest Spirit",
+                avatar: null,
+                aliases: ["the spirit"],
+                inScene: true,
+                inMessage: true,
+                created: false,
+              },
+            ],
+            source: "model",
+          }),
+          statistics: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            mood: {},
+            lastThought: {},
+          },
+          customStatistics: {},
+          customNonNumericStatistics: {},
+          entityOwnerMap: {
+            Blake: {
+              entityId: "bst_mc_alias:camp.png|camp whispering pines:blake",
+              ownerName: "Blake",
+              canonicalName: "Blake",
+              aliases: ["Blake"],
+              sourceKey: "camp.png|camp whispering pines",
+              kind: "multi_character_alias",
+            },
+            "Forest Spirit": {
+              entityId: "bst_narrative:forest-spirit",
+              ownerName: "Forest Spirit",
+              canonicalName: "Forest Spirit",
+              aliases: ["the spirit"],
+              sourceKey: "narrative:bst_narrative:forest-spirit",
+              kind: "narrative-entity",
+            },
+          },
+        } as any,
+      },
     ),
-    ["Ashley", "Blake", "Garret", "Raleigh", "Forest Spirit"],
+    ["Blake", "Forest Spirit"],
+  );
+});
+
+test("resolveEntityResolverCandidateOwners can widen a user-turn candidate set with explicitly named aliases outside the previous scene", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        name: "User",
+        mes: "Ashley and Blake, answer together.",
+        is_user: true,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolveEntityResolverCandidateOwners(
+      context,
+      ["Ashley", "Blake", "Garret", "Raleigh"],
+      context.chat[0],
+      { entityTrackingMode: "multi_character" },
+      {
+        previousTrackerData: {
+          timestamp: 1,
+          activeCharacters: ["Blake"],
+          entityResolution: buildEntityResolution({
+            sceneOwners: ["Blake"],
+            messageOwners: ["Blake"],
+            sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines:blake"],
+            messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines:blake"],
+            source: "model",
+          }),
+          statistics: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            mood: {},
+            lastThought: {},
+          },
+          customStatistics: {},
+          customNonNumericStatistics: {},
+          entityOwnerMap: {
+            Blake: {
+              entityId: "bst_mc_alias:camp.png|camp whispering pines:blake",
+              ownerName: "Blake",
+              canonicalName: "Blake",
+              aliases: ["Blake"],
+              sourceKey: "camp.png|camp whispering pines",
+              kind: "multi_character_alias",
+            },
+          },
+        } as any,
+      },
+    ),
+    ["Blake", "Ashley"],
   );
 });
 
