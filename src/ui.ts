@@ -62,6 +62,7 @@ import { cloneTrackerDataForEdit } from "./trackerUiState";
 import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
 import {
   buildLifecycleHistorySnapshotsFromTrackerEntries,
+  resolveTrackerDataEntityOwnerSnapshot,
   resolveTrackerActiveEntityIds,
   resolveTrackerActiveOwners,
   resolveTrackerDataLookupValue,
@@ -825,7 +826,7 @@ export function resolveRegistryEntryForOwnerInMessageData(input: {
 }): TrackerEntityRegistryEntry | null {
   const ownerName = String(input.ownerName ?? "").trim();
   if (!ownerName) return null;
-  const targetEntityId = String(input.data?.entityOwnerMap?.[ownerName]?.entityId ?? "").trim();
+  const targetEntityId = String(resolveTrackerDataEntityOwnerSnapshot(input.data, ownerName)?.entityId ?? "").trim();
   if (targetEntityId) {
     const byEntityId = input.resolveRegistryEntryByEntityIdForMessage?.(targetEntityId, input.messageIndex) ?? null;
     if (byEntityId) return byEntityId;
@@ -842,7 +843,7 @@ export function resolveLifecycleRegistryStateForOwnerInMessageData(input: {
 }): CardLifecycleRegistryState | null {
   const ownerName = String(input.ownerName ?? "").trim();
   if (!ownerName) return null;
-  const targetEntityId = String(input.data?.entityOwnerMap?.[ownerName]?.entityId ?? "").trim();
+  const targetEntityId = String(resolveTrackerDataEntityOwnerSnapshot(input.data, ownerName)?.entityId ?? "").trim();
   if (targetEntityId) {
     const byEntityId = input.resolveLifecycleRegistryStateByEntityId?.(targetEntityId, input.messageIndex) ?? null;
     if (byEntityId) return byEntityId;
@@ -4843,7 +4844,7 @@ export function renderTracker(
       resolveRegistryEntryForMessage,
       resolveRegistryEntryByEntityIdForMessage,
     });
-    const targetEntityId = data?.entityOwnerMap?.[ownerName]?.entityId
+    const targetEntityId = resolveTrackerDataEntityOwnerSnapshot(data, ownerName)?.entityId
       ?? resolvedRegistryEntry?.id
       ?? null;
     const registryEntryForEntityId = targetEntityId

@@ -341,6 +341,68 @@ test("resolveLifecycleRegistryStateForOwnerInMessageData prefers tracker data en
   assert.equal(resolved?.lastActiveMessageIndex, 2);
 });
 
+test("resolveRegistryEntryForOwnerInMessageData resolves entityOwnerMap aliases before stale owner-name registry matches", () => {
+  const resolved = resolveRegistryEntryForOwnerInMessageData({
+    ownerName: "Ashley",
+    messageIndex: 2,
+    data: {
+      activeCharacters: ["Ashley"],
+      entityOwnerMap: {
+        "Ashley Shadow": {
+          entityId: "bst_narrative:ashley-shadow",
+          ownerName: "Ashley Shadow",
+          canonicalName: "Ashley Shadow",
+          aliases: ["Ashley"],
+          sourceKey: "narrative:bst_narrative:ashley-shadow",
+          kind: "narrative-entity",
+        },
+      },
+    } as never,
+    resolveRegistryEntryForMessage: ownerName =>
+      ownerName === "Ashley"
+        ? ({ id: "ent-stale", ownerName: "Ashley", canonicalName: "Ashley", aliases: [], kind: "multi_character_alias" } as never)
+        : null,
+    resolveRegistryEntryByEntityIdForMessage: entityId =>
+      entityId === "bst_narrative:ashley-shadow"
+        ? ({ id: "bst_narrative:ashley-shadow", ownerName: "Ashley Shadow", canonicalName: "Ashley Shadow", aliases: ["Ashley"], kind: "narrative-entity" } as never)
+        : null,
+  });
+
+  assert.equal(resolved?.id, "bst_narrative:ashley-shadow");
+  assert.equal(resolved?.ownerName, "Ashley Shadow");
+});
+
+test("resolveLifecycleRegistryStateForOwnerInMessageData resolves entityOwnerMap aliases before stale owner-name lifecycle matches", () => {
+  const resolved = resolveLifecycleRegistryStateForOwnerInMessageData({
+    ownerName: "Ashley",
+    messageIndex: 2,
+    data: {
+      activeCharacters: ["Ashley"],
+      entityOwnerMap: {
+        "Ashley Shadow": {
+          entityId: "bst_narrative:ashley-shadow",
+          ownerName: "Ashley Shadow",
+          canonicalName: "Ashley Shadow",
+          aliases: ["Ashley"],
+          sourceKey: "narrative:bst_narrative:ashley-shadow",
+          kind: "narrative-entity",
+        },
+      },
+    } as never,
+    resolveLifecycleRegistryState: ownerName =>
+      ownerName === "Ashley"
+        ? ({ lifecycleState: "inactive", lastActiveMessageIndex: 1, introducedAtMessageIndex: 0 } as never)
+        : null,
+    resolveLifecycleRegistryStateByEntityId: entityId =>
+      entityId === "bst_narrative:ashley-shadow"
+        ? ({ lifecycleState: "active", lastActiveMessageIndex: 2, introducedAtMessageIndex: 0 } as never)
+        : null,
+  });
+
+  assert.equal(resolved?.lifecycleState, "active");
+  assert.equal(resolved?.lastActiveMessageIndex, 2);
+});
+
 test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
   const displayPool = buildDisplayPoolWithRegistry({
     entityTrackingMode: "multi_character",

@@ -987,6 +987,65 @@ test("resolveTrackerDataLookupValue falls back to owner-name lookup when no by-e
   assert.deepEqual(value, ["default dress"]);
 });
 
+test("resolveTrackerDataLookupValue prefers current entityOwnerMap alias matches before stale registry owner-name collisions", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: buildEntitySourceKey("Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "camp.png"),
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+      },
+    },
+  };
+
+  const data = makeTracker({
+    entityOwnerMap: {
+      "Ashley Shadow": {
+        entityId: "bst_narrative:ashley-shadow",
+        ownerName: "Ashley Shadow",
+        canonicalName: "Ashley Shadow",
+        aliases: ["Ashley", "Ash"],
+        sourceKey: "narrative:bst_narrative:ashley-shadow",
+        kind: "narrative-entity",
+      },
+    },
+    customNonNumericStatistics: {
+      clothes: { Ashley: ["default dress"] },
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: { "bst_narrative:ashley-shadow": ["mirror shroud"] },
+    },
+  });
+
+  const value = resolveTrackerDataLookupValue({
+    context,
+    data,
+    byOwner: data.customNonNumericStatistics?.clothes ?? {},
+    byEntityId: data.customNonNumericStatisticsByEntityId?.clothes,
+    ownerName: "Ashley",
+  });
+
+  assert.deepEqual(value, ["mirror shroud"]);
+});
+
 test("buildTrackerDataEntityOwnerMap captures registry-backed alias owners present in tracker data", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

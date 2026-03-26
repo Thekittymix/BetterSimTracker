@@ -582,6 +582,36 @@ export function resolveEntityRegistryLookupValue<T>(
   return undefined;
 }
 
+export function resolveTrackerDataEntityOwnerSnapshot(
+  data: TrackerData | null | undefined,
+  ownerName: string,
+): TrackerDataEntityOwner | null {
+  if (!data?.entityOwnerMap || typeof data.entityOwnerMap !== "object") return null;
+  const normalizedOwner = normalizeKey(ownerName);
+  const normalizedEntityId = normalizeToken(ownerName);
+  if (!normalizedOwner && !normalizedEntityId) return null;
+
+  const direct = data.entityOwnerMap[ownerName];
+  if (direct) return direct;
+
+  for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
+    if (!snapshot) continue;
+    if (normalizedEntityId && normalizeToken(snapshot.entityId) === normalizedEntityId) {
+      return snapshot;
+    }
+    const lookupNames = [
+      snapshotOwner,
+      snapshot.ownerName,
+      snapshot.canonicalName,
+      ...(snapshot.aliases ?? []),
+    ];
+    if (lookupNames.some(candidate => normalizeKey(candidate) === normalizedOwner)) {
+      return snapshot;
+    }
+  }
+  return null;
+}
+
 function listTrackerDataEntityIdsForOwner(
   context: STContext | null,
   data: TrackerData | null | undefined,
@@ -596,7 +626,8 @@ function listTrackerDataEntityIdsForOwner(
     entityIds.push(value);
   };
 
-  const directEntityId = normalizeToken(data?.entityOwnerMap?.[ownerName]?.entityId);
+  const directSnapshot = resolveTrackerDataEntityOwnerSnapshot(data, ownerName);
+  const directEntityId = normalizeToken(directSnapshot?.entityId);
   if (directEntityId) {
     push(directEntityId);
   }
@@ -958,7 +989,7 @@ export function listTrackerDataLookupNamesForOwner(
   };
   push(ownerName);
   if (data?.entityOwnerMap && typeof data.entityOwnerMap === "object") {
-    const direct = data.entityOwnerMap[ownerName];
+    const direct = resolveTrackerDataEntityOwnerSnapshot(data, ownerName);
     const fallbackEntityId = getEntityRegistryEntryByOwnerName(context, ownerName)?.id ?? null;
     const targetEntityId = direct?.entityId ?? fallbackEntityId;
     if (targetEntityId) {

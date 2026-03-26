@@ -1,3 +1,7 @@
+## [2.2.4.16-exp164] - 2026-03-26
+### Fixed
+- Experimental entity lookup/read paths now resolve owners through the current message `entityOwnerMap` aliases and canonical names before falling back to registry owner-name matches, preventing stale same-name registry entries from hijacking narrative-entity cards during continuity reads, UI registry lookups, and by-entity shadow-state access.
+
 ## [2.2.4.16-exp163] - 2026-03-26
 ### Fixed
 - Experimental message-scoped projection now preserves `narrative-entity` identity when a dynamic entity shares the same visible owner label as a multi-character source-card alias, so runtime continuity no longer remaps those cards back onto the source-card alias path by name alone.
