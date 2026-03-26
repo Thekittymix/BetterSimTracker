@@ -1,3 +1,7 @@
+## [2.2.4.16-exp163] - 2026-03-26
+### Fixed
+- Experimental message-scoped projection now preserves `narrative-entity` identity when a dynamic entity shares the same visible owner label as a multi-character source-card alias, so runtime continuity no longer remaps those cards back onto the source-card alias path by name alone.
+
 ## [2.2.4.16-exp162] - 2026-03-26
 ### Fixed
 - Experimental dynamic narrative entities now ignore per-owner BST defaults across the remaining runtime read paths too, so `trackerEnabled`, `statEnabled`, mood-source overrides, and other owner-default reads stay scoped to real ST owners instead of leaking back onto `narrative-entity` cards by matching name alone.

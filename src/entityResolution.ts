@@ -1023,8 +1023,19 @@ function remapClearedCustomBuckets<T extends ClearedCustomStatistics | ClearedCu
 function resolveProjectedEntitySnapshot(
   entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
   ownerName: string,
+  sourceEntity?: Pick<TrackerResolvedEntity, "entityId" | "kind">,
 ): NonNullable<TrackerData["entityOwnerMap"]>[string] | null {
   if (!entityOwnerMap) return null;
+  const sourceEntityId = normalizeToken(sourceEntity?.entityId);
+  if (sourceEntityId) {
+    for (const snapshot of Object.values(entityOwnerMap)) {
+      if (!snapshot) continue;
+      if (normalizeToken(snapshot.entityId) === sourceEntityId) return snapshot;
+    }
+  }
+  if (sourceEntity?.kind === "narrative-entity" || /^bst_narrative:/i.test(sourceEntityId)) {
+    return null;
+  }
   const ownerKey = normalizeKey(ownerName);
   for (const snapshot of Object.values(entityOwnerMap)) {
     if (!snapshot) continue;
@@ -1067,9 +1078,13 @@ function resolveProjectedOwnerName(
 
 function buildProjectedEntityId(
   context: STContext | null,
-  sourceEntity: { entityId: string; name: string },
+  sourceEntity: { entityId: string; name: string; kind?: TrackerResolvedEntity["kind"] },
   projectedOwnerName: string,
 ): string {
+  const normalizedEntityId = normalizeToken(sourceEntity.entityId);
+  if (sourceEntity.kind === "narrative-entity" || /^bst_narrative:/i.test(normalizedEntityId)) {
+    return normalizedEntityId || sourceEntity.entityId;
+  }
   const identity = resolveCharacterIdentity(context, projectedOwnerName, "multi_character");
   if (!identity) return sourceEntity.entityId;
   const sourceKey = `${normalizeKey(identity.sourceAvatar ?? "")}|${normalizeKey(identity.sourceName)}`;
@@ -1117,6 +1132,7 @@ export function projectTrackerDataToMessageScopedOwners(
               entityId: resolveProjectedEntitySnapshot(
                 data.entityOwnerMap,
                 projectedOwnerName,
+                entity,
               )?.entityId ?? buildProjectedEntityId(context, entity, projectedOwnerName),
               name: projectedOwnerName,
               aliases: entity.aliases?.length

@@ -791,6 +791,78 @@ test("projectTrackerDataToMessageScopedOwners can leave owner-scoped non-numeric
   });
 });
 
+test("projectTrackerDataToMessageScopedOwners preserves narrative entity ids when owner labels collide with source-card aliases", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  const projected = projectTrackerDataToMessageScopedOwners(
+    context,
+    {
+      timestamp: 1,
+      activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      entityResolution: buildEntityResolution({
+        resolvedEntities: [
+          {
+            entityId: "bst_narrative:ashley-shadow",
+            kind: "narrative-entity",
+            name: "Ashley",
+            avatar: null,
+            aliases: ["The Ashley in the mirror"],
+            inScene: true,
+            inMessage: true,
+            created: true,
+          },
+        ],
+        source: "model",
+      }),
+      entityOwnerMap: {
+        Ashley: {
+          entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: [],
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+        },
+      },
+      statistics: {
+        affection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 51 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+    },
+    {
+      mes: "Ashley flinched and stared toward the door.",
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      is_user: false,
+    } as any,
+    { entityTrackingMode: "dynamic_entities" },
+  );
+
+  assert.deepEqual(projected.entityResolution, buildEntityResolution({
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:ashley-shadow",
+        kind: "narrative-entity",
+        name: "Ashley",
+        avatar: null,
+        aliases: ["The Ashley in the mirror"],
+        inScene: true,
+        inMessage: true,
+        created: true,
+      },
+    ],
+    source: "model",
+  }));
+});
+
 test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the user tracker owner", () => {
   assert.deepEqual(
     resolvePersistedSnapshotActiveOwners({
