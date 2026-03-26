@@ -88,3 +88,14 @@ test("buildActiveSeedDefaultsPolicy prefers narrative entity ids over colliding 
 
   assert.equal(policy.get("Ashley"), false);
 });
+
+test("shouldUseConfiguredOwnerDefaults blocks explicit narrative kind even without registry context", () => {
+  assert.equal(
+    shouldUseConfiguredOwnerDefaults(null, "Forest Spirit", null, "narrative-entity"),
+    false,
+  );
+  assert.equal(
+    shouldUseConfiguredOwnerDefaults(null, "Seraphina", null, "owner"),
+    true,
+  );
+});

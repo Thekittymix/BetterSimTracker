@@ -33,7 +33,7 @@ import {
   resolveSceneOwnersFromResolvedEntities,
 } from "./entityResolver";
 import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
-import { buildActiveSeedDefaultsPolicy } from "./entitySeedPolicy";
+import { buildActiveSeedDefaultsPolicy, shouldUseConfiguredOwnerDefaults } from "./entitySeedPolicy";
 import {
   buildEntitySourceKey,
   getEntityRegistryEntryForMessage,
@@ -2362,7 +2362,12 @@ function isTrackerEnabledForOwner(
   settingsInput: BetterSimTrackerSettings,
   name: string,
 ): boolean {
-  return getConfiguredCharacterDefaults(context, settingsInput, name).trackerEnabled !== false;
+  return getConfiguredCharacterDefaults(
+    context,
+    settingsInput,
+    name,
+    shouldUseConfiguredOwnerDefaults(context, name),
+  ).trackerEnabled !== false;
 }
 
 function isOwnerStatEnabled(
@@ -2373,7 +2378,12 @@ function isOwnerStatEnabled(
 ): boolean {
   const id = String(statId ?? "").trim().toLowerCase();
   if (!id) return true;
-  const configured = getConfiguredCharacterDefaults(context, settingsInput, ownerName);
+  const configured = getConfiguredCharacterDefaults(
+    context,
+    settingsInput,
+    ownerName,
+    shouldUseConfiguredOwnerDefaults(context, ownerName),
+  );
   return configured.statEnabled?.[id] !== false;
 }
 

@@ -72,3 +72,47 @@ test("isOwnerStatEnabled resolves alias owners against multi-character source ca
   assert.equal(isOwnerStatEnabled(context, settings, "Ashley", "mood"), false);
   assert.equal(isOwnerStatEnabled(context, settings, "Ashley", "lastThought"), true);
 });
+
+test("isOwnerStatEnabled ignores character defaults for registry-backed narrative entities", () => {
+  const settings = baseSettings();
+  settings.entityTrackingMode = "dynamic_entities";
+  settings.characterDefaults = {
+    "Forest Spirit": {
+      statEnabled: {
+        mood: false,
+      },
+    },
+  };
+  const context = {
+    name1: "User",
+    characters: [],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "bst_narrative:forest-spirit": {
+            id: "bst_narrative:forest-spirit",
+            ownerName: "Forest Spirit",
+            canonicalName: "Forest Spirit",
+            aliases: ["Spirit"],
+            sourceName: "Forest Spirit",
+            sourceAvatar: null,
+            sourceKey: "narrative:bst_narrative:forest-spirit",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          "forest spirit": "bst_narrative:forest-spirit",
+        },
+      },
+    },
+  } as unknown as STContext;
+
+  assert.equal(isOwnerStatEnabled(context, settings, "Forest Spirit", "mood"), true);
+});

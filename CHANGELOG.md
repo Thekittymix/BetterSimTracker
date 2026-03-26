@@ -1,3 +1,7 @@
+## [2.2.4.16-exp162] - 2026-03-26
+### Fixed
+- Experimental dynamic narrative entities now ignore per-owner BST defaults across the remaining runtime read paths too, so `trackerEnabled`, `statEnabled`, mood-source overrides, and other owner-default reads stay scoped to real ST owners instead of leaking back onto `narrative-entity` cards by matching name alone.
+
 ## [2.2.4.16-exp161] - 2026-03-26
 ### Fixed
 - Experimental dynamic-entity bootstrap/default seeding is now entity-aware, so fresh `narrative-entity` IDs seed from the generic narrative path instead of inheriting SillyTavern character defaults just because an owner label or source-card alias happens to overlap.

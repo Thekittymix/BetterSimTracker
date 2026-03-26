@@ -13,7 +13,11 @@ export function shouldUseConfiguredOwnerDefaults(
   context: STContext | null,
   ownerName: string,
   entityId?: string | null,
+  entityKind?: string | null,
 ): boolean {
+  if (normalizeToken(entityKind).toLowerCase() === "narrative-entity") {
+    return false;
+  }
   const normalizedEntityId = normalizeToken(entityId);
   if (normalizedEntityId && isNarrativeRuntimeEntityId(normalizedEntityId)) {
     return false;

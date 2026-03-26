@@ -1,6 +1,7 @@
 import { DEFAULT_INJECTION_PROMPT_TEMPLATE } from "./prompts";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
+import { shouldUseConfiguredOwnerDefaults } from "./entitySeedPolicy";
 import {
   listTrackerDataLookupNamesForOwnerWithEntityFallback,
   resolveTrackerMessageOwners,
@@ -127,6 +128,10 @@ function isOwnerStatEnabled(
       : null;
     if (!statEnabledRaw) return true;
     return statEnabledRaw[id] !== false;
+  }
+
+  if (!shouldUseConfiguredOwnerDefaults(context, ownerName)) {
+    return true;
   }
 
   const contextCharacters = Array.isArray(context.characters) ? context.characters : [];

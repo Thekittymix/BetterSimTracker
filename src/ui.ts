@@ -1,5 +1,6 @@
 import { CUSTOM_STAT_ID_REGEX, GLOBAL_TRACKER_KEY, MAX_CUSTOM_STATS, RESERVED_CUSTOM_STAT_IDS, STYLE_ID, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
+import { shouldUseConfiguredOwnerDefaults } from "./entitySeedPolicy";
 import { generateJson } from "./generator";
 import { logDebug } from "./settings";
 import type {
@@ -1352,8 +1353,16 @@ function normalizeMoodSource(raw: unknown): MoodSource {
   return raw === "st_expressions" ? "st_expressions" : "bst_images";
 }
 
-export function getResolvedMoodSource(settings: BetterSimTrackerSettings, characterName: string, characterAvatar?: string): MoodSource {
+export function getResolvedMoodSource(
+  settings: BetterSimTrackerSettings,
+  characterName: string,
+  characterAvatar?: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
+): MoodSource {
   const fallback = normalizeMoodSource(settings.moodSource);
+  if (!shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)) {
+    return fallback;
+  }
   const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
   if (!Object.keys(entry).length) return fallback;
   const override = normalizeMoodSource(entry.moodSource);
@@ -1361,7 +1370,15 @@ export function getResolvedMoodSource(settings: BetterSimTrackerSettings, charac
   return fallback;
 }
 
-function getResolvedCardColor(settings: BetterSimTrackerSettings, characterName: string, characterAvatar?: string): string | null {
+function getResolvedCardColor(
+  settings: BetterSimTrackerSettings,
+  characterName: string,
+  characterAvatar?: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
+): string | null {
+  if (!shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)) {
+    return null;
+  }
   const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
   if (!entry || typeof entry !== "object") return null;
   return normalizeHexColor((entry as Record<string, unknown>).cardColor);
@@ -1658,8 +1675,12 @@ function getResolvedStExpressionImageOptions(
   settings: BetterSimTrackerSettings,
   characterName: string,
   characterAvatar?: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
 ): StExpressionImageOptions {
   const globalOptions = getGlobalStExpressionImageOptions(settings);
+  if (!shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)) {
+    return globalOptions;
+  }
   const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
   const override = entry?.stExpressionImageOptions;
   if (!override || typeof override !== "object") return globalOptions;
@@ -1746,8 +1767,11 @@ function getMappedExpressionLabel(
   characterName: string,
   moodLabel: MoodLabel,
   characterAvatar?: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
 ): string {
-  const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
+  const entry = shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)
+    ? resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar })
+    : {};
   const rawCharacterMap = entry?.moodExpressionMap as Record<string, unknown> | undefined;
   const readMappedValue = (map: Record<string, unknown> | undefined): string => {
     if (!map) return "";
@@ -1773,11 +1797,14 @@ function getMoodImageUrl(
   characterName: string,
   moodRaw: string,
   characterAvatar: string | undefined,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
   onRerender?: () => void,
 ): string | null {
-  const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
+  const entry = shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)
+    ? resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar })
+    : {};
   const normalizedMood = (normalizeMoodLabel(moodRaw) ?? "Neutral") as MoodLabel;
-  const source = getResolvedMoodSource(settings, characterName, characterAvatar);
+  const source = getResolvedMoodSource(settings, characterName, characterAvatar, registryEntry);
 
   if (source === "bst_images") {
     const moodImages = entry?.moodImages as Record<string, string> | undefined;
@@ -1785,7 +1812,7 @@ function getMoodImageUrl(
     return typeof url === "string" && url.trim() ? url.trim() : null;
   }
 
-  const expression = getMappedExpressionLabel(settings, characterName, normalizedMood, characterAvatar);
+  const expression = getMappedExpressionLabel(settings, characterName, normalizedMood, characterAvatar, registryEntry);
   const cachedUrl = getCachedExpressionSpriteUrl(characterName, expression);
   if (cachedUrl) return cachedUrl;
   if (isExpressionCacheStale(characterName)) {
@@ -5683,11 +5710,13 @@ export function renderTracker(
       const canEdit = isUserCard
         ? (latestTrackedUserMessageIndex != null && entry.messageIndex === latestTrackedUserMessageIndex)
         : (latestTrackedAiMessageIndex != null && entry.messageIndex === latestTrackedAiMessageIndex);
-      const moodSource = moodText ? getResolvedMoodSource(settings, moodLookupName, characterAvatar) : "bst_images";
+      const moodSource = moodText ? getResolvedMoodSource(settings, moodLookupName, characterAvatar, registryEntry) : "bst_images";
       const stExpressionImageOptions = moodSource === "st_expressions"
-        ? getResolvedStExpressionImageOptions(settings, moodLookupName, characterAvatar)
+        ? getResolvedStExpressionImageOptions(settings, moodLookupName, characterAvatar, registryEntry)
         : null;
-      const moodImage = moodText ? getMoodImageUrl(settings, moodLookupName, moodText, characterAvatar, onRequestRerender) : null;
+      const moodImage = moodText
+        ? getMoodImageUrl(settings, moodLookupName, moodText, characterAvatar, registryEntry, onRequestRerender)
+        : null;
       const lastThoughtText = settings.showLastThought
         ? getEffectiveLastThoughtText(name, registryEntry)
         : "";
@@ -5710,7 +5739,7 @@ export function renderTracker(
       }).filter(Boolean).join("");
       const showCollapsedMood = moodText !== "";
       const cardColor = (isUserCard ? normalizeHexColor(settings.userCardColor) : null)
-        ?? getResolvedCardColor(settings, moodLookupName, characterAvatar)
+        ?? getResolvedCardColor(settings, moodLookupName, characterAvatar, registryEntry)
         ?? palette[name]
         ?? getStableAutoCardColor(name);
       const isNew = !renderedCardKeys.has(cardKey);

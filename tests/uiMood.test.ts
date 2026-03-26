@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { USER_TRACKER_KEY } from "../src/constants";
-import { isBuiltInTextStatVisibleForOwner, resolveMoodSymbol, resolveMoodSymbolBoxStyleVars } from "../src/ui";
+import { defaultSettings } from "../src/settings";
+import { getResolvedMoodSource, isBuiltInTextStatVisibleForOwner, resolveMoodSymbol, resolveMoodSymbolBoxStyleVars } from "../src/ui";
 
 test("resolveMoodSymbol uses configured custom symbols before default emoji", () => {
   assert.equal(resolveMoodSymbol("Happy", { Happy: "(≧▽≦)" }), "(≧▽≦)");
@@ -26,6 +27,28 @@ test("resolveMoodSymbolBoxStyleVars maps display settings to css variables", () 
     "--bst-mood-symbol-radius": "17px",
     "--bst-mood-symbol-font-size": "24px",
   });
+});
+
+test("getResolvedMoodSource ignores per-owner overrides for narrative entities", () => {
+  const settings = {
+    ...defaultSettings,
+    moodSource: "bst_images" as const,
+    characterDefaults: {
+      "Forest Spirit": {
+        moodSource: "st_expressions" as const,
+      },
+    },
+  };
+
+  assert.equal(
+    getResolvedMoodSource(
+      settings,
+      "Forest Spirit",
+      undefined,
+      { id: "bst_narrative:forest-spirit", kind: "narrative-entity" },
+    ),
+    "bst_images",
+  );
 });
 
 test("isBuiltInTextStatVisibleForOwner hides character mood when global char mood tracking is off", () => {
