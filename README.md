@@ -14,7 +14,7 @@ It tracks character relationship stats over time, stores them per AI message, vi
 - Lorebook extraction prefers already-activated ST lorebook context, with an optional internal fallback scan toggle.
 - Current ST builds use the modern macro engine path, reducing BST macro warning noise while keeping prompt macros working.
 - The settings modal is split into clearer sections (`Setup`, `Extraction`, `Context Sources`, `User Tracking`, `Prompt Injection`, `Tracking Schema`, `Display`, `Prompts`, `Diagnostics`) with cleaner subdrawer grouping.
-- Experimental builds expose `Entity Tracking Mode` with `Multi-Character` and opt-in `Dynamic Entities` options, keeping scene continuity separate from current-message speaker ownership while letting dynamic mode create conservative runtime-owned narrative entities without reusing ST character defaults or owner-specific runtime overrides as their source of truth.
+- Experimental builds expose `Entity Tracking Mode` with `Dynamic Characters`, keeping scene continuity separate from current-message speaker ownership while allowing conservative runtime-owned narrative entities without reusing ST character defaults or owner-specific runtime overrides as their source of truth.
 - Character/persona defaults, mood-image integrations (BST + ST expressions), graphing, and diagnostics are built-in.
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dogzera)

@@ -9,7 +9,7 @@ test("buildPersistedTrackerSnapshot persists entity-scoped buckets for resolved 
     timestamp: 123,
     activeCharacters: ["Blake"],
     activeEntityIds: ["bst_mc_alias:test:blake"],
-    entityTrackingMode: "multi_character",
+    entityTrackingMode: "dynamic_characters",
     resolvedEntities: [
       {
         entityId: "bst_mc_alias:test:blake",
@@ -57,7 +57,7 @@ test("buildPersistedTrackerSnapshot lets explicit target mapping override mismat
     explicitTargetToEntity: {
       __bst_user__: "bst_owner:__bst_user__",
     },
-    entityTrackingMode: "multi_character",
+    entityTrackingMode: "dynamic_characters",
     resolvedEntities: [
       {
         entityId: "bst_mc_alias:test:blake",

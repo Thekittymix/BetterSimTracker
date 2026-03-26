@@ -799,7 +799,7 @@ test("buildPrompt keeps built-in owner stats scoped to the current entity id ins
 
 test("buildPrompt prefers the current narrative entity id over colliding owner defaults", () => {
   const settings = makeSettings({
-    entityTrackingMode: "dynamic_entities",
+    entityTrackingMode: "dynamic_characters",
     trackMood: true,
     characterDefaults: {
       "avatar:blake.png": {

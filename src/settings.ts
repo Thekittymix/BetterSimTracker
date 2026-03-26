@@ -31,6 +31,7 @@ import type {
   StExpressionImageOptions,
   STContext,
 } from "./types";
+import { normalizeEntityTrackingMode } from "./entityResolution";
 import { normalizeDateTimeValue } from "./dateTime";
 import {
   MAX_CUSTOM_ARRAY_ITEMS,
@@ -644,11 +645,7 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
       : [...defaultSettings.characterCardStatOrder],
     autoDetectActive: asBool(input.autoDetectActive, defaultSettings.autoDetectActive),
     autoGenerateTracker: asBool(input.autoGenerateTracker, defaultSettings.autoGenerateTracker),
-    entityTrackingMode: input.entityTrackingMode === "dynamic_entities"
-      ? "dynamic_entities"
-      : input.entityTrackingMode === "multi_character"
-        ? "multi_character"
-        : defaultSettings.entityTrackingMode,
+    entityTrackingMode: normalizeEntityTrackingMode(input.entityTrackingMode),
     regenerateOnMessageEdit: asBool(input.regenerateOnMessageEdit, defaultSettings.regenerateOnMessageEdit),
     generateOnGreetingMessages: asBool(input.generateOnGreetingMessages, defaultSettings.generateOnGreetingMessages),
     activityLookback: clampInt(input.activityLookback, defaultSettings.activityLookback, 1, 25),

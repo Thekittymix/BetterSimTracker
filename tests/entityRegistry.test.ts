@@ -96,7 +96,7 @@ test("syncEntityRegistryFromRender stores multi-character alias lifecycle in cha
   const context = makeContext();
   const changed = syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
@@ -162,14 +162,14 @@ test("syncEntityRegistryFromRender marks archived aliases without deleting them"
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley"],
     getLifecycleState: () => "archived",
@@ -191,21 +191,21 @@ test("syncEntityRegistryFromRender preserves latest metadata while backfilling h
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley"],
     getLifecycleState: () => "inactive",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 3,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
@@ -289,7 +289,7 @@ test("syncEntityRegistryFromRender keeps same-name registry entries distinct whe
 
   const changed = syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     targets: [
       {
@@ -324,21 +324,21 @@ test("getEntityRegistryLifecycleStateForMessage resolves last active message fro
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley"],
     getLifecycleState: () => "inactive",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 3,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
@@ -368,7 +368,7 @@ test("entity registry resolves owner names to stable entity ids and back", () =>
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -389,7 +389,7 @@ test("listTrackerDataLookupNamesForEntityIds resolves tracker lookup aliases fro
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
@@ -419,7 +419,7 @@ test("listTrackerDataLookupNamesForOwnerWithEntityFallback merges owner and pers
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
@@ -455,7 +455,7 @@ test("resolveTrackerSceneOwners prefers scene entity ids over stale owner-name a
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -531,7 +531,7 @@ test("resolveTrackerMessageOwners prefers message entity ids over stale message 
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -638,7 +638,7 @@ test("buildLifecycleHistorySnapshotsFromTrackerEntries uses scene continuity for
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -762,21 +762,21 @@ test("entity registry reactivation restores archived aliases for later messages 
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley"],
     getLifecycleState: () => "archived",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 22,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
@@ -804,14 +804,14 @@ test("listEntityRegistryOwnersForMessage returns visible owners for a given mess
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
@@ -835,7 +835,7 @@ test("getEntityRegistryEntryByOwnerName is case-insensitive and resolves canonic
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley"],
     getLifecycleState: () => "active",
@@ -1265,7 +1265,7 @@ test("buildTrackerDataEntityOwnerMap captures registry-backed alias owners prese
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
@@ -1298,7 +1298,7 @@ test("buildTrackerDataEntityOwnerMap prefers resolver scene/message owners over 
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
@@ -1334,7 +1334,7 @@ test("buildTrackerDataEntityOwnerMap ignores stale activeCharacters when resolve
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake", "Garret"],
     getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
@@ -1370,7 +1370,7 @@ test("buildTrackerDataEntityOwnerMap prefers resolver scene entity ids over stal
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Blake", "Ashley"],
     getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
@@ -1408,7 +1408,7 @@ test("buildTrackerDataEntityOwnerMap prefers resolver message entity ids over st
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Blake", "Ashley"],
     getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
@@ -1446,14 +1446,14 @@ test("buildTrackerDataEntityOwnerMap ignores raw stat owner keys once resolver/e
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Billie"],
     getLifecycleState: () => "inactive",
@@ -1493,7 +1493,7 @@ test("listEntityRegistryEntriesForMessage returns visible entities in introducti
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Blake", "Ashley"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
@@ -1508,14 +1508,14 @@ test("getEntityRegistryEntryForMessage hides pre-introduction and archived entri
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
@@ -1531,14 +1531,14 @@ test("getEntityRegistryEntryByEntityIdForMessage resolves visible windows withou
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
@@ -1567,14 +1567,14 @@ test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",
@@ -1598,14 +1598,14 @@ test("getEntityRegistryLifecycleStateForEntityIdForMessage clamps lifecycle with
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 8,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
   });
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 15,
     owners: ["Ashley", "Blake"],
     getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "archived",

@@ -44,7 +44,7 @@ test("built-in and custom progress label formatters are stable", () => {
 
 test("progress wrappers keep consistent prefixes", () => {
   assert.equal(buildProgressResolveActive("standard"), "Resolving active characters");
-  assert.equal(buildProgressResolveActive("multi_character"), "Resolving multi-character aliases");
+  assert.equal(buildProgressResolveActive("dynamic_characters"), "Resolving dynamic characters");
   assert.equal(buildProgressBaseline(), "Building extraction baseline");
   assert.equal(buildProgressRequest("Custom: Clothes"), "Requesting Custom: Clothes");
   assert.equal(buildProgressParse("Custom: Clothes"), "Parsing Custom: Clothes");

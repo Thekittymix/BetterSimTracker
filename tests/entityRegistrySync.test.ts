@@ -40,7 +40,7 @@ function makeContext(): STContext {
 
 function makeSettings(): BetterSimTrackerSettings {
   return {
-    entityTrackingMode: "multi_character",
+    entityTrackingMode: "dynamic_characters",
     showInactive: true,
     autoArchiveInactiveCards: true,
     archiveInactiveAfterTurns: 3,
@@ -71,7 +71,7 @@ test("syncEntityRegistryFromTrackerData prefers explicit resolver scene owners o
   writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -110,7 +110,7 @@ test("syncEntityRegistryFromTrackerData prefers resolver scene entity ids over s
   writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -149,7 +149,7 @@ test("syncEntityRegistryFromTrackerData preserves registry continuity for inacti
   writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -183,7 +183,7 @@ test("syncEntityRegistryFromTrackerData does not depend on showInactive to keep 
   writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -230,7 +230,7 @@ test("syncEntityRegistryFromTrackerData updates multi-character lifecycle on use
   writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -283,7 +283,7 @@ test("syncEntityRegistryFromTrackerData keeps full scene continuity active when 
   writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake", "Garret", "Raleigh"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Ashley", "Blake", "Garret", "Raleigh"],
     getLifecycleState: () => "active",
@@ -337,7 +337,7 @@ test("syncEntityRegistryFromTrackerData backfills inactive continuity for aliase
   writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake", "Garret", "Raleigh"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Ashley", "Blake", "Garret", "Raleigh"],
     getLifecycleState: () => "active",
@@ -346,7 +346,7 @@ test("syncEntityRegistryFromTrackerData backfills inactive continuity for aliase
   writeTrackerDataToMessage(context, makeTrackerData(["Blake"]), 2);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 2,
     owners: ["Ashley", "Blake", "Garret", "Raleigh"],
     getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",
@@ -423,7 +423,7 @@ test("syncEntityRegistryFromTrackerData archives inactive aliases on no-active c
   writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Ashley", "Blake"],
     getLifecycleState: () => "active",
@@ -474,7 +474,7 @@ test("syncEntityRegistryFromTrackerData keeps scene entities active on user turn
   writeTrackerDataToMessage(context, makeTrackerData(["Blake"]), 0);
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     messageIndex: 0,
     owners: ["Blake"],
     getLifecycleState: () => "active",
@@ -563,7 +563,7 @@ test("syncEntityRegistryFromTrackerData persists narrative entities in dynamic e
   context.chat[1].mes = "The forest spirit watches Blake from the trees.";
   const settings = {
     ...makeSettings(),
-    entityTrackingMode: "dynamic_entities",
+    entityTrackingMode: "dynamic_characters",
   } as BetterSimTrackerSettings;
   const current = {
     ...makeTrackerData(["Forest Spirit"]),

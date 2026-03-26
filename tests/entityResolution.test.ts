@@ -46,7 +46,7 @@ test("resolveCharacterIdentity maps alias names back to the source card in multi
     ],
   } as any;
 
-  const alias = resolveCharacterIdentity(context, "Ashley", "multi_character");
+  const alias = resolveCharacterIdentity(context, "Ashley", "dynamic_characters");
   assert.deepEqual(alias, {
     sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
     sourceAvatar: "camp.png",
@@ -54,7 +54,7 @@ test("resolveCharacterIdentity maps alias names back to the source card in multi
     matchedBy: "alias",
   });
 
-  const source = resolveCharacterIdentity(context, "Billie", "multi_character");
+  const source = resolveCharacterIdentity(context, "Billie", "dynamic_characters");
   assert.deepEqual(source, {
     sourceName: "Billie",
     sourceAvatar: "billie.png",
@@ -71,7 +71,7 @@ test("resolveCharacterFromContext returns the source character entry for a resol
   };
   const context = { characters: [camp] } as any;
 
-  assert.equal(resolveCharacterFromContext(context, "Raleigh", "multi_character"), camp);
+  assert.equal(resolveCharacterFromContext(context, "Raleigh", "dynamic_characters"), camp);
   assert.equal(resolveCharacterFromContext(context, "Raleigh", "standard"), null);
 });
 
@@ -83,8 +83,8 @@ test("isAliasResolvedOwner is true only for aliases in multi-character mode", ()
     ],
   } as any;
 
-  assert.equal(isAliasResolvedOwner(context, "Ashley", { entityTrackingMode: "multi_character" }), true);
-  assert.equal(isAliasResolvedOwner(context, "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", { entityTrackingMode: "multi_character" }), false);
+  assert.equal(isAliasResolvedOwner(context, "Ashley", { entityTrackingMode: "dynamic_characters" }), true);
+  assert.equal(isAliasResolvedOwner(context, "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", { entityTrackingMode: "dynamic_characters" }), false);
   assert.equal(isAliasResolvedOwner(context, "Ashley", { entityTrackingMode: "standard" }), false);
 });
 
@@ -101,7 +101,7 @@ test("collectResolvedCharacterNames includes aliases only in multi-character mod
     ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "Billie"],
   );
   assert.deepEqual(
-    collectResolvedCharacterNames(context, { entityTrackingMode: "multi_character" }),
+    collectResolvedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
     [
       "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       "Ashley",
@@ -129,7 +129,7 @@ test("resolveMessageScopedActiveCharacters expands a multi-character source owne
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(resolved, ["Ashley", "Blake", "Garret", "Raleigh", "Billie"]);
@@ -150,7 +150,7 @@ test("resolveMessageScopedActiveCharacters keeps multi-character source owners e
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(resolved, ["Ashley", "Blake", "Garret", "Raleigh"]);
@@ -172,7 +172,7 @@ test("resolveMessageScopedParticipants narrows a multi-character speaker to the 
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(resolved, ["Ashley", "Blake"]);
@@ -194,7 +194,7 @@ test("resolveMessageScopedParticipants keeps a non-multi speaker even if the mes
       name: "Billie",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(resolved, ["Billie"]);
@@ -216,7 +216,7 @@ test("resolveEntityResolverCandidateOwners strips a technical multi-character so
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(resolved, ["Ashley", "Blake", "Garret", "Raleigh", "Billie"]);
@@ -237,7 +237,7 @@ test("resolveExtractionOwnerScopes keeps scene-active aliases broader than reque
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
@@ -272,7 +272,7 @@ test("resolveExtractionOwnerScopes narrows scene-active aliases when a recent us
     context,
     ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
     context.chat[2],
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley"]);
@@ -302,7 +302,7 @@ test("resolveUserExtractionOwnerScopes keeps non-user scene continuity while pin
     context,
     detectedActiveCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
     message: context.chat[1],
-    settings: { entityTrackingMode: "multi_character" } as any,
+    settings: { entityTrackingMode: "dynamic_characters" } as any,
     resolvedSceneActiveCharacters: null,
   });
 
@@ -326,7 +326,7 @@ test("resolvePersistedActiveOwners can retain User for user-side tracker targets
 test("constrainFallbackOwnerScopesToPreviousUserScene keeps fallback AI scopes inside the latest user-declared scene", () => {
   const constrained = constrainFallbackOwnerScopesToPreviousUserScene({
     userExtraction: false,
-    settings: { entityTrackingMode: "multi_character" } as any,
+    settings: { entityTrackingMode: "dynamic_characters" } as any,
     previousMessage: {
       is_user: true,
       name: "Kuba",
@@ -352,7 +352,7 @@ test("constrainFallbackOwnerScopesToPreviousUserScene keeps fallback AI scopes i
 test("constrainFallbackOwnerScopesToPreviousUserScene can preserve an explicitly empty scene", () => {
   const constrained = constrainFallbackOwnerScopesToPreviousUserScene({
     userExtraction: false,
-    settings: { entityTrackingMode: "multi_character" } as any,
+    settings: { entityTrackingMode: "dynamic_characters" } as any,
     previousMessage: {
       is_user: true,
       name: "Kuba",
@@ -378,7 +378,7 @@ test("constrainFallbackOwnerScopesToPreviousUserScene can preserve an explicitly
 test("constrainResolvedOwnerScopesToPreviousUserScene keeps no-speaker AI scopes inside the latest user-declared scene", () => {
   const constrained = constrainResolvedOwnerScopesToPreviousUserScene({
     userExtraction: false,
-    settings: { entityTrackingMode: "multi_character" } as any,
+    settings: { entityTrackingMode: "dynamic_characters" } as any,
     previousMessage: {
       is_user: true,
       name: "Kuba",
@@ -404,7 +404,7 @@ test("constrainResolvedOwnerScopesToPreviousUserScene keeps no-speaker AI scopes
 test("constrainResolvedOwnerScopesToPreviousUserScene does not clamp replies that still have explicit participants", () => {
   const constrained = constrainResolvedOwnerScopesToPreviousUserScene({
     userExtraction: false,
-    settings: { entityTrackingMode: "multi_character" } as any,
+    settings: { entityTrackingMode: "dynamic_characters" } as any,
     previousMessage: {
       is_user: true,
       name: "Kuba",
@@ -619,7 +619,7 @@ test("resolveExtractionOwnerScopes narrows scene activity to a single remaining 
     context,
     ["Ashley", "Blake", "Garret", "Raleigh"],
     context.chat[2],
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(result.requestCharacters, ["Blake"]);
@@ -664,7 +664,7 @@ test("projectTrackerDataToMessageScopedOwners remaps source-card tracker payload
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(projected.activeCharacters, ["Ashley"]);
@@ -732,7 +732,7 @@ test("projectTrackerDataToMessageScopedOwners remaps technical resolved entity l
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(projected.activeCharacters, ["Ashley"]);
@@ -781,7 +781,7 @@ test("projectTrackerDataToMessageScopedOwners can leave owner-scoped non-numeric
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "multi_character" },
+    { entityTrackingMode: "dynamic_characters" },
     { projectOwnerScopedCustomNonNumeric: false },
   );
 
@@ -844,7 +844,7 @@ test("projectTrackerDataToMessageScopedOwners preserves narrative entity ids whe
       name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       is_user: false,
     } as any,
-    { entityTrackingMode: "dynamic_entities" },
+    { entityTrackingMode: "dynamic_characters" },
   );
 
   assert.deepEqual(projected.entityResolution, buildEntityResolution({
@@ -1027,7 +1027,7 @@ test("resolveEntityResolverCandidateOwners keeps archived narrative entities ava
       context,
       ["Ashley", "Blake", "Garret", "Raleigh"],
       context.chat[22],
-      { entityTrackingMode: "dynamic_entities" },
+      { entityTrackingMode: "dynamic_characters" },
       {
         previousTrackerData: {
           timestamp: 1,
@@ -1112,7 +1112,7 @@ test("resolveEntityResolverCandidateOwners can widen a user-turn candidate set w
       context,
       ["Ashley", "Blake", "Garret", "Raleigh"],
       context.chat[0],
-      { entityTrackingMode: "multi_character" },
+      { entityTrackingMode: "dynamic_characters" },
       {
         previousTrackerData: {
           timestamp: 1,
@@ -1171,7 +1171,7 @@ test("resolveEntityResolverCandidateOwners keeps ai-turn candidates scoped to th
       context,
       ["Ashley", "Blake", "Garret", "Raleigh", "spirit"],
       context.chat[0],
-      { entityTrackingMode: "dynamic_entities" },
+      { entityTrackingMode: "dynamic_characters" },
       {
         previousTrackerData: {
           timestamp: 1,
@@ -1244,7 +1244,7 @@ test("resolveEntityResolverCandidateOwners can widen an ai-turn candidate set wi
       context,
       ["Ashley", "Blake", "Garret", "Raleigh"],
       context.chat[0],
-      { entityTrackingMode: "multi_character" },
+      { entityTrackingMode: "dynamic_characters" },
       {
         previousTrackerData: {
           timestamp: 1,
@@ -1368,12 +1368,12 @@ test("resolveStableEntityIdForOwner can synthesize multi-character alias ids bef
   } as any;
 
   assert.equal(
-    resolveStableEntityIdForOwner(context, "Blake", "multi_character"),
+    resolveStableEntityIdForOwner(context, "Blake", "dynamic_characters"),
     "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
   );
 
   assert.equal(
-    resolveStableEntityIdForOwner(context, "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "multi_character"),
+    resolveStableEntityIdForOwner(context, "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "dynamic_characters"),
     "bst_owner:camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
   );
 });

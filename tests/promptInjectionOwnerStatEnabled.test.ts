@@ -52,7 +52,7 @@ test("isOwnerStatEnabled reads persona-scoped user statEnabled map", () => {
 
 test("isOwnerStatEnabled resolves alias owners against multi-character source card defaults", () => {
   const settings = baseSettings();
-  settings.entityTrackingMode = "multi_character";
+  settings.entityTrackingMode = "dynamic_characters";
   settings.characterDefaults = {
     "avatar:camp.png": {
       statEnabled: {
@@ -75,7 +75,7 @@ test("isOwnerStatEnabled resolves alias owners against multi-character source ca
 
 test("isOwnerStatEnabled ignores character defaults for registry-backed narrative entities", () => {
   const settings = baseSettings();
-  settings.entityTrackingMode = "dynamic_entities";
+  settings.entityTrackingMode = "dynamic_characters";
   settings.characterDefaults = {
     "Forest Spirit": {
       statEnabled: {
@@ -119,7 +119,7 @@ test("isOwnerStatEnabled ignores character defaults for registry-backed narrativ
 
 test("isOwnerStatEnabled prefers explicit narrative entity ids over colliding owner-name defaults", () => {
   const settings = baseSettings();
-  settings.entityTrackingMode = "dynamic_entities";
+  settings.entityTrackingMode = "dynamic_characters";
   settings.characterDefaults = {
     "avatar:blake.png": {
       statEnabled: {

@@ -62,7 +62,7 @@ test("buildTargetToEntityMap can synthesize multi-character alias ids without a 
   } as unknown as STContext;
 
   assert.deepEqual(
-    buildTargetToEntityMap(context, ["Blake"], undefined, "multi_character"),
+    buildTargetToEntityMap(context, ["Blake"], undefined, "dynamic_characters"),
     {
       Blake: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
     },

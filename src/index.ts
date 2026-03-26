@@ -3576,7 +3576,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             candidateEntities,
             contextText: resolverContextText,
             message: lastMessage,
-            allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_entities",
+            allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
           });
           const resolverResponse = await generateJson(resolverPrompt, activeSettings);
           const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);

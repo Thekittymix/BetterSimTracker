@@ -428,7 +428,7 @@ test("resolveLifecycleRegistryStateForOwnerInMessageData resolves entityOwnerMap
 
 test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
   const displayPool = buildDisplayPoolWithRegistry({
-    entityTrackingMode: "multi_character",
+    entityTrackingMode: "dynamic_characters",
     includeAllTargets: false,
     activeCharacters: ["Ashley"],
     dataCharacterNames: ["Ashley"],

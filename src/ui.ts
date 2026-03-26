@@ -930,7 +930,7 @@ export function buildDisplayPoolWithRegistry(input: {
   dataCharacterNames: string[];
   mergedWithRegistryOwners: string[];
 }): string[] {
-  const preferRegistryOwners = (input.entityTrackingMode === "multi_character" || input.entityTrackingMode === "dynamic_entities")
+  const preferRegistryOwners = input.entityTrackingMode === "dynamic_characters"
     && input.mergedWithRegistryOwners.length > 0;
   if (input.includeAllTargets) {
     return preferRegistryOwners
@@ -5668,7 +5668,7 @@ export function renderTracker(
       dataCharacterNames,
       mergedWithRegistryOwners: renderableRegistryTargets.map(target => target.ownerName),
     });
-    const preferRegistryTargets = (settings.entityTrackingMode === "multi_character" || settings.entityTrackingMode === "dynamic_entities")
+    const preferRegistryTargets = settings.entityTrackingMode === "dynamic_characters"
       && renderableRegistryTargets.length > 0;
     const displayPoolTargets = preferRegistryTargets
       ? renderableRegistryTargets

@@ -75,7 +75,7 @@ test("buildCharacterCardsContext includes source card context when an active ali
     ],
   } as any;
 
-  const rendered = buildCharacterCardsContext(context, ["Ashley"], [], "multi_character");
+  const rendered = buildCharacterCardsContext(context, ["Ashley"], [], "dynamic_characters");
   assert.match(rendered, /Camp Whispering Pines \| Ashley, Blake, Garret, & Raleigh/);
   assert.match(rendered, /Whispering Pines description\./);
   assert.doesNotMatch(rendered, /Billie card\./);
@@ -120,7 +120,7 @@ test("buildCharacterCardsContext can include multi-character source card context
     ],
   } as any;
 
-  const rendered = buildCharacterCardsContext(context, [], ["ent-ashley"], "multi_character");
+  const rendered = buildCharacterCardsContext(context, [], ["ent-ashley"], "dynamic_characters");
   assert.match(rendered, /Camp Whispering Pines \| Ashley, Blake, Garret, & Raleigh/);
   assert.match(rendered, /Whispering Pines description\./);
   assert.doesNotMatch(rendered, /Billie card\./);
@@ -165,7 +165,7 @@ test("buildCharacterCardsContext prefers explicit entity ids over stale raw acti
     ],
   } as any;
 
-  const rendered = buildCharacterCardsContext(context, ["Billie"], ["ent-ashley"], "multi_character");
+  const rendered = buildCharacterCardsContext(context, ["Billie"], ["ent-ashley"], "dynamic_characters");
   assert.match(rendered, /Camp Whispering Pines \| Ashley, Blake, Garret, & Raleigh/);
   assert.match(rendered, /Whispering Pines description\./);
   assert.doesNotMatch(rendered, /Billie card\./);

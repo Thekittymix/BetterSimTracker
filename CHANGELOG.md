@@ -1,3 +1,7 @@
+## [2.2.4.16-exp182] - 2026-03-26
+### Changed
+- Experimental entity tracking settings now expose one `Dynamic Characters` mode instead of separate `Multi-Character` and `Dynamic Entities` options, while keeping the same dynamic-character resolver and lifecycle flow under the single mode.
+
 ## [2.2.4.16-exp181] - 2026-03-26
 ### Fixed
 - Experimental resolver candidate scoping now applies the same scene-first narrowing to AI turns once a prior tracked scene exists, so follow-up replies no longer revive the whole source-card alias roster after a correctly narrowed mixed-scene user turn unless the reply itself explicitly brings another owner back into scope.

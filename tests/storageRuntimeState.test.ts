@@ -1421,7 +1421,7 @@ test("buildMergedPromptMacroData prefers resolver-backed activeCharacters even w
   } as STContext;
   syncEntityRegistryFromRender({
     context,
-    mode: "multi_character",
+    mode: "dynamic_characters",
     owners: ["Ashley", "Blake"],
     messageIndex: 2,
     getLifecycleState: ownerName => ownerName === "Blake" ? "active" : "inactive",

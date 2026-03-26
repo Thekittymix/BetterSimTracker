@@ -106,7 +106,7 @@ test("getAllTrackedCharacterNames expands multi-character source cards into alia
   } as unknown as STContext;
 
   assert.deepEqual(
-    getAllTrackedCharacterNames(context, { entityTrackingMode: "multi_character" }),
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
     [
       "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       "Ashley",
@@ -158,7 +158,7 @@ test("getAllTrackedCharacterNames includes visible registry-backed narrative ent
   } as unknown as STContext;
 
   assert.deepEqual(
-    getAllTrackedCharacterNames(context, { entityTrackingMode: "multi_character" }),
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
     [
       "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       "Ashley",
@@ -210,7 +210,7 @@ test("getAllTrackedCharacterNames includes registry-backed narrative entities in
   } as unknown as STContext;
 
   assert.deepEqual(
-    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_entities" }),
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
     [
       "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
       "Ashley",
@@ -240,7 +240,7 @@ test("activity analysis keeps the full alias pool active for a multi-character s
     ...defaultSettings,
     autoDetectActive: true,
     activityLookback: 5,
-    entityTrackingMode: "multi_character",
+    entityTrackingMode: "dynamic_characters",
   });
 
   assert.deepEqual(result.activeCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
@@ -257,7 +257,7 @@ test("manual inactive alias override clears when a later source-card reply expli
     ],
     extensionSettings: {
       bettersimtracker: {
-        entityTrackingMode: "multi_character",
+        entityTrackingMode: "dynamic_characters",
       },
     },
     chatMetadata: {},
@@ -278,7 +278,7 @@ test("manual inactive alias override clears when a later source-card reply expli
     ...defaultSettings,
     autoDetectActive: true,
     activityLookback: 5,
-    entityTrackingMode: "multi_character",
+    entityTrackingMode: "dynamic_characters",
   });
 
   assert.deepEqual(result.manualInactiveCharacters, []);

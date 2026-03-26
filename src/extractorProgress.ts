@@ -17,9 +17,9 @@ export function buildProgressRequest(label: string): string {
   return `Requesting ${label}`;
 }
 
-export function buildProgressResolveActive(mode: "standard" | "multi_character" | "dynamic_entities" = "standard"): string {
-  return mode === "multi_character" || mode === "dynamic_entities"
-    ? "Resolving multi-character aliases"
+export function buildProgressResolveActive(mode: "standard" | "dynamic_characters" = "standard"): string {
+  return mode === "dynamic_characters"
+    ? "Resolving dynamic characters"
     : "Resolving active characters";
 }
 

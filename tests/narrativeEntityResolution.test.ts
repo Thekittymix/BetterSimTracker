@@ -18,10 +18,10 @@ function makeContext(): STContext {
   };
 }
 
-test("materializeNarrativeEntityCreations stays inert outside dynamic entity mode", () => {
+test("materializeNarrativeEntityCreations stays inert in standard mode", () => {
   const result = materializeNarrativeEntityCreations({
     context: makeContext(),
-    settings: { entityTrackingMode: "multi_character" },
+    settings: { entityTrackingMode: "standard" },
     candidateEntities: [],
     resolvedEntities: [],
     createdEntities: [
@@ -36,10 +36,10 @@ test("materializeNarrativeEntityCreations stays inert outside dynamic entity mod
   });
 });
 
-test("materializeNarrativeEntityCreations creates runtime-owned narrative ids in dynamic mode", () => {
+test("materializeNarrativeEntityCreations creates runtime-owned narrative ids in dynamic characters mode", () => {
   const result = materializeNarrativeEntityCreations({
     context: makeContext(),
-    settings: { entityTrackingMode: "dynamic_entities" },
+    settings: { entityTrackingMode: "dynamic_characters" },
     candidateEntities: [],
     resolvedEntities: [],
     createdEntities: [
@@ -68,7 +68,7 @@ test("materializeNarrativeEntityCreations creates runtime-owned narrative ids in
 test("materializeNarrativeEntityCreations reuses exact candidates before creating new entities", () => {
   const result = materializeNarrativeEntityCreations({
     context: makeContext(),
-    settings: { entityTrackingMode: "dynamic_entities" },
+    settings: { entityTrackingMode: "dynamic_characters" },
     candidateEntities: [
       {
         entityRef: "ent1",
@@ -105,7 +105,7 @@ test("materializeNarrativeEntityCreations reuses exact candidates before creatin
 test("materializeNarrativeEntityCreations reuses candidates when created names only differ by a leading article", () => {
   const result = materializeNarrativeEntityCreations({
     context: makeContext(),
-    settings: { entityTrackingMode: "dynamic_entities" },
+    settings: { entityTrackingMode: "dynamic_characters" },
     candidateEntities: [
       {
         entityRef: "ent1",
@@ -174,7 +174,7 @@ test("materializeNarrativeEntityCreations reuses archived narrative registry ent
 
   const result = materializeNarrativeEntityCreations({
     context,
-    settings: { entityTrackingMode: "dynamic_entities" },
+    settings: { entityTrackingMode: "dynamic_characters" },
     candidateEntities: [],
     resolvedEntities: [],
     createdEntities: [
@@ -235,7 +235,7 @@ test("materializeNarrativeEntityCreations reuses archived narrative registry ent
 
   const result = materializeNarrativeEntityCreations({
     context,
-    settings: { entityTrackingMode: "dynamic_entities" },
+    settings: { entityTrackingMode: "dynamic_characters" },
     candidateEntities: [],
     resolvedEntities: [],
     createdEntities: [
@@ -264,7 +264,7 @@ test("materializeNarrativeEntityCreations reuses archived narrative registry ent
 test("materializeNarrativeEntityCreations keeps ambiguous exact alias collisions unresolved instead of reusing the first candidate", () => {
   const result = materializeNarrativeEntityCreations({
     context: makeContext(),
-    settings: { entityTrackingMode: "dynamic_entities" },
+    settings: { entityTrackingMode: "dynamic_characters" },
     candidateEntities: [
       {
         entityRef: "ent1",

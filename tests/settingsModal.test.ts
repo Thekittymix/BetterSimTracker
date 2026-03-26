@@ -68,15 +68,15 @@ test("settings modal exposes multi-character archive lifecycle controls in Extra
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /Auto-Archive Inactive/);
   assert.match(source, /Archive After Turns/);
-  assert.match(source, /Multi-Character Lifecycle/);
-  assert.match(source, /entityTrackingMode === "multi_character"/);
+  assert.match(source, /Dynamic Character Lifecycle/);
+  assert.match(source, /entityTrackingMode === "dynamic_characters"/);
   assert.doesNotMatch(source, /Show Archived/);
 });
 
 test("settings modal exposes entity tracking mode control in Extraction", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /Entity Tracking Mode/);
-  assert.match(source, /Multi-Character \(Experimental\)/);
+  assert.match(source, /Dynamic Characters \(Experimental\)/);
 });
 
 test("settings modal exposes live preview for non-dynamic injection placeholders", () => {

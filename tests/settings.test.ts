@@ -168,12 +168,17 @@ test("loadSettings keeps enabled true when context is partial but accepts explic
   assert.equal(explicitLoaded.fontSize, 16);
 });
 
-test("sanitizeSettings preserves multi-character entity tracking mode", () => {
+test("sanitizeSettings normalizes dynamic character entity tracking mode", () => {
   const sanitized = sanitizeSettings({
-    entityTrackingMode: "multi_character",
+    entityTrackingMode: "dynamic_characters",
   });
 
-  assert.equal(sanitized.entityTrackingMode, "multi_character");
+  assert.equal(sanitized.entityTrackingMode, "dynamic_characters");
+});
+
+test("sanitizeSettings migrates legacy experimental entity tracking modes to dynamic characters", () => {
+  assert.equal(sanitizeSettings({ entityTrackingMode: "multi_character" as never }).entityTrackingMode, "dynamic_characters");
+  assert.equal(sanitizeSettings({ entityTrackingMode: "dynamic_entities" as never }).entityTrackingMode, "dynamic_characters");
 });
 
 test("loadSettings accepts local enabled fallback only when context has no BST settings at all", () => {

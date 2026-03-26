@@ -21,7 +21,7 @@ import {
   resolveTrackerSceneOwners,
 } from "./entityRegistry";
 
-export type EntityTrackingMode = "standard" | "multi_character" | "dynamic_entities";
+export type EntityTrackingMode = "standard" | "dynamic_characters";
 
 export type ResolvedCharacterIdentity = {
   sourceName: string;
@@ -53,11 +53,17 @@ function uniqueStrings(values: string[]): string[] {
 }
 
 export function isMultiCharacterEntityTrackingMode(mode: EntityTrackingMode): boolean {
-  return mode === "multi_character" || mode === "dynamic_entities";
+  return mode === "dynamic_characters";
 }
 
 export function allowsNarrativeEntities(mode: EntityTrackingMode): boolean {
-  return mode === "dynamic_entities";
+  return mode === "dynamic_characters";
+}
+
+export function normalizeEntityTrackingMode(value: unknown): EntityTrackingMode {
+  return value === "dynamic_characters" || value === "multi_character" || value === "dynamic_entities"
+    ? "dynamic_characters"
+    : "standard";
 }
 
 function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
@@ -343,11 +349,7 @@ function inferMessageAliasSpeaker(messageText: string, aliases: string[]): strin
 export function resolveEntityTrackingMode(
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
 ): EntityTrackingMode {
-  return settings.entityTrackingMode === "dynamic_entities"
-    ? "dynamic_entities"
-    : settings.entityTrackingMode === "multi_character"
-      ? "multi_character"
-      : "standard";
+  return normalizeEntityTrackingMode(settings.entityTrackingMode);
 }
 
 export function resolveCharacterIdentity(
@@ -1153,7 +1155,7 @@ function buildProjectedEntityId(
   if (sourceEntity.kind === "narrative-entity" || /^bst_narrative:/i.test(normalizedEntityId)) {
     return normalizedEntityId || sourceEntity.entityId;
   }
-  const identity = resolveCharacterIdentity(context, projectedOwnerName, "multi_character");
+  const identity = resolveCharacterIdentity(context, projectedOwnerName, "dynamic_characters");
   if (!identity) return sourceEntity.entityId;
   const sourceKey = `${normalizeKey(identity.sourceAvatar ?? "")}|${normalizeKey(identity.sourceName)}`;
   if (!sourceKey) return sourceEntity.entityId;

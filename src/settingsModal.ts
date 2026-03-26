@@ -324,7 +324,7 @@ export function openSettingsModal(input: {
         <div class="bst-help-line bst-toggle-help">Controls when BST runs, how robust extraction should be, and how much it is allowed to smooth stat changes.</div>
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="autoGenerateTracker" type="checkbox">Auto-Generate Tracker</label>
-          <label>Entity Tracking Mode <select data-k="entityTrackingMode"><option value="standard">Standard</option><option value="multi_character">Multi-Character (Experimental)</option><option value="dynamic_entities">Dynamic Entities (Experimental)</option></select></label>
+          <label>Entity Tracking Mode <select data-k="entityTrackingMode"><option value="standard">Standard</option><option value="dynamic_characters">Dynamic Characters (Experimental)</option></select></label>
           <label class="bst-check"><input data-k="sequentialExtraction" type="checkbox">Sequential Extraction (per stat)</label>
           <label class="bst-check"><input data-k="enableSequentialStatGroups" type="checkbox">Enable Sequential Stat Groups</label>
           <label class="bst-check"><input data-k="strictJsonRepair" type="checkbox">Strict JSON Repair</label>
@@ -332,8 +332,8 @@ export function openSettingsModal(input: {
           <label class="bst-check" data-bst-row="regenerateOnMessageEdit"><input data-k="regenerateOnMessageEdit" type="checkbox">Regenerate Tracker After Message Edit</label>
           <label class="bst-check" data-bst-row="generateOnGreetingMessages"><input data-k="generateOnGreetingMessages" type="checkbox">Generate Tracker on Greetings</label>
         </div>
-        <div class="bst-section-divider" data-bst-row="multiCharacterLifecycleDivider">Multi-Character Lifecycle</div>
-        <div class="bst-help-line bst-toggle-help" data-bst-row="multiCharacterLifecycleHelp">Controls when multi-character alias cards stop rendering in the main tracker UI after leaving the scene. Archived entities remain in chat lifecycle metadata for later reactivation.</div>
+        <div class="bst-section-divider" data-bst-row="multiCharacterLifecycleDivider">Dynamic Character Lifecycle</div>
+        <div class="bst-help-line bst-toggle-help" data-bst-row="multiCharacterLifecycleHelp">Controls when dynamic character cards stop rendering in the main tracker UI after leaving the scene. Archived entities remain in chat lifecycle metadata for later reactivation.</div>
         <div class="bst-check-grid" data-bst-row="multiCharacterLifecycleToggles">
           <label class="bst-check"><input data-k="autoArchiveInactiveCards" type="checkbox">Auto-Archive Inactive</label>
         </div>
@@ -4211,11 +4211,9 @@ export function openSettingsModal(input: {
       injectSummarizationNote: readBool("injectSummarizationNote", input.settings.injectSummarizationNote),
       autoDetectActive: readBool("autoDetectActive", input.settings.autoDetectActive),
       autoGenerateTracker: readBool("autoGenerateTracker", input.settings.autoGenerateTracker),
-      entityTrackingMode: read("entityTrackingMode") === "dynamic_entities"
-        ? "dynamic_entities"
-        : read("entityTrackingMode") === "multi_character"
-          ? "multi_character"
-          : "standard",
+      entityTrackingMode: read("entityTrackingMode") === "dynamic_characters"
+        ? "dynamic_characters"
+        : "standard",
       regenerateOnMessageEdit: readBool("regenerateOnMessageEdit", input.settings.regenerateOnMessageEdit),
       generateOnGreetingMessages: readBool("generateOnGreetingMessages", input.settings.generateOnGreetingMessages),
       activityLookback: readNumber("activityLookback", input.settings.activityLookback, 1, 25),
@@ -4368,7 +4366,7 @@ export function openSettingsModal(input: {
     if (generateOnGreetingMessagesRow) {
       generateOnGreetingMessagesRow.style.display = current.autoGenerateTracker ? "" : "none";
     }
-    const showMultiCharacterLifecycle = current.entityTrackingMode === "multi_character" || current.entityTrackingMode === "dynamic_entities";
+    const showMultiCharacterLifecycle = current.entityTrackingMode === "dynamic_characters";
     if (multiCharacterLifecycleDivider) {
       multiCharacterLifecycleDivider.style.display = showMultiCharacterLifecycle ? "block" : "none";
     }
