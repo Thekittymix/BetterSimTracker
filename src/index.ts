@@ -4071,11 +4071,15 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       userExtraction,
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
     }).filter(entity => isTrackerEnabledForOwner(context, activeSettings, entity.name));
+    const persistedExplicitTargetToEntity = userExtraction
+      ? { [USER_TRACKER_KEY]: resolveStableEntityIdForOwner(context, USER_TRACKER_KEY, resolveEntityTrackingMode(activeSettings)) }
+      : undefined;
 
     latestData = buildPersistedTrackerSnapshot({
       context,
       activeCharacters: persistedSceneActiveCharacters,
       activeEntityIds,
+      explicitTargetToEntity: persistedExplicitTargetToEntity,
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
       resolvedEntities: persistedResolvedEntities,
       source: resolvedEntityResolution?.source ?? ownerScopes.source,

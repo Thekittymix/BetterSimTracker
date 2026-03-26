@@ -23,6 +23,7 @@ export function buildPersistedTrackerSnapshot(input: {
   timestamp?: number;
   activeCharacters: string[];
   activeEntityIds?: string[] | null;
+  explicitTargetToEntity?: Record<string, string> | null;
   entityTrackingMode: EntityTrackingMode;
   resolvedEntities: TrackerResolvedEntity[];
   source: "model" | "fallback";
@@ -33,12 +34,15 @@ export function buildPersistedTrackerSnapshot(input: {
 }): TrackerData {
   const activeCharacters = normalizeList(input.activeCharacters);
   const activeEntityIds = normalizeList(input.activeEntityIds);
-  const targetToEntity = buildTargetToEntityMap(
-    input.context,
-    activeCharacters,
-    activeEntityIds,
-    input.entityTrackingMode,
-  );
+  const targetToEntity = {
+    ...buildTargetToEntityMap(
+      input.context,
+      activeCharacters,
+      activeEntityIds,
+      input.entityTrackingMode,
+    ),
+    ...(input.explicitTargetToEntity ?? {}),
+  };
   return {
     timestamp: input.timestamp ?? Date.now(),
     activeCharacters,

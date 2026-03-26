@@ -1,3 +1,7 @@
+## [2.2.4.16-exp158] - 2026-03-26
+### Fixed
+- Experimental user-turn multi-character persistence now forces `__bst_user__` writes into the user entity bucket instead of leaking `byEntityId` mood/thought/custom values onto the active alias entity.
+
 ## [2.2.4.16-exp157] - 2026-03-26
 ### Fixed
 - Experimental multi-character resolver now uses a tighter resolver context and a stricter `inMessage` clamp for single-focus AI replies, so silent scene members stop being promoted to active message participants on Blake-only style turns.
