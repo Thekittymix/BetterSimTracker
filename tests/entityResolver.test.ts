@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   buildMultiCharacterResolverPrompt,
+  constrainResolvedEntitiesToMessageFocus,
   parseMultiCharacterResolverResponse,
 } from "../src/entityResolver";
 
@@ -250,4 +251,51 @@ test("parseMultiCharacterResolverResponse preserves explicit empty-scene resolut
     resolvedEntities: [],
     unresolvedMentions: [],
   });
+});
+
+test("constrainResolvedEntitiesToMessageFocus keeps only the explicit focused speaker inMessage", () => {
+  const constrained = constrainResolvedEntitiesToMessageFocus(
+    [
+      {
+        entityId: "bst_mc_alias:test:ashley",
+        kind: "st-character",
+        name: "Ashley",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "bst_mc_alias:test:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "bst_mc_alias:test:garret",
+        kind: "st-character",
+        name: "Garret",
+        avatar: null,
+        inScene: true,
+        inMessage: false,
+      },
+    ],
+    [
+      { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_mc_alias:test:ashley", aliases: ["Ash"] },
+      { entityRef: "ent2", ownerName: "Blake", entityId: "bst_mc_alias:test:blake", aliases: ["Blackout Blake"] },
+      { entityRef: "ent3", ownerName: "Garret", entityId: "bst_mc_alias:test:garret" },
+    ],
+    {
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      mes: "*Blake slowly pushed himself off the filing cabinet.*\n\n\"A question,\" Blake said flatly.",
+      is_user: false,
+    } as any,
+  );
+
+  assert.deepEqual(constrained.map(entity => ({ name: entity.name, inScene: entity.inScene, inMessage: entity.inMessage })), [
+    { name: "Ashley", inScene: true, inMessage: false },
+    { name: "Blake", inScene: true, inMessage: true },
+    { name: "Garret", inScene: true, inMessage: false },
+  ]);
 });

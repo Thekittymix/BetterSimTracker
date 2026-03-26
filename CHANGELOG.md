@@ -1,3 +1,8 @@
+## [2.2.4.16-exp157] - 2026-03-26
+### Fixed
+- Experimental multi-character resolver now uses a tighter resolver context and a stricter `inMessage` clamp for single-focus AI replies, so silent scene members stop being promoted to active message participants on Blake-only style turns.
+- Experimental generated tracker snapshots now persist `statisticsByEntityId` and custom `*ByEntityId` buckets directly during extraction, instead of leaving entity shadow state empty until a later manual edit.
+
 ## [2.2.4.16-exp156] - 2026-03-25
 ### Fixed
 - Experimental multi-character resolver now accepts explicit empty-scene model results instead of discarding them and falling back to stale scene-owner heuristics, so end-of-scene turns can resolve to a truly empty tracked scene.

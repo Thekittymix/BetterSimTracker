@@ -24,6 +24,7 @@ import {
 } from "./entityResolution";
 import {
   buildMultiCharacterResolverPrompt,
+  constrainResolvedEntitiesToMessageFocus,
   parseMultiCharacterResolverResponse,
   resolveMessageEntityIdsFromResolvedEntities,
   resolveMessageOwnersFromResolvedEntities,
@@ -54,6 +55,7 @@ import {
   buildEntityScopedStatisticsBuckets,
   buildTargetToEntityMap,
 } from "./entityScopedBuckets";
+import { buildPersistedTrackerSnapshot } from "./persistedTrackerSnapshot";
 import {
   buildFallbackSummaryProse as buildFallbackSummaryProseHelper,
   buildSummaryTrackerStateLines as buildSummaryTrackerStateLinesHelper,
@@ -440,8 +442,13 @@ function buildRecentContextUpToMessageIndex(context: STContext, messageIndex: nu
       const speaker = message.is_user ? context.name1 ?? "User" : message.name ?? "Character";
       return `${speaker}: ${message.mes}`;
     })
-    .filter((line): line is string => Boolean(line))
-    .join("\n\n");
+      .filter((line): line is string => Boolean(line))
+      .join("\n\n");
+}
+
+function buildResolverContextUpToMessageIndex(context: STContext, messageIndex: number): string {
+  if (messageIndex <= 0) return "";
+  return buildRecentContextUpToMessageIndex(context, messageIndex - 1, 2);
 }
 
 function describeBand(value: number, low: string, medium: string, high: string): string {
@@ -3488,8 +3495,9 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             entityRef: `ent${index + 1}`,
             ownerName,
             entityId: resolveStableEntityIdForOwner(context, ownerName, "multi_character") || null,
+            aliases: [ownerName],
           }));
-          const resolverContextText = buildRecentContext(context, settings.contextMessages, lastIndex);
+          const resolverContextText = buildResolverContextUpToMessageIndex(context, lastIndex);
           const resolverPrompt = buildMultiCharacterResolverPrompt({
             candidateEntities,
             contextText: resolverContextText,
@@ -3497,17 +3505,20 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           });
           const resolverResponse = await generateJson(resolverPrompt, activeSettings);
           const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
+          const constrainedResolvedEntities = parsedResolver
+            ? constrainResolvedEntitiesToMessageFocus(parsedResolver.resolvedEntities, candidateEntities, lastMessage)
+            : [];
           const parsedSceneOwners = parsedResolver
-            ? resolveSceneOwnersFromResolvedEntities(parsedResolver.resolvedEntities)
+            ? resolveSceneOwnersFromResolvedEntities(constrainedResolvedEntities)
             : [];
           const parsedMessageOwners = parsedResolver
-            ? resolveMessageOwnersFromResolvedEntities(parsedResolver.resolvedEntities)
+            ? resolveMessageOwnersFromResolvedEntities(constrainedResolvedEntities)
             : [];
           const parsedSceneEntityIds = parsedResolver
-            ? resolveSceneEntityIdsFromResolvedEntities(parsedResolver.resolvedEntities)
+            ? resolveSceneEntityIdsFromResolvedEntities(constrainedResolvedEntities)
             : [];
           const parsedMessageEntityIds = parsedResolver
-            ? resolveMessageEntityIdsFromResolvedEntities(parsedResolver.resolvedEntities)
+            ? resolveMessageEntityIdsFromResolvedEntities(constrainedResolvedEntities)
             : [];
           if (parsedResolver) {
             resolvedOwnerScopes = {
@@ -3518,7 +3529,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               source: "model",
             };
             const nextResolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
-              resolvedEntities: parsedResolver.resolvedEntities.map(entity => ({
+              resolvedEntities: constrainedResolvedEntities.map(entity => ({
                 ...entity,
                 aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
                 created: Boolean(entity.created),
@@ -4061,27 +4072,18 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
     }).filter(entity => isTrackerEnabledForOwner(context, activeSettings, entity.name));
 
-    latestData = {
-      timestamp: Date.now(),
+    latestData = buildPersistedTrackerSnapshot({
+      context,
       activeCharacters: persistedSceneActiveCharacters,
-      entityResolution: (() => {
-        const persistedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
-          resolvedEntities: persistedResolvedEntities.map(entity => ({
-            ...entity,
-            aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
-            created: Boolean(entity.created),
-          })),
-          source: resolvedEntityResolution?.source ?? ownerScopes.source,
-        };
-        if (resolvedEntityResolution?.unresolvedMentions?.length) {
-          persistedEntityResolution.unresolvedMentions = [...resolvedEntityResolution.unresolvedMentions];
-        }
-        return persistedEntityResolution;
-      })(),
+      activeEntityIds,
+      entityTrackingMode: resolveEntityTrackingMode(activeSettings),
+      resolvedEntities: persistedResolvedEntities,
+      source: resolvedEntityResolution?.source ?? ownerScopes.source,
+      unresolvedMentions: resolvedEntityResolution?.unresolvedMentions,
       statistics: merged,
       customStatistics: mergedCustom,
       customNonNumericStatistics: mergedCustomNonNumeric,
-    };
+    });
     latestDataMessageIndex = lastIndex;
     refreshPromptMacroData(context);
 
