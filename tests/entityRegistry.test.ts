@@ -628,7 +628,7 @@ test("resolveTrackerMessageOwners can derive alias owner from technical entity i
   assert.deepEqual(resolved, ["blake"]);
 });
 
-test("buildLifecycleHistorySnapshotsFromTrackerEntries uses explicit active owners for lifecycle history and falls back to scene owners only when missing", () => {
+test("buildLifecycleHistorySnapshotsFromTrackerEntries uses scene continuity for lifecycle history", () => {
   const context = makeContext();
   const blakeEntityId = buildTrackerEntityId({
     sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
@@ -673,8 +673,8 @@ test("buildLifecycleHistorySnapshotsFromTrackerEntries uses explicit active owne
   assert.deepEqual(snapshots, [
     {
       messageIndex: 8,
-      activeCharacters: [],
-      activeEntityIds: [],
+      activeCharacters: ["Blake"],
+      activeEntityIds: [blakeEntityId],
     },
     {
       messageIndex: 9,

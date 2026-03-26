@@ -20,6 +20,7 @@ import {
   resolveInitialExtractionOwners,
   resolvePersistedSnapshotResolvedEntities,
   resolvePersistedSnapshotActiveOwners,
+  resolvePersistedSnapshotEntityOwners,
   resolveStableEntityIdForOwner,
   resolveUserExtractionOwnerScopes,
 } from "./entityResolution";
@@ -4147,9 +4148,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       userExtraction,
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
     });
+    const persistedResolvedEntityOwners = resolvePersistedSnapshotEntityOwners({
+      sceneActiveCharacters,
+    }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const filteredPersistedResolvedEntities = filterResolvedEntitiesToTrackedOwners({
       context,
-      trackedOwners: persistedSceneActiveCharacters,
+      trackedOwners: persistedResolvedEntityOwners,
       resolvedEntities: persistedResolvedEntities,
     });
     const persistedExplicitTargetToEntity = userExtraction

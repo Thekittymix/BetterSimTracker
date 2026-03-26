@@ -1070,8 +1070,8 @@ export function buildLifecycleHistorySnapshotsFromTrackerEntries(
     .sort((a, b) => a.messageIndex - b.messageIndex)
     .map(item => ({
       messageIndex: item.messageIndex,
-      activeCharacters: resolveTrackerActiveOwners(context, item.data),
-      activeEntityIds: resolveTrackerActiveEntityIds(context, item.data),
+      activeCharacters: resolveTrackerSceneOwners(context, item.data),
+      activeEntityIds: resolveTrackerSceneEntityIds(context, item.data),
     }));
 }
 

@@ -276,7 +276,7 @@ test("syncEntityRegistryFromTrackerData updates multi-character lifecycle on use
   assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lastSeenMessageIndex, 1);
 });
 
-test("syncEntityRegistryFromTrackerData keeps scene continuity while deriving lifecycle from explicit active owners", () => {
+test("syncEntityRegistryFromTrackerData keeps full scene continuity active when resolver scene data says everyone is still present", () => {
   const context = makeContext();
   const settings = makeSettings();
 
@@ -318,9 +318,9 @@ test("syncEntityRegistryFromTrackerData keeps scene continuity while deriving li
 
   const registry = readEntityRegistry(context);
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "active");
-  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "inactive");
-  assert.equal(registry.entities[registry.ownerToEntityId.garret]?.lifecycleState, "inactive");
-  assert.equal(registry.entities[registry.ownerToEntityId.raleigh]?.lifecycleState, "inactive");
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "active");
+  assert.equal(registry.entities[registry.ownerToEntityId.garret]?.lifecycleState, "active");
+  assert.equal(registry.entities[registry.ownerToEntityId.raleigh]?.lifecycleState, "active");
 });
 
 test("syncEntityRegistryFromTrackerData backfills inactive continuity for aliases that were only introduced in later registry sync", () => {
@@ -454,6 +454,57 @@ test("syncEntityRegistryFromTrackerData archives inactive aliases on no-active c
   const registry = readEntityRegistry(context);
   assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "archived");
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "archived");
+});
+
+test("syncEntityRegistryFromTrackerData keeps scene entities active on user turns when scene continuity is stored", () => {
+  const context = makeContext();
+  context.chat.push({
+    is_user: true,
+    name: "Kuba",
+    mes: "Blake, answer me directly.",
+    extra: {},
+    swipe_id: 0,
+  } as never);
+  const settings = {
+    ...makeSettings(),
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 1,
+  } as BetterSimTrackerSettings;
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Blake"]), 0);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "multi_character",
+    messageIndex: 0,
+    owners: ["Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const current = {
+    ...makeTrackerData(["__bst_user__"]),
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Blake"],
+      messageOwners: [],
+      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      messageEntityIds: [],
+      source: "model" as const,
+    }),
+  } satisfies TrackerData;
+  writeTrackerDataToMessage(context, current, 2);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 2,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, true);
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "active");
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.archivedAtMessageIndex, null);
 });
 
 test("syncEntityRegistryFromTrackerData persists narrative entities from resolver-backed tracker data", () => {

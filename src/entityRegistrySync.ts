@@ -6,8 +6,6 @@ import {
   getEntityRegistryLifecycleStateForMessage,
   listEntityRegistryEntriesForMessage,
   readEntityRegistry,
-  resolveTrackerActiveEntityIds,
-  resolveTrackerActiveOwners,
   resolveTrackerSceneEntityIds,
   resolveTrackerSceneOwners,
   syncNarrativeEntityRegistryFromResolvedEntities,
@@ -91,9 +89,7 @@ export function syncEntityRegistryFromTrackerData(input: {
   if (!isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings))) return false;
 
   const sceneOwners = resolveTrackerSceneOwners(input.context, input.data);
-  const activeOwners = resolveTrackerActiveOwners(input.context, input.data);
   const sceneEntityIds = resolveTrackerSceneEntityIds(input.context, input.data);
-  const activeEntityIds = resolveTrackerActiveEntityIds(input.context, input.data);
   const dataCharacterNames = collectCharacterNamesFromTrackerData(input.context, input.data);
   const registryEntriesForMessage = listEntityRegistryEntriesForMessage(input.context, input.messageIndex);
   const registryOwnersForMessage = resolveRegistryOwnersFromEntries(registryEntriesForMessage);
@@ -130,8 +126,8 @@ export function syncEntityRegistryFromTrackerData(input: {
     ownerName,
     entityId: entityId ?? getEntityRegistryEntryForMessage(input.context, ownerName, input.messageIndex)?.id ?? null,
     currentMessageIndex: input.messageIndex,
-    currentActiveCharacters: activeOwners,
-    currentActiveEntityIds: activeEntityIds,
+    currentActiveCharacters: sceneOwners,
+    currentActiveEntityIds: sceneEntityIds,
     history: lifecycleSnapshots,
     autoArchiveInactiveCards: input.settings.autoArchiveInactiveCards,
     archiveInactiveAfterTurns: input.settings.archiveInactiveAfterTurns,

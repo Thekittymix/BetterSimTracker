@@ -10,6 +10,7 @@ import {
   projectTrackerDataToMessageScopedOwners,
   resolvePersistedActiveOwners,
   resolvePersistedSnapshotActiveOwners,
+  resolvePersistedSnapshotEntityOwners,
   resolvePersistedSnapshotResolvedEntities,
   resolveCharacterIdentity,
   resolveCharacterFromContext,
@@ -951,6 +952,22 @@ test("resolvePersistedSnapshotResolvedEntities keeps user snapshots scene-only a
       inMessage: true,
       created: false,
     }],
+  );
+});
+
+test("resolvePersistedSnapshotEntityOwners keeps full scene continuity owners and excludes the user owner", () => {
+  assert.deepEqual(
+    resolvePersistedSnapshotEntityOwners({
+      sceneActiveCharacters: ["Ashley", "Blake"],
+    }),
+    ["Ashley", "Blake"],
+  );
+
+  assert.deepEqual(
+    resolvePersistedSnapshotEntityOwners({
+      sceneActiveCharacters: ["Blake", USER_TRACKER_KEY],
+    }),
+    ["Blake"],
   );
 });
 

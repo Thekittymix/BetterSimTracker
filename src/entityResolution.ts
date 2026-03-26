@@ -731,6 +731,15 @@ export function resolvePersistedSnapshotActiveOwners(input: {
   );
 }
 
+export function resolvePersistedSnapshotEntityOwners(input: {
+  sceneActiveCharacters: string[];
+}): string[] {
+  return resolvePersistedActiveOwners(
+    input.sceneActiveCharacters,
+    { includeUserOwner: false },
+  );
+}
+
 export function resolvePersistedSnapshotResolvedEntities(input: {
   context: STContext | null;
   sceneActiveCharacters: string[];

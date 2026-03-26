@@ -1,3 +1,7 @@
+## [2.2.4.16-exp178] - 2026-03-26
+### Fixed
+- Experimental user-turn snapshots now keep resolver scene entities and scene-scoped lifecycle continuity intact, so active scene cards no longer disappear or get archived just because a user message only writes user-owned stats before the next AI reply lands.
+
 ## [2.2.4.16-exp177] - 2026-03-26
 ### Fixed
 - Experimental dynamic-entity resolver reuse now matches article-prefixed creation proposals like `the spirit` back onto the current candidate or archived narrative registry entity before minting a new ID, and exact alias collisions now stay conservative instead of silently reusing the first same-name candidate.
