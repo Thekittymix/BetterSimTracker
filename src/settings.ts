@@ -256,18 +256,6 @@ export function loadSettings(context: STContext): BetterSimTrackerSettings {
   return sanitizeSettings(merged);
 }
 
-function isLegacyEntityTrackingModeValue(value: unknown): boolean {
-  return value === "multi_character" || value === "dynamic_entities";
-}
-
-export function shouldNormalizeLegacyEntityTrackingModePersistence(context: STContext): boolean {
-  const bag = (context.extensionSettings ?? {}) as Record<string, unknown>;
-  const fromContext = (bag[EXTENSION_KEY] ?? {}) as Record<string, unknown>;
-  if (isLegacyEntityTrackingModeValue(fromContext.entityTrackingMode)) return true;
-  const fromLocal = loadFromLocalStorage() as Record<string, unknown>;
-  return isLegacyEntityTrackingModeValue(fromLocal.entityTrackingMode);
-}
-
 export function getSettingsProvenance(context: STContext): Record<string, "context" | "local" | "default"> {
   const bag = (context.extensionSettings ?? {}) as Record<string, unknown>;
   const fromContext = (bag[EXTENSION_KEY] ?? {}) as Record<string, unknown>;

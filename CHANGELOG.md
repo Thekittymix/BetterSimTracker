@@ -1,3 +1,7 @@
+## [2.2.4.16-exp184] - 2026-03-26
+### Fixed
+- Experimental `Dynamic Characters` mode now stays a read-time normalization only for legacy split mode tokens, instead of silently rewriting stale `experimental` settings on startup.
+
 ## [2.2.4.16-exp183] - 2026-03-26
 ### Fixed
 - Experimental startup now normalizes legacy split entity-tracking values back into the single `Dynamic Characters` source-of-truth setting, so old experimental saves no longer keep stale `dynamic_entities` or `multi_character` mode tokens alive behind the new UI.

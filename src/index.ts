@@ -89,7 +89,7 @@ import {
   moodOptions,
 } from "./prompts";
 import { upsertSettingsPanel } from "./settingsPanel";
-import { discoverConnectionProfiles, getActiveConnectionProfileId, getContext, getSettingsProvenance, loadSettings, logDebug, resolveConnectionProfileId, saveSettings, shouldNormalizeLegacyEntityTrackingModePersistence } from "./settings";
+import { discoverConnectionProfiles, getActiveConnectionProfileId, getContext, getSettingsProvenance, loadSettings, logDebug, resolveConnectionProfileId, saveSettings } from "./settings";
 import {
   clearTrackerDataForMessage,
   clearTrackerDataForCurrentChat,
@@ -5117,11 +5117,7 @@ async function init(): Promise<void> {
   });
   void hydrateRuntimeManifestVersion();
 
-  const shouldNormalizeLegacyTrackingMode = shouldNormalizeLegacyEntityTrackingModePersistence(context);
   settings = loadSettings(context);
-  if (shouldNormalizeLegacyTrackingMode && settings.entityTrackingMode === "dynamic_characters") {
-    saveSettings(context, settings);
-  }
   if (settings.debug) {
     pushTrace("init", {
       groupId: context.groupId ?? null,

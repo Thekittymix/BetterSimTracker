@@ -10,7 +10,6 @@ import {
   loadSettings,
   resolveConnectionProfileId,
   sanitizeSettings,
-  shouldNormalizeLegacyEntityTrackingModePersistence,
 } from "../src/settings";
 import type { STContext } from "../src/types";
 
@@ -180,23 +179,6 @@ test("sanitizeSettings normalizes dynamic character entity tracking mode", () =>
 test("sanitizeSettings migrates legacy experimental entity tracking modes to dynamic characters", () => {
   assert.equal(sanitizeSettings({ entityTrackingMode: "multi_character" as never }).entityTrackingMode, "dynamic_characters");
   assert.equal(sanitizeSettings({ entityTrackingMode: "dynamic_entities" as never }).entityTrackingMode, "dynamic_characters");
-});
-
-test("shouldNormalizeLegacyEntityTrackingModePersistence detects stale experimental mode values in context and local storage", () => {
-  localStorageMock.setItem(
-    `extension-settings:${EXTENSION_KEY}`,
-    JSON.stringify({ entityTrackingMode: "dynamic_entities" }),
-  );
-  assert.equal(shouldNormalizeLegacyEntityTrackingModePersistence(makeContext()), true);
-
-  localStorageMock.clear();
-  assert.equal(shouldNormalizeLegacyEntityTrackingModePersistence(makeContext({
-    [EXTENSION_KEY]: { entityTrackingMode: "multi_character" },
-  })), true);
-
-  assert.equal(shouldNormalizeLegacyEntityTrackingModePersistence(makeContext({
-    [EXTENSION_KEY]: { entityTrackingMode: "dynamic_characters" },
-  })), false);
 });
 
 test("loadSettings accepts local enabled fallback only when context has no BST settings at all", () => {
