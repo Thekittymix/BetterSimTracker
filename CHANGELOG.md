@@ -1,3 +1,7 @@
+## [2.2.4.16-exp172] - 2026-03-26
+### Fixed
+- Experimental prompt-injection and summary read models now keep owner-scoped built-in/custom stat lookups pinned to the current entity-backed owner snapshot before any registry fallback, so stale same-name registry aliases no longer hijack prompt state lines or summary text when the live tracker payload already points at a different entity.
+
 ## [2.2.4.16-exp171] - 2026-03-26
 ### Fixed
 - Experimental runtime character stat macros now keep their target identity scoped to the current entity-backed macro target instead of broad same-name registry aliases, so stale owner-to-entity registry mappings no longer hijack `bst_stat_char_*` lookups when the live tracker payload already points at a different entity.

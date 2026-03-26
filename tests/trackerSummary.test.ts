@@ -219,3 +219,83 @@ test("collectSummaryCharacters prefers context-aware entity resolution over raw 
 
   assert.deepEqual(names, ["Ashley"]);
 });
+
+test("buildSummaryTrackerStateLines keeps same-name summary reads scoped to the current entity id", () => {
+  const settings = makeSettings();
+  const context = {
+    ...makeContext(),
+    name2: "Blake",
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-blake-stale": {
+            id: "ent-blake-stale",
+            ownerName: "Blake",
+            canonicalName: "Blake",
+            aliases: ["B-stale"],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "inactive",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          blake: "ent-blake-stale",
+          "b-stale": "ent-blake-stale",
+        },
+      },
+    },
+  } as unknown as STContext;
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Blake"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake-current"],
+      messageEntityIds: ["ent-blake-current"],
+    }),
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake-current",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["B-current"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: { "B-current": 82, "B-stale": 15 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { "B-current": "Hopeful", "B-stale": "Angry" },
+      lastThought: {},
+    },
+    statisticsByEntityId: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: {},
+    customNonNumericStatisticsByEntityId: {},
+  };
+
+  const output = buildSummaryTrackerStateLines(context, tracker, settings);
+  assert.match(output, /- Blake: mood=Hopeful, affection=82/);
+  assert.doesNotMatch(output, /Angry/);
+  assert.doesNotMatch(output, /affection=15/);
+});
