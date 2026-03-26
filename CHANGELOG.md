@@ -1,3 +1,7 @@
+## [2.2.4.16-exp165] - 2026-03-26
+### Fixed
+- Experimental tracker rendering now keeps entity-backed cards distinct when different tracked entities share the same visible owner label, so registry-backed multi-character and dynamic-entity cards no longer collapse back into a single render target by owner name alone.
+
 ## [2.2.4.16-exp164] - 2026-03-26
 ### Fixed
 - Experimental entity lookup/read paths now resolve owners through the current message `entityOwnerMap` aliases and canonical names before falling back to registry owner-name matches, preventing stale same-name registry entries from hijacking narrative-entity cards during continuity reads, UI registry lookups, and by-entity shadow-state access.

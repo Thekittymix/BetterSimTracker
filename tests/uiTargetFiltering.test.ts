@@ -9,6 +9,7 @@ import {
   filterTechnicalSourceOwnersFromTargets,
   isUserOwnerToken,
   mergeRegistryEntitiesIntoTargets,
+  mergeRegistryRenderTargets,
   mergeRegistryOwnersIntoTargets,
   applyTrackerCardCollapsed,
   resolveRegistryLookupNamesForOwner,
@@ -86,6 +87,28 @@ test("mergeRegistryEntitiesIntoTargets deduplicates entity-backed targets by reg
   });
 
   assert.deepEqual(merged, ["Ash", "Blake"]);
+});
+
+test("mergeRegistryRenderTargets preserves same-name entries when entity ids differ", () => {
+  const merged = mergeRegistryRenderTargets({
+    targets: ["Ashley"],
+    registryEntries: [
+      { id: "ent-ashley-card", ownerName: "Ashley" } as never,
+      { id: "bst_narrative:ashley-shadow", ownerName: "Ashley" } as never,
+    ],
+    resolveRegistryEntry: ownerName =>
+      ownerName === "Ashley"
+        ? ({ id: "ent-ashley-card", ownerName: "Ashley" } as never)
+        : null,
+  });
+
+  assert.deepEqual(
+    merged.map(target => ({ ownerName: target.ownerName, uiKey: target.uiKey })),
+    [
+      { ownerName: "Ashley", uiKey: "ent-ashley-card" },
+      { ownerName: "Ashley", uiKey: "bst_narrative:ashley-shadow" },
+    ],
+  );
 });
 
 test("collectCharacterNamesFromTrackerData prefers resolver scene owners and entity owner map over stale activeCharacters", () => {

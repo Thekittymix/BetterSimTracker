@@ -618,6 +618,12 @@ export type OwnerRenderIdentity = {
   isSource: boolean;
 };
 
+export type UiRenderTarget = {
+  ownerName: string;
+  uiKey: string;
+  registryEntry: TrackerEntityRegistryEntry | null;
+};
+
 export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | null): { title: string; subtitle: string } {
   const normalizedLabel = String(stepLabel ?? "").trim();
   if (/^Resolving /i.test(normalizedLabel)) {
@@ -779,6 +785,42 @@ export function mergeRegistryEntitiesIntoTargets(input: {
   return merged;
 }
 
+function buildUiRenderTarget(
+  ownerName: string,
+  registryEntry?: TrackerEntityRegistryEntry | null,
+): UiRenderTarget | null {
+  const normalizedOwnerName = String(ownerName ?? "").trim();
+  if (!normalizedOwnerName) return null;
+  const entry = registryEntry ?? null;
+  return {
+    ownerName: normalizedOwnerName,
+    uiKey: resolveOwnerUiKey(normalizedOwnerName, entry),
+    registryEntry: entry,
+  };
+}
+
+export function mergeRegistryRenderTargets(input: {
+  targets: string[];
+  registryEntries: TrackerEntityRegistryEntry[];
+  resolveRegistryEntry?: (ownerName: string) => TrackerEntityRegistryEntry | null;
+}): UiRenderTarget[] {
+  const merged: UiRenderTarget[] = [];
+  const seen = new Set<string>();
+  const pushTarget = (ownerName: string, registryEntry?: TrackerEntityRegistryEntry | null): void => {
+    const target = buildUiRenderTarget(ownerName, registryEntry);
+    if (!target || seen.has(target.uiKey)) return;
+    seen.add(target.uiKey);
+    merged.push(target);
+  };
+  for (const ownerName of input.targets) {
+    pushTarget(ownerName, input.resolveRegistryEntry?.(ownerName) ?? null);
+  }
+  for (const entry of input.registryEntries) {
+    pushTarget(String(entry?.ownerName ?? ""), entry);
+  }
+  return merged;
+}
+
 export function resolveRegistryOwnersFromEntries(
   entries: TrackerEntityRegistryEntry[],
 ): string[] {
@@ -792,6 +834,34 @@ export function resolveRegistryOwnersFromEntries(
     owners.push(ownerName);
   }
   return owners;
+}
+
+function filterTechnicalSourceRenderTargets(
+  targets: UiRenderTarget[],
+  resolveOwnerRenderIdentity?: (ownerName: string) => OwnerRenderIdentity | null,
+): UiRenderTarget[] {
+  if (!resolveOwnerRenderIdentity) return [...targets];
+  const aliasSourceKeys = new Set<string>();
+  for (const target of targets) {
+    const identity = resolveOwnerRenderIdentity(target.ownerName);
+    if (identity?.isAlias) {
+      aliasSourceKeys.add(identity.sourceKey);
+    }
+  }
+  if (!aliasSourceKeys.size) return [...targets];
+  return targets.filter(target => {
+    const identity = resolveOwnerRenderIdentity(target.ownerName);
+    if (!identity?.isSource) return true;
+    return !aliasSourceKeys.has(identity.sourceKey);
+  });
+}
+
+function filterArchivedRenderTargets(
+  targets: UiRenderTarget[],
+  getLifecycleState?: (target: UiRenderTarget) => CardLifecycleState,
+): UiRenderTarget[] {
+  if (!getLifecycleState) return [...targets];
+  return targets.filter(target => getLifecycleState(target) !== "archived");
 }
 
 export function resolveRegistryLookupNamesForOwner(
@@ -5550,6 +5620,7 @@ export function renderTracker(
       pushUniqueCharacterName(mergedCharacters, mergedSeen, name);
     }
     const registryEntriesForMessage = resolveRegistryEntriesForMessage?.(entry.messageIndex) ?? [];
+    const activeEntityIdSet = new Set(resolvedActiveEntityIds);
     const registryOwnersForMessage = registryEntriesForMessage.length > 0
       ? resolveRegistryOwnersFromEntries(registryEntriesForMessage)
       : (resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? []);
@@ -5563,53 +5634,76 @@ export function renderTracker(
         mergedCharacters,
         registryOwnersForMessage,
       );
-    const renderableRegistryOwners = mergedWithRegistryOwners.filter(name => shouldKeepOwnerInRenderTargetPool({
-      ownerName: name,
-      hasAnyStat: hasAnyStatFor(name, resolveRegistryEntryForOwnerInMessageData({
-        ownerName: name,
-        messageIndex: entry.messageIndex,
-        data,
-        resolveRegistryEntryForMessage,
-        resolveRegistryEntryByEntityIdForMessage,
-      })),
-      isActive: activeSet.has(normalizeName(name)),
+    const mergedWithRegistryTargets = registryEntriesForMessage.length > 0
+      ? mergeRegistryRenderTargets({
+        targets: mergedCharacters,
+        registryEntries: registryEntriesForMessage,
+        resolveRegistryEntry: ownerName => resolveRegistryEntryForMessage?.(ownerName, entry.messageIndex) ?? null,
+      })
+      : mergedWithRegistryOwners.map(name =>
+        buildUiRenderTarget(
+          name,
+          resolveRegistryEntryForOwnerInMessageData({
+            ownerName: name,
+            messageIndex: entry.messageIndex,
+            data,
+            resolveRegistryEntryForMessage,
+            resolveRegistryEntryByEntityIdForMessage,
+          }),
+        )).filter((target): target is UiRenderTarget => Boolean(target));
+    const renderableRegistryTargets = mergedWithRegistryTargets.filter(target => shouldKeepOwnerInRenderTargetPool({
+      ownerName: target.ownerName,
+      hasAnyStat: hasAnyStatFor(target.ownerName, target.registryEntry),
+      isActive: target.registryEntry?.id
+        ? activeEntityIdSet.has(target.registryEntry.id)
+        : activeSet.has(normalizeName(target.ownerName)),
     }));
     const displayPool = buildDisplayPoolWithRegistry({
       entityTrackingMode: settings.entityTrackingMode,
       includeAllTargets: forceAllInGroup || settings.showInactive,
       activeCharacters: resolvedSceneOwners,
       dataCharacterNames,
-      mergedWithRegistryOwners: renderableRegistryOwners,
+      mergedWithRegistryOwners: renderableRegistryTargets.map(target => target.ownerName),
     });
-    const isRenderedUserOwner = (name: string): boolean => isUserOwnerToken(name, resolveDisplayName);
-    const scopedDisplayPool = userMessageEntry
-      ? displayPool.filter(name => isRenderedUserOwner(name))
-      : displayPool.filter(name => !isRenderedUserOwner(name));
-    const displayOrder = new Map(scopedDisplayPool.map((name, index) => [normalizeName(name), index]));
-    const includeAllTargets = forceAllInGroup || settings.showInactive;
-    const targetSource = includeAllTargets
-      ? scopedDisplayPool
-      : scopedDisplayPool.filter(name => shouldKeepOwnerInRenderTargetPool({
-        ownerName: name,
-        hasAnyStat: hasAnyStatFor(name, resolveRegistryEntryForOwnerInMessageData({
+    const preferRegistryTargets = (settings.entityTrackingMode === "multi_character" || settings.entityTrackingMode === "dynamic_entities")
+      && renderableRegistryTargets.length > 0;
+    const displayPoolTargets = preferRegistryTargets
+      ? renderableRegistryTargets
+      : displayPool
+        .map(name => buildUiRenderTarget(name, resolveRegistryEntryForOwnerInMessageData({
           ownerName: name,
           messageIndex: entry.messageIndex,
           data,
           resolveRegistryEntryForMessage,
           resolveRegistryEntryByEntityIdForMessage,
-        })),
-        isActive: activeSet.has(normalizeName(name)),
+        })))
+        .filter((target): target is UiRenderTarget => Boolean(target));
+    const isRenderedUserOwner = (name: string): boolean => isUserOwnerToken(name, resolveDisplayName);
+    const scopedDisplayPoolTargets = userMessageEntry
+      ? displayPoolTargets.filter(target => isRenderedUserOwner(target.ownerName))
+      : displayPoolTargets.filter(target => !isRenderedUserOwner(target.ownerName));
+    const displayOrder = new Map(scopedDisplayPoolTargets.map((target, index) => [target.uiKey, index]));
+    const includeAllTargets = forceAllInGroup || settings.showInactive;
+    const targetSource = includeAllTargets
+      ? scopedDisplayPoolTargets
+      : scopedDisplayPoolTargets.filter(target => shouldKeepOwnerInRenderTargetPool({
+        ownerName: target.ownerName,
+        hasAnyStat: hasAnyStatFor(target.ownerName, target.registryEntry),
+        isActive: target.registryEntry?.id
+          ? activeEntityIdSet.has(target.registryEntry.id)
+          : activeSet.has(normalizeName(target.ownerName)),
       }));
-    const uniqueTargets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)));
-    const getLifecycleState = (name: string) => resolveCardLifecycleState({
-      ownerName: name,
-      entityId: resolveRegistryEntryForOwnerInMessageData({
-        ownerName: name,
-        messageIndex: entry.messageIndex,
-        data,
-        resolveRegistryEntryForMessage,
-        resolveRegistryEntryByEntityIdForMessage,
-      })?.id ?? null,
+    const uniqueTargets: UiRenderTarget[] = [];
+    const uniqueTargetKeys = new Set<string>();
+    for (const target of targetSource) {
+      if (isTrackerEnabled?.(target.ownerName) === false) continue;
+      if (uniqueTargetKeys.has(target.uiKey)) continue;
+      uniqueTargetKeys.add(target.uiKey);
+      uniqueTargets.push(target);
+    }
+    const getLifecycleState = (target: UiRenderTarget) => resolveCardLifecycleState({
+      ownerName: target.ownerName,
+      entityId: target.registryEntry?.id ?? null,
       currentMessageIndex: entry.messageIndex,
       currentActiveCharacters: currentLifecycleOwners,
       currentActiveEntityIds: resolvedActiveEntityIds,
@@ -5617,15 +5711,15 @@ export function renderTracker(
       autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
       archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,
         registryState: resolveLifecycleRegistryStateForOwnerInMessageData({
-          ownerName: name,
+          ownerName: target.ownerName,
           messageIndex: entry.messageIndex,
           data,
           resolveLifecycleRegistryState,
           resolveLifecycleRegistryStateByEntityId,
         }),
       });
-      const targets = filterArchivedOwnersFromTargets(
-        filterTechnicalSourceOwnersFromTargets(uniqueTargets, resolveOwnerRenderIdentity),
+      const targets = filterArchivedRenderTargets(
+        filterTechnicalSourceRenderTargets(uniqueTargets, resolveOwnerRenderIdentity),
         getLifecycleState,
       )
         .sort((a, b) => {
@@ -5634,15 +5728,23 @@ export function renderTracker(
         const aRank = rank(getLifecycleState(a));
         const bRank = rank(getLifecycleState(b));
         if (aRank !== bRank) return aRank - bRank;
-        const aOrder = displayOrder.get(normalizeName(a)) ?? Number.MAX_SAFE_INTEGER;
-        const bOrder = displayOrder.get(normalizeName(b)) ?? Number.MAX_SAFE_INTEGER;
+        const aOrder = displayOrder.get(a.uiKey) ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = displayOrder.get(b.uiKey) ?? Number.MAX_SAFE_INTEGER;
           if (aOrder !== bOrder) return aOrder - bOrder;
-          return a.localeCompare(b);
+          return a.ownerName.localeCompare(b.ownerName);
         });
       onSyncEntityRegistry?.({
         messageIndex: entry.messageIndex,
-        owners: uniqueTargets,
-        getLifecycleState,
+        owners: Array.from(new Set(uniqueTargets.map(target => target.ownerName))),
+        getLifecycleState: ownerName => getLifecycleState(
+          buildUiRenderTarget(ownerName, resolveRegistryEntryForOwnerInMessageData({
+            ownerName,
+            messageIndex: entry.messageIndex,
+            data,
+            resolveRegistryEntryForMessage,
+            resolveRegistryEntryByEntityIdForMessage,
+          })) ?? { ownerName, uiKey: normalizeName(ownerName), registryEntry: null },
+        ),
       });
 
       const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isCollapsed: boolean; cardKey: string; isNew: boolean; cardColor: string }> = [];
@@ -5662,20 +5764,15 @@ export function renderTracker(
       `scale:${settings.fontSize}|${settings.cardOpacity}`
     ];
 
-    for (const name of targets) {
-      const lifecycleState = getLifecycleState(name);
+    for (const target of targets) {
+      const name = target.ownerName;
+      const lifecycleState = getLifecycleState(target);
       const isActive = lifecycleState === "active";
       if (!isActive && !settings.showInactive) continue;
       const displayName = resolveDisplayName?.(name)
         ?? (name === USER_TRACKER_KEY ? "User" : name);
-      const registryEntry = resolveRegistryEntryForOwnerInMessageData({
-        ownerName: name,
-        messageIndex: entry.messageIndex,
-        data,
-        resolveRegistryEntryForMessage,
-        resolveRegistryEntryByEntityIdForMessage,
-      });
-      const ownerUiKey = resolveOwnerUiKey(name, registryEntry);
+      const registryEntry = target.registryEntry;
+      const ownerUiKey = target.uiKey;
       const isUserCard = isRenderedUserOwner(name);
       const moodLookupName = isUserCard ? displayName : name;
       const characterAvatar = resolveCharacterAvatar?.(name) ?? undefined;
