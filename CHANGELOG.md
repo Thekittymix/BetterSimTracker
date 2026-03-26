@@ -1,3 +1,7 @@
+## [2.2.4.16-exp185] - 2026-03-26
+### Fixed
+- Standard mode no longer renders persisted `narrative-entity` cards from mixed/dynamic chat history, so switching off `Dynamic Characters` stops leaked dynamic cards from lingering in the visible tracker UI.
+
 ## [2.2.4.16-exp184] - 2026-03-26
 ### Fixed
 - Experimental `Dynamic Characters` mode now stays a read-time normalization only for legacy split mode tokens, instead of silently rewriting stale `experimental` settings on startup.

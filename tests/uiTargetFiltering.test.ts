@@ -5,6 +5,7 @@ import { buildEntityResolution } from "./helpers/entityResolution";
 import {
   buildDisplayPoolWithRegistry,
   collectCharacterNamesFromTrackerData,
+  filterRenderTargetsForTrackingMode,
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   isUserOwnerToken,
@@ -448,6 +449,56 @@ test("buildDisplayPoolWithRegistry keeps standard mode focused on current active
   });
 
   assert.deepEqual(displayPool, ["Ashley"]);
+});
+
+test("filterRenderTargetsForTrackingMode hides narrative entities in standard mode but keeps source-backed aliases", () => {
+  const filtered = filterRenderTargetsForTrackingMode({
+    entityTrackingMode: "standard",
+    targets: [
+      {
+        ownerName: "Blake",
+        uiKey: "ent-blake",
+        registryEntry: {
+          id: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blake"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [],
+        } as never,
+      },
+      {
+        ownerName: "Spirit",
+        uiKey: "bst_narrative:spirit",
+        registryEntry: {
+          id: "bst_narrative:spirit",
+          ownerName: "Spirit",
+          canonicalName: "Spirit",
+          aliases: ["spirit in the woods"],
+          sourceName: "Spirit",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:spirit",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [],
+        } as never,
+      },
+    ],
+  });
+
+  assert.deepEqual(filtered.map(target => target.ownerName), ["Blake"]);
 });
 
 test("isUserOwnerToken recognizes both the internal user key and legacy visible user labels", () => {

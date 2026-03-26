@@ -946,6 +946,16 @@ export function buildDisplayPoolWithRegistry(input: {
       : input.dataCharacterNames;
 }
 
+export function filterRenderTargetsForTrackingMode(input: {
+  entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
+  targets: UiRenderTarget[];
+}): UiRenderTarget[] {
+  if (input.entityTrackingMode === "dynamic_characters") {
+    return [...input.targets];
+  }
+  return input.targets.filter(target => target.registryEntry?.kind !== "narrative-entity");
+}
+
 export function isUserOwnerToken(
   ownerName: string,
   resolveDisplayName?: (ownerName: string) => string | null | undefined,
@@ -5682,9 +5692,13 @@ export function renderTracker(
         })))
         .filter((target): target is UiRenderTarget => Boolean(target));
     const isRenderedUserOwner = (name: string): boolean => isUserOwnerToken(name, resolveDisplayName);
+    const modeFilteredDisplayPoolTargets = filterRenderTargetsForTrackingMode({
+      entityTrackingMode: settings.entityTrackingMode,
+      targets: displayPoolTargets,
+    });
     const scopedDisplayPoolTargets = userMessageEntry
-      ? displayPoolTargets.filter(target => isRenderedUserOwner(target.ownerName))
-      : displayPoolTargets.filter(target => !isRenderedUserOwner(target.ownerName));
+      ? modeFilteredDisplayPoolTargets.filter(target => isRenderedUserOwner(target.ownerName))
+      : modeFilteredDisplayPoolTargets.filter(target => !isRenderedUserOwner(target.ownerName));
     const displayOrder = new Map(scopedDisplayPoolTargets.map((target, index) => [target.uiKey, index]));
     const includeAllTargets = forceAllInGroup || settings.showInactive;
     const targetSource = includeAllTargets
