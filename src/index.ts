@@ -41,6 +41,7 @@ import {
 } from "./entitySeedPolicy";
 import {
   buildEntitySourceKey,
+  getEntityRegistryEntryByOwnerName,
   getEntityRegistryEntryForMessage,
   getEntityRegistryEntryByEntityIdForMessage,
   getEntityRegistryLifecycleStateForMessage,
@@ -3541,23 +3542,28 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       );
       if (candidateOwners.length) {
         try {
-          const candidateEntities = candidateOwners.map((ownerName, index) => ({
-            entityRef: `ent${index + 1}`,
-            ownerName,
-            kind: getEntityRegistryEntryForMessage(context, ownerName, lastIndex)?.kind === "narrative-entity"
-              ? "narrative-entity" as const
-              : "st-character" as const,
-            entityId: resolveStableEntityIdForOwner(context, ownerName, resolveEntityTrackingMode(activeSettings)) || null,
-            aliases: (() => {
-              const entry = getEntityRegistryEntryForMessage(context, ownerName, lastIndex);
-              const aliases = Array.from(new Set(
-                [ownerName, ...(entry?.aliases ?? [])]
-                  .map(value => String(value ?? "").trim())
-                  .filter(Boolean),
-              ));
-              return aliases;
-            })(),
-          }));
+          const candidateEntities = candidateOwners.map((ownerName, index) => {
+            const registryEntry = getEntityRegistryEntryForMessage(context, ownerName, lastIndex)
+              ?? getEntityRegistryEntryByOwnerName(context, ownerName);
+            return {
+              entityRef: `ent${index + 1}`,
+              ownerName,
+              kind: registryEntry?.kind === "narrative-entity"
+                ? "narrative-entity" as const
+                : "st-character" as const,
+              entityId: registryEntry?.id
+                || resolveStableEntityIdForOwner(context, ownerName, resolveEntityTrackingMode(activeSettings))
+                || null,
+              aliases: (() => {
+                const aliases = Array.from(new Set(
+                  [ownerName, ...(registryEntry?.aliases ?? [])]
+                    .map(value => String(value ?? "").trim())
+                    .filter(Boolean),
+                ));
+                return aliases;
+              })(),
+            };
+          });
           const resolverContextText = buildResolverContextUpToMessageIndex(context, lastIndex);
           const resolverPrompt = buildMultiCharacterResolverPrompt({
             candidateEntities,

@@ -1,3 +1,7 @@
+## [2.2.4.16-exp179] - 2026-03-26
+### Fixed
+- Experimental dynamic-entity resolver candidate construction now keeps archived narrative entities available for later user/AI reactivation and carries their real registry identity into candidate metadata, so reintroduced story entities no longer disappear from resolver selection just because their visible cards already aged into archived state.
+
 ## [2.2.4.16-exp178] - 2026-03-26
 ### Fixed
 - Experimental user-turn snapshots now keep resolver scene entities and scene-scoped lifecycle continuity intact, so active scene cards no longer disappear or get archived just because a user message only writes user-owned stats before the next AI reply lands.

@@ -971,6 +971,68 @@ test("resolvePersistedSnapshotEntityOwners keeps full scene continuity owners an
   );
 });
 
+test("resolveEntityResolverCandidateOwners keeps archived narrative entities available for dynamic reactivation", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chatMetadata: {
+      bstEntityRegistry: {
+        entities: {
+          "bst_narrative:forest-spirit": {
+            id: "bst_narrative:forest-spirit",
+            ownerName: "Forest Spirit",
+            canonicalName: "Forest Spirit",
+            aliases: ["the spirit"],
+            kind: "narrative-entity",
+            sourceKey: "narrative:bst_narrative:forest-spirit",
+            introducedAtMessageIndex: 12,
+            lastSeenMessageIndex: 16,
+            lastActiveMessageIndex: 16,
+            lifecycleState: "archived",
+            archivedAtMessageIndex: 18,
+            lifecycleEvents: [
+              { messageIndex: 12, state: "active" },
+              { messageIndex: 17, state: "inactive" },
+              { messageIndex: 18, state: "archived" },
+            ],
+          },
+        },
+        ownerToEntityId: {
+          "forest spirit": "bst_narrative:forest-spirit",
+          "the spirit": "bst_narrative:forest-spirit",
+        },
+      },
+    },
+    chat: [
+      ...Array.from({ length: 22 }, (_, index) => ({
+        name: index % 2 === 0
+          ? "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"
+          : "User",
+        mes: `Earlier turn ${index}.`,
+        is_user: index % 2 === 1,
+        is_system: false,
+      })),
+      {
+        name: "User",
+        mes: "Blake, talk about yourself and the spirit in the same reply.",
+        is_user: true,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolveEntityResolverCandidateOwners(
+      context,
+      ["Ashley", "Blake", "Garret", "Raleigh"],
+      context.chat[22],
+      { entityTrackingMode: "dynamic_entities" },
+    ),
+    ["Ashley", "Blake", "Garret", "Raleigh", "Forest Spirit"],
+  );
+});
+
 test("resolvePersistedSnapshotResolvedEntities can synthesize entity-first continuity without legacy owner arrays", () => {
   const context = {
     characters: [

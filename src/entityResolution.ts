@@ -13,7 +13,7 @@ import type {
   TrackerResolvedEntity,
 } from "./types";
 import { USER_TRACKER_KEY } from "./constants";
-import { resolveTrackerEntityIdsForOwners, resolveTrackerOwnersForEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
+import { readEntityRegistry, resolveTrackerEntityIdsForOwners, resolveTrackerOwnersForEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
 
 export type EntityTrackingMode = "standard" | "multi_character" | "dynamic_entities";
 
@@ -482,7 +482,20 @@ export function resolveEntityResolverCandidateOwners(
   const mode = resolveEntityTrackingMode(settings);
   const normalizedOwners = uniqueStrings(ownerNames.map(normalizeToken));
   if (!isMultiCharacterEntityTrackingMode(mode)) return normalizedOwners;
-  return resolveMessageScopedActiveCharacters(context, normalizedOwners, message, settings);
+  const scopedOwners = resolveMessageScopedActiveCharacters(context, normalizedOwners, message, settings);
+  if (!allowsNarrativeEntities(mode) || !context) {
+    return scopedOwners;
+  }
+
+  const registry = readEntityRegistry(context);
+  const latestMessageIndex = Math.max(0, (context.chat?.length ?? 1) - 1);
+  const narrativeRegistryOwners = Object.values(registry.entities)
+    .filter(entry => entry?.kind === "narrative-entity")
+    .filter(entry => entry.introducedAtMessageIndex <= latestMessageIndex)
+    .map(entry => normalizeToken(entry.ownerName))
+    .filter(Boolean);
+
+  return uniqueStrings([...scopedOwners, ...narrativeRegistryOwners]);
 }
 
 export function resolveMessageScopedParticipants(
