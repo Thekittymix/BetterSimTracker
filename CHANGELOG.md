@@ -1,3 +1,7 @@
+## [2.2.4.16-exp183] - 2026-03-26
+### Fixed
+- Experimental startup now normalizes legacy split entity-tracking values back into the single `Dynamic Characters` source-of-truth setting, so old experimental saves no longer keep stale `dynamic_entities` or `multi_character` mode tokens alive behind the new UI.
+
 ## [2.2.4.16-exp182] - 2026-03-26
 ### Changed
 - Experimental entity tracking settings now expose one `Dynamic Characters` mode instead of separate `Multi-Character` and `Dynamic Entities` options, while keeping the same dynamic-character resolver and lifecycle flow under the single mode.

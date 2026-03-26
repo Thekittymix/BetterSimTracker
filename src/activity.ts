@@ -202,7 +202,9 @@ function readManualInactiveOverrideMap(context: STContext): ManualInactiveOverri
     context.chatMetadata?.[MANUAL_INACTIVE_METADATA_KEY],
     fallbackIndex,
   );
-  const settingsMode = (context.extensionSettings?.[EXTENSION_KEY] as Partial<BetterSimTrackerSettings> | undefined)?.entityTrackingMode;
+  const settingsMode = resolveEntityTrackingMode({
+    entityTrackingMode: (context.extensionSettings?.[EXTENSION_KEY] as Partial<BetterSimTrackerSettings> | undefined)?.entityTrackingMode ?? "standard",
+  });
   const allTracked = getAllTrackedCharacterNames(context, { entityTrackingMode: settingsMode ?? "standard" });
   const canonicalByLower = new Map(allTracked.map(name => [name.toLowerCase(), name] as const));
   const out: ManualInactiveOverrideMap = {};
@@ -244,7 +246,9 @@ export function setManualInactiveCharacter(
   }
   const materialized = Object.fromEntries(next.entries());
   persistManualInactiveOverrideMap(context, materialized);
-  const settingsMode = (context.extensionSettings?.[EXTENSION_KEY] as Partial<BetterSimTrackerSettings> | undefined)?.entityTrackingMode;
+  const settingsMode = resolveEntityTrackingMode({
+    entityTrackingMode: (context.extensionSettings?.[EXTENSION_KEY] as Partial<BetterSimTrackerSettings> | undefined)?.entityTrackingMode ?? "standard",
+  });
   const ordered = getAllTrackedCharacterNames(context, { entityTrackingMode: settingsMode ?? "standard" });
   const materializedNames = ordered.filter(name => Object.prototype.hasOwnProperty.call(materialized, name));
   const leftovers = Object.keys(materialized).filter(name => !materializedNames.includes(name));
