@@ -38,8 +38,7 @@ import {
   formatCustomGroupProgressLabel,
   formatCustomProgressLabel,
 } from "./extractorProgress";
-import { resolveEntityRegistryLookupValue, resolveTrackerDataLookupValue } from "./entityRegistry";
-import { resolvePreviousCustomNonNumericValue } from "./extractorRegistry";
+import { resolvePreviousCustomNonNumericValue, resolvePreviousTrackerLookupValue } from "./extractorRegistry";
 import type {
   BetterSimTrackerSettings,
   CustomNonNumericValue,
@@ -469,13 +468,13 @@ export async function extractStatisticsParallel(input: {
         if (stat === "affection" && parsedOne.deltas.affection[name] !== undefined) {
           parsed.deltas.affection[name] = parsedOne.deltas.affection[name];
           const prevAffection = Number(
-            resolveTrackerDataLookupValue({
-              context: registryContext,
-              data: previousTrackerData,
-              byOwner: previousStatistics?.affection,
-              byEntityId: previousTrackerData?.statisticsByEntityId?.affection,
-              ownerName: name,
-            })
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.affection,
+              previousTrackerData?.statisticsByEntityId?.affection,
+              name,
+            )
             ?? settings.defaultAffection,
           );
           const next = applyDelta(prevAffection, parsedOne.deltas.affection[name], confidence);
@@ -485,13 +484,13 @@ export async function extractStatisticsParallel(input: {
         if (stat === "trust" && parsedOne.deltas.trust[name] !== undefined) {
           parsed.deltas.trust[name] = parsedOne.deltas.trust[name];
           const prevTrust = Number(
-            resolveTrackerDataLookupValue({
-              context: registryContext,
-              data: previousTrackerData,
-              byOwner: previousStatistics?.trust,
-              byEntityId: previousTrackerData?.statisticsByEntityId?.trust,
-              ownerName: name,
-            })
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.trust,
+              previousTrackerData?.statisticsByEntityId?.trust,
+              name,
+            )
             ?? settings.defaultTrust,
           );
           const next = applyDelta(prevTrust, parsedOne.deltas.trust[name], confidence);
@@ -501,13 +500,13 @@ export async function extractStatisticsParallel(input: {
         if (stat === "desire" && parsedOne.deltas.desire[name] !== undefined) {
           parsed.deltas.desire[name] = parsedOne.deltas.desire[name];
           const prevDesire = Number(
-            resolveTrackerDataLookupValue({
-              context: registryContext,
-              data: previousTrackerData,
-              byOwner: previousStatistics?.desire,
-              byEntityId: previousTrackerData?.statisticsByEntityId?.desire,
-              ownerName: name,
-            })
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.desire,
+              previousTrackerData?.statisticsByEntityId?.desire,
+              name,
+            )
             ?? settings.defaultDesire,
           );
           const next = applyDelta(prevDesire, parsedOne.deltas.desire[name], confidence);
@@ -517,13 +516,13 @@ export async function extractStatisticsParallel(input: {
         if (stat === "connection" && parsedOne.deltas.connection[name] !== undefined) {
           parsed.deltas.connection[name] = parsedOne.deltas.connection[name];
           const prevConnection = Number(
-            resolveTrackerDataLookupValue({
-              context: registryContext,
-              data: previousTrackerData,
-              byOwner: previousStatistics?.connection,
-              byEntityId: previousTrackerData?.statisticsByEntityId?.connection,
-              ownerName: name,
-            })
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.connection,
+              previousTrackerData?.statisticsByEntityId?.connection,
+              name,
+            )
             ?? settings.defaultConnection,
           );
           const next = applyDelta(prevConnection, parsedOne.deltas.connection[name], confidence);
@@ -533,13 +532,13 @@ export async function extractStatisticsParallel(input: {
         if (stat === "mood" && parsedOne.mood[name] !== undefined) {
           parsed.mood[name] = parsedOne.mood[name];
           const prevMood = String(
-            resolveTrackerDataLookupValue({
-              context: registryContext,
-              data: previousTrackerData,
-              byOwner: previousStatistics?.mood,
-              byEntityId: previousTrackerData?.statisticsByEntityId?.mood,
-              ownerName: name,
-            })
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.mood,
+              previousTrackerData?.statisticsByEntityId?.mood,
+              name,
+            )
             ?? settings.defaultMood,
           );
           output.mood[name] = resolveMoodWithConfidence({
@@ -562,13 +561,13 @@ export async function extractStatisticsParallel(input: {
           if (isOwnerStatEnabled?.(name, stat) === false) continue;
           if (output.mood[name] !== undefined) continue;
           const prevMood = String(
-            resolveTrackerDataLookupValue({
-              context: registryContext,
-              data: previousTrackerData,
-              byOwner: previousStatistics?.mood,
-              byEntityId: previousTrackerData?.statisticsByEntityId?.mood,
-              ownerName: name,
-            })
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.mood,
+              previousTrackerData?.statisticsByEntityId?.mood,
+              name,
+            )
             ?? settings.defaultMood,
           );
           output.mood[name] = prevMood;
@@ -616,13 +615,13 @@ export async function extractStatisticsParallel(input: {
         parsed.deltas.custom[statId][name] = delta;
         const confidence = parsedOne.confidence[name] ?? 0.8;
         const prevValue = Number(
-          resolveTrackerDataLookupValue({
-            context: registryContext,
-            data: previousTrackerData,
-            byOwner: previousCustomStatistics?.[statId],
-            byEntityId: previousTrackerData?.customStatisticsByEntityId?.[statId],
-            ownerName: name,
-          })
+          resolvePreviousTrackerLookupValue(
+            registryContext,
+            previousTrackerData,
+            previousCustomStatistics?.[statId],
+            previousTrackerData?.customStatisticsByEntityId?.[statId],
+            name,
+          )
           ?? statDef.defaultValue,
         );
         const next = applyDelta(prevValue, delta, confidence, statDef.maxDeltaPerTurn);
@@ -688,13 +687,13 @@ export async function extractStatisticsParallel(input: {
       for (const name of names) {
         if (isOwnerStatEnabled?.(name, statId) === false) continue;
         const seedValue = clamp(Number(
-          resolveTrackerDataLookupValue({
-            context: registryContext,
-            data: previousTrackerData,
-            byOwner: previousCustomStatistics?.[statId],
-            byEntityId: previousTrackerData?.customStatisticsByEntityId?.[statId],
-            ownerName: name,
-          })
+          resolvePreviousTrackerLookupValue(
+            registryContext,
+            previousTrackerData,
+            previousCustomStatistics?.[statId],
+            previousTrackerData?.customStatisticsByEntityId?.[statId],
+            name,
+          )
           ?? statDef.defaultValue,
         ));
         outputCustom[statId][name] = seedValue;
@@ -758,13 +757,13 @@ export async function extractStatisticsParallel(input: {
       for (const name of names) {
         if (isOwnerStatEnabled?.(name, statId) === false) continue;
         let seedValue: CustomNonNumericValue;
-        const previous = resolveTrackerDataLookupValue({
-          context: registryContext,
-          data: previousTrackerData,
-          byOwner: previousCustomNonNumericStatistics?.[statId],
-          byEntityId: previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId],
-          ownerName: name,
-        });
+        const previous = resolvePreviousTrackerLookupValue(
+          registryContext,
+          previousTrackerData,
+          previousCustomNonNumericStatistics?.[statId],
+          previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId],
+          name,
+        );
         if (previous !== undefined) {
           if (Array.isArray(previous)) {
             const seen = new Set<string>();
@@ -836,7 +835,16 @@ export async function extractStatisticsParallel(input: {
       const existing: string[] = [];
       const firstRunSeedOnly: string[] = [];
       for (const name of names) {
-        if (hasPrior && resolveEntityRegistryLookupValue<unknown>(registryContext, rawMap as Record<string, unknown>, name) !== undefined) {
+        const previousValue = resolvePreviousTrackerLookupValue(
+          registryContext,
+          previousTrackerData,
+          rawMap as Record<string, unknown>,
+          kind === "numeric"
+            ? previousTrackerData?.customStatisticsByEntityId?.[statId]
+            : previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId],
+          name,
+        );
+        if (hasPrior && previousValue !== undefined) {
           existing.push(name);
         } else {
           firstRunSeedOnly.push(name);

@@ -1,3 +1,7 @@
+## [2.2.4.16-exp174] - 2026-03-26
+### Fixed
+- Experimental extractor continuity and custom-stat seed selection now keep built-in/custom previous-state reads pinned to the current entity-backed tracker snapshot before any owner-name fallback, so stale same-name buckets no longer hijack live extraction continuity or trick first-run custom stats into reusing another entity's history.
+
 ## [2.2.4.16-exp173] - 2026-03-26
 ### Fixed
 - Experimental extraction prompt builders now keep built-in and custom owner-state reads pinned to the current entity-backed tracker snapshot before any registry fallback, so stale same-name registry aliases no longer leak into unified/sequential prompt context when the live tracker payload already points at a different entity.

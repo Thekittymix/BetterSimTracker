@@ -104,3 +104,81 @@ test("resolvePreviousCustomNonNumericValue prefers by-entity shadow continuity w
     "leaning against the desk",
   );
 });
+
+test("resolvePreviousCustomNonNumericValue keeps same-name fallback scoped to the current entity snapshot", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_mc_alias:test:ashley": {
+          id: "bst_mc_alias:test:ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+        "bst_narrative:ashley-current": {
+          id: "bst_narrative:ashley-current",
+          ownerName: "Ashley Summers",
+          canonicalName: "Ashley Summers",
+          aliases: ["Ash"],
+          sourceName: "Ashley Summers",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:ashley-current",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 1,
+          lastActiveMessageIndex: 1,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "bst_mc_alias:test:ashley",
+        ashley: "bst_mc_alias:test:ashley",
+        "ashley summers": "bst_narrative:ashley-current",
+      },
+    },
+  };
+
+  const previousByOwner = {
+    Ashley: "standing near the door",
+  };
+
+  assert.equal(
+    resolvePreviousCustomNonNumericValue(context, previousByOwner, {
+      timestamp: 2,
+      activeCharacters: ["Ash"],
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: { pose: previousByOwner },
+      entityOwnerMap: {
+        Ash: {
+          entityId: "bst_narrative:ashley-current",
+          ownerName: "Ashley Summers",
+          canonicalName: "Ashley Summers",
+          aliases: ["Ash"],
+          sourceKey: "narrative:bst_narrative:ashley-current",
+          kind: "narrative-entity",
+        },
+      },
+    }, null, "Ash", false),
+    undefined,
+  );
+});
