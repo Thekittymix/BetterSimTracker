@@ -16,6 +16,10 @@ function normalizeLooseKey(value: unknown): string {
   return normalizeKey(value).replace(/[^a-z0-9]+/g, "");
 }
 
+function stripLeadingNarrativeQualifier(value: string): string {
+  return normalizeToken(value).replace(/^(?:the|a|an|this|that|these|those)\s+/i, "").trim();
+}
+
 function uniqueStrings(values: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -65,6 +69,14 @@ function buildAliasPool(name: string, aliases: string[] | undefined): string[] {
   return uniqueStrings([name, ...(aliases ?? [])]);
 }
 
+function buildNarrativeMatchPool(name: string, aliases: string[] | undefined): string[] {
+  const base = buildAliasPool(name, aliases);
+  const stripped = base
+    .map(value => stripLeadingNarrativeQualifier(value))
+    .filter(Boolean);
+  return uniqueStrings([...base, ...stripped]);
+}
+
 function mergeResolvedEntity(
   target: Map<string, TrackerResolvedEntity>,
   entity: TrackerResolvedEntity,
@@ -88,16 +100,17 @@ function mergeResolvedEntity(
 }
 
 function buildCandidateNameMaps(candidateEntities: MultiCharacterResolverCandidate[]): {
-  exact: Map<string, MultiCharacterResolverCandidate>;
+  exact: Map<string, MultiCharacterResolverCandidate | null>;
   loose: Map<string, MultiCharacterResolverCandidate | null>;
 } {
-  const exact = new Map<string, MultiCharacterResolverCandidate>();
+  const exact = new Map<string, MultiCharacterResolverCandidate | null>();
   const loose = new Map<string, MultiCharacterResolverCandidate | null>();
   for (const candidate of candidateEntities) {
     for (const name of buildAliasPool(candidate.ownerName, candidate.aliases)) {
       const exactKey = normalizeKey(name);
-      if (exactKey && !exact.has(exactKey)) {
-        exact.set(exactKey, candidate);
+      if (exactKey) {
+        const existingExact = exact.get(exactKey);
+        exact.set(exactKey, existingExact && existingExact.entityId !== candidate.entityId ? null : (existingExact ?? candidate));
       }
       const looseKey = normalizeLooseKey(name);
       if (!looseKey) continue;
@@ -112,10 +125,15 @@ function findCandidateMatch(
   names: string[],
   maps: ReturnType<typeof buildCandidateNameMaps>,
 ): MultiCharacterResolverCandidate | null {
+  const exactMatches = new Map<string, MultiCharacterResolverCandidate>();
   for (const name of names) {
     const exact = maps.exact.get(normalizeKey(name));
-    if (exact) return exact;
+    if (exact?.entityId) {
+      exactMatches.set(exact.entityId, exact);
+    }
   }
+  if (exactMatches.size === 1) return Array.from(exactMatches.values())[0];
+  if (exactMatches.size > 1) return null;
   const looseMatches = new Map<string, MultiCharacterResolverCandidate>();
   for (const name of names) {
     const loose = maps.loose.get(normalizeLooseKey(name));
@@ -220,9 +238,10 @@ export function materializeNarrativeEntityCreations(input: {
     const name = normalizeToken(proposal.name);
     const aliases = uniqueStrings((proposal.aliases ?? []).map(alias => normalizeToken(alias)).filter(Boolean));
     const aliasPool = buildAliasPool(name, aliases);
+    const matchPool = buildNarrativeMatchPool(name, aliases);
     if (!isPlausibleNarrativeEntityName(input.context, name) || !aliasPool.length) continue;
 
-    const candidateMatch = findCandidateMatch(aliasPool, candidateMaps);
+    const candidateMatch = findCandidateMatch(matchPool, candidateMaps);
     if (candidateMatch?.entityId) {
       mergeResolvedEntity(resolvedMap, {
         entityId: candidateMatch.entityId,
@@ -234,11 +253,11 @@ export function materializeNarrativeEntityCreations(input: {
         inMessage: Boolean(proposal.inMessage),
         created: false,
       });
-      unresolvedMentions = removeResolvedMentions(unresolvedMentions, aliasPool);
+      unresolvedMentions = removeResolvedMentions(unresolvedMentions, matchPool);
       continue;
     }
 
-    const registryMatch = findNarrativeRegistryMatch(input.context, aliasPool);
+    const registryMatch = findNarrativeRegistryMatch(input.context, matchPool);
     if (registryMatch) {
       mergeResolvedEntity(resolvedMap, {
         entityId: registryMatch.id,
@@ -250,7 +269,7 @@ export function materializeNarrativeEntityCreations(input: {
         inMessage: Boolean(proposal.inMessage),
         created: false,
       });
-      unresolvedMentions = removeResolvedMentions(unresolvedMentions, aliasPool);
+      unresolvedMentions = removeResolvedMentions(unresolvedMentions, matchPool);
       usedEntityIds.add(registryMatch.id);
       continue;
     }

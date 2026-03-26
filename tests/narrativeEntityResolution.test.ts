@@ -102,6 +102,43 @@ test("materializeNarrativeEntityCreations reuses exact candidates before creatin
   });
 });
 
+test("materializeNarrativeEntityCreations reuses candidates when created names only differ by a leading article", () => {
+  const result = materializeNarrativeEntityCreations({
+    context: makeContext(),
+    settings: { entityTrackingMode: "dynamic_entities" },
+    candidateEntities: [
+      {
+        entityRef: "ent1",
+        ownerName: "Forest Spirit",
+        entityId: "bst_narrative:forest-spirit",
+        kind: "narrative-entity",
+        aliases: ["Spirit"],
+      },
+    ],
+    resolvedEntities: [],
+    createdEntities: [
+      { name: "the spirit", inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["the spirit"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:forest-spirit",
+        kind: "narrative-entity",
+        name: "Forest Spirit",
+        avatar: null,
+        aliases: ["Spirit"],
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
 test("materializeNarrativeEntityCreations reuses archived narrative registry entities before minting new ids", () => {
   const context = makeContext();
   context.chatMetadata = {
@@ -157,6 +194,110 @@ test("materializeNarrativeEntityCreations reuses archived narrative registry ent
         inScene: true,
         inMessage: true,
         created: false,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
+test("materializeNarrativeEntityCreations reuses archived narrative registry entities when created names include a leading article", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_narrative:forest-spirit": {
+          id: "bst_narrative:forest-spirit",
+          ownerName: "Forest Spirit",
+          canonicalName: "Forest Spirit",
+          aliases: ["Spirit"],
+          sourceName: "Forest Spirit",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:forest-spirit",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "archived",
+          archivedAtMessageIndex: 1,
+          lifecycleEvents: [
+            { messageIndex: 0, state: "active" },
+            { messageIndex: 1, state: "archived" },
+          ],
+        },
+      },
+      ownerToEntityId: {
+        "forest spirit": "bst_narrative:forest-spirit",
+        spirit: "bst_narrative:forest-spirit",
+      },
+    },
+  };
+
+  const result = materializeNarrativeEntityCreations({
+    context,
+    settings: { entityTrackingMode: "dynamic_entities" },
+    candidateEntities: [],
+    resolvedEntities: [],
+    createdEntities: [
+      { name: "the spirit", inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["the spirit"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:forest-spirit",
+        kind: "narrative-entity",
+        name: "Forest Spirit",
+        avatar: null,
+        aliases: ["Spirit"],
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
+test("materializeNarrativeEntityCreations keeps ambiguous exact alias collisions unresolved instead of reusing the first candidate", () => {
+  const result = materializeNarrativeEntityCreations({
+    context: makeContext(),
+    settings: { entityTrackingMode: "dynamic_entities" },
+    candidateEntities: [
+      {
+        entityRef: "ent1",
+        ownerName: "Ashley",
+        entityId: "bst_mc_alias:test:ashley",
+        kind: "st-character",
+        aliases: ["Ash"],
+      },
+      {
+        entityRef: "ent2",
+        ownerName: "Ash",
+        entityId: "bst_narrative:ash",
+        kind: "narrative-entity",
+      },
+    ],
+    resolvedEntities: [],
+    createdEntities: [
+      { name: "Ash", inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["Ash"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:ash",
+        kind: "narrative-entity",
+        name: "Ash",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: true,
+        created: true,
       },
     ],
     unresolvedMentions: [],

@@ -1,3 +1,7 @@
+## [2.2.4.16-exp177] - 2026-03-26
+### Fixed
+- Experimental dynamic-entity resolver reuse now matches article-prefixed creation proposals like `the spirit` back onto the current candidate or archived narrative registry entity before minting a new ID, and exact alias collisions now stay conservative instead of silently reusing the first same-name candidate.
+
 ## [2.2.4.16-exp176] - 2026-03-26
 ### Fixed
 - Experimental prompt injection now treats `track: false` as a hard off-switch for custom stats, so disabled stats no longer leak back into injection semantics or scene lines just because stale per-scope flags still say `trackCharacters` or `trackUser`.
