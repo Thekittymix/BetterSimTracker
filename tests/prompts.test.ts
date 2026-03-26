@@ -128,6 +128,128 @@ test("buildUnifiedPrompt resolves alias owner built-in state through registry lo
   assert.match(prompt, /- Ash: affection=61, trust=50, desire=50, connection=50, mood=Hopeful/);
 });
 
+test("buildUnifiedPrompt keeps same-name built-in reads scoped to the current entity id", () => {
+  const currentData: TrackerData = {
+    timestamp: 2,
+    activeCharacters: ["Ash"],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+    entityOwnerMap: {
+      Ash: {
+        entityId: "bst_narrative:ashley-current",
+        ownerName: "Ashley Summers",
+        canonicalName: "Ashley Summers",
+        aliases: ["Ashley", "Ash"],
+        sourceKey: "camp",
+        kind: "narrative-entity",
+      },
+    },
+  };
+  const historyEntry: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ash"],
+    statistics: {
+      affection: { Ashley: 14, "Ashley Summers": 58 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Angry", "Ashley Summers": "Content" },
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+    entityOwnerMap: {
+      Ash: {
+        entityId: "bst_narrative:ashley-current",
+        ownerName: "Ashley Summers",
+        canonicalName: "Ashley Summers",
+        aliases: ["Ashley", "Ash"],
+        sourceKey: "camp",
+        kind: "narrative-entity",
+      },
+    },
+  };
+  const prompt = buildUnifiedPrompt(
+    ["affection", "mood"],
+    "User",
+    ["Ash"],
+    "Ashley glances over.",
+    {
+      affection: { Ashley: 9, "Ashley Summers": 61 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Angry", "Ashley Summers": "Hopeful" },
+      lastThought: {},
+    },
+    [historyEntry],
+    12,
+    undefined,
+    undefined,
+    undefined,
+    true,
+    true,
+    {
+      chatMetadata: {
+        bstEntityRegistry: {
+          version: 1,
+          entities: {
+            "bst_mc_alias:test:ashley-stale": {
+              id: "bst_mc_alias:test:ashley-stale",
+              ownerName: "Ashley",
+              canonicalName: "Ashley",
+              aliases: ["Ash"],
+              sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+              sourceAvatar: "camp.png",
+              sourceKey: "camp",
+              kind: "multi_character_alias",
+              introducedAtMessageIndex: 1,
+              lastSeenMessageIndex: 1,
+              lastActiveMessageIndex: 1,
+              lifecycleState: "active",
+              archivedAtMessageIndex: null,
+            },
+            "bst_narrative:ashley-current": {
+              id: "bst_narrative:ashley-current",
+              ownerName: "Ashley Summers",
+              canonicalName: "Ashley Summers",
+              aliases: ["Ashley", "Ash"],
+              sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+              sourceAvatar: "camp.png",
+              sourceKey: "camp",
+              kind: "narrative-entity",
+              introducedAtMessageIndex: 2,
+              lastSeenMessageIndex: 2,
+              lastActiveMessageIndex: 2,
+              lifecycleState: "active",
+              archivedAtMessageIndex: null,
+            },
+          },
+          ownerToEntityId: {
+            ash: "bst_mc_alias:test:ashley-stale",
+            ashley: "bst_mc_alias:test:ashley-stale",
+            "ashley summers": "bst_narrative:ashley-current",
+          },
+        },
+      },
+    } as never,
+    currentData,
+  );
+
+  assert.match(prompt, /- Ash: affection=61, trust=50, desire=50, connection=50, mood=Hopeful/);
+  assert.match(prompt, /Snapshot 1 \(newest-0\):[\s\S]*- Ash: affection=58, trust=50, desire=50, connection=50, mood=Content/);
+  assert.doesNotMatch(prompt, /- Ash: affection=9, trust=50, desire=50, connection=50, mood=Angry/);
+  assert.doesNotMatch(prompt, /- Ash: affection=14, trust=50, desire=50, connection=50, mood=Angry/);
+});
+
 test("buildUnifiedAllStatsPrompt includes custom numeric and non-numeric values", () => {
   const prompt = buildUnifiedAllStatsPrompt({
     stats: ["affection", "mood"],
@@ -647,6 +769,133 @@ test("buildSequentialCustomNumericPrompt preserves explicit zero defaults", () =
   });
 
   assert.match(prompt, /satisfaction=0/);
+});
+
+test("buildSequentialCustomNumericPrompt keeps same-name custom numeric reads scoped to the current entity id", () => {
+  const prompt = buildSequentialCustomNumericPrompt({
+    context: {
+      chatMetadata: {
+        bstEntityRegistry: {
+          version: 1,
+          entities: {
+            "bst_mc_alias:test:ashley-stale": {
+              id: "bst_mc_alias:test:ashley-stale",
+              ownerName: "Ashley",
+              canonicalName: "Ashley",
+              aliases: ["Ash"],
+              sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+              sourceAvatar: "camp.png",
+              sourceKey: "camp",
+              kind: "multi_character_alias",
+              introducedAtMessageIndex: 1,
+              lastSeenMessageIndex: 1,
+              lastActiveMessageIndex: 1,
+              lifecycleState: "active",
+              archivedAtMessageIndex: null,
+            },
+            "bst_narrative:ashley-current": {
+              id: "bst_narrative:ashley-current",
+              ownerName: "Ashley Summers",
+              canonicalName: "Ashley Summers",
+              aliases: ["Ashley", "Ash"],
+              sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+              sourceAvatar: "camp.png",
+              sourceKey: "camp",
+              kind: "narrative-entity",
+              introducedAtMessageIndex: 2,
+              lastSeenMessageIndex: 2,
+              lastActiveMessageIndex: 2,
+              lifecycleState: "active",
+              archivedAtMessageIndex: null,
+            },
+          },
+          ownerToEntityId: {
+            ash: "bst_mc_alias:test:ashley-stale",
+            ashley: "bst_mc_alias:test:ashley-stale",
+            "ashley summers": "bst_narrative:ashley-current",
+          },
+        },
+      },
+    } as never,
+    statId: "satisfaction",
+    statLabel: "Satisfaction",
+    statDescription: "General satisfaction.",
+    statDefault: 50,
+    maxDeltaPerTurn: 9,
+    userName: "User",
+    characters: ["Ash"],
+    contextText: "Recent lines",
+    current: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    currentData: {
+      timestamp: 2,
+      activeCharacters: ["Ash"],
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+      entityOwnerMap: {
+        Ash: {
+          entityId: "bst_narrative:ashley-current",
+          ownerName: "Ashley Summers",
+          canonicalName: "Ashley Summers",
+          aliases: ["Ashley", "Ash"],
+          sourceKey: "camp",
+          kind: "narrative-entity",
+        },
+      },
+    },
+    currentCustom: {
+      satisfaction: { Ashley: 12, "Ashley Summers": 64 },
+    },
+    history: [
+      {
+        timestamp: 1,
+        activeCharacters: ["Ash"],
+        statistics: {
+          affection: {},
+          trust: {},
+          desire: {},
+          connection: {},
+          mood: {},
+          lastThought: {},
+        },
+        customStatistics: {
+          satisfaction: { Ashley: 5, "Ashley Summers": 57 },
+        },
+        customNonNumericStatistics: {},
+        entityOwnerMap: {
+          Ash: {
+            entityId: "bst_narrative:ashley-current",
+            ownerName: "Ashley Summers",
+            canonicalName: "Ashley Summers",
+            aliases: ["Ashley", "Ash"],
+            sourceKey: "camp",
+            kind: "narrative-entity",
+          },
+        },
+      },
+    ],
+    includeCharacterCardsInPrompt: true,
+    includeLorebookInExtraction: false,
+  });
+
+  assert.match(prompt, /- Ash: satisfaction=64/);
+  assert.match(prompt, /Snapshot 1 \(newest-0\):[\s\S]*- Ash: satisfaction=57/);
+  assert.doesNotMatch(prompt, /<BST_CURRENT_STATE>\n- Ash: satisfaction=12\n<\/BST_CURRENT_STATE>/);
+  assert.doesNotMatch(prompt, /Snapshot 1 \(newest-0\):\n  - Ash: satisfaction=5\n/);
 });
 
 test("buildSequentialCustomNonNumericPrompt includes scoped values and mode-aware schema", () => {
