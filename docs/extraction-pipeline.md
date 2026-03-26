@@ -21,6 +21,7 @@ Important rules:
 - Resolver output is still entity-first (`resolvedEntities`), not owner-array-first.
 - `created` proposals are matched against existing candidates and full registry state before any new `narrative-entity` ID is minted.
 - Archived narrative entities can therefore be reactivated instead of duplicated when their exact/normalized name reappears later.
+- Fresh `narrative-entity` seeds do not reuse per-character ST defaults; known ST owners keep the old defaults path, while dynamic narrative entities use the generic narrative seed/default path instead.
 
 ## Inputs
 

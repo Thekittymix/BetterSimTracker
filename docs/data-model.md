@@ -80,6 +80,7 @@ Sanitization is centralized in `src/settings.ts`.
 - `TrackerData.entityResolution.resolvedEntities` remains entity-first and is the runtime source of truth for scene/message entity scope.
 - `TrackerData.entityOwnerMap` is a projection/materialization layer for owner-facing lookups, not the source of truth for resolver identity.
 - In `dynamic_entities` mode, new narrative entities receive runtime-owned IDs (for example `bst_narrative:*`) and are then synchronized into chat-scoped registry entries with `kind: narrative-entity`.
+- Narrative entities do not inherit ST character/persona defaults as part of bootstrap seeding; known ST owners keep the existing defaults pipeline, while narrative entities use the generic narrative seed path and then continue from persisted tracker state.
 
 ## Custom Stat Definition (`CustomStatDefinition`)
 

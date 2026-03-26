@@ -33,6 +33,7 @@ import {
   resolveSceneOwnersFromResolvedEntities,
 } from "./entityResolver";
 import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
+import { buildActiveSeedDefaultsPolicy } from "./entitySeedPolicy";
 import {
   buildEntitySourceKey,
   getEntityRegistryEntryForMessage,
@@ -2167,6 +2168,7 @@ function getConfiguredCharacterDefaults(
   context: STContext | null,
   settingsInput: BetterSimTrackerSettings,
   name: string,
+  allowOwnerDefaults = true,
 ): {
   trackerEnabled?: boolean;
   statEnabled?: Record<string, boolean>;
@@ -2179,6 +2181,9 @@ function getConfiguredCharacterDefaults(
   customStatDefaults?: Record<string, number>;
   customNonNumericStatDefaults?: Record<string, string | boolean | string[]>;
 } {
+  if (!allowOwnerDefaults && name !== USER_TRACKER_KEY) {
+    return {};
+  }
   if (name === USER_TRACKER_KEY) {
     const identity = resolveUserDefaultsIdentity(context);
     const defaultsFromSettings = resolveCharacterDefaultsEntry(settingsInput, identity);
@@ -2375,6 +2380,7 @@ function isOwnerStatEnabled(
 function buildSeededStatisticsForActiveCharacters(
   base: Statistics | null,
   activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): Statistics {
@@ -2386,9 +2392,15 @@ function buildSeededStatisticsForActiveCharacters(
     mood: { ...(base?.mood ?? {}) },
     lastThought: { ...(base?.lastThought ?? {}) },
   };
+  const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
 
   for (const name of activeCharacters) {
-    const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
+    const configured = getConfiguredCharacterDefaults(
+      context,
+      settingsInput,
+      name,
+      allowOwnerDefaults.get(name) !== false,
+    );
     if (resolveEntityRegistryLookupValue(context, seeded.affection, name) === undefined) {
       seeded.affection[name] = configured.affection ?? settingsInput.defaultAffection;
     }
@@ -2415,6 +2427,7 @@ function buildSeededStatisticsForActiveCharacters(
 function buildSeededCustomStatisticsForActiveCharacters(
   base: CustomStatistics | null | undefined,
   activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): CustomStatistics {
@@ -2424,6 +2437,7 @@ function buildSeededCustomStatisticsForActiveCharacters(
   }
 
   const customDefs = Array.isArray(settingsInput.customStats) ? settingsInput.customStats : [];
+  const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
   for (const def of customDefs) {
     if (!def.track) continue;
     if ((def.kind ?? "numeric") !== "numeric") continue;
@@ -2432,7 +2446,12 @@ function buildSeededCustomStatisticsForActiveCharacters(
     if (!seeded[statId]) seeded[statId] = {};
     for (const name of activeCharacters) {
       if (resolveEntityRegistryLookupValue(context, seeded[statId], name) !== undefined) continue;
-      const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
+      const configured = getConfiguredCharacterDefaults(
+        context,
+        settingsInput,
+        name,
+        allowOwnerDefaults.get(name) !== false,
+      );
       const configuredValue = configured.customStatDefaults?.[statId];
       const fallback = Number(def.defaultValue);
       seeded[statId][name] = configuredValue ?? (Number.isNaN(fallback) ? 50 : fallback);
@@ -2445,6 +2464,7 @@ function buildSeededCustomStatisticsForActiveCharacters(
 function buildSeededCustomNonNumericStatisticsForActiveCharacters(
   base: CustomNonNumericStatistics | null | undefined,
   activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): CustomNonNumericStatistics {
@@ -2454,6 +2474,7 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
   }
 
   const customDefs = Array.isArray(settingsInput.customStats) ? settingsInput.customStats : [];
+  const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
   for (const def of customDefs) {
     if (!def.track) continue;
     const kind = def.kind ?? "numeric";
@@ -2483,7 +2504,12 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
       const shouldForceUnknownForAliasOwner =
         !def.globalScope &&
         isAliasResolvedOwner(context, name, settingsInput);
-      const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
+      const configured = getConfiguredCharacterDefaults(
+        context,
+        settingsInput,
+        name,
+        allowOwnerDefaults.get(name) !== false,
+      );
       const configuredValue = configured.customNonNumericStatDefaults?.[statId];
       if (!shouldForceUnknownForAliasOwner && configuredValue !== undefined) {
         seeded[statId][name] = normalizeValue(configuredValue);
@@ -2512,16 +2538,24 @@ function seedHistoryForActiveCharacters(
     resolveEntityTrackingMode(settingsInput),
   );
   return history.map(entry => {
-    const statistics = buildSeededStatisticsForActiveCharacters(entry.statistics, activeCharacters, settingsInput, context);
+    const statistics = buildSeededStatisticsForActiveCharacters(
+      entry.statistics,
+      activeCharacters,
+      activeEntityIds,
+      settingsInput,
+      context,
+    );
     const customStatistics = buildSeededCustomStatisticsForActiveCharacters(
       entry.customStatistics,
       activeCharacters,
+      activeEntityIds,
       settingsInput,
       context,
     );
     const customNonNumericStatistics = buildSeededCustomNonNumericStatisticsForActiveCharacters(
       entry.customNonNumericStatistics,
       activeCharacters,
+      activeEntityIds,
       settingsInput,
       context,
     );
@@ -2543,6 +2577,7 @@ function buildBaselineData(
   s: BetterSimTrackerSettings,
 ): TrackerData {
   const context = getSafeContext();
+  const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
 
   const pickNumber = (raw: unknown, fallback: number): number => {
     const n = Number(raw);
@@ -2599,7 +2634,12 @@ function buildBaselineData(
     customNonNumeric: Record<string, string | boolean | string[]>;
   } => {
     const contextual = inferFromContext(name);
-    const defaults = getConfiguredCharacterDefaults(context, s, name);
+    const defaults = getConfiguredCharacterDefaults(
+      context,
+      s,
+      name,
+      allowOwnerDefaults.get(name) !== false,
+    );
     const isAliasOwner = isAliasResolvedOwner(context, name, s);
     const customDefaults: Record<string, number> = {};
     const customNonNumericDefaults: Record<string, string | boolean | string[]> = {};
@@ -3921,18 +3961,21 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const previousSeededStatistics = buildSeededStatisticsForActiveCharacters(
       previous?.statistics ?? null,
       activeCharacters,
+      activeEntityIds,
       runScopedSettings,
       context,
     );
     const previousSeededCustomStatistics = buildSeededCustomStatisticsForActiveCharacters(
       previous?.customStatistics ?? null,
       activeCharacters,
+      activeEntityIds,
       runScopedSettings,
       context,
     );
     const previousSeededCustomNonNumericStatistics = buildSeededCustomNonNumericStatisticsForActiveCharacters(
       previous?.customNonNumericStatistics ?? null,
       activeCharacters,
+      activeEntityIds,
       runScopedSettings,
       context,
     );

@@ -1,3 +1,7 @@
+## [2.2.4.16-exp161] - 2026-03-26
+### Fixed
+- Experimental dynamic-entity bootstrap/default seeding is now entity-aware, so fresh `narrative-entity` IDs seed from the generic narrative path instead of inheriting SillyTavern character defaults just because an owner label or source-card alias happens to overlap.
+
 ## [2.2.4.16-exp160] - 2026-03-26
 ### Added
 - Experimental `Entity Tracking Mode` now exposes an opt-in `Dynamic Entities` path, allowing the resolver to promote clearly new story entities into runtime-owned `narrative-entity` IDs instead of forcing everything through known ST-owner aliases.
