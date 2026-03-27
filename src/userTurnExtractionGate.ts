@@ -12,6 +12,16 @@ export function shouldScheduleImmediateUserTurnExtraction(input: {
   return !input.adoptedInflightGeneration;
 }
 
+export function shouldAdoptInflightGenerationForUserTurn(input: {
+  reason: string;
+  chatGenerationInFlight: boolean;
+  chatGenerationSawCharacterRender: boolean;
+}): boolean {
+  if (input.reason !== "USER_MESSAGE_RENDERED") return false;
+  if (!input.chatGenerationInFlight) return false;
+  return !input.chatGenerationSawCharacterRender;
+}
+
 export function shouldScheduleUserTurnExtractionAfterGenerationEnd(input: {
   userTurnGateActive: boolean;
   chatGenerationSawCharacterRender: boolean;

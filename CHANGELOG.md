@@ -1,3 +1,7 @@
+## [2.2.4.16-exp192] - 2026-03-27
+### Fixed
+- Experimental single-chat `USER_MESSAGE_RENDERED` gating now reclaims an already-started AI generation before any AI render lands, so the user-turn tracker can become the real fresh source of truth again instead of letting later AI tracker state inherit stale user-owned values.
+
 ## [2.2.4.16-exp191] - 2026-03-27
 ### Fixed
 - Experimental BST local cache now prunes old chat-scoped history snapshots globally and keeps a much tighter debug-storage budget, so SillyTavern keeps more `localStorage` headroom for its own draft save path even on long-lived, debug-heavy chats.

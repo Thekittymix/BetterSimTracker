@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  shouldAdoptInflightGenerationForUserTurn,
   isRetryableUserTurnReplayFailure,
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
@@ -173,6 +174,44 @@ test("shouldScheduleImmediateUserTurnExtraction waits for generation end when us
       adoptedInflightGeneration: true,
     }),
     true,
+  );
+});
+
+test("shouldAdoptInflightGenerationForUserTurn only reclaims USER_MESSAGE_RENDERED generations before any AI render lands", () => {
+  assert.equal(
+    shouldAdoptInflightGenerationForUserTurn({
+      reason: "USER_MESSAGE_RENDERED",
+      chatGenerationInFlight: true,
+      chatGenerationSawCharacterRender: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldAdoptInflightGenerationForUserTurn({
+      reason: "USER_MESSAGE_RENDERED",
+      chatGenerationInFlight: false,
+      chatGenerationSawCharacterRender: false,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldAdoptInflightGenerationForUserTurn({
+      reason: "USER_MESSAGE_RENDERED",
+      chatGenerationInFlight: true,
+      chatGenerationSawCharacterRender: true,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldAdoptInflightGenerationForUserTurn({
+      reason: "USER_MESSAGE_EDITED",
+      chatGenerationInFlight: true,
+      chatGenerationSawCharacterRender: false,
+    }),
+    false,
   );
 });
 

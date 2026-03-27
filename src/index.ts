@@ -177,6 +177,7 @@ import {
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
   shouldAwaitUserMessageRenderedExtraction,
+  shouldAdoptInflightGenerationForUserTurn,
   shouldDeferUserTurnExtraction,
   shouldIssueUserTurnGateStop,
   shouldScheduleImmediateUserTurnExtraction,
@@ -4701,7 +4702,11 @@ function registerEvents(context: STContext): void {
         return;
       }
       const gateStart = startUserTurnGate(context, messageIndex, {
-        allowInflightGenerationAdoption: false,
+        allowInflightGenerationAdoption: shouldAdoptInflightGenerationForUserTurn({
+          reason: "USER_MESSAGE_RENDERED",
+          chatGenerationInFlight,
+          chatGenerationSawCharacterRender,
+        }),
       });
       if (shouldAwaitUserMessageRenderedExtraction({
         reason: "USER_MESSAGE_RENDERED",
