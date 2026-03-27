@@ -1135,6 +1135,8 @@ export function collectCharacterNamesFromTrackerData(
   const names: string[] = [];
   const seen = new Set<string>();
   const preferredNames = resolveTrackerSceneOwners(context, data);
+  const explicitActiveCharacters = Array.isArray(data.activeCharacters) ? data.activeCharacters : [];
+  const hasExplicitUserOwner = explicitActiveCharacters.some(name => normalizeName(name) === normalizeName(USER_TRACKER_KEY));
   const fallbackNames = preferredNames.length
     ? preferredNames
     : (data.entityOwnerMap
@@ -1147,6 +1149,9 @@ export function collectCharacterNamesFromTrackerData(
     for (const name of Object.keys(data.entityOwnerMap)) {
       pushUniqueCharacterName(names, seen, name);
     }
+  }
+  if (hasExplicitUserOwner) {
+    pushUniqueCharacterName(names, seen, USER_TRACKER_KEY);
   }
 
   const hasExplicitEntityIdentity = preferredNames.length > 0

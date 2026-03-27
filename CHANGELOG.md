@@ -1,3 +1,7 @@
+## [2.2.4.16-exp189] - 2026-03-27
+### Fixed
+- Experimental user-turn tracker cards now preserve the explicit user owner in the UI render pool even when fallback scene continuity still carries a source-card scene owner, so user messages no longer render as scene-only cards while the actual user stats are already saved.
+
 ## [2.2.4.16-exp188] - 2026-03-27
 ### Fixed
 - Experimental BST local snapshot storage now compacts per-scope `localStorage` history copies and prunes the cross-chat `latestByScope` cache, so tracker persistence no longer grows unbounded across chats just to keep runtime fallback snapshots available.

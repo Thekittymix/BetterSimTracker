@@ -242,6 +242,33 @@ test("collectCharacterNamesFromTrackerData ignores raw stat owner keys once expl
   assert.deepEqual(names, ["Blake"]);
 });
 
+test("collectCharacterNamesFromTrackerData preserves the explicit user owner alongside fallback scene continuity", () => {
+  const names = collectCharacterNamesFromTrackerData({
+    timestamp: 1,
+    activeCharacters: ["__bst_user__"],
+    entityResolution: buildEntityResolution({
+      source: "fallback",
+      sceneOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      messageOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    }),
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { __bst_user__: "Serious" },
+      lastThought: { __bst_user__: "Ashley is giving me the clearest read here." },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: { __bst_user__: ["t-shirt", "jeans"] },
+      pose: { __bst_user__: "watching Ashley closely" },
+    },
+  } as never);
+
+  assert.deepEqual(names, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "__bst_user__"]);
+});
+
 test("collectCharacterNamesFromTrackerData can materialize resolver scene owners from entity ids plus owner map without context", () => {
   const names = collectCharacterNamesFromTrackerData({
     activeCharacters: ["Garret", "Raleigh"],
