@@ -60,16 +60,6 @@ export function shouldInterruptInflightGenerationForUserTurnGate(input: {
   return input.isGroupChat;
 }
 
-export function shouldCaptureInflightGenerationForUserTurnGate(input: {
-  userTurnGateActive: boolean;
-  isGroupChat: boolean;
-  hasIntent: boolean;
-}): boolean {
-  return input.userTurnGateActive
-    && input.hasIntent
-    && shouldInterruptInflightGenerationForUserTurnGate({ isGroupChat: input.isGroupChat });
-}
-
 export function isRetryableUserTurnReplayFailure(message: string): boolean {
   return /(api request failed|failed to fetch|network\s+error|timeout|http\s+5\d\d|statuscode\":5\d\d|proxy connection closed unexpectedly|servers restarting)/i
     .test(String(message ?? ""));

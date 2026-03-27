@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  shouldCaptureInflightGenerationForUserTurnGate,
   isRetryableUserTurnReplayFailure,
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
@@ -105,44 +104,6 @@ test("shouldInterruptInflightGenerationForUserTurnGate only interrupts group cha
   assert.equal(
     shouldInterruptInflightGenerationForUserTurnGate({
       isGroupChat: false,
-    }),
-    false,
-  );
-});
-
-test("shouldCaptureInflightGenerationForUserTurnGate only captures generation intents for active group-chat gates", () => {
-  assert.equal(
-    shouldCaptureInflightGenerationForUserTurnGate({
-      userTurnGateActive: true,
-      isGroupChat: true,
-      hasIntent: true,
-    }),
-    true,
-  );
-
-  assert.equal(
-    shouldCaptureInflightGenerationForUserTurnGate({
-      userTurnGateActive: true,
-      isGroupChat: false,
-      hasIntent: true,
-    }),
-    false,
-  );
-
-  assert.equal(
-    shouldCaptureInflightGenerationForUserTurnGate({
-      userTurnGateActive: false,
-      isGroupChat: true,
-      hasIntent: true,
-    }),
-    false,
-  );
-
-  assert.equal(
-    shouldCaptureInflightGenerationForUserTurnGate({
-      userTurnGateActive: true,
-      isGroupChat: true,
-      hasIntent: false,
     }),
     false,
   );

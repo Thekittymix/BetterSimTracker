@@ -1,7 +1,3 @@
-## [2.2.4.16-exp188] - 2026-03-27
-### Fixed
-- Experimental single-chat user-turn gating now keeps generation-intent capture and stop/replay strictly group-only across the whole runtime path, so normal one-on-one sends no longer get interrupted by BST just because user-turn extraction is active.
-
 ## [2.2.4.16-exp187] - 2026-03-26
 ### Fixed
 - Experimental single-chat user-turn extraction no longer interrupts the natural AI auto-reply path just to replay generation after user tracking, so `Dynamic Characters` keeps user-turn tracker extraction without breaking the normal post-send response flow.
