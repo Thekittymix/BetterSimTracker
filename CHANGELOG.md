@@ -1,3 +1,7 @@
+## [2.2.4.16-exp190] - 2026-03-27
+### Fixed
+- Experimental parser no longer clamps AI `Last Thought` text to the old generic 200-character text limit, so longer thought entries now survive from raw model output into saved tracker payloads and expandable tracker cards.
+
 ## [2.2.4.16-exp189] - 2026-03-27
 ### Fixed
 - Experimental user-turn tracker cards now preserve the explicit user owner in the UI render pool even when fallback scene continuity still carries a source-card scene owner, so user messages no longer render as scene-only cards while the actual user stats are already saved.
