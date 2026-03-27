@@ -2117,7 +2117,7 @@ export function openSettingsModal(input: {
         const counts = new Map<string, number>();
         const examples: string[] = [];
         for (const item of preview) {
-          if (examples.length >= 4) break;
+          if (examples.length >= 6) break;
           const avatarStem = item.avatar
             ? item.avatar.split(/[\\/]/).filter(Boolean).pop()?.replace(/\.[a-z0-9]+$/i, "") ?? ""
             : "";

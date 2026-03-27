@@ -2,6 +2,7 @@
 ### Fixed
 - Experimental explicit `bst_stat_char_*_<target_slug>` macros now register against the current chat-scoped dynamic-character targets instead of source-card wrapper names, so mixed chats resolve owner-targeted custom stat macros for both source-backed aliases and narrative entities.
 - Experimental settings macro examples now preview the same chat-scoped dynamic-character targets that runtime macros actually expose, and multi-target chats no longer imply that bare `bst_stat_char_*` macros are available when only explicit target slugs are unambiguous.
+- Experimental settings macro previews now keep enough visible target examples to include the full current mixed-scene cast in the common five-target case, so live settings no longer drop the last dynamic character while runtime macros already resolve it.
 
 ## [2.2.4.16-exp199] - 2026-03-27
 ### Fixed
