@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { USER_TRACKER_KEY } from "../src/constants";
 
 import {
   buildBuiltInSequentialPromptGenerationPrompt,
@@ -72,6 +73,40 @@ test("buildUnifiedPrompt includes current state, history, instruction, and proto
   assert.match(prompt, /Numeric stats to update \(affection\):/);
   assert.match(prompt, /Text stats to update \(mood\):/);
   assert.match(prompt, /-12\.\.12/);
+});
+
+test("buildUnifiedPrompt resolves {{char}} inside included character card text to a non-user speaker during user extraction", () => {
+  const prompt = buildUnifiedPrompt(
+    ["mood"],
+    "Kuba",
+    [USER_TRACKER_KEY],
+    [
+      "Recent messages:",
+      "\"I need to know whether Blake is lying.\"",
+      "",
+      "Character cards (use only to disambiguate if recent messages are unclear):",
+      "Character Card - Blake",
+      "Description: {{char}} studies the campfire in silence.",
+    ].join("\n"),
+    {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { [USER_TRACKER_KEY]: "Serious" },
+      lastThought: {},
+    },
+    [],
+    12,
+    undefined,
+    undefined,
+    "Blake",
+  );
+
+  assert.match(prompt, /Description: Blake studies the campfire in silence\./);
+  assert.doesNotMatch(prompt, /Description: Kuba studies the campfire in silence\./);
+  assert.doesNotMatch(prompt, /Description: User studies the campfire in silence\./);
+  assert.doesNotMatch(prompt, /Description: __bst_user__ studies the campfire in silence\./);
 });
 
 test("buildUnifiedPrompt resolves alias owner built-in state through registry lookup names", () => {
@@ -707,6 +742,40 @@ test("buildSequentialPrompt respects built-in tracking and source priority wordi
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
   assert.match(prompt, /trust=42/);
   assert.match(prompt, /Use recent messages first; use lorebook only to disambiguate when context is unclear\./);
+});
+
+test("buildSequentialPrompt resolves {{char}} inside included character card text to a non-user speaker during user extraction", () => {
+  const prompt = buildSequentialPrompt(
+    "mood",
+    "Kuba",
+    [USER_TRACKER_KEY],
+    [
+      "Recent messages:",
+      "\"I need to know whether Blake is lying.\"",
+      "",
+      "Character cards (use only to disambiguate if recent messages are unclear):",
+      "Character Card - Blake",
+      "Description: {{char}} studies the campfire in silence.",
+    ].join("\n"),
+    {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { [USER_TRACKER_KEY]: "Serious" },
+      lastThought: {},
+    },
+    [],
+    12,
+    undefined,
+    undefined,
+    "Blake",
+  );
+
+  assert.match(prompt, /Description: Blake studies the campfire in silence\./);
+  assert.doesNotMatch(prompt, /Description: Kuba studies the campfire in silence\./);
+  assert.doesNotMatch(prompt, /Description: User studies the campfire in silence\./);
+  assert.doesNotMatch(prompt, /Description: __bst_user__ studies the campfire in silence\./);
 });
 
 test("buildSequentialCustomNumericPrompt includes BST tagged extraction sections", () => {

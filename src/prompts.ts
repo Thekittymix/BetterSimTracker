@@ -1,7 +1,7 @@
 import type { CustomStatDefinition, CustomStatKind, CustomNonNumericStatistics, CustomStatistics, STContext, StatKey } from "./types";
 import type { Statistics } from "./types";
 import type { TrackerData } from "./types";
-import { GLOBAL_TRACKER_KEY } from "./constants";
+import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { normalizeDateTimeValue } from "./dateTime";
 import { MAX_CUSTOM_ARRAY_ITEMS, MAX_CUSTOM_ENUM_OPTIONS, normalizeCustomNumericDefaultValue, normalizeNonNumericArrayItems } from "./customStatRuntime";
 import {
@@ -361,14 +361,20 @@ function applySourcePriorityRule(
     .join("\n");
 }
 
+function isPromptCharacterCandidate(value: string): boolean {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized !== USER_TRACKER_KEY.toLowerCase() && normalized !== GLOBAL_TRACKER_KEY.toLowerCase();
+}
+
 function primaryCharacter(characters: string[]): string {
-  const first = characters.find(name => typeof name === "string" && name.trim());
+  const first = characters.find(name => typeof name === "string" && isPromptCharacterCandidate(name));
   return first?.trim() || "Character";
 }
 
 function resolvePrimaryCharacter(characters: string[], preferredCharacterName?: string): string {
   const preferred = String(preferredCharacterName ?? "").trim();
-  if (preferred) {
+  if (preferred && isPromptCharacterCandidate(preferred)) {
     const preferredLower = preferred.toLowerCase();
     const matched = characters.find(name => {
       if (typeof name !== "string") return false;
@@ -376,6 +382,7 @@ function resolvePrimaryCharacter(characters: string[], preferredCharacterName?: 
       return Boolean(trimmed) && trimmed.toLowerCase() === preferredLower;
     });
     if (matched && matched.trim()) return matched.trim();
+    return preferred;
   }
   return primaryCharacter(characters);
 }

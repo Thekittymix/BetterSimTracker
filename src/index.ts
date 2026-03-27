@@ -3787,9 +3787,20 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     }
 
     const userName = context.name1 ?? "User";
-    const preferredCharacterName = !userExtraction
-      ? String(lastMessage?.name ?? "").trim() || undefined
-      : undefined;
+    const preferredCharacterName = (() => {
+      if (!userExtraction) {
+        return String(lastMessage?.name ?? "").trim() || undefined;
+      }
+      const preferredActive = activeCharacters.find(name =>
+        typeof name === "string" &&
+        name.trim() &&
+        name !== USER_TRACKER_KEY &&
+        name !== GLOBAL_TRACKER_KEY,
+      );
+      if (preferredActive?.trim()) return preferredActive.trim();
+      const currentCharacterName = String(context.name2 ?? "").trim();
+      return currentCharacterName || undefined;
+    })();
     if (activeSettings.includeLorebookInExtraction && userExtraction) {
       if (activeSettings.useInternalLorebookScanFallback) {
         await refreshLorebookEntriesFromWorldInfoScan(context, runId, reason);

@@ -1,3 +1,7 @@
+## [2.2.4.16-exp201] - 2026-03-27
+### Fixed
+- Experimental user-turn extraction now keeps prompt-level `{{char}}` pinned to a non-user speaker when included character-card text contains ST-style `{{char}}` placeholders, so character descriptions no longer collapse onto the current persona/user name just because the tracker request itself is user-scoped.
+
 ## [2.2.4.16-exp200] - 2026-03-27
 ### Fixed
 - Experimental explicit `bst_stat_char_*_<target_slug>` macros now register against the current chat-scoped dynamic-character targets instead of source-card wrapper names, so mixed chats resolve owner-targeted custom stat macros for both source-backed aliases and narrative entities.
