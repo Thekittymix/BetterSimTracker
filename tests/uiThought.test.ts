@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { renderThoughtMarkup, shouldEnableThoughtExpand } from "../src/uiThought";
 
 test("shouldEnableThoughtExpand enables for long one-line text", () => {
-  const longBubble = "a".repeat(191);
-  const longPanel = "b".repeat(151);
+  const longBubble = "a".repeat(111);
+  const longPanel = "b".repeat(81);
   assert.equal(shouldEnableThoughtExpand(longBubble, "bubble"), true);
   assert.equal(shouldEnableThoughtExpand(longPanel, "panel"), true);
 });
@@ -13,6 +13,13 @@ test("shouldEnableThoughtExpand enables for multiline and disables for short tex
   assert.equal(shouldEnableThoughtExpand("line1\nline2", "bubble"), true);
   assert.equal(shouldEnableThoughtExpand("short", "bubble"), false);
   assert.equal(shouldEnableThoughtExpand("   ", "panel"), false);
+});
+
+test("shouldEnableThoughtExpand catches wrapped sentence thoughts before they silently disappear behind the line clamp", () => {
+  const wrappedPanelThought = "He keeps replaying the whole exchange in his head, trying to decide whether that pause meant fear, doubt, or a lie.";
+  const wrappedBubbleThought = "She notices the tremor in his voice and quietly decides to keep smiling until she figures out whether he is bluffing or begging for help.";
+  assert.equal(shouldEnableThoughtExpand(wrappedPanelThought, "panel"), true);
+  assert.equal(shouldEnableThoughtExpand(wrappedBubbleThought, "bubble"), true);
 });
 
 test("renderThoughtMarkup renders escaped text and proper toggle state", () => {

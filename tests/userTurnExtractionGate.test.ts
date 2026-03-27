@@ -6,6 +6,7 @@ import {
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
   shouldIssueUserTurnGateStop,
+  shouldAwaitUserMessageRenderedExtraction,
   shouldScheduleImmediateUserTurnExtraction,
   shouldScheduleUserTurnExtractionAfterGenerationEnd,
   shouldDeferUserTurnExtraction,
@@ -19,6 +20,7 @@ test("shouldDeferUserTurnExtraction only defers rendered user-turn extraction wh
       userTurnGateActive: true,
       chatGenerationInFlight: true,
       stopGenerationScheduled: false,
+      awaitedUserMessageRenderExtraction: false,
     }),
     true,
   );
@@ -29,6 +31,7 @@ test("shouldDeferUserTurnExtraction only defers rendered user-turn extraction wh
       userTurnGateActive: true,
       chatGenerationInFlight: false,
       stopGenerationScheduled: true,
+      awaitedUserMessageRenderExtraction: false,
     }),
     true,
   );
@@ -39,6 +42,7 @@ test("shouldDeferUserTurnExtraction only defers rendered user-turn extraction wh
       userTurnGateActive: true,
       chatGenerationInFlight: false,
       stopGenerationScheduled: false,
+      awaitedUserMessageRenderExtraction: false,
     }),
     false,
   );
@@ -49,6 +53,60 @@ test("shouldDeferUserTurnExtraction only defers rendered user-turn extraction wh
       userTurnGateActive: true,
       chatGenerationInFlight: true,
       stopGenerationScheduled: true,
+      awaitedUserMessageRenderExtraction: false,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldDeferUserTurnExtraction({
+      reason: "USER_MESSAGE_RENDERED",
+      userTurnGateActive: true,
+      chatGenerationInFlight: true,
+      stopGenerationScheduled: false,
+      awaitedUserMessageRenderExtraction: true,
+    }),
+    false,
+  );
+});
+
+test("shouldAwaitUserMessageRenderedExtraction only blocks generation while rendered user-turn extraction is still in the awaited pre-AI window", () => {
+  assert.equal(
+    shouldAwaitUserMessageRenderedExtraction({
+      reason: "USER_MESSAGE_RENDERED",
+      userTurnGateActive: true,
+      chatGenerationInFlight: true,
+      chatGenerationSawCharacterRender: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldAwaitUserMessageRenderedExtraction({
+      reason: "USER_MESSAGE_RENDERED",
+      userTurnGateActive: true,
+      chatGenerationInFlight: true,
+      chatGenerationSawCharacterRender: true,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldAwaitUserMessageRenderedExtraction({
+      reason: "USER_MESSAGE_RENDERED",
+      userTurnGateActive: false,
+      chatGenerationInFlight: true,
+      chatGenerationSawCharacterRender: false,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldAwaitUserMessageRenderedExtraction({
+      reason: USER_MESSAGE_RENDERED_RETRY_REASON,
+      userTurnGateActive: true,
+      chatGenerationInFlight: true,
+      chatGenerationSawCharacterRender: false,
     }),
     false,
   );

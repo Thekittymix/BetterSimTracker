@@ -176,6 +176,7 @@ import {
   isRetryableUserTurnReplayFailure,
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
+  shouldAwaitUserMessageRenderedExtraction,
   shouldDeferUserTurnExtraction,
   shouldIssueUserTurnGateStop,
   shouldScheduleImmediateUserTurnExtraction,
@@ -231,6 +232,7 @@ let userTurnGateStopTimer: number | null = null;
 let userTurnGateStopIssued = false;
 let userTurnGateReplayAttempts = 0;
 let userTurnGateExtractionRetryAttempt = 0;
+let userTurnGateAwaitingRenderedExtraction = false;
 let chatGenerationIntent: CapturedGenerationIntent | null = null;
 type PendingUserTurnReplay = {
   type: string;
@@ -1431,7 +1433,11 @@ function resetUserTurnGate(reason: string): void {
   pushTrace("user_gate.reset", { reason, hadIntent });
 }
 
-function startUserTurnGate(context: STContext, messageIndex: number | null): { adoptedInflightGeneration: boolean } {
+function startUserTurnGate(
+  context: STContext,
+  messageIndex: number | null,
+  options?: { allowInflightGenerationAdoption?: boolean },
+): { adoptedInflightGeneration: boolean } {
   if (userTurnGateStopTimer !== null) {
     window.clearTimeout(userTurnGateStopTimer);
     userTurnGateStopTimer = null;
@@ -1461,7 +1467,9 @@ function startUserTurnGate(context: STContext, messageIndex: number | null): { a
     messageIndex: resolvedIndex ?? null,
     messageChars: messageText.length,
   });
+  const allowInflightGenerationAdoption = options?.allowInflightGenerationAdoption !== false;
   if (
+    allowInflightGenerationAdoption &&
     chatGenerationInFlight &&
     !chatGenerationSawCharacterRender &&
     !userTurnGatePendingIntent &&
@@ -3442,6 +3450,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     userTurnGateActive,
     chatGenerationInFlight,
     stopGenerationScheduled: userTurnGateStopTimer !== null,
+    awaitedUserMessageRenderExtraction: userTurnGateAwaitingRenderedExtraction,
   })) {
     pushTrace("extract.defer", {
       reason,
@@ -4659,7 +4668,7 @@ function registerEvents(context: STContext): void {
   }
 
   if (events.USER_MESSAGE_RENDERED) {
-    source.on(events.USER_MESSAGE_RENDERED, (payload: unknown) => {
+    source.on(events.USER_MESSAGE_RENDERED, async (payload: unknown) => {
       const messageIndex = getEventMessageIndex(payload);
       pushTrace("event.user_message_rendered", { messageIndex: messageIndex ?? null });
       scheduleRefresh(120);
@@ -4691,7 +4700,28 @@ function registerEvents(context: STContext): void {
         });
         return;
       }
-      const gateStart = startUserTurnGate(context, messageIndex);
+      const gateStart = startUserTurnGate(context, messageIndex, {
+        allowInflightGenerationAdoption: false,
+      });
+      if (shouldAwaitUserMessageRenderedExtraction({
+        reason: "USER_MESSAGE_RENDERED",
+        userTurnGateActive,
+        chatGenerationInFlight,
+        chatGenerationSawCharacterRender,
+      })) {
+        pushTrace("extract.await", {
+          reason: "USER_MESSAGE_RENDERED",
+          targetMessageIndex: messageIndex,
+          deferReason: "awaited_user_render_window",
+        });
+        userTurnGateAwaitingRenderedExtraction = true;
+        try {
+          await runExtraction("USER_MESSAGE_RENDERED", messageIndex ?? undefined);
+        } finally {
+          userTurnGateAwaitingRenderedExtraction = false;
+        }
+        return;
+      }
       if (!shouldScheduleImmediateUserTurnExtraction({
         reason: "USER_MESSAGE_RENDERED",
         adoptedInflightGeneration: gateStart.adoptedInflightGeneration,

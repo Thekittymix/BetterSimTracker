@@ -1,3 +1,8 @@
+## [2.2.4.16-exp187] - 2026-03-27
+### Fixed
+- Experimental single-chat user-turn tracking now runs inline on the awaited `USER_MESSAGE_RENDERED` hook before the natural AI reply continues, so BST no longer needs to stop and replay generation just to preserve the `user-turn tracker first` contract.
+- Tracker cards now expose the thought expand affordance for wrapped longer `Last Thought` text sooner, so longer thoughts no longer disappear behind the card line clamp without a way to expand them.
+
 ## [2.2.4.16-exp186] - 2026-03-26
 ### Fixed
 - BST debug persistence now trims oversized prompt/raw-output traces and evicts old chat-scoped diagnostics, so debug mode no longer fills `localStorage` badly enough to break SillyTavern's normal user-input save path.

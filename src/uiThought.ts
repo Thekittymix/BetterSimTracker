@@ -13,8 +13,10 @@ export function shouldEnableThoughtExpand(text: string, variant: ThoughtVariant)
   const normalized = text.trim();
   if (!normalized) return false;
   if (normalized.includes("\n")) return true;
-  const minLength = variant === "bubble" ? 190 : 150;
-  return normalized.length > minLength;
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const minLength = variant === "bubble" ? 110 : 80;
+  const minWordCount = variant === "bubble" ? 18 : 12;
+  return normalized.length > minLength || words.length > minWordCount;
 }
 
 export function renderThoughtMarkup(

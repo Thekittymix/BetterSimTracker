@@ -38,12 +38,26 @@ export function shouldDeferUserTurnExtraction(input: {
   userTurnGateActive: boolean;
   chatGenerationInFlight: boolean;
   stopGenerationScheduled: boolean;
+  awaitedUserMessageRenderExtraction: boolean;
 }): boolean {
+  if (input.awaitedUserMessageRenderExtraction) return false;
   if (!input.userTurnGateActive) return false;
   if (input.reason !== "USER_MESSAGE_RENDERED" && input.reason !== USER_MESSAGE_RENDERED_RETRY_REASON) {
     return false;
   }
   return input.chatGenerationInFlight || input.stopGenerationScheduled;
+}
+
+export function shouldAwaitUserMessageRenderedExtraction(input: {
+  reason: string;
+  userTurnGateActive: boolean;
+  chatGenerationInFlight: boolean;
+  chatGenerationSawCharacterRender: boolean;
+}): boolean {
+  if (!input.userTurnGateActive) return false;
+  if (input.reason !== "USER_MESSAGE_RENDERED") return false;
+  if (!input.chatGenerationInFlight) return false;
+  return !input.chatGenerationSawCharacterRender;
 }
 
 export function shouldIssueUserTurnGateStop(input: {
