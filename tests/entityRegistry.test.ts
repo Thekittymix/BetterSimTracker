@@ -1321,6 +1321,9 @@ test("buildTrackerDataEntityOwnerMap prefers resolver scene/message owners over 
       mood: {},
       lastThought: {},
     },
+    customNonNumericStatistics: {
+      clothes: { Ashley: ["hoodie"] },
+    },
   });
 
   const map = buildTrackerDataEntityOwnerMap(context, tracker);
@@ -1356,6 +1359,9 @@ test("buildTrackerDataEntityOwnerMap ignores stale activeCharacters when resolve
       connection: {},
       mood: {},
       lastThought: {},
+    },
+    customNonNumericStatistics: {
+      clothes: { Ashley: ["hoodie"] },
     },
   });
 
@@ -1487,6 +1493,72 @@ test("buildTrackerDataEntityOwnerMap ignores raw stat owner keys once resolver/e
   assert.equal(map?.Ashley?.canonicalName, "Ashley");
   assert.equal(map?.Billie, undefined);
   assert.equal(map?.Garret, undefined);
+});
+
+test("buildTrackerDataEntityOwnerMap excludes scene-only narrative entities when the message payload does not materialize them", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_narrative:elias-mercer": {
+          id: "bst_narrative:elias-mercer",
+          ownerName: "Elias Mercer",
+          canonicalName: "Elias Mercer",
+          aliases: ["Elias", "Mercer"],
+          sourceName: "Elias Mercer",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:elias-mercer",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 8,
+          lastSeenMessageIndex: 8,
+          lastActiveMessageIndex: 8,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        "elias mercer": "bst_narrative:elias-mercer",
+        elias: "bst_narrative:elias-mercer",
+        mercer: "bst_narrative:elias-mercer",
+      },
+    },
+  };
+
+  const tracker = makeTracker({
+    activeCharacters: ["__bst_user__"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: [
+        {
+          entityId: "bst_narrative:elias-mercer",
+          kind: "narrative-entity",
+          name: "Elias Mercer",
+          aliases: ["Elias", "Mercer"],
+          avatar: null,
+          inScene: true,
+          inMessage: false,
+          created: false,
+        },
+      ],
+    }),
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { __bst_user__: "Neutral" },
+      lastThought: { __bst_user__: "I need the real story before I decide who to trust here." },
+    },
+    customNonNumericStatistics: {
+      clothes: { __bst_user__: ["t-shirt", "jeans"] },
+      pose: { __bst_user__: "standing still, watching the others carefully" },
+      scene_date_time: { __bst_global__: "2026-03-04 20:20" },
+    },
+  });
+
+  const map = buildTrackerDataEntityOwnerMap(context, tracker);
+  assert.equal(map, undefined);
 });
 
 test("listEntityRegistryEntriesForMessage returns visible entities in introduction order", () => {

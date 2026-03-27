@@ -1,3 +1,7 @@
+## [2.2.4.16-exp195] - 2026-03-27
+### Fixed
+- Experimental tracker payload writes no longer persist scene-only narrative entities into a user-only message `entityOwnerMap`, so dynamic scene continuity stops leaking unrelated narrative identities into turns that only materialize user-owned state.
+
 ## [2.2.4.16-exp194] - 2026-03-27
 ### Fixed
 - Experimental user-turn intercept/replay flow is back to the earlier `main`-style contract for both single and group chats, removing the extra reclaimed-generation retry/grace logic that had drifted on `experimental` and started causing duplicate AI replies during normal user-turn testing.

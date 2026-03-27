@@ -291,6 +291,73 @@ test("writeTrackerDataToMessage enriches tracker payloads with message-scoped en
   });
 });
 
+test("writeTrackerDataToMessage does not persist scene-only narrative entities into a user-only payload entityOwnerMap", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_narrative:elias-mercer": {
+          id: "bst_narrative:elias-mercer",
+          ownerName: "Elias Mercer",
+          canonicalName: "Elias Mercer",
+          aliases: ["Elias", "Mercer"],
+          sourceName: "Elias Mercer",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:elias-mercer",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 1,
+          lastActiveMessageIndex: 1,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        "elias mercer": "bst_narrative:elias-mercer",
+        elias: "bst_narrative:elias-mercer",
+        mercer: "bst_narrative:elias-mercer",
+      },
+    },
+  };
+
+  const tracker = makeTracker(1002, {
+    activeCharacters: ["__bst_user__"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: [
+        {
+          entityId: "bst_narrative:elias-mercer",
+          kind: "narrative-entity",
+          name: "Elias Mercer",
+          aliases: ["Elias", "Mercer"],
+          avatar: null,
+          inScene: true,
+          inMessage: false,
+          created: false,
+        },
+      ],
+    }),
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { __bst_user__: "Neutral" },
+      lastThought: { __bst_user__: "I need the real story before I decide who to trust here." },
+    },
+    customNonNumericStatistics: {
+      clothes: { __bst_user__: ["t-shirt", "jeans"] },
+      pose: { __bst_user__: "standing still, watching the others carefully" },
+      scene_date_time: { __bst_global__: "2026-03-04 20:20" },
+    },
+  });
+
+  writeTrackerDataToMessage(context, tracker, 1);
+  const stored = getTrackerDataFromMessage(context.chat[1]);
+  assert.equal(stored?.entityOwnerMap, undefined);
+});
+
 test("getTrackerDataFromMessage materializes by-entity shadow projections from entityOwnerMap", () => {
   const tracker = makeTracker(1001, {
     activeCharacters: ["Ashley"],

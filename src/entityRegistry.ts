@@ -771,6 +771,9 @@ function collectTrackerDataOwnerNames(
 ): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
+  const evidencedOwnerKeys = new Set<string>();
+  const resolvedEntities = resolveTrackerResolvedEntities(data);
+  const hasExplicitResolverOwners = resolvedEntities.some(entity => entity.inScene || entity.inMessage);
   const push = (raw: unknown): void => {
     const value = normalizeToken(raw);
     const key = normalizeKey(value);
@@ -778,31 +781,51 @@ function collectTrackerDataOwnerNames(
     seen.add(key);
     names.push(value);
   };
-  const resolvedSceneOwners = resolveResolvedEntityNames(context, data, entity => entity.inScene);
-  const resolvedMessageOwners = resolveResolvedEntityNames(context, data, entity => entity.inMessage);
-  const hasExplicitResolverOwners =
-    resolvedSceneOwners.length > 0 ||
-    resolvedMessageOwners.length > 0;
-  const hasExplicitEntityIdentity =
-    hasExplicitResolverOwners ||
-    (data.entityOwnerMap != null && Object.keys(data.entityOwnerMap).length > 0);
-  for (const name of resolvedSceneOwners) push(name);
-  for (const name of resolvedMessageOwners) push(name);
-  for (const name of Object.keys(data.entityOwnerMap ?? {})) push(name);
+  const pushEvidence = (raw: unknown): void => {
+    const value = normalizeToken(raw);
+    const key = normalizeKey(value);
+    if (!key || key === "global") return;
+    evidencedOwnerKeys.add(key);
+    push(value);
+  };
   if (!hasExplicitResolverOwners) {
-    for (const name of data.activeCharacters ?? []) push(name);
-  }
-  if (hasExplicitEntityIdentity) {
-    return names;
+    for (const name of data.activeCharacters ?? []) pushEvidence(name);
   }
   for (const bucket of Object.values(data.statistics ?? {})) {
-    for (const owner of Object.keys(bucket ?? {})) push(owner);
+    for (const owner of Object.keys(bucket ?? {})) pushEvidence(owner);
   }
   for (const bucket of Object.values(data.customStatistics ?? {})) {
-    for (const owner of Object.keys(bucket ?? {})) push(owner);
+    for (const owner of Object.keys(bucket ?? {})) pushEvidence(owner);
   }
   for (const bucket of Object.values(data.customNonNumericStatistics ?? {})) {
-    for (const owner of Object.keys(bucket ?? {})) push(owner);
+    for (const owner of Object.keys(bucket ?? {})) pushEvidence(owner);
+  }
+  for (const bucket of Object.values(data.statisticsByEntityId ?? {})) {
+    for (const entityId of Object.keys(bucket ?? {})) {
+      for (const owner of resolveTrackerOwnersForEntityIds(context, [entityId])) pushEvidence(owner);
+    }
+  }
+  for (const bucket of Object.values(data.customStatisticsByEntityId ?? {})) {
+    for (const entityId of Object.keys(bucket ?? {})) {
+      for (const owner of resolveTrackerOwnersForEntityIds(context, [entityId])) pushEvidence(owner);
+    }
+  }
+  for (const bucket of Object.values(data.customNonNumericStatisticsByEntityId ?? {})) {
+    for (const entityId of Object.keys(bucket ?? {})) {
+      for (const owner of resolveTrackerOwnersForEntityIds(context, [entityId])) pushEvidence(owner);
+    }
+  }
+  for (const entity of resolvedEntities) {
+    const name = normalizeToken(entity.name);
+    if (!name) continue;
+    if (entity.inMessage) {
+      push(name);
+      continue;
+    }
+    if (!entity.inScene) continue;
+    if (entity.kind !== "narrative-entity" || evidencedOwnerKeys.has(normalizeKey(name))) {
+      push(name);
+    }
   }
   return names;
 }
