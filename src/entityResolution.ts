@@ -669,13 +669,31 @@ export function resolveUserExtractionOwnerScopes(input: {
   requestCharacters: string[];
   source: "model" | "fallback";
 } {
+  const previousSceneActiveCharacters = resolvePersistedActiveOwners(
+    resolveTrackerSceneOwners(null, input.previousTrackerData),
+    { includeUserOwner: false },
+  );
   const resolvedSceneActiveCharacters = resolvePersistedActiveOwners(
     input.resolvedSceneActiveCharacters ?? [],
     { includeUserOwner: false },
   );
   if (resolvedSceneActiveCharacters.length) {
+    let sceneActiveCharacters = resolvedSceneActiveCharacters;
+    if (isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings)) && previousSceneActiveCharacters.length) {
+      const messageText = String(input.message?.mes ?? "");
+      const mergedSceneActiveCharacters = uniqueStrings([
+        ...resolvedSceneActiveCharacters,
+        ...previousSceneActiveCharacters.filter(owner =>
+          !resolvedSceneActiveCharacters.some(activeOwner => normalizeKey(activeOwner) === normalizeKey(owner))
+          && !hasDepartureCue(messageText, owner),
+        ),
+      ]);
+      if (mergedSceneActiveCharacters.length) {
+        sceneActiveCharacters = mergedSceneActiveCharacters;
+      }
+    }
     return {
-      sceneActiveCharacters: resolvedSceneActiveCharacters,
+      sceneActiveCharacters,
       requestCharacters: [USER_TRACKER_KEY],
       source: "model",
     };
@@ -689,10 +707,6 @@ export function resolveUserExtractionOwnerScopes(input: {
         source: "fallback",
       };
     }
-    const previousSceneActiveCharacters = resolvePersistedActiveOwners(
-      resolveTrackerSceneOwners(null, input.previousTrackerData),
-      { includeUserOwner: false },
-    );
     if (previousSceneActiveCharacters.length) {
       return {
         sceneActiveCharacters: previousSceneActiveCharacters,

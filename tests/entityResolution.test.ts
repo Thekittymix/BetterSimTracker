@@ -404,6 +404,112 @@ test("resolveUserExtractionOwnerScopes preserves previous mixed-scene continuity
   });
 });
 
+test("resolveUserExtractionOwnerScopes merges previous scene continuity into a partial resolved user-turn scene when omitted owners did not explicitly leave", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Everyone is still in the office, but Mercer is part of the story now.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+      },
+      {
+        mes: "I glance from Blake to Ashley and ask what Mercer wanted from each of them.",
+        name: "Kuba",
+        is_user: true,
+      },
+    ],
+  } as any;
+
+  const resolved = resolveUserExtractionOwnerScopes({
+    context,
+    detectedActiveCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" } as any,
+    resolvedSceneActiveCharacters: ["Ashley", "Blake", "Elias Mercer"],
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+      entityResolution: buildEntityResolution({
+        sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+        messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+        source: "model",
+      }),
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    } as any,
+  });
+
+  assert.deepEqual(resolved, {
+    sceneActiveCharacters: ["Ashley", "Blake", "Elias Mercer", "Garret", "Raleigh"],
+    requestCharacters: [USER_TRACKER_KEY],
+    source: "model",
+  });
+});
+
+test("resolveUserExtractionOwnerScopes does not restore omitted previous scene owners when the user message explicitly sends them away", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Ashley and Blake were both in the room a moment ago.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+      },
+      {
+        mes: "Ashley leaves the room. Blake stays here alone now and answers in one short reply.",
+        name: "Kuba",
+        is_user: true,
+      },
+    ],
+  } as any;
+
+  const resolved = resolveUserExtractionOwnerScopes({
+    context,
+    detectedActiveCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" } as any,
+    resolvedSceneActiveCharacters: ["Blake"],
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Ashley", "Blake"],
+      entityResolution: buildEntityResolution({
+        sceneOwners: ["Ashley", "Blake"],
+        messageOwners: ["Ashley", "Blake"],
+        source: "model",
+      }),
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    } as any,
+  });
+
+  assert.deepEqual(resolved, {
+    sceneActiveCharacters: ["Blake"],
+    requestCharacters: [USER_TRACKER_KEY],
+    source: "model",
+  });
+});
+
 test("resolvePersistedActiveOwners excludes User by default for AI-side tracker targets", () => {
   const refined = resolvePersistedActiveOwners(["Ashley", "Blake", "__bst_user__"]);
   assert.deepEqual(refined, ["Ashley", "Blake"]);

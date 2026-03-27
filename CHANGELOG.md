@@ -1,3 +1,7 @@
+## [2.2.4.16-exp198] - 2026-03-27
+### Fixed
+- Experimental mixed-scene user-turn continuity now merges unresolved prior scene participants back into a partial resolver-scene result unless the current user message explicitly sends them away, so narrative reactivation no longer drops silent existing scene members during the same user turn.
+
 ## [2.2.4.16-exp197] - 2026-03-27
 ### Fixed
 - Experimental mixed-scene user-turn fallback now carries the previous resolver-backed scene continuity forward when the current user message narrows focus without explicitly clearing the scene, so inactive narrative entities and source-backed aliases no longer drop out of the next lifecycle update just because a user-only turn did not rematerialize them directly.
