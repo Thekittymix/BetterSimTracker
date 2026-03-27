@@ -1,3 +1,7 @@
+## [2.2.4.16-exp199] - 2026-03-27
+### Fixed
+- Experimental mixed-scene user-turn persistence now realigns saved `resolvedEntities` with the merged scene source of truth and backfills omitted scene members before lifecycle sync, so partial resolver output no longer flips the rest of the current scene inactive just because one reactivated narrative entity dominated the user-turn resolution.
+
 ## [2.2.4.16-exp198] - 2026-03-27
 ### Fixed
 - Experimental mixed-scene user-turn continuity now merges unresolved prior scene participants back into a partial resolver-scene result unless the current user message explicitly sends them away, so narrative reactivation no longer drops silent existing scene members during the same user turn.

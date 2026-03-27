@@ -845,21 +845,72 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
   userExtraction: boolean;
   entityTrackingMode?: EntityTrackingMode;
 }): TrackerResolvedEntity[] {
-  if (input.resolvedEntities.length) {
-    return input.resolvedEntities.map(entity => ({
-      ...entity,
-      aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
-      created: Boolean(entity.created),
-      inMessage: input.userExtraction ? false : Boolean(entity.inMessage),
-    }));
-  }
-
   const sceneOwners = resolvePersistedActiveOwners(input.sceneActiveCharacters);
+  const sceneOwnerKeys = new Set(sceneOwners.map(owner => normalizeKey(owner)));
   const messageOwners = resolvePersistedActiveOwners(
     input.userExtraction ? [] : input.requestCharacters,
     { includeUserOwner: false },
   );
   const messageOwnerKeys = new Set(messageOwners.map(owner => normalizeKey(owner)));
+  if (input.resolvedEntities.length) {
+    const persistedResolvedEntities: TrackerResolvedEntity[] = [];
+    const seenEntityIds = new Set<string>();
+    const seenOwnerKeys = new Set<string>();
+    for (const entity of input.resolvedEntities) {
+      const entityId = normalizeToken(entity.entityId);
+      const entityName = normalizeToken(entity.name);
+      const resolvedOwnerName = entityId
+        ? (
+            resolveTrackerOwnersForEntityIds(input.context, [entityId])[0]
+            || (!isTechnicalResolvedEntityName(entityName, entityId) ? entityName : "")
+            || resolveOwnerNameFallbackFromEntityId(entityId)
+            || entityName
+          )
+        : entityName;
+      const ownerKey = normalizeKey(resolvedOwnerName);
+      const inScene = ownerKey ? sceneOwnerKeys.has(ownerKey) : Boolean(entity.inScene);
+      const inMessage = input.userExtraction
+        ? false
+        : (ownerKey ? messageOwnerKeys.has(ownerKey) : Boolean(entity.inMessage));
+      if (!inScene && !inMessage) continue;
+      if (entityId) {
+        if (seenEntityIds.has(entityId)) continue;
+        seenEntityIds.add(entityId);
+      }
+      if (ownerKey) {
+        seenOwnerKeys.add(ownerKey);
+      }
+      persistedResolvedEntities.push({
+        ...entity,
+        aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+        created: Boolean(entity.created),
+        inScene,
+        inMessage,
+      });
+    }
+
+    for (const ownerName of sceneOwners) {
+      const ownerKey = normalizeKey(ownerName);
+      if (!ownerKey || seenOwnerKeys.has(ownerKey)) continue;
+      persistedResolvedEntities.push({
+        entityId: resolveStableEntityIdForOwner(
+          input.context,
+          ownerName,
+          input.entityTrackingMode ?? "standard",
+        ),
+        kind: "st-character",
+        name: ownerName,
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: messageOwnerKeys.has(ownerKey),
+        created: false,
+      });
+      seenOwnerKeys.add(ownerKey);
+    }
+
+    return persistedResolvedEntities;
+  }
 
   return sceneOwners.map(ownerName => ({
     entityId: resolveStableEntityIdForOwner(

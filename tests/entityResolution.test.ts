@@ -1152,6 +1152,84 @@ test("resolvePersistedSnapshotResolvedEntities keeps user snapshots scene-only a
   );
 });
 
+test("resolvePersistedSnapshotResolvedEntities backfills missing scene entities when a user-turn resolver only materializes part of the scene", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolvePersistedSnapshotResolvedEntities({
+      context,
+      sceneActiveCharacters: ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+      requestCharacters: [USER_TRACKER_KEY],
+      resolvedEntities: [{
+        entityId: "bst_narrative:elias-mercer",
+        kind: "narrative-entity",
+        name: "Elias Mercer",
+        avatar: null,
+        inScene: true,
+        inMessage: false,
+      }],
+      userExtraction: true,
+      entityTrackingMode: "dynamic_characters",
+    }),
+    [
+      {
+        entityId: "bst_narrative:elias-mercer",
+        kind: "narrative-entity",
+        name: "Elias Mercer",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+        created: false,
+      },
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+        kind: "st-character",
+        name: "Ashley",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+        created: false,
+      },
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+        created: false,
+      },
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:garret",
+        kind: "st-character",
+        name: "Garret",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+        created: false,
+      },
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:raleigh",
+        kind: "st-character",
+        name: "Raleigh",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: false,
+        created: false,
+      },
+    ],
+  );
+});
+
 test("resolvePersistedSnapshotEntityOwners keeps full scene continuity owners and excludes the user owner", () => {
   assert.deepEqual(
     resolvePersistedSnapshotEntityOwners({
