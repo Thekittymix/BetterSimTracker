@@ -1,3 +1,7 @@
+## [2.2.4.16-exp188] - 2026-03-27
+### Fixed
+- Experimental BST local snapshot storage now compacts per-scope `localStorage` history copies and prunes the cross-chat `latestByScope` cache, so tracker persistence no longer grows unbounded across chats just to keep runtime fallback snapshots available.
+
 ## [2.2.4.16-exp187] - 2026-03-27
 ### Fixed
 - Experimental single-chat user-turn tracking now runs inline on the awaited `USER_MESSAGE_RENDERED` hook before the natural AI reply continues, so BST no longer needs to stop and replay generation just to preserve the `user-turn tracker first` contract.

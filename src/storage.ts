@@ -873,6 +873,10 @@ function getScopeKey(context: STContext): string {
 }
 
 const HISTORY_LIMIT = 120;
+const LOCAL_HISTORY_LIMIT = 24;
+const LOCAL_STORE_MAX_CHARS = 18_000;
+const LATEST_BY_SCOPE_LIMIT = 12;
+const LATEST_BY_SCOPE_MAX_CHARS = 48_000;
 const LATEST_BY_SCOPE_KEY = `${EXTENSION_KEY}:latestByScope`;
 
 type SnapshotEntry = { data: TrackerData; timestamp: number; messageIndex?: number };
@@ -912,11 +916,52 @@ function readLatestByScopeMap(): Record<string, { data: TrackerData; messageInde
   }
 }
 
-function writeLatestByScopeMap(map: Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>): void {
+function pruneLatestByScopeMap(
+  map: Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>,
+  currentScope?: string,
+): Record<string, { data: TrackerData; messageIndex: number; timestamp: number }> {
+  const entries = Object.entries(map)
+    .filter(([, entry]) => Boolean(entry?.data))
+    .sort((left, right) => Number(right[1]?.timestamp ?? 0) - Number(left[1]?.timestamp ?? 0));
+
+  const kept = entries.slice(0, LATEST_BY_SCOPE_LIMIT);
+  if (currentScope && map[currentScope] && !kept.some(([scope]) => scope === currentScope)) {
+    const replacementIndex = kept.length > 0 ? kept.length - 1 : 0;
+    kept.splice(replacementIndex, kept.length > 0 ? 1 : 0, [currentScope, map[currentScope]]);
+  }
+
+  const chooseVictimIndex = (): number => {
+    for (let index = kept.length - 1; index >= 0; index -= 1) {
+      if (!currentScope || kept[index]?.[0] !== currentScope) return index;
+    }
+    return -1;
+  };
+
+  let next = Object.fromEntries(kept);
+  while (kept.length > 1 && JSON.stringify(next).length > LATEST_BY_SCOPE_MAX_CHARS) {
+    const victimIndex = chooseVictimIndex();
+    if (victimIndex < 0) break;
+    kept.splice(victimIndex, 1);
+    next = Object.fromEntries(kept);
+  }
+
+  return next;
+}
+
+function writeLatestByScopeMap(
+  map: Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>,
+  currentScope?: string,
+): void {
+  const pruned = pruneLatestByScopeMap(map, currentScope);
   try {
-    localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify(map));
+    localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify(pruned));
   } catch {
-    // ignore
+    if (!currentScope || !pruned[currentScope]) return;
+    try {
+      localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify({ [currentScope]: pruned[currentScope] }));
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -931,12 +976,42 @@ function readStore(context: STContext): SnapshotStore {
   }
 }
 
+function compactStoreForLocalStorage(store: SnapshotStore): SnapshotStore {
+  let history = store.history.slice(0, LOCAL_HISTORY_LIMIT);
+  let compacted: SnapshotStore = {
+    latest: store.latest,
+    history,
+  };
+
+  while (history.length > 0 && JSON.stringify(compacted).length > LOCAL_STORE_MAX_CHARS) {
+    history = history.slice(0, -1);
+    compacted = {
+      latest: store.latest,
+      history,
+    };
+  }
+
+  return compacted;
+}
+
 function writeStore(context: STContext, store: SnapshotStore): void {
   const key = getStoreKey(context);
+  const compacted = compactStoreForLocalStorage(store);
   try {
-    localStorage.setItem(key, JSON.stringify(store));
+    localStorage.setItem(key, JSON.stringify(compacted));
   } catch {
-    // ignore
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        latest: compacted.latest,
+        history: compacted.latest ? [{
+          data: compacted.latest.data,
+          timestamp: compacted.latest.timestamp,
+          messageIndex: compacted.latest.messageIndex,
+        }] : [],
+      } satisfies SnapshotStore));
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -1019,7 +1094,7 @@ function rebuildPersistedTrackerStores(context: STContext): void {
   } else if (Object.prototype.hasOwnProperty.call(latestByScope, scope)) {
     delete latestByScope[scope];
   }
-  writeLatestByScopeMap(latestByScope);
+  writeLatestByScopeMap(latestByScope, scope);
 }
 
 export function saveTrackerSnapshot(
@@ -1047,7 +1122,7 @@ export function saveTrackerSnapshot(
   const scope = getScopeKey(context);
   const latestByScope = readLatestByScopeMap();
   latestByScope[scope] = { data, messageIndex, timestamp };
-  writeLatestByScopeMap(latestByScope);
+  writeLatestByScopeMap(latestByScope, scope);
 }
 
 export function getChatStateLatestTrackerData(context: STContext): { data: TrackerData; messageIndex: number } | null {

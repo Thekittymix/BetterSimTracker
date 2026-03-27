@@ -79,6 +79,10 @@ function makeContext(): STContext {
   };
 }
 
+function getLocalStoreKey(chatId: string): string {
+  return `${EXTENSION_KEY}:history:${chatId}|char:1`;
+}
+
 afterEach(() => {
   localStorageMock.clear();
 });
@@ -127,6 +131,70 @@ test("writeTrackerDataToMessage stores per-message tracker data and snapshot his
   const history = getRecentTrackerHistoryEntries(context, 10);
   assert.equal(history.length, 1);
   assert.equal(history[0].messageIndex, 2);
+});
+
+test("saveTrackerSnapshot compacts localStorage history copies without shrinking runtime history resolution", () => {
+  (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = localStorageMock;
+  localStorageMock.clear();
+  const context = makeContext() as STContext & { chatId: string };
+  context.chatId = "storage-budget-chat";
+
+  for (let index = 0; index < 40; index += 1) {
+    saveTrackerSnapshot(context, makeTracker(10_000 + index, {
+      activeCharacters: ["Seraphina"],
+      statistics: {
+        affection: { Seraphina: 50 + (index % 5) },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: { Seraphina: `thought-${index}-${"x".repeat(200)}` },
+      },
+      customNonNumericStatistics: {
+        pose: { Seraphina: `pose-${index}-${"y".repeat(180)}` },
+      },
+    }), 2);
+  }
+
+  const raw = localStorageMock.getItem(getLocalStoreKey("storage-budget-chat"));
+  assert.ok(raw);
+  const parsed = JSON.parse(raw!) as { history: Array<unknown> };
+  assert.ok(parsed.history.length <= 24);
+  assert.ok(raw!.length <= 18_000);
+
+  const metadataStore = context.chatMetadata?.[EXTENSION_KEY] as { history?: Array<unknown> } | undefined;
+  assert.equal(metadataStore?.history?.length, 40);
+});
+
+test("saveTrackerSnapshot prunes latestByScope localStorage cache to recent scopes", () => {
+  (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = localStorageMock;
+  localStorageMock.clear();
+  for (let index = 0; index < 20; index += 1) {
+    const context = makeContext() as STContext & { chatId: string };
+    context.chatId = `scope-${index}`;
+    saveTrackerSnapshot(context, makeTracker(20_000 + index, {
+      activeCharacters: ["Seraphina"],
+      statistics: {
+        affection: { Seraphina: 60 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: { Seraphina: `scope-thought-${index}-${"q".repeat(160)}` },
+      },
+      customNonNumericStatistics: {
+        pose: { Seraphina: `scope-pose-${index}-${"w".repeat(160)}` },
+      },
+    }), 2);
+  }
+
+  const raw = localStorageMock.getItem(`${EXTENSION_KEY}:latestByScope`);
+  assert.ok(raw);
+  const parsed = JSON.parse(raw!) as Record<string, unknown>;
+  const keys = Object.keys(parsed);
+  assert.ok(keys.length <= 12);
+  assert.ok(keys.includes("scope-19|char:1"));
+  assert.ok(raw!.length <= 48_000);
 });
 
 test("writeTrackerDataToMessage enriches tracker payloads with message-scoped entityOwnerMap from registry", () => {
