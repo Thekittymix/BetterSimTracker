@@ -54,12 +54,6 @@ export function shouldIssueUserTurnGateStop(input: {
   return input.userTurnGateActive && !input.stopGenerationScheduled && !input.stopAlreadyIssued;
 }
 
-export function shouldInterruptInflightGenerationForUserTurnGate(input: {
-  isGroupChat: boolean;
-}): boolean {
-  return input.isGroupChat;
-}
-
 export function isRetryableUserTurnReplayFailure(message: string): boolean {
   return /(api request failed|failed to fetch|network\s+error|timeout|http\s+5\d\d|statuscode\":5\d\d|proxy connection closed unexpectedly|servers restarting)/i
     .test(String(message ?? ""));

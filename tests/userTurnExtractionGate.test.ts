@@ -6,7 +6,6 @@ import {
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
   shouldIssueUserTurnGateStop,
-  shouldInterruptInflightGenerationForUserTurnGate,
   shouldScheduleImmediateUserTurnExtraction,
   shouldScheduleUserTurnExtractionAfterGenerationEnd,
   shouldDeferUserTurnExtraction,
@@ -88,22 +87,6 @@ test("shouldIssueUserTurnGateStop only allows one stop request per active gate",
       userTurnGateActive: false,
       stopGenerationScheduled: false,
       stopAlreadyIssued: false,
-    }),
-    false,
-  );
-});
-
-test("shouldInterruptInflightGenerationForUserTurnGate only interrupts group chats", () => {
-  assert.equal(
-    shouldInterruptInflightGenerationForUserTurnGate({
-      isGroupChat: true,
-    }),
-    true,
-  );
-
-  assert.equal(
-    shouldInterruptInflightGenerationForUserTurnGate({
-      isGroupChat: false,
     }),
     false,
   );
