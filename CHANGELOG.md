@@ -1,3 +1,7 @@
+## [2.2.4.16-exp194] - 2026-03-27
+### Fixed
+- Experimental user-turn intercept/replay flow is back to the earlier `main`-style contract for both single and group chats, removing the extra reclaimed-generation retry/grace logic that had drifted on `experimental` and started causing duplicate AI replies during normal user-turn testing.
+
 ## [2.2.4.16-exp193] - 2026-03-27
 ### Fixed
 - Experimental single-chat reclaimed-generation flow now gives late AI renders a short grace window before replay, so a stopped in-flight reply no longer races into a duplicate extra AI turn when SillyTavern finishes rendering just after the user-turn tracker completes.
