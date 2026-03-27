@@ -12,6 +12,7 @@ import {
   groupCustomStatsForSequential,
   isManualExtractionReason,
   normalizeSequentialGroupId,
+  overlayLatestOwnerScopedContinuity,
   resolveBaselineBeforeIndex,
   resolveMoodWithConfidence,
   selectNoActiveContinuityTrackerEntry,
@@ -220,6 +221,67 @@ test("buildPromptCurrentTrackerData prefers the current resolver entityResolutio
     source: "model",
   }));
   assert.deepEqual(tracker.statistics.affection, { Blake: 52 });
+});
+
+test("overlayLatestOwnerScopedContinuity refreshes only the requested owner scope from the latest user tracker", () => {
+  const next = overlayLatestOwnerScopedContinuity({
+    timestamp: 1,
+    activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    statistics: {
+      affection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 53 },
+      trust: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 61 },
+      desire: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 49 },
+      connection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 62 },
+      mood: {
+        [USER_TRACKER_KEY]: "Serious",
+        "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "Serious",
+      },
+      lastThought: {
+        [USER_TRACKER_KEY]: "Jones is hiding something dangerous in those woods, and I need to know if Ashley noticed it too.",
+        "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "This interrogation just cemented that we're all liabilities to each other.",
+      },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      pose: {
+        [USER_TRACKER_KEY]: "glancing toward Ashley and lowering voice",
+        "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "Ashley pulls her hoodie tight; Blake leans on the wall pointing a finger; Garret paces; Raleigh stands rigid facing the group",
+      },
+      clothes: {
+        [USER_TRACKER_KEY]: ["t-shirt", "jeans"],
+        "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": ["black sundress", "white panties", "sandals", "silver necklace"],
+      },
+    },
+  } as never, {
+    timestamp: 2,
+    activeCharacters: [USER_TRACKER_KEY],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { [USER_TRACKER_KEY]: "Serious" },
+      lastThought: { [USER_TRACKER_KEY]: "I have to push them past their defenses and fear to see exactly how fragile this group really is." },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      pose: { [USER_TRACKER_KEY]: "folding arms and scanning each counselor in turn" },
+      clothes: { [USER_TRACKER_KEY]: ["t-shirt", "jeans"] },
+    },
+  } as never, [USER_TRACKER_KEY]);
+
+  assert.equal(
+    next.statistics.lastThought[USER_TRACKER_KEY],
+    "I have to push them past their defenses and fear to see exactly how fragile this group really is.",
+  );
+  assert.equal(
+    next.customNonNumericStatistics?.pose?.[USER_TRACKER_KEY],
+    "folding arms and scanning each counselor in turn",
+  );
+  assert.deepEqual(
+    next.customNonNumericStatistics?.pose?.["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    "Ashley pulls her hoodie tight; Blake leans on the wall pointing a finger; Garret paces; Raleigh stands rigid facing the group",
+  );
 });
 
 test("buildNoActiveContinuityTrackerData preserves continuity stats while keeping scene continuity and clearing active resolver state", () => {

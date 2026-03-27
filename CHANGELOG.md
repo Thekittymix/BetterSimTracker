@@ -1,3 +1,8 @@
+## [2.2.4.16-exp193] - 2026-03-27
+### Fixed
+- Experimental single-chat reclaimed-generation flow now gives late AI renders a short grace window before replay, so a stopped in-flight reply no longer races into a duplicate extra AI turn when SillyTavern finishes rendering just after the user-turn tracker completes.
+- Experimental AI extraction baselines now overlay the latest saved user-turn continuity before fallback merging, so fresh user `pose` and `lastThought` no longer regress to older values inside the next AI tracker payload and macro state.
+
 ## [2.2.4.16-exp192] - 2026-03-27
 ### Fixed
 - Experimental single-chat `USER_MESSAGE_RENDERED` gating now reclaims an already-started AI generation before any AI render lands, so the user-turn tracker can become the real fresh source of truth again instead of letting later AI tracker state inherit stale user-owned values.

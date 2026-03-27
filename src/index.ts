@@ -75,6 +75,7 @@ import { extractStatisticsParallel } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
 import {
   buildNoActiveContinuityTrackerData,
+  overlayLatestOwnerScopedContinuity,
   resolveBaselineBeforeIndex,
   selectNoActiveContinuityTrackerEntry,
   shouldBypassConfidenceControls,
@@ -174,6 +175,7 @@ import { buildCharacterCardsContext } from "./characterCardContext";
 import { computeManualPlaceholderMessageIndices } from "./renderQueueHelpers";
 import {
   isRetryableUserTurnReplayFailure,
+  shouldMarkLateAiRenderForUserTurn,
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
   shouldAwaitUserMessageRenderedExtraction,
@@ -182,6 +184,7 @@ import {
   shouldIssueUserTurnGateStop,
   shouldScheduleImmediateUserTurnExtraction,
   shouldScheduleUserTurnExtractionAfterGenerationEnd,
+  shouldWaitForLateAiRenderBeforeReplay,
   USER_MESSAGE_RENDERED_RETRY_REASON,
   isUserMessageRenderedRetryReason,
 } from "./userTurnExtractionGate";
@@ -233,6 +236,9 @@ let userTurnGateStopTimer: number | null = null;
 let userTurnGateStopIssued = false;
 let userTurnGateReplayAttempts = 0;
 let userTurnGateExtractionRetryAttempt = 0;
+let userTurnGateAwaitingLateAiRender = false;
+let userTurnGateLateAiRenderStartLastAiIndex: number | null = null;
+let userTurnGateReplayGraceApplied = false;
 let userTurnGateAwaitingRenderedExtraction = false;
 let chatGenerationIntent: CapturedGenerationIntent | null = null;
 type PendingUserTurnReplay = {
@@ -1431,6 +1437,9 @@ function resetUserTurnGate(reason: string): void {
   userTurnGateStopIssued = false;
   userTurnGateReplayAttempts = 0;
   userTurnGateExtractionRetryAttempt = 0;
+  userTurnGateAwaitingLateAiRender = false;
+  userTurnGateLateAiRenderStartLastAiIndex = null;
+  userTurnGateReplayGraceApplied = false;
   pushTrace("user_gate.reset", { reason, hadIntent });
 }
 
@@ -1463,6 +1472,9 @@ function startUserTurnGate(
   userTurnGateStopIssued = false;
   userTurnGateReplayAttempts = 0;
   userTurnGateExtractionRetryAttempt = 0;
+  userTurnGateAwaitingLateAiRender = false;
+  userTurnGateLateAiRenderStartLastAiIndex = null;
+  userTurnGateReplayGraceApplied = false;
   let adoptedInflightGeneration = false;
   pushTrace("user_gate.start", {
     messageIndex: resolvedIndex ?? null,
@@ -1557,6 +1569,22 @@ function finalizeUserTurnGateReplay(triggerReason: string): void {
     window.setTimeout(() => finalizeUserTurnGateReplay("wait_generation_end"), 120);
     return;
   }
+
+  if (shouldWaitForLateAiRenderBeforeReplay({
+    awaitingLateAiRender: userTurnGateAwaitingLateAiRender,
+    replayGraceApplied: userTurnGateReplayGraceApplied,
+  })) {
+    userTurnGateReplayGraceApplied = true;
+    pushTrace("user_gate.replay_grace_wait", {
+      triggerReason,
+      startLastAiIndex: userTurnGateLateAiRenderStartLastAiIndex,
+    });
+    window.setTimeout(() => finalizeUserTurnGateReplay("wait_late_ai_render"), 350);
+    return;
+  }
+  userTurnGateAwaitingLateAiRender = false;
+  userTurnGateLateAiRenderStartLastAiIndex = null;
+  userTurnGateReplayGraceApplied = false;
 
   const replayValidation = validateUserTurnGateReplay(context);
   if (!replayValidation.ok) {
@@ -3844,6 +3872,19 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           ...activeSettings,
           customStats: scopedCustomStats,
         };
+    const userScopedBaselineSettings: BetterSimTrackerSettings = {
+      ...activeSettings,
+      trackAffection: false,
+      trackTrust: false,
+      trackDesire: false,
+      trackConnection: false,
+      trackMood: activeSettings.userTrackMood,
+      trackLastThought: activeSettings.userTrackLastThought,
+      customStats: scopedCustomStats.map(stat => ({
+        ...stat,
+        track: Boolean(stat.trackUser ?? stat.track),
+      })),
+    };
 
     const baselineBeforeIndex = resolveBaselineBeforeIndex({
       targetMessageIndex,
@@ -3889,6 +3930,15 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     if (previous) {
       previous = overlayLatestGlobalCustomStats(previous, previousGlobalEntry?.data ?? null, runScopedSettings);
     }
+    const latestUserScopedEntry = !userExtraction
+      ? getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
+          context,
+          baselineBeforeIndex,
+          [USER_TRACKER_KEY],
+          [],
+          userScopedBaselineSettings,
+        )
+      : null;
     lastExtractionBaselineDebugMeta = {
       reason,
       userExtraction,
@@ -3904,6 +3954,9 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     if (!previous) {
       previous = buildBaselineData(activeCharacters, activeEntityIds, runScopedSettings);
       pushTrace("extract.baseline", { runId, forMessageIndex: lastIndex, activeCharacters: activeCharacters.length });
+    }
+    if (!userExtraction && latestUserScopedEntry?.data) {
+      previous = overlayLatestOwnerScopedContinuity(previous, latestUserScopedEntry.data, [USER_TRACKER_KEY]);
     }
     const hasPriorUserMessage = hasTrackableUserMessageBeforeIndex(context, lastIndex);
     const isGreetingAiBootstrap = Boolean(
@@ -4492,6 +4545,9 @@ function registerEvents(context: STContext): void {
       if (userTurnGateActive && chatGenerationInFlight) {
         chatGenerationInFlight = false;
         chatGenerationIntent = null;
+        userTurnGateAwaitingLateAiRender = !chatGenerationSawCharacterRender;
+        userTurnGateLateAiRenderStartLastAiIndex = chatGenerationStartLastAiIndex;
+        userTurnGateReplayGraceApplied = false;
         chatGenerationSawCharacterRender = false;
         chatGenerationStartLastAiIndex = null;
         swipeGenerationActive = false;
@@ -4499,7 +4555,11 @@ function registerEvents(context: STContext): void {
         pendingLateRenderStartLastAiIndex = null;
         clearLateRenderPollTimer();
         pendingGenerationInjectionSnapshot = null;
-        pushTrace("event.generation_ended_user_gate", { reason: "tracker_extraction_in_progress" });
+        pushTrace("event.generation_ended_user_gate", {
+          reason: "tracker_extraction_in_progress",
+          awaitingLateAiRender: userTurnGateAwaitingLateAiRender,
+          startLastAiIndex: userTurnGateLateAiRenderStartLastAiIndex,
+        });
         return;
       }
       pendingGenerationInjectionSnapshot = null;
@@ -4613,11 +4673,24 @@ function registerEvents(context: STContext): void {
   if (events.CHARACTER_MESSAGE_RENDERED) {
     source.on(events.CHARACTER_MESSAGE_RENDERED, () => {
       pushTrace("event.character_message_rendered");
+      const currentLastAi = getLastAiMessageIndex(context);
+      if (shouldMarkLateAiRenderForUserTurn({
+        awaitingLateAiRender: userTurnGateAwaitingLateAiRender,
+        currentLastAi,
+        startLastAiIndex: userTurnGateLateAiRenderStartLastAiIndex,
+      })) {
+        const lateRenderStartLastAiIndex = userTurnGateLateAiRenderStartLastAiIndex;
+        userTurnGateAwaitingLateAiRender = false;
+        userTurnGateLateAiRenderStartLastAiIndex = null;
+        pushTrace("user_gate.late_ai_render_detected", {
+          currentLastAi,
+          startLastAiIndex: lateRenderStartLastAiIndex,
+        });
+      }
       if (chatGenerationInFlight) {
         if (swipeGenerationActive) {
           chatGenerationSawCharacterRender = true;
         }
-        const currentLastAi = getLastAiMessageIndex(context);
         if (
           currentLastAi != null &&
           (chatGenerationStartLastAiIndex == null || currentLastAi > chatGenerationStartLastAiIndex)

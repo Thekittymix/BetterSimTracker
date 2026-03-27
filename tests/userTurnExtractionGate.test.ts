@@ -4,12 +4,14 @@ import assert from "node:assert/strict";
 import {
   shouldAdoptInflightGenerationForUserTurn,
   isRetryableUserTurnReplayFailure,
+  shouldMarkLateAiRenderForUserTurn,
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
   shouldIssueUserTurnGateStop,
   shouldAwaitUserMessageRenderedExtraction,
   shouldScheduleImmediateUserTurnExtraction,
   shouldScheduleUserTurnExtractionAfterGenerationEnd,
+  shouldWaitForLateAiRenderBeforeReplay,
   shouldDeferUserTurnExtraction,
   USER_MESSAGE_RENDERED_RETRY_REASON,
 } from "../src/userTurnExtractionGate";
@@ -236,6 +238,70 @@ test("shouldScheduleUserTurnExtractionAfterGenerationEnd only resumes user-turn 
     shouldScheduleUserTurnExtractionAfterGenerationEnd({
       userTurnGateActive: true,
       chatGenerationSawCharacterRender: true,
+    }),
+    false,
+  );
+});
+
+test("shouldWaitForLateAiRenderBeforeReplay gives one grace window before replaying a reclaimed generation", () => {
+  assert.equal(
+    shouldWaitForLateAiRenderBeforeReplay({
+      awaitingLateAiRender: true,
+      replayGraceApplied: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldWaitForLateAiRenderBeforeReplay({
+      awaitingLateAiRender: true,
+      replayGraceApplied: true,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldWaitForLateAiRenderBeforeReplay({
+      awaitingLateAiRender: false,
+      replayGraceApplied: false,
+    }),
+    false,
+  );
+});
+
+test("shouldMarkLateAiRenderForUserTurn only flags new AI renders that arrive after the reclaimed generation stop point", () => {
+  assert.equal(
+    shouldMarkLateAiRenderForUserTurn({
+      awaitingLateAiRender: true,
+      currentLastAi: 15,
+      startLastAiIndex: 13,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldMarkLateAiRenderForUserTurn({
+      awaitingLateAiRender: true,
+      currentLastAi: 13,
+      startLastAiIndex: 13,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldMarkLateAiRenderForUserTurn({
+      awaitingLateAiRender: true,
+      currentLastAi: null,
+      startLastAiIndex: 13,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldMarkLateAiRenderForUserTurn({
+      awaitingLateAiRender: false,
+      currentLastAi: 15,
+      startLastAiIndex: 13,
     }),
     false,
   );

@@ -29,6 +29,24 @@ export function shouldScheduleUserTurnExtractionAfterGenerationEnd(input: {
   return input.userTurnGateActive && !input.chatGenerationSawCharacterRender;
 }
 
+export function shouldWaitForLateAiRenderBeforeReplay(input: {
+  awaitingLateAiRender: boolean;
+  replayGraceApplied: boolean;
+}): boolean {
+  return input.awaitingLateAiRender && !input.replayGraceApplied;
+}
+
+export function shouldMarkLateAiRenderForUserTurn(input: {
+  awaitingLateAiRender: boolean;
+  currentLastAi: number | null;
+  startLastAiIndex: number | null;
+}): boolean {
+  if (!input.awaitingLateAiRender) return false;
+  if (input.currentLastAi == null || input.currentLastAi < 0) return false;
+  if (input.startLastAiIndex == null) return true;
+  return input.currentLastAi > input.startLastAiIndex;
+}
+
 export function resolveUserTurnRetryDelayMs(input: {
   reason: string;
   retryableFailure: boolean;

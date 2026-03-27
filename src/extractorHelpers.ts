@@ -250,6 +250,94 @@ export function buildNoActiveContinuityTrackerData(input: {
   };
 }
 
+export function overlayLatestOwnerScopedContinuity(
+  base: TrackerData,
+  latest: TrackerData | null,
+  ownerKeys: string[],
+): TrackerData {
+  if (!latest) return base;
+  const owners = Array.from(new Set((ownerKeys ?? []).map(owner => String(owner ?? "").trim()).filter(Boolean)));
+  if (!owners.length) return base;
+
+  const next: TrackerData = {
+    ...base,
+    statistics: {
+      affection: { ...(base.statistics?.affection ?? {}) },
+      trust: { ...(base.statistics?.trust ?? {}) },
+      desire: { ...(base.statistics?.desire ?? {}) },
+      connection: { ...(base.statistics?.connection ?? {}) },
+      mood: { ...(base.statistics?.mood ?? {}) },
+      lastThought: { ...(base.statistics?.lastThought ?? {}) },
+    },
+    customStatistics: { ...(base.customStatistics ?? {}) },
+    customNonNumericStatistics: { ...(base.customNonNumericStatistics ?? {}) },
+  };
+
+  for (const statKey of ["affection", "trust", "desire", "connection", "mood", "lastThought"] as const) {
+    const latestBucket = latest.statistics?.[statKey] ?? {};
+    const nextBucket = next.statistics[statKey];
+    for (const ownerKey of owners) {
+      if (!Object.prototype.hasOwnProperty.call(latestBucket, ownerKey)) continue;
+      const value = latestBucket[ownerKey];
+      if (value == null || value === "") {
+        delete nextBucket[ownerKey];
+      } else {
+        nextBucket[ownerKey] = value as never;
+      }
+    }
+  }
+
+  const numericStatIds = new Set([
+    ...Object.keys(base.customStatistics ?? {}),
+    ...Object.keys(latest.customStatistics ?? {}),
+  ]);
+  for (const statId of numericStatIds) {
+    const nextBucket = { ...(next.customStatistics?.[statId] ?? {}) };
+    const latestBucket = latest.customStatistics?.[statId] ?? {};
+    for (const ownerKey of owners) {
+      if (!Object.prototype.hasOwnProperty.call(latestBucket, ownerKey)) continue;
+      const value = latestBucket[ownerKey];
+      if (value == null) {
+        delete nextBucket[ownerKey];
+      } else {
+        nextBucket[ownerKey] = value;
+      }
+    }
+    if (Object.keys(nextBucket).length) {
+      next.customStatistics![statId] = nextBucket;
+    } else {
+      delete next.customStatistics![statId];
+    }
+  }
+
+  const nonNumericStatIds = new Set([
+    ...Object.keys(base.customNonNumericStatistics ?? {}),
+    ...Object.keys(latest.customNonNumericStatistics ?? {}),
+  ]);
+  for (const statId of nonNumericStatIds) {
+    const nextBucket = { ...(next.customNonNumericStatistics?.[statId] ?? {}) };
+    const latestBucket = latest.customNonNumericStatistics?.[statId] ?? {};
+    for (const ownerKey of owners) {
+      if (!Object.prototype.hasOwnProperty.call(latestBucket, ownerKey)) continue;
+      const value = latestBucket[ownerKey];
+      if (value == null) {
+        delete nextBucket[ownerKey];
+      } else {
+        nextBucket[ownerKey] = Array.isArray(value)
+          ? [...value]
+          : value;
+      }
+    }
+    if (Object.keys(nextBucket).length) {
+      next.customNonNumericStatistics![statId] = nextBucket;
+    } else {
+      delete next.customNonNumericStatistics![statId];
+    }
+  }
+
+  return next;
+}
+
 export function selectNoActiveContinuityTrackerEntry(input: {
   context?: STContext | null;
   entries: Array<{ data: TrackerData; messageIndex: number }>;
