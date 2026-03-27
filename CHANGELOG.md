@@ -1,3 +1,7 @@
+## [2.2.4.16-exp196] - 2026-03-27
+### Fixed
+- Experimental per-message `entityOwnerMap` writes now stay scoped to identities actually materialized by that message payload, so user-only turns no longer leak scene-only source-card aliases or narrative entities into saved owner identity metadata.
+
 ## [2.2.4.16-exp195] - 2026-03-27
 ### Fixed
 - Experimental tracker payload writes no longer persist scene-only narrative entities into a user-only message `entityOwnerMap`, so dynamic scene continuity stops leaking unrelated narrative identities into turns that only materialize user-owned state.

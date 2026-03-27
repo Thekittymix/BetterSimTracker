@@ -1428,7 +1428,7 @@ test("buildTrackerDataEntityOwnerMap prefers resolver message entity ids over st
     entityResolution: buildEntityResolution({
       source: "model",
       sceneOwners: [],
-      messageOwners: [],
+      messageOwners: ["Blake"],
       sceneEntityIds: [],
       messageEntityIds: [blakeEntityId],
     }),
@@ -1475,7 +1475,7 @@ test("buildTrackerDataEntityOwnerMap ignores raw stat owner keys once resolver/e
       messageEntityIds: [],
     }),
     statistics: {
-      affection: { Billie: 61 },
+      affection: { Blake: 61, Billie: 22 },
       trust: {},
       desire: {},
       connection: {},
@@ -1483,7 +1483,7 @@ test("buildTrackerDataEntityOwnerMap ignores raw stat owner keys once resolver/e
       lastThought: {},
     },
     customNonNumericStatistics: {
-      clothes: { Billie: ["jacket"] },
+      clothes: { Ashley: ["hoodie"], Billie: ["jacket"] },
     },
   });
 
@@ -1495,41 +1495,56 @@ test("buildTrackerDataEntityOwnerMap ignores raw stat owner keys once resolver/e
   assert.equal(map?.Garret, undefined);
 });
 
-test("buildTrackerDataEntityOwnerMap excludes scene-only narrative entities when the message payload does not materialize them", () => {
+test("buildTrackerDataEntityOwnerMap excludes scene-only resolved owners when the message payload does not materialize them", () => {
   const context = makeContext();
-  context.chatMetadata = {
-    bstEntityRegistry: {
-      version: 1,
-      entities: {
-        "bst_narrative:elias-mercer": {
-          id: "bst_narrative:elias-mercer",
-          ownerName: "Elias Mercer",
-          canonicalName: "Elias Mercer",
-          aliases: ["Elias", "Mercer"],
-          sourceName: "Elias Mercer",
-          sourceAvatar: null,
-          sourceKey: "narrative:bst_narrative:elias-mercer",
-          kind: "narrative-entity",
-          introducedAtMessageIndex: 8,
-          lastSeenMessageIndex: 8,
-          lastActiveMessageIndex: 8,
-          lifecycleState: "active",
-          archivedAtMessageIndex: null,
-        },
-      },
-      ownerToEntityId: {
-        "elias mercer": "bst_narrative:elias-mercer",
-        elias: "bst_narrative:elias-mercer",
-        mercer: "bst_narrative:elias-mercer",
-      },
-    },
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 8,
+    owners: ["Garret"],
+    getLifecycleState: () => "active",
+  });
+  const [garretEntityId] = resolveTrackerEntityIdsForOwners(context, ["Garret"]);
+  assert.ok(garretEntityId);
+  const registry = context.chatMetadata?.bstEntityRegistry as {
+    entities: Record<string, unknown>;
+    ownerToEntityId: Record<string, string>;
+  } | undefined;
+  assert.ok(registry);
+  registry.entities["bst_narrative:elias-mercer"] = {
+    id: "bst_narrative:elias-mercer",
+    ownerName: "Elias Mercer",
+    canonicalName: "Elias Mercer",
+    aliases: ["Elias", "Mercer"],
+    sourceName: "Elias Mercer",
+    sourceAvatar: null,
+    sourceKey: "narrative:bst_narrative:elias-mercer",
+    kind: "narrative-entity",
+    introducedAtMessageIndex: 8,
+    lastSeenMessageIndex: 8,
+    lastActiveMessageIndex: 8,
+    lifecycleState: "active",
+    archivedAtMessageIndex: null,
   };
+  registry.ownerToEntityId["elias mercer"] = "bst_narrative:elias-mercer";
+  registry.ownerToEntityId.elias = "bst_narrative:elias-mercer";
+  registry.ownerToEntityId.mercer = "bst_narrative:elias-mercer";
 
   const tracker = makeTracker({
     activeCharacters: ["__bst_user__"],
     entityResolution: buildEntityResolution({
       source: "model",
       resolvedEntities: [
+        {
+          entityId: garretEntityId,
+          kind: "st-character",
+          name: "Garret",
+          aliases: ["Garret"],
+          avatar: null,
+          inScene: true,
+          inMessage: false,
+          created: false,
+        },
         {
           entityId: "bst_narrative:elias-mercer",
           kind: "narrative-entity",

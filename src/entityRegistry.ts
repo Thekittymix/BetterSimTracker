@@ -774,6 +774,12 @@ function collectTrackerDataOwnerNames(
   const evidencedOwnerKeys = new Set<string>();
   const resolvedEntities = resolveTrackerResolvedEntities(data);
   const hasExplicitResolverOwners = resolvedEntities.some(entity => entity.inScene || entity.inMessage);
+  const allowedResolverOwnerKeys = new Set(
+    resolvedEntities
+      .filter(entity => entity.inScene || entity.inMessage)
+      .map(entity => normalizeKey(entity.name))
+      .filter(Boolean),
+  );
   const push = (raw: unknown): void => {
     const value = normalizeToken(raw);
     const key = normalizeKey(value);
@@ -785,12 +791,17 @@ function collectTrackerDataOwnerNames(
     const value = normalizeToken(raw);
     const key = normalizeKey(value);
     if (!key || key === "global") return;
+    if (
+      hasExplicitResolverOwners
+      && key !== normalizeKey(USER_TRACKER_KEY)
+      && !allowedResolverOwnerKeys.has(key)
+    ) {
+      return;
+    }
     evidencedOwnerKeys.add(key);
     push(value);
   };
-  if (!hasExplicitResolverOwners) {
-    for (const name of data.activeCharacters ?? []) pushEvidence(name);
-  }
+  for (const name of data.activeCharacters ?? []) pushEvidence(name);
   for (const bucket of Object.values(data.statistics ?? {})) {
     for (const owner of Object.keys(bucket ?? {})) pushEvidence(owner);
   }
@@ -823,7 +834,7 @@ function collectTrackerDataOwnerNames(
       continue;
     }
     if (!entity.inScene) continue;
-    if (entity.kind !== "narrative-entity" || evidencedOwnerKeys.has(normalizeKey(name))) {
+    if (evidencedOwnerKeys.has(normalizeKey(name))) {
       push(name);
     }
   }
