@@ -173,6 +173,7 @@ import { isManualExtractionReason } from "./extractorHelpers";
 import { buildCharacterCardsContext } from "./characterCardContext";
 import { computeManualPlaceholderMessageIndices } from "./renderQueueHelpers";
 import {
+  shouldCaptureInflightGenerationForUserTurnGate,
   isRetryableUserTurnReplayFailure,
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
@@ -4448,7 +4449,11 @@ function registerEvents(context: STContext): void {
         ? (getLastAiMessageIndex(context) ?? baseTargetIndex)
         : baseTargetIndex;
       snapshotInjectionForGeneration(targetIndex, type);
-      if (userTurnGateActive && intent) {
+      if (shouldCaptureInflightGenerationForUserTurnGate({
+        userTurnGateActive,
+        isGroupChat: Boolean(context.groupId),
+        hasIntent: Boolean(intent),
+      }) && intent) {
         userTurnGatePendingIntent = cloneCapturedGenerationIntent(intent);
         userTurnGateReplayAttempts = 0;
         pushTrace("user_gate.capture_generation", {
