@@ -4,11 +4,11 @@ type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key"> &
 
 const DEBUG_STORAGE_PREFIX = "bst-debug:";
 const TRACE_SUFFIX = ":trace";
-const MAX_DEBUG_SCOPE_COUNT = 4;
-const MAX_DEBUG_STORAGE_CHARS = 180_000;
-const MAX_TRACE_LINES = 160;
-const MAX_TRACE_LINE_CHARS = 280;
-const MAX_DEBUG_TEXT_CHARS = 6_000;
+const MAX_DEBUG_SCOPE_COUNT = 2;
+const MAX_DEBUG_STORAGE_CHARS = 90_000;
+const MAX_TRACE_LINES = 80;
+const MAX_TRACE_LINE_CHARS = 220;
+const MAX_DEBUG_TEXT_CHARS = 3_000;
 
 function truncateText(value: string | undefined, maxChars = MAX_DEBUG_TEXT_CHARS): string | undefined {
   if (typeof value !== "string") return value;

@@ -59,20 +59,20 @@ function makeDebugRecord(): DeltaDebugRecord {
 test("trimDebugRecordForStorage caps bulky debug text fields and trace payload", () => {
   const trimmed = trimDebugRecordForStorage(makeDebugRecord());
 
-  assert.ok(trimmed.rawModelOutput.length < 6_200);
-  assert.ok(trimmed.promptText && trimmed.promptText.length < 6_200);
-  assert.ok(trimmed.contextText && trimmed.contextText.length < 6_200);
-  assert.equal(trimmed.trace?.length, 160);
-  assert.ok((trimmed.trace ?? [])[0].length <= 280);
+  assert.ok(trimmed.rawModelOutput.length < 3_200);
+  assert.ok(trimmed.promptText && trimmed.promptText.length < 3_200);
+  assert.ok(trimmed.contextText && trimmed.contextText.length < 3_200);
+  assert.equal(trimmed.trace?.length, 80);
+  assert.ok((trimmed.trace ?? [])[0].length <= 220);
 });
 
 test("trimTraceLinesForStorage keeps only recent compacted trace lines", () => {
   const trimmed = trimTraceLinesForStorage(Array.from({ length: 170 }, (_, index) => `line-${index}-${"z".repeat(350)}`));
 
-  assert.equal(trimmed.length, 160);
-  assert.ok(trimmed[0].startsWith("line-10-"));
+  assert.equal(trimmed.length, 80);
+  assert.ok(trimmed[0].startsWith("line-90-"));
   assert.ok(trimmed[trimmed.length - 1].startsWith("line-169-"));
-  assert.ok(trimmed.every(line => line.length <= 280));
+  assert.ok(trimmed.every(line => line.length <= 220));
 });
 
 test("enforceDebugStorageBudget evicts the oldest debug scopes but preserves the current scope", () => {

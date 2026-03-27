@@ -873,10 +873,12 @@ function getScopeKey(context: STContext): string {
 }
 
 const HISTORY_LIMIT = 120;
-const LOCAL_HISTORY_LIMIT = 24;
-const LOCAL_STORE_MAX_CHARS = 18_000;
-const LATEST_BY_SCOPE_LIMIT = 12;
-const LATEST_BY_SCOPE_MAX_CHARS = 48_000;
+const LOCAL_HISTORY_LIMIT = 16;
+const LOCAL_STORE_MAX_CHARS = 12_000;
+const LOCAL_STORE_SCOPE_LIMIT = 6;
+const LOCAL_STORE_TOTAL_MAX_CHARS = 72_000;
+const LATEST_BY_SCOPE_LIMIT = 6;
+const LATEST_BY_SCOPE_MAX_CHARS = 24_000;
 const LATEST_BY_SCOPE_KEY = `${EXTENSION_KEY}:latestByScope`;
 
 type SnapshotEntry = { data: TrackerData; timestamp: number; messageIndex?: number };
@@ -902,6 +904,48 @@ function normalizeStore(raw: unknown): SnapshotStore {
 
 function getStoreKey(context: STContext): string {
   return `${EXTENSION_KEY}:history:${getScopeKey(context)}`;
+}
+
+function getHistoryStoreTimestamp(store: SnapshotStore): number {
+  const latestTimestamp = Number(store.latest?.timestamp ?? 0);
+  if (Number.isFinite(latestTimestamp) && latestTimestamp > 0) {
+    return latestTimestamp;
+  }
+  const historyTimestamp = Number(store.history[0]?.timestamp ?? 0);
+  return Number.isFinite(historyTimestamp) ? historyTimestamp : 0;
+}
+
+function listLocalHistoryStores(): Array<{ key: string; totalChars: number; timestamp: number }> {
+  const stores: Array<{ key: string; totalChars: number; timestamp: number }> = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith(`${EXTENSION_KEY}:history:`)) continue;
+    const raw = localStorage.getItem(key) ?? "";
+    let timestamp = 0;
+    try {
+      timestamp = getHistoryStoreTimestamp(normalizeStore(JSON.parse(raw)));
+    } catch {
+      timestamp = 0;
+    }
+    stores.push({ key, totalChars: raw.length, timestamp });
+  }
+  return stores.sort((left, right) => right.timestamp - left.timestamp);
+}
+
+function pruneLocalHistoryStores(currentKey?: string): void {
+  let stores = listLocalHistoryStores();
+  let totalChars = stores.reduce((sum, store) => sum + store.totalChars, 0);
+
+  const chooseVictim = (): { key: string } | undefined =>
+    [...stores].reverse().find(store => store.key !== currentKey);
+
+  while (stores.length > LOCAL_STORE_SCOPE_LIMIT || totalChars > LOCAL_STORE_TOTAL_MAX_CHARS) {
+    const victim = chooseVictim();
+    if (!victim) return;
+    localStorage.removeItem(victim.key);
+    stores = listLocalHistoryStores();
+    totalChars = stores.reduce((sum, store) => sum + store.totalChars, 0);
+  }
 }
 
 function readLatestByScopeMap(): Record<string, { data: TrackerData; messageIndex: number; timestamp: number }> {
@@ -997,6 +1041,7 @@ function compactStoreForLocalStorage(store: SnapshotStore): SnapshotStore {
 function writeStore(context: STContext, store: SnapshotStore): void {
   const key = getStoreKey(context);
   const compacted = compactStoreForLocalStorage(store);
+  pruneLocalHistoryStores(key);
   try {
     localStorage.setItem(key, JSON.stringify(compacted));
   } catch {
@@ -1013,6 +1058,7 @@ function writeStore(context: STContext, store: SnapshotStore): void {
       // ignore
     }
   }
+  pruneLocalHistoryStores(key);
 }
 
 function readMetadataStore(context: STContext): SnapshotStore {

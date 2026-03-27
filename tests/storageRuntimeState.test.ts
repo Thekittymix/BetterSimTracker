@@ -24,8 +24,14 @@ import type { STContext, TrackerData } from "../src/types";
 
 class MemoryStorage {
   private map = new Map<string, string>();
+  get length(): number {
+    return this.map.size;
+  }
   getItem(key: string): string | null {
     return this.map.has(key) ? this.map.get(key)! : null;
+  }
+  key(index: number): string | null {
+    return [...this.map.keys()][index] ?? null;
   }
   setItem(key: string, value: string): void {
     this.map.set(key, value);
@@ -159,8 +165,8 @@ test("saveTrackerSnapshot compacts localStorage history copies without shrinking
   const raw = localStorageMock.getItem(getLocalStoreKey("storage-budget-chat"));
   assert.ok(raw);
   const parsed = JSON.parse(raw!) as { history: Array<unknown> };
-  assert.ok(parsed.history.length <= 24);
-  assert.ok(raw!.length <= 18_000);
+  assert.ok(parsed.history.length <= 16);
+  assert.ok(raw!.length <= 12_000);
 
   const metadataStore = context.chatMetadata?.[EXTENSION_KEY] as { history?: Array<unknown> } | undefined;
   assert.equal(metadataStore?.history?.length, 40);
@@ -192,9 +198,44 @@ test("saveTrackerSnapshot prunes latestByScope localStorage cache to recent scop
   assert.ok(raw);
   const parsed = JSON.parse(raw!) as Record<string, unknown>;
   const keys = Object.keys(parsed);
-  assert.ok(keys.length <= 12);
+  assert.ok(keys.length <= 6);
   assert.ok(keys.includes("scope-19|char:1"));
-  assert.ok(raw!.length <= 48_000);
+  assert.ok(raw!.length <= 24_000);
+});
+
+test("saveTrackerSnapshot prunes old localStorage history scopes globally", () => {
+  (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = localStorageMock;
+  localStorageMock.clear();
+
+  for (let index = 0; index < 14; index += 1) {
+    const context = makeContext() as STContext & { chatId: string };
+    context.chatId = `history-scope-${index}`;
+    for (let entry = 0; entry < 6; entry += 1) {
+      saveTrackerSnapshot(context, makeTracker(30_000 + (index * 10) + entry, {
+        activeCharacters: ["Seraphina"],
+        statistics: {
+          affection: { Seraphina: 60 + entry },
+          trust: {},
+          desire: {},
+          connection: {},
+          mood: {},
+          lastThought: { Seraphina: `history-thought-${index}-${entry}-${"h".repeat(180)}` },
+        },
+        customNonNumericStatistics: {
+          pose: { Seraphina: `history-pose-${index}-${entry}-${"p".repeat(180)}` },
+        },
+      }), entry + 1);
+    }
+  }
+
+  const keys = Array.from({ length: localStorageMock.length }, (_, index) => localStorageMock.key(index))
+    .filter((key): key is string => Boolean(key))
+    .filter(key => key.startsWith(`${EXTENSION_KEY}:history:`));
+  const totalChars = keys.reduce((sum, key) => sum + (localStorageMock.getItem(key)?.length ?? 0), 0);
+
+  assert.ok(keys.length <= 6);
+  assert.ok(totalChars <= 72_000);
+  assert.ok(keys.some(key => key.includes("history-scope-13|char:1")));
 });
 
 test("writeTrackerDataToMessage enriches tracker payloads with message-scoped entityOwnerMap from registry", () => {

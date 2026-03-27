@@ -1,3 +1,7 @@
+## [2.2.4.16-exp191] - 2026-03-27
+### Fixed
+- Experimental BST local cache now prunes old chat-scoped history snapshots globally and keeps a much tighter debug-storage budget, so SillyTavern keeps more `localStorage` headroom for its own draft save path even on long-lived, debug-heavy chats.
+
 ## [2.2.4.16-exp190] - 2026-03-27
 ### Fixed
 - Experimental parser no longer clamps AI `Last Thought` text to the old generic 200-character text limit, so longer thought entries now survive from raw model output into saved tracker payloads and expandable tracker cards.
