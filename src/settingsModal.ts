@@ -2098,21 +2098,22 @@ export function openSettingsModal(input: {
       const allowsSceneMacro = quickEnabled && Boolean(stat.globalScope);
       const allowsUserMacro = quickEnabled && !Boolean(stat.globalScope) && Boolean(stat.trackUser ?? stat.track);
       const allowsCharMacro = quickEnabled && !Boolean(stat.globalScope) && Boolean(stat.trackCharacters ?? stat.track);
-      const currentCharacterMacro = macroSegment && allowsCharMacro
+      const previewTargets = (input.previewCharacterCandidates ?? [])
+        .map(candidate => ({
+          name: String(candidate?.name ?? "").trim(),
+          avatar: String(candidate?.avatar ?? "").trim(),
+        }))
+        .filter(item => {
+          if (!item.name) return false;
+          const normalized = item.name.toLowerCase();
+          return normalized !== USER_TRACKER_KEY.toLowerCase() && normalized !== GLOBAL_TRACKER_KEY.toLowerCase() && normalized !== "user";
+        });
+      const currentCharacterMacro = macroSegment && allowsCharMacro && previewTargets.length <= 1
         ? `{{bst_stat_char_${macroSegment}}}`
         : null;
       const characterMacroExamples = (() => {
         if (!macroSegment || !allowsCharMacro) return [] as string[];
-        const preview = (input.previewCharacterCandidates ?? [])
-          .map(candidate => ({
-            name: String(candidate?.name ?? "").trim(),
-            avatar: String(candidate?.avatar ?? "").trim(),
-          }))
-          .filter(item => {
-            if (!item.name) return false;
-            const normalized = item.name.toLowerCase();
-            return normalized !== USER_TRACKER_KEY.toLowerCase() && normalized !== GLOBAL_TRACKER_KEY.toLowerCase() && normalized !== "user";
-          });
+        const preview = previewTargets;
         const counts = new Map<string, number>();
         const examples: string[] = [];
         for (const item of preview) {
@@ -2175,7 +2176,9 @@ export function openSettingsModal(input: {
               ${escapeHtml(defaultMeta)}
             </div>
             ${description ? `<div class="bst-custom-stat-meta">${escapeHtml(description)}</div>` : ""}
-            ${macroScopes.length || allowsCharMacro ? `<div class="bst-custom-stat-meta">Macros: ${macroScopes.map(item => `<code>${escapeHtml(item)}</code>`).join(" ")}${(allowsCharMacro && !characterMacroExamples.length) ? ` <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>` : ""}${allowsCharMacro ? ` <span class="bst-inline-hint">Current chat character uses <code>{{bst_stat_char_${escapeHtml(macroSegment)}}}</code>; explicit target uses <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>.</span>` : ""}</div>` : ""}
+            ${macroScopes.length || allowsCharMacro ? `<div class="bst-custom-stat-meta">Macros: ${macroScopes.map(item => `<code>${escapeHtml(item)}</code>`).join(" ")}${(allowsCharMacro && !characterMacroExamples.length) ? ` <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>` : ""}${allowsCharMacro ? (currentCharacterMacro
+              ? ` <span class="bst-inline-hint">Current chat character uses <code>{{bst_stat_char_${escapeHtml(macroSegment)}}}</code>; explicit target uses <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>.</span>`
+              : ` <span class="bst-inline-hint">When multiple character targets exist in the current chat, use explicit target macros like <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>.</span>`) : ""}</div>` : ""}
             <div class="bst-custom-stat-flags">
               ${flags.map(flag => `<span class="bst-custom-stat-flag">${escapeHtml(flag)}</span>`).join("")}
             </div>

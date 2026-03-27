@@ -4,7 +4,7 @@ import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { USER_TRACKER_KEY } from "../src/constants";
 import { defaultSettings } from "../src/settings";
-import { getBstMacroDebugSnapshot, resetBstMacroStateForTests, syncBstMacros } from "../src/runtimeMacros";
+import { buildMacroPreviewCandidates, getBstMacroDebugSnapshot, resetBstMacroStateForTests, syncBstMacros } from "../src/runtimeMacros";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
 
 function makeContext(options?: { includeNewEngine?: boolean }) {
@@ -514,6 +514,202 @@ test("syncBstMacros resolves alias macro values through entityOwnerMap and byEnt
   const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
   assert.match(block, /^Scene: Ash/m);
   assert.match(block, /^Ashley: clothes=worn hoodie; pose=fidgeting near the door; physicality=bushy brown braided pigtails, hazel eyes/m);
+});
+
+test("syncBstMacros registers explicit mixed-scene macros for alias and narrative entities without source-card wrapper targets", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const settings = {
+    ...makeSettings(),
+    entityTrackingMode: "dynamic_characters" as const,
+  };
+  context.characterId = 0;
+  context.name2 = "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh";
+  context.characters = [
+    {
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      avatar: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png",
+    } as any,
+  ];
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_narrative:elias-mercer": {
+          id: "bst_narrative:elias-mercer",
+          ownerName: "Elias Mercer",
+          canonicalName: "Elias Mercer",
+          aliases: ["Mercer"],
+          sourceName: "Elias Mercer",
+          sourceAvatar: null,
+          sourceKey: "narrative:elias-mercer",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 12,
+          lastSeenMessageIndex: 22,
+          lastActiveMessageIndex: 22,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        "elias mercer": "bst_narrative:elias-mercer",
+        mercer: "bst_narrative:elias-mercer",
+      },
+    },
+  } as any;
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+      sceneEntityIds: [
+        "ent-ashley",
+        "ent-blake",
+        "ent-garret",
+        "ent-raleigh",
+        "bst_narrative:elias-mercer",
+      ],
+      messageEntityIds: [
+        "ent-ashley",
+        "ent-blake",
+        "ent-garret",
+        "ent-raleigh",
+        "bst_narrative:elias-mercer",
+      ],
+    }),
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "ent-garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Raleigh: {
+        entityId: "ent-raleigh",
+        ownerName: "Raleigh",
+        canonicalName: "Raleigh",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      "Elias Mercer": {
+        entityId: "bst_narrative:elias-mercer",
+        ownerName: "Elias Mercer",
+        canonicalName: "Elias Mercer",
+        aliases: ["Mercer"],
+        sourceKey: "narrative:elias-mercer",
+        kind: "narrative-entity",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    statisticsByEntityId: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: {
+      clothes: {},
+      pose: {},
+      physicality: {},
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn oversized hoodie"],
+        "ent-blake": ["oversized dark shirt"],
+        "ent-garret": ["leather jacket"],
+        "ent-raleigh": ["preppy shirt"],
+        "bst_narrative:elias-mercer": ["heavy work boots", "lantern"],
+      },
+      pose: {
+        "ent-ashley": "crumpled on the floor",
+        "ent-blake": "pinned against the fireplace",
+        "ent-garret": "slumped against the wall",
+        "ent-raleigh": "collapsed on hands and knees",
+        "bst_narrative:elias-mercer": "standing in the office doorway",
+      },
+      physicality: {
+        "ent-ashley": "messy brown pigtails",
+        "ent-blake": "heavy charcoal eyeliner",
+        "ent-garret": "scarred knuckles",
+        "ent-raleigh": "sweaty tangled hair",
+        "bst_narrative:elias-mercer": "holding pulsing lantern, deep-set eyes",
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Elias Mercer",
+    ],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_ashley")?.(), "worn oversized hoodie");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_blake")?.(), "oversized dark shirt");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_elias_mercer")?.(), "heavy work boots, lantern");
+  assert.equal(registeredNewEngine.has("bst_stat_char_clothes_camp_whispering_pines_ashley_blake_garret_raleigh"), false);
+  assert.equal(registeredNewEngine.has("bst_stat_char_clothes"), false);
+
+  const previewCandidates = buildMacroPreviewCandidates({
+    context,
+    settings,
+    data: tracker,
+    allCharacterNames: [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Elias Mercer",
+    ],
+  });
+  assert.deepEqual(
+    previewCandidates.map(candidate => candidate.name),
+    ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+  );
+
+  const debug = getBstMacroDebugSnapshot();
+  assert.equal(debug?.["currentCharacterTarget"], null);
 });
 
 test("syncBstMacros keeps character stat macros scoped to the current entity id instead of stale same-name registry aliases", () => {

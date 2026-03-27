@@ -1,5 +1,12 @@
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import {
+  collectResolvedCharacterNames,
+  isMultiCharacterEntityTrackingMode,
+  resolveCharacterFromContext,
+  resolveCharacterIdentity,
+  resolveEntityTrackingMode,
+} from "./entityResolution";
+import {
   getEntityRegistryEntryByOwnerName,
   resolveTrackerDataLookupValue,
   resolveTrackerSceneOwners,
@@ -122,8 +129,29 @@ function resolveMacroTargetIdentity(
   };
 }
 
+function shouldSkipAggregateSourceMacroTarget(
+  context: STContext,
+  settings: BetterSimTrackerSettings,
+  ownerName: string,
+  entityId: string | null,
+): boolean {
+  if (entityId) return false;
+  const mode = resolveEntityTrackingMode(settings);
+  if (!isMultiCharacterEntityTrackingMode(mode)) return false;
+  const resolved = resolveCharacterIdentity(context, ownerName, mode);
+  if (!resolved || resolved.matchedBy !== "source") return false;
+  const source = resolveCharacterFromContext(context, ownerName, mode);
+  if (!source) return false;
+  const aliases = collectResolvedCharacterNames(
+    { ...context, characters: [source] },
+    settings,
+  ).filter(alias => normalizeName(alias) !== normalizeName(resolved.sourceName));
+  return aliases.length >= 2;
+}
+
 function buildCharacterMacroTargets(
   context: STContext,
+  settings: BetterSimTrackerSettings,
   data: TrackerData | null,
   allCharacterNames: string[],
 ): CharacterMacroTarget[] {
@@ -142,6 +170,9 @@ function buildCharacterMacroTargets(
     const ownerKey = normalizeName(identity.ownerName || ownerName);
     if (!entityId && seenOwnerKeys.has(ownerKey)) continue;
     seenOwnerKeys.add(ownerKey);
+    if (shouldSkipAggregateSourceMacroTarget(context, settings, identity.ownerName || ownerName, entityId || null)) {
+      continue;
+    }
     targetIdentities.push(identity);
   }
 
@@ -154,6 +185,7 @@ function buildCharacterMacroTargets(
   }> = [];
 
   for (const identity of targetIdentities) {
+    let matchedCharacter = false;
     const lookupNameKeys = new Set(identity.lookupNames.map(normalizeName).filter(Boolean));
     for (const character of context.characters ?? []) {
       const name = String(character?.name ?? "").trim();
@@ -167,11 +199,9 @@ function buildCharacterMacroTargets(
         avatar,
         baseSlug,
       });
+      matchedCharacter = true;
     }
-  }
-
-  if (!candidates.length) {
-    for (const identity of targetIdentities) {
+    if (!matchedCharacter) {
       const ownerName = String(identity.ownerName ?? "").trim();
       const baseSlug = toCharacterSlug(ownerName);
       candidates.push({
@@ -211,6 +241,18 @@ function buildCharacterMacroTargets(
     });
   }
   return targets;
+}
+
+export function buildMacroPreviewCandidates(input: {
+  context: STContext;
+  settings: BetterSimTrackerSettings;
+  data: TrackerData | null;
+  allCharacterNames: string[];
+}): Array<{ name: string; avatar?: string | null }> {
+  return buildCharacterMacroTargets(input.context, input.settings, input.data, input.allCharacterNames).map(target => ({
+    name: target.displayName,
+    avatar: target.avatar,
+  }));
 }
 
 function resolveCurrentCharacterMacroTarget(
@@ -553,7 +595,7 @@ export function syncBstMacros(input: {
     .map(def => ({ ...def, id: String(def.id ?? "").trim().toLowerCase() }))
     .filter(def => def.id.length > 0);
   const customStatIds = customDefs.map(def => def.id);
-  const characterTargets = buildCharacterMacroTargets(context, latestPromptMacroData, allCharacterNames);
+  const characterTargets = buildCharacterMacroTargets(context, settings, latestPromptMacroData, allCharacterNames);
   const debugCharacterTargets = characterTargets.map(target => ({
     ownerName: target.ownerName,
     entityId: target.entityId,

@@ -148,7 +148,7 @@ import {
   selectLatestRelevantHistoryEntry,
 } from "./extractionBaselineHelpers";
 import { buildMergedPromptMacroData, resolveLatestStoredTrackerData } from "./runtimeState";
-import { getBstMacroDebugSnapshot, syncBstMacros } from "./runtimeMacros";
+import { buildMacroPreviewCandidates, getBstMacroDebugSnapshot, syncBstMacros } from "./runtimeMacros";
 import { createPromptRefreshController } from "./runtimePromptSync";
 import {
   countSummarySentences,
@@ -4677,44 +4677,14 @@ function registerEvents(context: STContext): void {
 function openSettings(): void {
   if (!settings) return;
   const context = getSafeContext();
-  const chatCharacterNameSet = new Set<string>();
-  for (const message of context?.chat ?? []) {
-    if (!isTrackableAiMessage(message)) continue;
-    const name = String(message?.name ?? "").trim();
-    if (!name) continue;
-    if (name === USER_TRACKER_KEY || name === GLOBAL_TRACKER_KEY) continue;
-    chatCharacterNameSet.add(name.toLowerCase());
-  }
-  const previewCharacterCandidates: Array<{ name: string; avatar?: string | null }> = [];
-  const seenPreviewKeys = new Set<string>();
-  const addPreviewCandidate = (name: string, avatar: string | null, fallbackIndex?: number): void => {
-    const normalizedName = String(name ?? "").trim();
-    if (!normalizedName) return;
-    const normalizedAvatar = String(avatar ?? "").trim() || null;
-    const key = normalizedAvatar
-      ? `avatar:${normalizedAvatar}`
-      : `name:${normalizedName.toLowerCase()}:${fallbackIndex ?? 0}`;
-    if (seenPreviewKeys.has(key)) return;
-    seenPreviewKeys.add(key);
-    previewCharacterCandidates.push({ name: normalizedName, avatar: normalizedAvatar });
-  };
-  for (const [index, character] of (context?.characters ?? []).entries()) {
-    const name = String(character?.name ?? "").trim();
-    if (!name) continue;
-    const lowerName = name.toLowerCase();
-    if (!chatCharacterNameSet.has(lowerName)) continue;
-    addPreviewCandidate(name, String(character?.avatar ?? "").trim() || null, index);
-  }
-  const fallbackName = String(context?.name2 ?? "").trim();
-  if (fallbackName && chatCharacterNameSet.has(fallbackName.toLowerCase())) {
-    addPreviewCandidate(fallbackName, null, (context?.characters ?? []).length + 1);
-  }
-  for (const lowerName of chatCharacterNameSet) {
-    const match = (context?.characters ?? []).find(character => String(character?.name ?? "").trim().toLowerCase() === lowerName);
-    const resolvedName = String(match?.name ?? "").trim() || lowerName;
-    const avatar = String(match?.avatar ?? "").trim() || null;
-    addPreviewCandidate(resolvedName, avatar, (context?.characters ?? []).length + 2);
-  }
+  const previewCharacterCandidates = context && settings
+    ? buildMacroPreviewCandidates({
+      context,
+      settings,
+      data: latestPromptMacroData,
+      allCharacterNames: allCharacterNames.filter(name => name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY),
+    })
+    : [];
   openSettingsModal({
     settings,
     profileOptions: context ? discoverConnectionProfiles(context) : [],

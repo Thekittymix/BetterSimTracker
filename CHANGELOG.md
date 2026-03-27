@@ -1,3 +1,8 @@
+## [2.2.4.16-exp200] - 2026-03-27
+### Fixed
+- Experimental explicit `bst_stat_char_*_<target_slug>` macros now register against the current chat-scoped dynamic-character targets instead of source-card wrapper names, so mixed chats resolve owner-targeted custom stat macros for both source-backed aliases and narrative entities.
+- Experimental settings macro examples now preview the same chat-scoped dynamic-character targets that runtime macros actually expose, and multi-target chats no longer imply that bare `bst_stat_char_*` macros are available when only explicit target slugs are unambiguous.
+
 ## [2.2.4.16-exp199] - 2026-03-27
 ### Fixed
 - Experimental mixed-scene user-turn persistence now realigns saved `resolvedEntities` with the merged scene source of truth and backfills omitted scene members before lifecycle sync, so partial resolver output no longer flips the rest of the current scene inactive just because one reactivated narrative entity dominated the user-turn resolution.
