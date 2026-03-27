@@ -313,6 +313,97 @@ test("resolveUserExtractionOwnerScopes keeps non-user scene continuity while pin
   });
 });
 
+test("resolveUserExtractionOwnerScopes preserves previous mixed-scene continuity when fallback activity no longer includes an inactive narrative entity", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Earlier mixed-scene turn.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+      },
+      {
+        mes: "I stop looking at the woods and focus on Blake instead.",
+        name: "Kuba",
+        is_user: true,
+      },
+    ],
+  } as any;
+
+  const resolved = resolveUserExtractionOwnerScopes({
+    context,
+    detectedActiveCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" } as any,
+    resolvedSceneActiveCharacters: null,
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Blake", "Forest Spirit"],
+      entityResolution: buildEntityResolution({
+        resolvedEntities: [
+          {
+            entityId: "bst_mc_alias:camp.png|camp whispering pines:blake",
+            kind: "st-character",
+            name: "Blake",
+            aliases: ["Blake"],
+            avatar: null,
+            inScene: true,
+            inMessage: true,
+            created: false,
+          },
+          {
+            entityId: "bst_narrative:forest-spirit",
+            kind: "narrative-entity",
+            name: "Forest Spirit",
+            aliases: ["the spirit"],
+            avatar: null,
+            inScene: true,
+            inMessage: false,
+            created: false,
+          },
+        ],
+        source: "model",
+      }),
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+      entityOwnerMap: {
+        Blake: {
+          entityId: "bst_mc_alias:camp.png|camp whispering pines:blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blake"],
+          sourceKey: "camp.png|camp whispering pines",
+          kind: "multi_character_alias",
+        },
+        "Forest Spirit": {
+          entityId: "bst_narrative:forest-spirit",
+          ownerName: "Forest Spirit",
+          canonicalName: "Forest Spirit",
+          aliases: ["the spirit"],
+          sourceKey: "narrative:bst_narrative:forest-spirit",
+          kind: "narrative-entity",
+        },
+      },
+    } as any,
+  });
+
+  assert.deepEqual(resolved, {
+    sceneActiveCharacters: ["Blake", "Forest Spirit"],
+    requestCharacters: [USER_TRACKER_KEY],
+    source: "fallback",
+  });
+});
+
 test("resolvePersistedActiveOwners excludes User by default for AI-side tracker targets", () => {
   const refined = resolvePersistedActiveOwners(["Ashley", "Blake", "__bst_user__"]);
   assert.deepEqual(refined, ["Ashley", "Blake"]);

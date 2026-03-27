@@ -3479,6 +3479,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           message: lastMessage,
           settings: activeSettings,
           resolvedSceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters ?? null,
+          previousTrackerData: previousMessageTrackerData,
         })
       : (resolvedOwnerScopes ?? {
           ...resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings),

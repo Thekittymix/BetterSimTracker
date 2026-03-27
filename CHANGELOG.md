@@ -1,3 +1,7 @@
+## [2.2.4.16-exp197] - 2026-03-27
+### Fixed
+- Experimental mixed-scene user-turn fallback now carries the previous resolver-backed scene continuity forward when the current user message narrows focus without explicitly clearing the scene, so inactive narrative entities and source-backed aliases no longer drop out of the next lifecycle update just because a user-only turn did not rematerialize them directly.
+
 ## [2.2.4.16-exp196] - 2026-03-27
 ### Fixed
 - Experimental per-message `entityOwnerMap` writes now stay scoped to identities actually materialized by that message payload, so user-only turns no longer leak scene-only source-card aliases or narrative entities into saved owner identity metadata.

@@ -663,6 +663,7 @@ export function resolveUserExtractionOwnerScopes(input: {
   message: ChatMessage | null | undefined;
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
   resolvedSceneActiveCharacters?: string[] | null;
+  previousTrackerData?: TrackerData | null;
 }): {
   sceneActiveCharacters: string[];
   requestCharacters: string[];
@@ -678,6 +679,27 @@ export function resolveUserExtractionOwnerScopes(input: {
       requestCharacters: [USER_TRACKER_KEY],
       source: "model",
     };
+  }
+
+  if (isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings))) {
+    if (input.previousTrackerData?.entityResolution && !resolveTrackerSceneOwners(null, input.previousTrackerData).length) {
+      return {
+        sceneActiveCharacters: [],
+        requestCharacters: [USER_TRACKER_KEY],
+        source: "fallback",
+      };
+    }
+    const previousSceneActiveCharacters = resolvePersistedActiveOwners(
+      resolveTrackerSceneOwners(null, input.previousTrackerData),
+      { includeUserOwner: false },
+    );
+    if (previousSceneActiveCharacters.length) {
+      return {
+        sceneActiveCharacters: previousSceneActiveCharacters,
+        requestCharacters: [USER_TRACKER_KEY],
+        source: "fallback",
+      };
+    }
   }
 
   const fallbackSceneActiveCharacters = resolvePersistedActiveOwners(
