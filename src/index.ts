@@ -177,6 +177,7 @@ import {
   resolveUserTurnReplayRetryDelayMs,
   resolveUserTurnRetryDelayMs,
   shouldDeferUserTurnExtraction,
+  shouldInterruptInflightGenerationForUserTurnGate,
   shouldIssueUserTurnGateStop,
   shouldScheduleImmediateUserTurnExtraction,
   shouldScheduleUserTurnExtractionAfterGenerationEnd,
@@ -1462,6 +1463,7 @@ function startUserTurnGate(context: STContext, messageIndex: number | null): { a
     messageChars: messageText.length,
   });
   if (
+    shouldInterruptInflightGenerationForUserTurnGate({ isGroupChat: Boolean(context.groupId) }) &&
     chatGenerationInFlight &&
     !chatGenerationSawCharacterRender &&
     !userTurnGatePendingIntent &&

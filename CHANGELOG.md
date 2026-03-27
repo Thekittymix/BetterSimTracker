@@ -1,3 +1,7 @@
+## [2.2.4.16-exp187] - 2026-03-26
+### Fixed
+- Experimental single-chat user-turn extraction no longer interrupts the natural AI auto-reply path just to replay generation after user tracking, so `Dynamic Characters` keeps user-turn tracker extraction without breaking the normal post-send response flow.
+
 ## [2.2.4.16-exp186] - 2026-03-26
 ### Fixed
 - BST debug persistence now trims oversized prompt/raw-output traces and evicts old chat-scoped diagnostics, so debug mode no longer fills `localStorage` badly enough to break SillyTavern's normal user-input save path.
