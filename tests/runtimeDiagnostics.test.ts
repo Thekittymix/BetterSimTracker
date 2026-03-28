@@ -421,3 +421,69 @@ test("buildDiagnosticsReport prefers resolver-backed activeCharacters in tracker
     ["Blake"],
   );
 });
+
+test("buildDiagnosticsReport includes entity registry lifecycle summary", () => {
+  const context = {
+    chat: [{}, {}],
+    groupId: null,
+    characterId: "1",
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-ashley": {
+            id: "ent-ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            kind: "multi_character_alias",
+            lifecycleState: "archived",
+            introducedAtMessageIndex: 3,
+            lastActiveMessageIndex: 7,
+            archivedAtMessageIndex: 9,
+          },
+        },
+      },
+    },
+  } as unknown as STContext;
+
+  const report = buildDiagnosticsReport({
+    context,
+    settings: makeSettings(),
+    extensionVersion: "2.2.4.16-expX",
+    isExtracting: false,
+    runSequence: 1,
+    trackerUiState: { phase: "idle", done: 0, total: 0, messageIndex: null },
+    latestDataMessageIndex: 2,
+    latestDataTimestamp: 123456,
+    allCharacterNames: ["Ashley"],
+    settingsProvenance: { enabled: "context" },
+    graphPreferences: { window: "all", smoothing: true },
+    profileDebug: { selectedProfile: "", resolvedProfileId: null, activeProfileId: null },
+    historySample: buildHistorySample([{ messageIndex: 2, timestamp: 123456, data: makeTracker(123456) }]),
+    activity: null,
+    latestData: makeTracker(123456),
+    latestPromptMacroData: makeTracker(123456),
+    promptInjectionPreview: "preview",
+    promptInjectionCurrentPrompt: "preview",
+    promptInjectionLastMessage: null,
+    promptInjectionPreviousMessage: null,
+    promptInjectionLatestDataMessage: null,
+    promptInjectionDebugMeta: null,
+    macroDebugMeta: null,
+    baselineDebugMeta: null,
+    traceTailMemory: [],
+    traceTailPersisted: [],
+    debugRecord: null,
+  });
+
+  assert.deepEqual(report.entityRegistry, [{
+    id: "ent-ashley",
+    ownerName: "Ashley",
+    canonicalName: "Ashley",
+    kind: "multi_character_alias",
+    lifecycleState: "archived",
+    introducedAtMessageIndex: 3,
+    lastActiveMessageIndex: 7,
+    archivedAtMessageIndex: 9,
+  }]);
+});

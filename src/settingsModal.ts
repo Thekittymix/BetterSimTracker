@@ -856,9 +856,9 @@ export function openSettingsModal(input: {
           </button>
         </div>
         <div style="margin-top:8px;font-size:12px;opacity:.9;">Latest Extraction Debug Record</div>
-        <div class="bst-debug-box">${input.debugRecord ? JSON.stringify(input.debugRecord, null, 2) : "No debug record yet."}</div>
+        <div class="bst-debug-box" data-bst-row="latestDebugRecordBox">${input.debugRecord ? JSON.stringify(input.debugRecord, null, 2) : "No debug record yet."}</div>
         <div style="margin-top:8px;font-size:12px;opacity:.9;">Latest Injected Prompt Block</div>
-        <div class="bst-debug-box">${input.injectedPrompt?.trim() ? input.injectedPrompt : "No injected prompt currently active."}</div>
+        <div class="bst-debug-box" data-bst-row="latestInjectedPromptBox">${input.injectedPrompt?.trim() ? input.injectedPrompt : "No injected prompt currently active."}</div>
       </div>
     </div>
     <div class="bst-settings-footer bst-surface-footer bst-surface-footer-end">
@@ -4698,6 +4698,10 @@ export function openSettingsModal(input: {
   modal.querySelector('[data-action="clear-diagnostics"]')?.addEventListener("click", () => {
     persistLive();
     input.onClearDiagnostics?.();
+    const debugRecordBox = modal.querySelector('[data-bst-row="latestDebugRecordBox"]') as HTMLElement | null;
+    if (debugRecordBox) {
+      debugRecordBox.textContent = "No debug record yet.";
+    }
   });
   const promptDefaults: Partial<Record<keyof BetterSimTrackerSettings, string>> = {
     promptTemplateUnified: DEFAULT_UNIFIED_PROMPT_INSTRUCTION,

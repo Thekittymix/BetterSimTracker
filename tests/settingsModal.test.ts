@@ -79,6 +79,12 @@ test("settings modal exposes entity tracking mode control in Extraction", () => 
   assert.match(source, /Dynamic Characters \(Experimental\)/);
 });
 
+test("settings modal diagnostics section exposes stable debug box hooks for live refresh", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /data-bst-row="latestDebugRecordBox"/);
+  assert.match(source, /data-bst-row="latestInjectedPromptBox"/);
+});
+
 test("settings modal explains that explicit character macros are required for multi-target chats", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /When multiple character targets exist in the current chat, use explicit target macros/);

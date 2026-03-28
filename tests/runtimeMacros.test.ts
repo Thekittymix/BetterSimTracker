@@ -159,6 +159,36 @@ function makeSettings(): BetterSimTrackerSettings {
         showInGraph: false,
         includeInInjection: false,
       },
+      {
+        id: "satisfaction",
+        kind: "numeric",
+        label: "Satisfaction",
+        defaultValue: 50,
+        maxDeltaPerTurn: 10,
+        track: true,
+        trackCharacters: false,
+        trackUser: true,
+        globalScope: false,
+        privateToOwner: true,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+      {
+        id: "threat_level",
+        kind: "enum_single",
+        label: "Threat Level",
+        defaultValue: "medium",
+        enumOptions: ["low", "medium", "high"],
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
     ],
   };
 }
@@ -964,6 +994,22 @@ test("syncBstMacros does not fall back to global values for owner-scoped charact
   assert.equal(registered.get("bst_stat_char_clothes_seraphina")?.(), undefined);
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "");
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_seraphina")?.(), "");
+});
+
+test("syncBstMacros falls back to configured custom defaults when owner-scoped custom stats have no persisted value yet", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Seraphina", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_user_satisfaction")?.(), "50");
+  assert.equal(registeredNewEngine.get("bst_stat_char_threat_level_seraphina")?.(), "medium");
 });
 
 test("syncBstMacros deduplicates character macro targets by registry entity id", () => {

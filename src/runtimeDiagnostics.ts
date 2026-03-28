@@ -44,6 +44,31 @@ type PromptInjectionLastMessageSnapshot = {
   generationType: string;
 } | null;
 
+function summarizeEntityRegistry(context: STContext): Array<Record<string, unknown>> {
+  const rawRegistry = (context.chatMetadata as Record<string, unknown> | undefined)?.bstEntityRegistry;
+  if (!rawRegistry || typeof rawRegistry !== "object" || Array.isArray(rawRegistry)) return [];
+  const entities = (rawRegistry as { entities?: Record<string, Record<string, unknown>> }).entities;
+  if (!entities || typeof entities !== "object") return [];
+  return Object.values(entities)
+    .filter(entry => entry && typeof entry === "object")
+    .map(entry => ({
+      id: String(entry.id ?? ""),
+      ownerName: String(entry.ownerName ?? ""),
+      canonicalName: String(entry.canonicalName ?? ""),
+      kind: String(entry.kind ?? ""),
+      lifecycleState: String(entry.lifecycleState ?? ""),
+      introducedAtMessageIndex: Number(entry.introducedAtMessageIndex ?? -1),
+      lastActiveMessageIndex: entry.lastActiveMessageIndex == null ? null : Number(entry.lastActiveMessageIndex),
+      archivedAtMessageIndex: entry.archivedAtMessageIndex == null ? null : Number(entry.archivedAtMessageIndex),
+    }))
+    .sort((left, right) => {
+      if (String(left.ownerName) !== String(right.ownerName)) {
+        return String(left.ownerName).localeCompare(String(right.ownerName));
+      }
+      return String(left.id).localeCompare(String(right.id));
+    });
+}
+
 function summarizeTrackerData(data: TrackerData | null): Record<string, unknown> | null {
   if (!data) return null;
   const sceneOwners = resolveTrackerSceneOwners(null, data);
@@ -287,6 +312,7 @@ export function buildDiagnosticsReport(input: {
       settings,
       promptInjectionDebugMeta: input.promptInjectionDebugMeta,
     }),
+    entityRegistry: summarizeEntityRegistry(context),
     macroDebugMeta: input.macroDebugMeta,
     baselineDebugMeta: input.baselineDebugMeta,
     traceTailMemory: input.traceTailMemory,

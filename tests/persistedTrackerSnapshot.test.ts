@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { USER_TRACKER_KEY } from "../src/constants";
 import { buildPersistedTrackerSnapshot } from "../src/persistedTrackerSnapshot";
 
 test("buildPersistedTrackerSnapshot persists entity-scoped buckets for resolved active characters", () => {
@@ -92,4 +93,57 @@ test("buildPersistedTrackerSnapshot lets explicit target mapping override mismat
   assert.deepEqual(snapshot.customNonNumericStatisticsByEntityId?.clothes, {
     "bst_owner:__bst_user__": ["t-shirt", "jeans"],
   });
+});
+
+test("buildPersistedTrackerSnapshot prunes stale owner-keyed compatibility buckets while keeping global stats", () => {
+  const snapshot = buildPersistedTrackerSnapshot({
+    context: null,
+    timestamp: 789,
+    activeCharacters: ["Ashley", "Blake"],
+    activeEntityIds: ["ent-ashley", "ent-blake"],
+    entityTrackingMode: "dynamic_characters",
+    resolvedEntities: [
+      {
+        entityId: "ent-ashley",
+        kind: "st-character",
+        name: "Ashley",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "ent-blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    source: "model",
+    statistics: {
+      affection: { Ashley: 55, Blake: 48, "Elias Mercer": 50 },
+      trust: { Ashley: 51, Blake: 46, [USER_TRACKER_KEY]: 77 } as any,
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Anxious", Blake: "Playful", "Elias Mercer": "Neutral" },
+      lastThought: { Ashley: "Stay low.", Blake: "Keep talking.", [USER_TRACKER_KEY]: "Do not leak." },
+    },
+    customStatistics: {
+      satisfaction: { [USER_TRACKER_KEY]: 50, Ashley: 63 } as any,
+    },
+    customNonNumericStatistics: {
+      clothes: { Ashley: ["hoodie"], Blake: ["dark shirt"], "Elias Mercer": ["boots"] },
+      scene_date_time: { __bst_global__: "2026-03-04 20:12" },
+    },
+    globalCustomNonNumericStatisticIds: ["scene_date_time"],
+  });
+
+  assert.deepEqual(snapshot.statistics.affection, { Ashley: 55, Blake: 48 });
+  assert.deepEqual(snapshot.statistics.trust, { Ashley: 51, Blake: 46 });
+  assert.deepEqual(snapshot.statistics.mood, { Ashley: "Anxious", Blake: "Playful" });
+  assert.deepEqual(snapshot.statistics.lastThought, { Ashley: "Stay low.", Blake: "Keep talking." });
+  assert.deepEqual(snapshot.customStatistics?.satisfaction, { Ashley: 63 });
+  assert.deepEqual(snapshot.customNonNumericStatistics?.clothes, { Ashley: ["hoodie"], Blake: ["dark shirt"] });
+  assert.deepEqual(snapshot.customNonNumericStatistics?.scene_date_time, { __bst_global__: "2026-03-04 20:12" });
 });

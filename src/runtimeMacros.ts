@@ -6,6 +6,7 @@ import {
   resolveCharacterIdentity,
   resolveEntityTrackingMode,
 } from "./entityResolution";
+import { normalizeCustomNonNumericValue } from "./customStatRuntime";
 import {
   getEntityRegistryEntryByOwnerName,
   resolveTrackerDataLookupValue,
@@ -293,6 +294,51 @@ function resolveMacroTargetOwner(scope: string, globalScope: boolean): string | 
   return null;
 }
 
+function resolveMacroLookupNames(
+  context: STContext,
+  data: TrackerData | null,
+  ownerName: string,
+): string[] {
+  const trimmedOwnerName = String(ownerName ?? "").trim();
+  if (!trimmedOwnerName) return [];
+  if (trimmedOwnerName === USER_TRACKER_KEY || trimmedOwnerName === GLOBAL_TRACKER_KEY) {
+    return [trimmedOwnerName];
+  }
+  return resolveMacroTargetIdentity(context, data, trimmedOwnerName).lookupNames;
+}
+
+function isMacroCustomStatExplicitlyCleared(
+  data: TrackerData,
+  statId: string,
+  ownerName: string,
+  globalScope: boolean,
+  lookupNames: string[],
+): boolean {
+  if (globalScope) {
+    return Boolean(data.clearedCustomStatistics?.[statId]?.[GLOBAL_TRACKER_KEY]
+      || data.clearedCustomNonNumericStatistics?.[statId]?.[GLOBAL_TRACKER_KEY]);
+  }
+  return lookupNames.some(name =>
+    Boolean(data.clearedCustomStatistics?.[statId]?.[name] || data.clearedCustomNonNumericStatistics?.[statId]?.[name]),
+  );
+}
+
+function resolveDefaultCustomMacroValue(
+  customDef: BetterSimTrackerSettings["customStats"][number],
+): unknown {
+  const kind = customDef.kind ?? "numeric";
+  if (kind === "numeric") {
+    const numeric = Number(customDef.defaultValue);
+    return Number.isNaN(numeric) ? 50 : numeric;
+  }
+  return normalizeCustomNonNumericValue(kind, customDef.defaultValue, {
+    enumOptions: customDef.enumOptions,
+    textMaxLength: customDef.textMaxLength,
+    dateTimeMode: customDef.dateTimeMode,
+    preserveExplicitEmptyArray: true,
+  });
+}
+
 function formatMacroValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "true" : "false";
   if (Array.isArray(value)) {
@@ -410,6 +456,7 @@ function resolveMacroStatValue(
   const customDef = customById.get(normalized);
   const owner = explicitOwner || resolveMacroTargetOwner(scope, Boolean(customDef?.globalScope));
   if (!owner) return "";
+  const lookupNames = resolveMacroLookupNames(context, data, owner);
 
   if (normalized === "affection" || normalized === "trust" || normalized === "desire" || normalized === "connection") {
     if (owner === GLOBAL_TRACKER_KEY) return "";
@@ -452,8 +499,7 @@ function resolveMacroStatValue(
 
   if ((customDef.kind ?? "numeric") === "numeric") {
     const bucket = data.customStatistics?.[normalized];
-    if (!bucket) return "";
-    let raw = resolveTrackerDataLookupValue({
+    let raw: unknown = resolveTrackerDataLookupValue({
       context,
       data,
       byOwner: bucket,
@@ -462,7 +508,13 @@ function resolveMacroStatValue(
       explicitEntityIds,
     });
     if (raw === undefined && owner !== GLOBAL_TRACKER_KEY && customDef.globalScope) {
-      raw = bucket[GLOBAL_TRACKER_KEY];
+      raw = bucket?.[GLOBAL_TRACKER_KEY];
+    }
+    if (
+      raw === undefined
+      && !isMacroCustomStatExplicitlyCleared(data, normalized, owner, Boolean(customDef.globalScope), lookupNames)
+    ) {
+      raw = resolveDefaultCustomMacroValue(customDef);
     }
     const numeric = Number(raw);
     if (Number.isNaN(numeric)) return "";
@@ -470,7 +522,6 @@ function resolveMacroStatValue(
   }
 
   const bucket = data.customNonNumericStatistics?.[normalized];
-  if (!bucket) return "";
   let raw: unknown = resolveTrackerDataLookupValue({
     context,
     data,
@@ -480,7 +531,13 @@ function resolveMacroStatValue(
     explicitEntityIds,
   });
   if (raw === undefined && owner !== GLOBAL_TRACKER_KEY && customDef.globalScope) {
-    raw = bucket[GLOBAL_TRACKER_KEY];
+    raw = bucket?.[GLOBAL_TRACKER_KEY];
+  }
+  if (
+    raw === undefined
+    && !isMacroCustomStatExplicitlyCleared(data, normalized, owner, Boolean(customDef.globalScope), lookupNames)
+  ) {
+    raw = resolveDefaultCustomMacroValue(customDef);
   }
   return formatMacroValue(raw);
 }

@@ -1,3 +1,10 @@
+## [2.2.4.16-exp202] - 2026-03-28
+### Fixed
+- Experimental diagnostics clearing now refreshes the visible latest debug payload immediately in the open settings modal instead of leaving stale dump text on screen until the modal is reopened.
+- Experimental persisted tracker snapshots now prune stale owner-keyed compatibility buckets down to the current active owners while preserving declared global stats, so mixed latest payloads stop carrying leftover user or narrative-owner values that no longer belong to the current turn state.
+- Experimental custom-stat macros now fall back to configured default values when the current owner-scoped bucket has not been materialized yet, so runtime macro output matches the effective tracker card state instead of collapsing to an empty string.
+- Experimental diagnostics reports now include a compact entity-registry lifecycle summary, making archived/reactivated entity state observable from BST diagnostics without changing normal tracker-card visibility rules.
+
 ## [2.2.4.16-exp201] - 2026-03-27
 ### Fixed
 - Experimental user-turn extraction now keeps prompt-level `{{char}}` pinned to a non-user speaker when included character-card text contains ST-style `{{char}}` placeholders, so character descriptions no longer collapse onto the current persona/user name just because the tracker request itself is user-scoped.

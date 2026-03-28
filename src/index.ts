@@ -3974,19 +3974,19 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       extractedCustomNonNumeric,
       previous?.customNonNumericStatistics ?? null,
     );
+    const globalNumericStatIds = new Set(
+      (activeSettings.customStats ?? [])
+        .filter(def => (def.kind ?? "numeric") === "numeric" && Boolean(def.globalScope))
+        .map(def => String(def.id ?? "").trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const globalNonNumericStatIds = new Set(
+      (activeSettings.customStats ?? [])
+        .filter(def => (def.kind ?? "numeric") !== "numeric" && Boolean(def.globalScope))
+        .map(def => String(def.id ?? "").trim().toLowerCase())
+        .filter(Boolean),
+    );
     if (userExtraction) {
-      const globalNumericStatIds = new Set(
-        (activeSettings.customStats ?? [])
-          .filter(def => (def.kind ?? "numeric") === "numeric" && Boolean(def.globalScope))
-          .map(def => String(def.id ?? "").trim().toLowerCase())
-          .filter(Boolean),
-      );
-      const globalNonNumericStatIds = new Set(
-        (activeSettings.customStats ?? [])
-          .filter(def => (def.kind ?? "numeric") !== "numeric" && Boolean(def.globalScope))
-          .map(def => String(def.id ?? "").trim().toLowerCase())
-          .filter(Boolean),
-      );
       merged = filterStatisticsToCharacters(merged, [USER_TRACKER_KEY]);
       mergedCustom = filterCustomStatisticsToCharacters(mergedCustom, [USER_TRACKER_KEY], globalNumericStatIds);
       mergedCustomNonNumeric = filterCustomNonNumericStatisticsToCharacters(mergedCustomNonNumeric, [USER_TRACKER_KEY], globalNonNumericStatIds);
@@ -4029,6 +4029,8 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       statistics: merged,
       customStatistics: mergedCustom,
       customNonNumericStatistics: mergedCustomNonNumeric,
+      globalCustomStatisticIds: globalNumericStatIds,
+      globalCustomNonNumericStatisticIds: globalNonNumericStatIds,
     });
     latestDataMessageIndex = lastIndex;
     refreshPromptMacroData(context);
