@@ -1,3 +1,12 @@
+# Changelog
+
+All notable changes to BetterSimTracker are documented here.
+
+## [2.2.4.16-exp204] - 2026-03-28
+### Fixed
+- Experimental fallback mood-symbol display now lets long emoji/kaomoji wrap cleanly instead of clipping in tracker cards, including on narrow mobile layouts.
+- Experimental Display settings now actually save fallback mood-symbol size controls when closing the settings modal.
+
 ## [2.2.4.16-exp203] - 2026-03-28
 ### Fixed
 - Experimental BST stat macros now follow the scope-specific `trackUser` and `trackCharacters` flags instead of letting the legacy shared `track` flag suppress registration, so user-only or character-only custom stat macros still resolve correctly when extraction tracking is disabled for that stat but the scoped stat itself remains active.

@@ -91,6 +91,14 @@ test("settings modal explains that explicit character macros are required for mu
   assert.match(source, /examples\.length >= 6/);
 });
 
+test("settings modal collectSettings persists mood symbol numeric controls", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /moodSymbolMinWidth:\s*readNumber\("moodSymbolMinWidth"/);
+  assert.match(source, /moodSymbolMinHeight:\s*readNumber\("moodSymbolMinHeight"/);
+  assert.match(source, /moodSymbolBoxRadius:\s*readNumber\("moodSymbolBoxRadius"/);
+  assert.match(source, /moodSymbolFontSize:\s*readNumber\("moodSymbolFontSize"/);
+});
+
 test("settings modal exposes live preview for non-dynamic injection placeholders", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /Static Placeholder Preview \(live\)/);
