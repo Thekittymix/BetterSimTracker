@@ -611,10 +611,12 @@ function buildResolutionSamples(
   characterTargets: CharacterMacroTarget[],
 ): { user: MacroResolutionSample | null; scene: MacroResolutionSample | null; character: MacroResolutionSample | null } {
   const sampleCharacterTarget = characterTargets[0] ?? null;
-  const sampleUserStat = customDefs.find(def => !def.globalScope && def.track && def.trackUser)?.id
+  const sampleUserStat = customDefs.find(def => !def.globalScope && Boolean(def.trackUser ?? def.track))?.id
     ?? (settings.enableUserTracking && settings.userTrackMood ? "mood" : settings.enableUserTracking && settings.userTrackLastThought ? "lastThought" : null);
-  const sampleSceneStat = customDefs.find(def => def.globalScope && def.track)?.id ?? null;
-  const sampleCharacterStat = customDefs.find(def => !def.globalScope && def.track && def.trackCharacters)?.id
+  const sampleSceneStat = customDefs.find(def =>
+    def.globalScope && Boolean(def.track || def.showOnCard || def.includeInInjection || def.showInGraph)
+  )?.id ?? null;
+  const sampleCharacterStat = customDefs.find(def => !def.globalScope && Boolean(def.trackCharacters ?? def.track))?.id
     ?? (settings.trackMood ? "mood" : settings.trackLastThought ? "lastThought" : settings.trackAffection ? "affection" : null);
 
   return {
@@ -746,14 +748,14 @@ export function syncBstMacros(input: {
     const isBuiltInNumeric = statId === "affection" || statId === "trust" || statId === "desire" || statId === "connection";
     const isMood = statId === "mood";
     const isLastThought = statId === "lastthought" || statId === "last_thought";
-    const allowsScene = Boolean(customDef?.globalScope) && Boolean(customDef?.track);
+    const allowsScene = Boolean(customDef?.globalScope)
+      && Boolean(customDef?.track || customDef?.showOnCard || customDef?.includeInInjection || customDef?.showInGraph);
     const allowsUser = (() => {
       if (isBuiltInNumeric) return false;
       if (isMood) return Boolean(settings.enableUserTracking && settings.userTrackMood);
       if (isLastThought) return Boolean(settings.enableUserTracking && settings.userTrackLastThought);
       if (!customDef || customDef.globalScope) return false;
-      const baseTracked = Boolean(customDef.track);
-      return baseTracked && Boolean(customDef.trackUser ?? customDef.track);
+      return Boolean(customDef.trackUser ?? customDef.track);
     })();
     const allowsCharacter = (() => {
       if (isBuiltInNumeric) {
@@ -765,8 +767,7 @@ export function syncBstMacros(input: {
       if (isMood) return Boolean(settings.trackMood);
       if (isLastThought) return Boolean(settings.trackLastThought);
       if (!customDef || customDef.globalScope) return false;
-      const baseTracked = Boolean(customDef.track);
-      return baseTracked && Boolean(customDef.trackCharacters ?? customDef.track);
+      return Boolean(customDef.trackCharacters ?? customDef.track);
     })();
     if (allowsUser) {
       const macroName = `bst_stat_${BST_MACRO_STAT_SCOPE_USER}_${segment}`;

@@ -1012,6 +1012,27 @@ test("syncBstMacros falls back to configured custom defaults when owner-scoped c
   assert.equal(registeredNewEngine.get("bst_stat_char_threat_level_seraphina")?.(), "medium");
 });
 
+test("syncBstMacros still exposes scope-specific macros when legacy track is false but scope flags remain enabled", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const settings = makeSettings();
+  const satisfaction = settings.customStats.find(stat => stat.id === "satisfaction");
+  assert.ok(satisfaction);
+  satisfaction.track = false;
+  satisfaction.trackUser = true;
+
+  const tracker = makeTracker();
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: ["Seraphina", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_user_satisfaction")?.(), "50");
+});
+
 test("syncBstMacros deduplicates character macro targets by registry entity id", () => {
   const { context } = makeContext();
   context.characters = [{ name: "Ashley", avatar: "camp.png" } as any];

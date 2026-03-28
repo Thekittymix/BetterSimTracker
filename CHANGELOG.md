@@ -1,3 +1,7 @@
+## [2.2.4.16-exp203] - 2026-03-28
+### Fixed
+- Experimental BST stat macros now follow the scope-specific `trackUser` and `trackCharacters` flags instead of letting the legacy shared `track` flag suppress registration, so user-only or character-only custom stat macros still resolve correctly when extraction tracking is disabled for that stat but the scoped stat itself remains active.
+
 ## [2.2.4.16-exp202] - 2026-03-28
 ### Fixed
 - Experimental diagnostics clearing now refreshes the visible latest debug payload immediately in the open settings modal instead of leaving stale dump text on screen until the modal is reopened.
