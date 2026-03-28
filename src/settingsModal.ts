@@ -4241,6 +4241,10 @@ export function openSettingsModal(input: {
       cardOpacity: readNumber("cardOpacity", input.settings.cardOpacity, 0.1, 1),
       borderRadius: readNumber("borderRadius", input.settings.borderRadius, 0, 32),
       fontSize: readNumber("fontSize", input.settings.fontSize, 10, 22),
+      moodSymbolMinWidth: readNumber("moodSymbolMinWidth", input.settings.moodSymbolMinWidth, 18, 120),
+      moodSymbolMinHeight: readNumber("moodSymbolMinHeight", input.settings.moodSymbolMinHeight, 18, 120),
+      moodSymbolBoxRadius: readNumber("moodSymbolBoxRadius", input.settings.moodSymbolBoxRadius, 0, 48),
+      moodSymbolFontSize: readNumber("moodSymbolFontSize", input.settings.moodSymbolFontSize, 10, 48),
       debug: readBool("debug", input.settings.debug),
       debugFlags: {
         extraction: readBoolExtra("debugExtraction", input.settings.debugFlags?.extraction ?? true),

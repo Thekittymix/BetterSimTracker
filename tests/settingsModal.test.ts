@@ -64,6 +64,14 @@ test("settings modal exposes mood symbol chip display controls in Card Appearanc
   assert.match(source, /Mood Symbol Font Size/);
 });
 
+test("settings modal collectSettings persists mood symbol numeric controls", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /moodSymbolMinWidth:\s*readNumber\("moodSymbolMinWidth"/);
+  assert.match(source, /moodSymbolMinHeight:\s*readNumber\("moodSymbolMinHeight"/);
+  assert.match(source, /moodSymbolBoxRadius:\s*readNumber\("moodSymbolBoxRadius"/);
+  assert.match(source, /moodSymbolFontSize:\s*readNumber\("moodSymbolFontSize"/);
+});
+
 test("settings modal exposes live preview for non-dynamic injection placeholders", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /Static Placeholder Preview \(live\)/);

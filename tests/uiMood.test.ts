@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 
 import { USER_TRACKER_KEY } from "../src/constants";
 import { isBuiltInTextStatVisibleForOwner, resolveMoodSymbol, resolveMoodSymbolBoxStyleVars } from "../src/ui";
@@ -26,6 +28,13 @@ test("resolveMoodSymbolBoxStyleVars maps display settings to css variables", () 
     "--bst-mood-symbol-radius": "17px",
     "--bst-mood-symbol-font-size": "24px",
   });
+});
+
+test("mood fallback css allows kaomoji and long symbols to wrap instead of clipping", () => {
+  const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
+  assert.match(source, /\.bst-mood-emoji \{[\s\S]*white-space: pre-wrap;[\s\S]*overflow-wrap: anywhere;[\s\S]*word-break: break-word;/);
+  assert.match(source, /\.bst-mood-chip \{[\s\S]*max-width: 100%;/);
+  assert.match(source, /\.bst-mood-bubble-text \{[\s\S]*white-space: pre-wrap;[\s\S]*overflow-wrap: anywhere;[\s\S]*word-break: break-word;/);
 });
 
 test("isBuiltInTextStatVisibleForOwner hides character mood when global char mood tracking is off", () => {

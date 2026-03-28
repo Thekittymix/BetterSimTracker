@@ -1793,14 +1793,21 @@ export function ensureStyles(): void {
 }
 .bst-mood { margin-top: 10px; }
 .bst-mood-emoji {
+  display: block;
   font-size: var(--bst-mood-symbol-font-size, 18px);
-  line-height: 1;
+  line-height: 1.1;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-align: center;
 }
 .bst-mood-wrap {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  max-width: 100%;
 }
 .bst-mood-wrap--image {
   display: grid;
@@ -1874,6 +1881,8 @@ export function ensureStyles(): void {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: fit-content;
+  max-width: 100%;
   min-width: var(--bst-mood-symbol-min-width, 34px);
   min-height: var(--bst-mood-symbol-min-height, 34px);
   padding: 4px 6px;
@@ -1900,12 +1909,18 @@ export function ensureStyles(): void {
   max-width: 520px;
   color: rgba(255,255,255,0.9);
   text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .bst-mood-bubble-text {
   display: -webkit-box;
+  width: 100%;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .bst-thought.bst-thought-expanded .bst-thought-text,
 .bst-mood-bubble.bst-thought-expanded .bst-mood-bubble-text {
@@ -1928,6 +1943,9 @@ export function ensureStyles(): void {
   border-color: rgba(255,255,255,0.5);
 }
 @media (max-width: 560px) {
+  .bst-mood-wrap {
+    width: 100%;
+  }
   .bst-mood-wrap--image {
     grid-template-columns: 1fr;
     justify-items: center;
@@ -1938,10 +1956,9 @@ export function ensureStyles(): void {
     height: clamp(78px, 26vw, 110px);
   }
   .bst-mood-bubble {
-    text-align: center;
     min-height: 52px;
     max-width: 100%;
-    align-items: center;
+    align-items: flex-start;
   }
 }
 .bst-delta {

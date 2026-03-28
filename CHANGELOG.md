@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16.3] - 2026-03-28
+### Fixed
+- Fixed fallback mood-symbol display so long emoji/kaomoji can wrap cleanly instead of clipping in tracker cards, including on narrow mobile layouts.
+- Fixed Display settings so fallback mood-symbol size controls are actually saved when closing the settings modal.
+
 ## [2.2.4.16.2] - 2026-03-25
 ### Fixed
 - Fixed custom numeric stat defaults so an explicit `0` no longer falls back to `50` when saving/editing stats, rebuilding numeric stat definitions, or generating custom numeric extraction prompts.
