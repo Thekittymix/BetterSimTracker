@@ -72,6 +72,14 @@ test("settings modal collectSettings persists mood symbol numeric controls", () 
   assert.match(source, /moodSymbolFontSize:\s*readNumber\("moodSymbolFontSize"/);
 });
 
+test("settings modal seeds mood symbol numeric controls from saved settings on reopen", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /set\("moodSymbolMinWidth", String\(input\.settings\.moodSymbolMinWidth\)\)/);
+  assert.match(source, /set\("moodSymbolMinHeight", String\(input\.settings\.moodSymbolMinHeight\)\)/);
+  assert.match(source, /set\("moodSymbolBoxRadius", String\(input\.settings\.moodSymbolBoxRadius\)\)/);
+  assert.match(source, /set\("moodSymbolFontSize", String\(input\.settings\.moodSymbolFontSize\)\)/);
+});
+
 test("settings modal exposes live preview for non-dynamic injection placeholders", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /Static Placeholder Preview \(live\)/);

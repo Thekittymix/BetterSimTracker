@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16.4] - 2026-03-29
+### Fixed
+- Fixed the Display mood-symbol sizing controls so reopening BST settings now restores the saved width, height, radius, and font-size values instead of showing reset defaults.
+
 ## [2.2.4.16.3] - 2026-03-28
 ### Fixed
 - Fixed fallback mood-symbol display so long emoji/kaomoji can wrap cleanly instead of clipping in tracker cards, including on narrow mobile layouts.
