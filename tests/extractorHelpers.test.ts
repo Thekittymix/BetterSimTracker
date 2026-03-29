@@ -13,6 +13,7 @@ import {
   resolveMoodWithConfidence,
   shouldBypassConfidenceControls,
 } from "../src/extractorHelpers";
+import { overlayLatestOwnerScopedContinuity } from "../src/extractionBaselineHelpers";
 import type { BetterSimTrackerSettings, CustomStatDefinition } from "../src/types";
 
 function makeSettings(overrides: Partial<BetterSimTrackerSettings> = {}): BetterSimTrackerSettings {
@@ -161,4 +162,79 @@ test("resolveBaselineBeforeIndex excludes the current message for retrack baseli
     resolveBaselineBeforeIndex({ lastIndex: 4 }),
     4,
   );
+});
+
+test("overlayLatestOwnerScopedContinuity refreshes user-scoped values without disturbing character data", () => {
+  const base = {
+    timestamp: 100,
+    activeCharacters: ["Elias"],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {
+        "__bst_user__": "Frustrated",
+        "Elias": "Excited",
+      },
+      lastThought: {
+        "__bst_user__": "Another self-important creep playing games.",
+        "Elias": "Her surrender tastes better than any wine.",
+      },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      relationships: {
+        "__bst_user__": ["Elias: Stranger"],
+        "Elias": ["Maiko: Lover"],
+      },
+      outfit: {
+        "__bst_user__": ["Plain grey cardigan", "Dark skirt", "Simple blouse"],
+      },
+      situation: {
+        "__bst_user__": "Location: A busy city street — Activity: Standing after a collision — Goal: To dismiss the man and leave",
+      },
+    },
+  };
+  const latestUser = {
+    timestamp: 110,
+    activeCharacters: ["__bst_user__"],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {
+        "__bst_user__": "Anxious",
+      },
+      lastThought: {
+        "__bst_user__": "He's going to break me on my own chair.",
+      },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      relationships: {
+        "__bst_user__": ["Elias: Lover"],
+      },
+      outfit: {
+        "__bst_user__": ["Silk stockings", "High heels"],
+      },
+      situation: {
+        "__bst_user__": "Location: Her apartment — Activity: Kneeling before him — Goal: To survive this encounter",
+      },
+    },
+  };
+
+  const merged = overlayLatestOwnerScopedContinuity(base as never, latestUser as never, ["__bst_user__"]);
+
+  assert.equal(merged.statistics.mood["__bst_user__"], "Anxious");
+  assert.equal(merged.statistics.lastThought["__bst_user__"], "He's going to break me on my own chair.");
+  assert.deepEqual(merged.customNonNumericStatistics?.relationships?.["__bst_user__"], ["Elias: Lover"]);
+  assert.deepEqual(merged.customNonNumericStatistics?.outfit?.["__bst_user__"], ["Silk stockings", "High heels"]);
+  assert.equal(
+    merged.customNonNumericStatistics?.situation?.["__bst_user__"],
+    "Location: Her apartment — Activity: Kneeling before him — Goal: To survive this encounter",
+  );
+  assert.equal(merged.statistics.mood.Elias, "Excited");
+  assert.deepEqual(merged.customNonNumericStatistics?.relationships?.Elias, ["Maiko: Lover"]);
 });

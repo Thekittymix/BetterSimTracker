@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16.5] - 2026-03-29
+### Fixed
+- Fixed AI-turn continuity so the latest user-scoped tracker state is overlaid into the extraction baseline before saving a new character reply, preventing stale user stats from older snapshots from leaking into prompt injection and new tracker payloads.
+
 ## [2.2.4.16.4] - 2026-03-29
 ### Fixed
 - Fixed the Display mood-symbol sizing controls so reopening BST settings now restores the saved width, height, radius, and font-size values instead of showing reset defaults.

@@ -67,6 +67,7 @@ import {
 import {
   hasCharacterOwnedTrackedValueForCharacter,
   overlayLatestGlobalCustomStats,
+  overlayLatestOwnerScopedContinuity,
   selectLatestRelevantHistoryEntry,
 } from "./extractionBaselineHelpers";
 import { buildMergedPromptMacroData, resolveLatestStoredTrackerData } from "./runtimeState";
@@ -3229,6 +3230,19 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           ...activeSettings,
           customStats: scopedCustomStats,
         };
+    const userScopedBaselineSettings: BetterSimTrackerSettings = {
+      ...activeSettings,
+      trackAffection: false,
+      trackTrust: false,
+      trackDesire: false,
+      trackConnection: false,
+      trackMood: activeSettings.userTrackMood,
+      trackLastThought: activeSettings.userTrackLastThought,
+      customStats: scopedCustomStats.map(stat => ({
+        ...stat,
+        track: Boolean(stat.trackUser ?? stat.track),
+      })),
+    };
 
     const baselineBeforeIndex = resolveBaselineBeforeIndex({
       targetMessageIndex,
@@ -3268,6 +3282,17 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     let previous = previousEntry?.data ?? null;
     if (previous) {
       previous = overlayLatestGlobalCustomStats(previous, previousGlobalEntry?.data ?? null, runScopedSettings);
+    }
+    const latestUserScopedEntry = !userExtraction
+      ? getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
+          context,
+          baselineBeforeIndex,
+          [USER_TRACKER_KEY],
+          userScopedBaselineSettings,
+        )
+      : null;
+    if (!userExtraction && previous && latestUserScopedEntry?.data) {
+      previous = overlayLatestOwnerScopedContinuity(previous, latestUserScopedEntry.data, [USER_TRACKER_KEY]);
     }
     lastExtractionBaselineDebugMeta = {
       reason,
