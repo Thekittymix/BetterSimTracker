@@ -118,6 +118,38 @@ test("getAllTrackedCharacterNames expands multi-character source cards into alia
   );
 });
 
+test("getAllTrackedCharacterNames keeps muted multi-character group members in the known identity universe", () => {
+  const context = {
+    groupId: "group-1",
+    groups: [{
+      id: "group-1",
+      members: ["camp.png", "chloe.png"],
+      disabled_members: ["camp.png", "chloe.png"],
+    }],
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+      { name: "Chloe", avatar: "chloe.png" },
+    ],
+    chatMetadata: {},
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Raleigh checked the porch while Blake watched the treeline.", is_user: false, is_system: false },
+      { name: "Chloe", mes: "\"I'm still here,\" Chloe whispered.", is_user: false, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
+    [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Chloe",
+    ],
+  );
+});
+
 test("getAllTrackedCharacterNames includes visible registry-backed narrative entities in multi-character mode", () => {
   const context = {
     groupId: undefined,

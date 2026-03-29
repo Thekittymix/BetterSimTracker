@@ -13,14 +13,20 @@ import { isTrackableAiMessage } from "./messageFilter";
 const MANUAL_INACTIVE_METADATA_KEY = "bstManualInactiveCharacters";
 type ManualInactiveOverrideMap = Record<string, number>;
 
-function getGroupCharacters(context: STContext): Character[] {
+function getGroupCharacters(
+  context: STContext,
+  options?: { includeMuted?: boolean },
+): Character[] {
   if (!context.groupId || !context.groups || !context.characters) return [];
   const group = context.groups.find(g => g.id === context.groupId);
   if (!group?.members?.length) return [];
 
   const disabled = new Set(group.disabled_members ?? []);
+  const includeMuted = options?.includeMuted === true;
   return context.characters.filter(
-    character => character.avatar && group.members?.includes(character.avatar) && !disabled.has(character.avatar),
+    character => character.avatar
+      && group.members?.includes(character.avatar)
+      && (includeMuted || !disabled.has(character.avatar)),
   );
 }
 
@@ -102,7 +108,7 @@ export function getAllTrackedCharacterNames(
   const registryOwners = isMultiCharacterEntityTrackingMode(mode)
     ? listEntityRegistryOwnersForMessage(context, latestMessageIndex)
     : [];
-  const groupCharacters = getGroupCharacters(context);
+  const groupCharacters = getGroupCharacters(context, { includeMuted: true });
   if (context.groupId) {
     const merged: string[] = [];
     const seen = new Set<string>();
