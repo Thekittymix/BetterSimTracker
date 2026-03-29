@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp209] - 2026-03-29
+### Fixed
+- Experimental mixed-group Camp replies now keep scene-only participants in the registry-backed display pool when the chat is rendering the full group scene, so known non-speaking members like Chloe no longer disappear from tracker cards just because they have no fresh stats on that specific reply.
+
 ## [2.2.4.16-exp208] - 2026-03-29
 ### Fixed
 - Experimental mixed-group resolver candidate discovery now keeps muted group members in the known identity universe, so manual `speak` replies from muted multi-character cards still reuse known Camp aliases instead of minting fresh `bst_narrative:*` entities for Raleigh, Garret, Blake, or Ashley.

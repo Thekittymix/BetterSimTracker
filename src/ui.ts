@@ -963,6 +963,35 @@ export function buildDisplayPoolWithRegistry(input: {
       : input.dataCharacterNames;
 }
 
+export function selectDisplayPoolTargetsWithRegistry(input: {
+  entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
+  includeAllTargets: boolean;
+  activeCharacters: string[];
+  dataCharacterNames: string[];
+  mergedWithRegistryTargets: UiRenderTarget[];
+  resolveTarget: (ownerName: string) => UiRenderTarget | null;
+  shouldKeepTarget: (target: UiRenderTarget) => boolean;
+}): UiRenderTarget[] {
+  const mergedWithRegistryOwners = input.mergedWithRegistryTargets.map(target => target.ownerName);
+  const displayPool = buildDisplayPoolWithRegistry({
+    entityTrackingMode: input.entityTrackingMode,
+    includeAllTargets: input.includeAllTargets,
+    activeCharacters: input.activeCharacters,
+    dataCharacterNames: input.dataCharacterNames,
+    mergedWithRegistryOwners,
+  });
+  const preferRegistryTargets = input.entityTrackingMode === "dynamic_characters"
+    && input.mergedWithRegistryTargets.length > 0;
+  const displayPoolTargets = preferRegistryTargets
+    ? [...input.mergedWithRegistryTargets]
+    : displayPool
+      .map(ownerName => input.resolveTarget(ownerName))
+      .filter((target): target is UiRenderTarget => Boolean(target));
+  return input.includeAllTargets
+    ? displayPoolTargets
+    : displayPoolTargets.filter(target => input.shouldKeepTarget(target));
+}
+
 export function filterRenderTargetsForTrackingMode(input: {
   entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
   targets: UiRenderTarget[];
@@ -5703,33 +5732,28 @@ export function renderTracker(
             resolveRegistryEntryByEntityIdForMessage,
           }),
         )).filter((target): target is UiRenderTarget => Boolean(target));
-    const renderableRegistryTargets = mergedWithRegistryTargets.filter(target => shouldKeepOwnerInRenderTargetPool({
-      ownerName: target.ownerName,
-      hasAnyStat: hasAnyStatFor(target.ownerName, target.registryEntry),
-      isActive: target.registryEntry?.id
-        ? activeEntityIdSet.has(target.registryEntry.id)
-        : activeSet.has(normalizeName(target.ownerName)),
-    }));
-    const displayPool = buildDisplayPoolWithRegistry({
+    const includeAllTargets = forceAllInGroup || settings.showInactive;
+    const displayPoolTargets = selectDisplayPoolTargetsWithRegistry({
       entityTrackingMode: settings.entityTrackingMode,
-      includeAllTargets: forceAllInGroup || settings.showInactive,
+      includeAllTargets,
       activeCharacters: resolvedSceneOwners,
       dataCharacterNames,
-      mergedWithRegistryOwners: renderableRegistryTargets.map(target => target.ownerName),
+      mergedWithRegistryTargets,
+      resolveTarget: name => buildUiRenderTarget(name, resolveRegistryEntryForOwnerInMessageData({
+        ownerName: name,
+        messageIndex: entry.messageIndex,
+        data,
+        resolveRegistryEntryForMessage,
+        resolveRegistryEntryByEntityIdForMessage,
+      })),
+      shouldKeepTarget: target => shouldKeepOwnerInRenderTargetPool({
+        ownerName: target.ownerName,
+        hasAnyStat: hasAnyStatFor(target.ownerName, target.registryEntry),
+        isActive: target.registryEntry?.id
+          ? activeEntityIdSet.has(target.registryEntry.id)
+          : activeSet.has(normalizeName(target.ownerName)),
+      }),
     });
-    const preferRegistryTargets = settings.entityTrackingMode === "dynamic_characters"
-      && renderableRegistryTargets.length > 0;
-    const displayPoolTargets = preferRegistryTargets
-      ? renderableRegistryTargets
-      : displayPool
-        .map(name => buildUiRenderTarget(name, resolveRegistryEntryForOwnerInMessageData({
-          ownerName: name,
-          messageIndex: entry.messageIndex,
-          data,
-          resolveRegistryEntryForMessage,
-          resolveRegistryEntryByEntityIdForMessage,
-        })))
-        .filter((target): target is UiRenderTarget => Boolean(target));
     const isRenderedUserOwner = (name: string): boolean => isUserOwnerToken(name, resolveDisplayName);
     const modeFilteredDisplayPoolTargets = filterRenderTargetsForTrackingMode({
       entityTrackingMode: settings.entityTrackingMode,
@@ -5739,7 +5763,6 @@ export function renderTracker(
       ? modeFilteredDisplayPoolTargets.filter(target => isRenderedUserOwner(target.ownerName))
       : modeFilteredDisplayPoolTargets.filter(target => !isRenderedUserOwner(target.ownerName));
     const displayOrder = new Map(scopedDisplayPoolTargets.map((target, index) => [target.uiKey, index]));
-    const includeAllTargets = forceAllInGroup || settings.showInactive;
     const targetSource = includeAllTargets
       ? scopedDisplayPoolTargets
       : scopedDisplayPoolTargets.filter(target => shouldKeepOwnerInRenderTargetPool({

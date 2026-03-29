@@ -4,6 +4,7 @@ import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
   buildDisplayPoolWithRegistry,
+  selectDisplayPoolTargetsWithRegistry,
   collectCharacterNamesFromTrackerData,
   filterRenderTargetsForTrackingMode,
   filterShadowedAliasRenderTargets,
@@ -547,6 +548,45 @@ test("buildDisplayPoolWithRegistry keeps standard mode focused on current active
   });
 
   assert.deepEqual(displayPool, ["Ashley"]);
+});
+
+test("selectDisplayPoolTargetsWithRegistry keeps scene-only group participants when includeAllTargets is enabled", () => {
+  const targets = selectDisplayPoolTargetsWithRegistry({
+    entityTrackingMode: "dynamic_characters",
+    includeAllTargets: true,
+    activeCharacters: ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"],
+    dataCharacterNames: ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"],
+    mergedWithRegistryTargets: [
+      { ownerName: "Raleigh", uiKey: "ent-raleigh", registryEntry: { id: "ent-raleigh", ownerName: "Raleigh" } as never },
+      { ownerName: "Blake", uiKey: "ent-blake", registryEntry: { id: "ent-blake", ownerName: "Blake" } as never },
+      { ownerName: "Garret", uiKey: "ent-garret", registryEntry: { id: "ent-garret", ownerName: "Garret" } as never },
+      { ownerName: "Ashley", uiKey: "ent-ashley", registryEntry: { id: "ent-ashley", ownerName: "Ashley" } as never },
+      { ownerName: "Chloe", uiKey: "ent-chloe", registryEntry: { id: "ent-chloe", ownerName: "Chloe" } as never },
+    ],
+    resolveTarget: () => null,
+    shouldKeepTarget: target => target.ownerName !== "Chloe",
+  });
+
+  assert.deepEqual(targets.map(target => target.ownerName), ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"]);
+});
+
+test("selectDisplayPoolTargetsWithRegistry still filters scene-only registry targets when includeAllTargets is disabled", () => {
+  const targets = selectDisplayPoolTargetsWithRegistry({
+    entityTrackingMode: "dynamic_characters",
+    includeAllTargets: false,
+    activeCharacters: ["Raleigh", "Blake", "Garret"],
+    dataCharacterNames: ["Raleigh", "Blake", "Garret", "Chloe"],
+    mergedWithRegistryTargets: [
+      { ownerName: "Raleigh", uiKey: "ent-raleigh", registryEntry: { id: "ent-raleigh", ownerName: "Raleigh" } as never },
+      { ownerName: "Blake", uiKey: "ent-blake", registryEntry: { id: "ent-blake", ownerName: "Blake" } as never },
+      { ownerName: "Garret", uiKey: "ent-garret", registryEntry: { id: "ent-garret", ownerName: "Garret" } as never },
+      { ownerName: "Chloe", uiKey: "ent-chloe", registryEntry: { id: "ent-chloe", ownerName: "Chloe" } as never },
+    ],
+    resolveTarget: () => null,
+    shouldKeepTarget: target => target.ownerName !== "Chloe",
+  });
+
+  assert.deepEqual(targets.map(target => target.ownerName), ["Raleigh", "Blake", "Garret"]);
 });
 
 test("filterRenderTargetsForTrackingMode hides narrative entities in standard mode but keeps source-backed aliases", () => {
