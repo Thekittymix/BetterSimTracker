@@ -64,6 +64,14 @@ test("settings modal exposes mood symbol chip display controls in Card Appearanc
   assert.match(source, /Mood Symbol Font Size/);
 });
 
+test("settings modal seeds mood symbol numeric controls from saved settings on reopen", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /set\("moodSymbolMinWidth", String\(input\.settings\.moodSymbolMinWidth\)\)/);
+  assert.match(source, /set\("moodSymbolMinHeight", String\(input\.settings\.moodSymbolMinHeight\)\)/);
+  assert.match(source, /set\("moodSymbolBoxRadius", String\(input\.settings\.moodSymbolBoxRadius\)\)/);
+  assert.match(source, /set\("moodSymbolFontSize", String\(input\.settings\.moodSymbolFontSize\)\)/);
+});
+
 test("settings modal exposes multi-character archive lifecycle controls in Extraction only", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /Auto-Archive Inactive/);

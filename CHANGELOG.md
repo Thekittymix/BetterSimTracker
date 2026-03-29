@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp205] - 2026-03-29
+### Fixed
+- Experimental settings now restore the saved fallback mood-symbol width, height, radius, and font-size values when reopening the BST settings modal instead of showing reset defaults.
+
 ## [2.2.4.16-exp204] - 2026-03-28
 ### Fixed
 - Experimental fallback mood-symbol display now lets long emoji/kaomoji wrap cleanly instead of clipping in tracker cards, including on narrow mobile layouts.

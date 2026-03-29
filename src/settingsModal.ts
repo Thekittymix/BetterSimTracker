@@ -1260,6 +1260,10 @@ export function openSettingsModal(input: {
   set("cardOpacity", String(input.settings.cardOpacity));
   set("borderRadius", String(input.settings.borderRadius));
   set("fontSize", String(input.settings.fontSize));
+  set("moodSymbolMinWidth", String(input.settings.moodSymbolMinWidth));
+  set("moodSymbolMinHeight", String(input.settings.moodSymbolMinHeight));
+  set("moodSymbolBoxRadius", String(input.settings.moodSymbolBoxRadius));
+  set("moodSymbolFontSize", String(input.settings.moodSymbolFontSize));
   set("debug", String(input.settings.debug));
   setExtra("debugExtraction", String(input.settings.debugFlags?.extraction ?? true));
   setExtra("debugPrompts", String(input.settings.debugFlags?.prompts ?? true));
