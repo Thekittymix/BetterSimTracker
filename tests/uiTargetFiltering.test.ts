@@ -6,6 +6,7 @@ import {
   buildDisplayPoolWithRegistry,
   collectCharacterNamesFromTrackerData,
   filterRenderTargetsForTrackingMode,
+  filterShadowedAliasRenderTargets,
   filterArchivedOwnersFromTargets,
   filterTechnicalSourceOwnersFromTargets,
   isUserOwnerToken,
@@ -109,6 +110,76 @@ test("mergeRegistryRenderTargets preserves same-name entries when entity ids dif
       { ownerName: "Ashley", uiKey: "ent-ashley-card" },
       { ownerName: "Ashley", uiKey: "bst_narrative:ashley-shadow" },
     ],
+  );
+});
+
+test("filterShadowedAliasRenderTargets drops generic owner duplicates when a source-backed alias for the same owner exists", () => {
+  const filtered = filterShadowedAliasRenderTargets([
+    {
+      ownerName: "Blake",
+      uiKey: "bst_owner:blake.png|blake",
+      registryEntry: {
+        id: "bst_owner:blake.png|blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceName: "Blake",
+        sourceAvatar: "blake.png",
+        sourceKey: "blake.png|blake",
+        kind: "owner",
+        introducedAtMessageIndex: 1,
+        lastSeenMessageIndex: 2,
+        lastActiveMessageIndex: 1,
+        lifecycleState: "inactive",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+    {
+      ownerName: "Blake",
+      uiKey: "bst_mc_alias:camp.png|camp:blake",
+      registryEntry: {
+        id: "bst_mc_alias:camp.png|camp:blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        sourceAvatar: "camp.png",
+        sourceKey: "camp.png|camp",
+        kind: "multi_character_alias",
+        introducedAtMessageIndex: 1,
+        lastSeenMessageIndex: 2,
+        lastActiveMessageIndex: 1,
+        lifecycleState: "inactive",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+    {
+      ownerName: "Chloe",
+      uiKey: "bst_owner:chloe.png|chloe",
+      registryEntry: {
+        id: "bst_owner:chloe.png|chloe",
+        ownerName: "Chloe",
+        canonicalName: "Chloe",
+        aliases: [],
+        sourceName: "Chloe",
+        sourceAvatar: "chloe.png",
+        sourceKey: "chloe.png|chloe",
+        kind: "owner",
+        introducedAtMessageIndex: 1,
+        lastSeenMessageIndex: 2,
+        lastActiveMessageIndex: 2,
+        lifecycleState: "active",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+  ]);
+
+  assert.deepEqual(
+    filtered.map(target => `${target.registryEntry?.kind}:${target.ownerName}`),
+    ["multi_character_alias:Blake", "owner:Chloe"],
   );
 });
 

@@ -70,10 +70,28 @@ test("buildMultiCharacterResolverPrompt enables conservative created entities on
     allowNarrativeEntityCreation: true,
   });
 
-  assert.match(prompt, /Use `created` only for clearly new non-user story entities/i);
+  assert.match(prompt, /Use `created` only for clearly new non-user characters, beings, or scene actors/i);
   assert.match(prompt, /Never invent stable IDs/i);
   assert.match(prompt, /"kind": "narrative-entity"/);
   assert.match(prompt, /"created": \[\{ "name": "Forest Spirit"/);
+});
+
+test("buildMultiCharacterResolverPrompt forbids props and objects in created entities", () => {
+  const prompt = buildMultiCharacterResolverPrompt({
+    candidateEntities: [
+      { entityRef: "ent1", ownerName: "Blake", entityId: "bst_mc_alias:test:blake", kind: "st-character" },
+    ],
+    contextText: "Blake stared at the old map on the table.",
+    message: {
+      name: "Narrator",
+      mes: "The folded parchment slid across the wood as a stranger stepped into the room.",
+      is_user: false,
+    } as any,
+    allowNarrativeEntityCreation: true,
+  });
+
+  assert.match(prompt, /character-like scene actors/i);
+  assert.match(prompt, /Do not create props, objects, containers, furniture, locations, groups/i);
 });
 
 test("parseMultiCharacterResolverResponse keeps scene entities separate when no entity advances the message", () => {

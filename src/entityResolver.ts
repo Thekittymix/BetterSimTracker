@@ -150,7 +150,7 @@ export function buildMultiCharacterResolverPrompt(input: {
     "You are the BetterSimTracker entity resolver.",
     "Resolve which already-known entities are present in the scene at the end of the latest message, and which entities this latest message is actively advancing.",
     allowNarrativeEntityCreation
-      ? "Resolve known entities from the provided candidate list, and only use `created` for clearly new story entities that are not already known."
+      ? "Resolve known entities from the provided candidate list, and only use `created` for clearly new character-like scene actors that are not already known."
       : "Return only known entities from the provided candidate list. Do not invent IDs or names.",
     "Do not include the user as a resolved entity.",
     "Return strict JSON only.",
@@ -163,9 +163,9 @@ export function buildMultiCharacterResolverPrompt(input: {
     "- If the latest user instruction or AI message makes it clear that no known tracked entity remains in scene, return an empty `resolved` array.",
     ...(allowNarrativeEntityCreation
       ? [
-          "- Use `created` only for clearly new non-user story entities that are distinct, scene-relevant, and not already covered by the known candidate list.",
+          "- Use `created` only for clearly new non-user characters, beings, or scene actors that are distinct, scene-relevant, and not already covered by the known candidate list.",
           "- `created` entries must use human-readable `name` and optional `aliases` only. Never invent stable IDs.",
-          "- Do not create narrator, user, pronouns, generic body parts, locations, groups, or ambiguous references.",
+          "- Do not create props, objects, containers, furniture, locations, groups, body parts, narrator/user references, pronouns, or ambiguous mentions.",
         ]
       : []),
     "",

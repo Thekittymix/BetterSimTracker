@@ -65,6 +65,24 @@ test("materializeNarrativeEntityCreations creates runtime-owned narrative ids in
   });
 });
 
+test("materializeNarrativeEntityCreations rejects object-like created proposals in dynamic characters mode", () => {
+  const result = materializeNarrativeEntityCreations({
+    context: makeContext(),
+    settings: { entityTrackingMode: "dynamic_characters" },
+    candidateEntities: [],
+    resolvedEntities: [],
+    createdEntities: [
+      { name: "folded piece of parchment", aliases: ["map"], inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["folded piece of parchment"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [],
+    unresolvedMentions: ["folded piece of parchment"],
+  });
+});
+
 test("materializeNarrativeEntityCreations reuses exact candidates before creating new entities", () => {
   const result = materializeNarrativeEntityCreations({
     context: makeContext(),

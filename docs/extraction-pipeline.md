@@ -11,7 +11,7 @@ Before stat extraction, BST can run an entity-resolution prepass for the non-sta
 - `standard`
   - skips resolver prepass and uses normal owner-target selection.
 - `dynamic_characters`
-  - uses the entity-first resolver flow for known entities and may additionally accept conservative `created` proposals for clearly new narrative entities.
+  - uses the entity-first resolver flow for known entities and may additionally accept conservative `created` proposals for clearly new character-like scene actors.
 
 Important rules:
 
@@ -20,6 +20,7 @@ Important rules:
 - `created` proposals are matched against existing candidates and full registry state before any new `narrative-entity` ID is minted.
 - Archived narrative entities can therefore be reactivated instead of duplicated when their exact/normalized name reappears later.
 - Fresh `narrative-entity` seeds do not reuse per-character ST defaults; known ST owners keep the old defaults path, while dynamic narrative entities use the generic narrative seed/default path instead.
+- Props, objects, furniture, containers, maps, lockets, letters, and other scene items must stay unresolved instead of becoming tracker entities.
 
 ## Inputs
 

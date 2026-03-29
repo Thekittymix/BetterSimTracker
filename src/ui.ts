@@ -823,6 +823,23 @@ export function mergeRegistryRenderTargets(input: {
   return merged;
 }
 
+export function filterShadowedAliasRenderTargets(
+  targets: UiRenderTarget[],
+): UiRenderTarget[] {
+  const aliasedOwners = new Set(
+    targets
+      .filter(target => target.registryEntry?.kind === "multi_character_alias")
+      .map(target => normalizeName(target.ownerName))
+      .filter(Boolean),
+  );
+  if (!aliasedOwners.size) return [...targets];
+  return targets.filter(target => {
+    const normalizedOwner = normalizeName(target.ownerName);
+    if (!normalizedOwner) return false;
+    return !(target.registryEntry?.kind === "owner" && aliasedOwners.has(normalizedOwner));
+  });
+}
+
 export function resolveRegistryOwnersFromEntries(
   entries: TrackerEntityRegistryEntry[],
 ): string[] {
@@ -5758,7 +5775,10 @@ export function renderTracker(
         }),
       });
       const targets = filterArchivedRenderTargets(
-        filterTechnicalSourceRenderTargets(uniqueTargets, resolveOwnerRenderIdentity),
+        filterTechnicalSourceRenderTargets(
+          filterShadowedAliasRenderTargets(uniqueTargets),
+          resolveOwnerRenderIdentity,
+        ),
         getLifecycleState,
       )
         .sort((a, b) => {

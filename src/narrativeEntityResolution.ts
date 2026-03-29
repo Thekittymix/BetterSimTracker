@@ -65,6 +65,126 @@ function isPlausibleNarrativeEntityName(context: STContext | null, name: string)
   return !blocked.has(key);
 }
 
+function isCharacterLikeNarrativeEntityName(name: string, aliases: string[] | undefined): boolean {
+  const candidates = uniqueStrings([name, ...(aliases ?? [])].map(stripLeadingNarrativeQualifier));
+  if (!candidates.length) return false;
+
+  const actorTokens = new Set([
+    "actor",
+    "angel",
+    "assassin",
+    "bartender",
+    "boy",
+    "captain",
+    "cat",
+    "child",
+    "creature",
+    "crow",
+    "detective",
+    "dog",
+    "dragon",
+    "figure",
+    "friend",
+    "ghost",
+    "girl",
+    "guard",
+    "guest",
+    "hunter",
+    "king",
+    "knight",
+    "man",
+    "merchant",
+    "mother",
+    "person",
+    "priest",
+    "queen",
+    "raven",
+    "sentinel",
+    "soldier",
+    "spirit",
+    "stranger",
+    "traveler",
+    "villager",
+    "waitress",
+    "warrior",
+    "watcher",
+    "wife",
+    "witch",
+    "wolf",
+    "woman",
+  ]);
+  const blockedObjectTokens = new Set([
+    "amulet",
+    "bag",
+    "bed",
+    "blanket",
+    "boat",
+    "bottle",
+    "book",
+    "box",
+    "bracelet",
+    "candle",
+    "car",
+    "carriage",
+    "chair",
+    "chest",
+    "coin",
+    "cup",
+    "desk",
+    "door",
+    "drawer",
+    "flower",
+    "flowers",
+    "glass",
+    "jacket",
+    "journal",
+    "key",
+    "knife",
+    "lantern",
+    "letter",
+    "locket",
+    "map",
+    "necklace",
+    "note",
+    "paper",
+    "parchment",
+    "pendant",
+    "pocketwatch",
+    "ring",
+    "rope",
+    "scroll",
+    "shelf",
+    "shirt",
+    "sofa",
+    "stone",
+    "sword",
+    "table",
+    "vial",
+    "wallet",
+    "window",
+  ]);
+
+  const isTitleCaseLike = (value: string): boolean => {
+    const words = value.split(/\s+/).filter(Boolean);
+    if (!words.length || words.length > 4) return false;
+    return words.every(word => /^[A-Z][A-Za-z'’-]*$/.test(word));
+  };
+
+  for (const candidate of candidates) {
+    const normalized = normalizeToken(candidate);
+    if (!normalized) continue;
+    const lowered = normalized.toLowerCase();
+    const tokens = lowered.split(/[^a-z0-9]+/i).filter(Boolean);
+    if (!tokens.length) continue;
+    if (tokens.some(token => actorTokens.has(token))) return true;
+    if (tokens.some(token => blockedObjectTokens.has(token))) continue;
+    if (/\b(piece|pair|set|pile|bundle|stack)\s+of\b/i.test(lowered)) continue;
+    if (isTitleCaseLike(normalized)) return true;
+  }
+
+  return false;
+}
+
 function buildAliasPool(name: string, aliases: string[] | undefined): string[] {
   return uniqueStrings([name, ...(aliases ?? [])]);
 }
@@ -240,6 +360,7 @@ export function materializeNarrativeEntityCreations(input: {
     const aliasPool = buildAliasPool(name, aliases);
     const matchPool = buildNarrativeMatchPool(name, aliases);
     if (!isPlausibleNarrativeEntityName(input.context, name) || !aliasPool.length) continue;
+    if (!isCharacterLikeNarrativeEntityName(name, aliases)) continue;
 
     const candidateMatch = findCandidateMatch(matchPool, candidateMaps);
     if (candidateMatch?.entityId) {
