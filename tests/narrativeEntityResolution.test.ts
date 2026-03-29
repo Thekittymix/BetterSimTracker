@@ -157,6 +157,94 @@ test("materializeNarrativeEntityCreations reuses candidates when created names o
   });
 });
 
+test("materializeNarrativeEntityCreations reuses a Camp alias candidate instead of minting a narrative entity when source and alias candidates share one family", () => {
+  const result = materializeNarrativeEntityCreations({
+    context: makeContext(),
+    settings: { entityTrackingMode: "dynamic_characters" },
+    candidateEntities: [
+      {
+        entityRef: "ent1",
+        ownerName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        entityId: "bst_owner:camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "st-character",
+        aliases: ["Ashley", "Blake", "Garret", "Raleigh"],
+      },
+      {
+        entityRef: "ent2",
+        ownerName: "Raleigh",
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:raleigh",
+        kind: "st-character",
+        aliases: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      },
+    ],
+    resolvedEntities: [],
+    createdEntities: [
+      { name: "Raleigh", inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["Raleigh"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:raleigh",
+        kind: "st-character",
+        name: "Raleigh",
+        avatar: null,
+        aliases: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
+test("materializeNarrativeEntityCreations reuses a uniquely close alias spelling before minting a new narrative entity", () => {
+  const result = materializeNarrativeEntityCreations({
+    context: makeContext(),
+    settings: { entityTrackingMode: "dynamic_characters" },
+    candidateEntities: [
+      {
+        entityRef: "ent1",
+        ownerName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        entityId: "bst_owner:camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "st-character",
+        aliases: ["Ashley", "Blake", "Garret", "Raleigh"],
+      },
+      {
+        entityRef: "ent2",
+        ownerName: "Garret",
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:garret",
+        kind: "st-character",
+        aliases: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      },
+    ],
+    resolvedEntities: [],
+    createdEntities: [
+      { name: "Garrett", inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["Garrett"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:garret",
+        kind: "st-character",
+        name: "Garret",
+        avatar: null,
+        aliases: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
 test("materializeNarrativeEntityCreations reuses archived narrative registry entities before minting new ids", () => {
   const context = makeContext();
   context.chatMetadata = {

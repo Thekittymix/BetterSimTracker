@@ -7,6 +7,10 @@ All notable changes to BetterSimTracker are documented here.
 - Experimental tracker cards now drop generic owner duplicates when the same Camp member is already represented by a source-backed multi-character alias, so inactive Camp cards stop rendering twice on the same message.
 - Experimental `Dynamic Characters` creation is now restricted to character-like scene actors instead of props or objects, so rekwizyty like maps, lockets, or parchment no longer materialize as their own tracker entities.
 
+## [2.2.4.16-exp207] - 2026-03-29
+### Fixed
+- Experimental dynamic-character materialization now reuses known source-backed Camp alias identities before minting new narrative entities, so Camp-authored mixed turns no longer split known members like Raleigh or Garret into fresh `bst_narrative:*` trackers just because the resolver returned the alias/source family in parallel or the model used a near-match spelling.
+
 ## [2.2.4.16-exp205] - 2026-03-29
 ### Fixed
 - Experimental settings now restore the saved fallback mood-symbol width, height, radius, and font-size values when reopening the BST settings modal instead of showing reset defaults.

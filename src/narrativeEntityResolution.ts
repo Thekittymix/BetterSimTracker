@@ -220,48 +220,181 @@ function mergeResolvedEntity(
 }
 
 function buildCandidateNameMaps(candidateEntities: MultiCharacterResolverCandidate[]): {
-  exact: Map<string, MultiCharacterResolverCandidate | null>;
-  loose: Map<string, MultiCharacterResolverCandidate | null>;
+  exact: Map<string, MultiCharacterResolverCandidate[]>;
+  loose: Map<string, MultiCharacterResolverCandidate[]>;
+  all: MultiCharacterResolverCandidate[];
 } {
-  const exact = new Map<string, MultiCharacterResolverCandidate | null>();
-  const loose = new Map<string, MultiCharacterResolverCandidate | null>();
+  const exact = new Map<string, MultiCharacterResolverCandidate[]>();
+  const loose = new Map<string, MultiCharacterResolverCandidate[]>();
+  const all: MultiCharacterResolverCandidate[] = [];
+  const seenCandidates = new Set<string>();
+
+  const pushCandidate = (target: Map<string, MultiCharacterResolverCandidate[]>, key: string, candidate: MultiCharacterResolverCandidate): void => {
+    if (!key) return;
+    const existing = target.get(key) ?? [];
+    if (!existing.some(item => resolveCandidateCandidateKey(item) === resolveCandidateCandidateKey(candidate))) {
+      existing.push(candidate);
+      target.set(key, existing);
+    }
+  };
+
   for (const candidate of candidateEntities) {
+    const candidateKey = resolveCandidateCandidateKey(candidate);
+    if (!seenCandidates.has(candidateKey)) {
+      seenCandidates.add(candidateKey);
+      all.push(candidate);
+    }
     for (const name of buildAliasPool(candidate.ownerName, candidate.aliases)) {
       const exactKey = normalizeKey(name);
-      if (exactKey) {
-        const existingExact = exact.get(exactKey);
-        exact.set(exactKey, existingExact && existingExact.entityId !== candidate.entityId ? null : (existingExact ?? candidate));
-      }
+      pushCandidate(exact, exactKey, candidate);
       const looseKey = normalizeLooseKey(name);
-      if (!looseKey) continue;
-      const existing = loose.get(looseKey);
-      loose.set(looseKey, existing && existing.entityId !== candidate.entityId ? null : (existing ?? candidate));
+      pushCandidate(loose, looseKey, candidate);
     }
   }
-  return { exact, loose };
+  return { exact, loose, all };
+}
+
+function resolveCandidateFamilyKey(candidate: MultiCharacterResolverCandidate): string {
+  const entityId = normalizeToken(candidate.entityId);
+  if (entityId.startsWith("bst_mc_alias:")) {
+    const remainder = entityId.slice("bst_mc_alias:".length);
+    const aliasSeparator = remainder.lastIndexOf(":");
+    const sourcePart = aliasSeparator >= 0 ? remainder.slice(0, aliasSeparator) : remainder;
+    return `source:${sourcePart}`;
+  }
+  if (entityId.startsWith("bst_owner:")) {
+    return `source:${entityId.slice("bst_owner:".length)}`;
+  }
+  if (entityId) return `entity:${entityId}`;
+  const ownerKey = normalizeKey(candidate.ownerName);
+  if (ownerKey) return `owner:${ownerKey}`;
+  return `ref:${normalizeToken(candidate.entityRef)}`;
+}
+
+function resolveCandidateCandidateKey(candidate: MultiCharacterResolverCandidate): string {
+  const entityId = normalizeToken(candidate.entityId);
+  if (entityId) return `entity:${entityId}`;
+  const entityRef = normalizeToken(candidate.entityRef);
+  if (entityRef) return `ref:${entityRef}`;
+  return `owner:${normalizeKey(candidate.ownerName)}`;
+}
+
+function boundedEditDistanceAtMostOne(left: string, right: string): boolean {
+  if (left === right) return true;
+  const lengthDelta = Math.abs(left.length - right.length);
+  if (lengthDelta > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (left.length > right.length) {
+      i += 1;
+    } else if (right.length > left.length) {
+      j += 1;
+    } else {
+      i += 1;
+      j += 1;
+    }
+  }
+  if (i < left.length || j < right.length) edits += 1;
+  return edits <= 1;
+}
+
+function choosePreferredCandidate(
+  candidates: MultiCharacterResolverCandidate[],
+  names: string[],
+): MultiCharacterResolverCandidate | null {
+  if (!candidates.length) return null;
+  const exactNameKeys = new Set(names.map(name => normalizeKey(name)).filter(Boolean));
+  const exactOwnerMatch = candidates.find(candidate => exactNameKeys.has(normalizeKey(candidate.ownerName)));
+  if (exactOwnerMatch) return exactOwnerMatch;
+
+  const looseNameKeys = new Set(names.map(name => normalizeLooseKey(name)).filter(Boolean));
+  const looseOwnerMatch = candidates.find(candidate => looseNameKeys.has(normalizeLooseKey(candidate.ownerName)));
+  if (looseOwnerMatch) return looseOwnerMatch;
+
+  return [...candidates].sort((left, right) => {
+    const leftEntityId = normalizeToken(left.entityId);
+    const rightEntityId = normalizeToken(right.entityId);
+    const leftAliasBias = leftEntityId.startsWith("bst_mc_alias:") ? 0 : 1;
+    const rightAliasBias = rightEntityId.startsWith("bst_mc_alias:") ? 0 : 1;
+    if (leftAliasBias !== rightAliasBias) return leftAliasBias - rightAliasBias;
+    return normalizeToken(left.ownerName).length - normalizeToken(right.ownerName).length;
+  })[0] ?? null;
+}
+
+function resolveUniqueFamilyMatch(
+  candidates: MultiCharacterResolverCandidate[],
+  names: string[],
+): MultiCharacterResolverCandidate | null {
+  if (!candidates.length) return null;
+  const familyMatches = new Map<string, MultiCharacterResolverCandidate[]>();
+  for (const candidate of candidates) {
+    const familyKey = resolveCandidateFamilyKey(candidate);
+    const family = familyMatches.get(familyKey) ?? [];
+    family.push(candidate);
+    familyMatches.set(familyKey, family);
+  }
+  if (familyMatches.size !== 1) return null;
+  return choosePreferredCandidate(Array.from(familyMatches.values())[0] ?? [], names);
 }
 
 function findCandidateMatch(
   names: string[],
   maps: ReturnType<typeof buildCandidateNameMaps>,
 ): MultiCharacterResolverCandidate | null {
-  const exactMatches = new Map<string, MultiCharacterResolverCandidate>();
+  const exactCandidates: MultiCharacterResolverCandidate[] = [];
+  const exactSeen = new Set<string>();
   for (const name of names) {
-    const exact = maps.exact.get(normalizeKey(name));
-    if (exact?.entityId) {
-      exactMatches.set(exact.entityId, exact);
+    for (const candidate of maps.exact.get(normalizeKey(name)) ?? []) {
+      const candidateKey = resolveCandidateCandidateKey(candidate);
+      if (exactSeen.has(candidateKey)) continue;
+      exactSeen.add(candidateKey);
+      exactCandidates.push(candidate);
     }
   }
-  if (exactMatches.size === 1) return Array.from(exactMatches.values())[0];
-  if (exactMatches.size > 1) return null;
-  const looseMatches = new Map<string, MultiCharacterResolverCandidate>();
+  const exactMatch = resolveUniqueFamilyMatch(exactCandidates, names);
+  if (exactMatch) return exactMatch;
+
+  const looseCandidates: MultiCharacterResolverCandidate[] = [];
+  const looseSeen = new Set<string>();
   for (const name of names) {
-    const loose = maps.loose.get(normalizeLooseKey(name));
-    if (loose?.entityId) {
-      looseMatches.set(loose.entityId, loose);
+    for (const candidate of maps.loose.get(normalizeLooseKey(name)) ?? []) {
+      const candidateKey = resolveCandidateCandidateKey(candidate);
+      if (looseSeen.has(candidateKey)) continue;
+      looseSeen.add(candidateKey);
+      looseCandidates.push(candidate);
     }
   }
-  return looseMatches.size === 1 ? Array.from(looseMatches.values())[0] : null;
+  const looseMatch = resolveUniqueFamilyMatch(looseCandidates, names);
+  if (looseMatch) return looseMatch;
+
+  const fuzzyCandidates: MultiCharacterResolverCandidate[] = [];
+  const fuzzySeen = new Set<string>();
+  const fuzzyNameKeys = names.map(name => normalizeLooseKey(name)).filter(Boolean);
+  for (const candidate of maps.all) {
+    const candidateNames = buildAliasPool(candidate.ownerName, candidate.aliases)
+      .map(alias => normalizeLooseKey(alias))
+      .filter(Boolean);
+    const matches = fuzzyNameKeys.some(nameKey =>
+      candidateNames.some(candidateKey =>
+        candidateKey[0] === nameKey[0] && boundedEditDistanceAtMostOne(candidateKey, nameKey),
+      ),
+    );
+    if (!matches) continue;
+    const candidateKey = resolveCandidateCandidateKey(candidate);
+    if (fuzzySeen.has(candidateKey)) continue;
+    fuzzySeen.add(candidateKey);
+    fuzzyCandidates.push(candidate);
+  }
+  return resolveUniqueFamilyMatch(fuzzyCandidates, names);
 }
 
 function findNarrativeRegistryMatch(
