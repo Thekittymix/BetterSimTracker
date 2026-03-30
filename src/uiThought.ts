@@ -1,3 +1,5 @@
+import { resolveTextShortToggleState } from "./uiTextShort";
+
 export type ThoughtVariant = "bubble" | "panel";
 
 export function hasThoughtOverflow(metrics: {
@@ -23,13 +25,7 @@ export function resolveThoughtToggleState(metrics: {
   ariaExpanded: "true" | "false";
   label: "More" | "Less";
 } {
-  const overflowing = hasThoughtOverflow(metrics);
-  return {
-    overflowing,
-    hidden: !overflowing,
-    ariaExpanded: overflowing && expanded ? "true" : "false",
-    label: overflowing && expanded ? "Less" : "More",
-  };
+  return resolveTextShortToggleState(metrics, expanded);
 }
 
 function escapeHtml(value: string): string {

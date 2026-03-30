@@ -2839,9 +2839,13 @@ export function ensureStyles(): void {
 }
 .bst-thought-text {
   display: -webkit-box;
+  width: 100%;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .bst-empty {
   margin-top: 8px;

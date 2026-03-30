@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp219] - 2026-03-30
+### Fixed
+- Experimental thought text now uses the same wrapping and overflow-state resolver as `short_text`, so thought expand buttons follow the same measurement path instead of a separate divergent implementation.
+
 ## [2.2.4.16-exp218] - 2026-03-30
 ### Fixed
 - Experimental thought toggles now get a deferred post-render overflow resync and are forced out of layout when there is no real overflow, so transient render states no longer leave a visible dead `More` button on fully visible thoughts.
