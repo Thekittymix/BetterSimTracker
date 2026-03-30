@@ -20,6 +20,7 @@ test("renderTextShortMarkup renders hidden toggle by default for expandable valu
   });
   assert.match(html, /data-bst-text-short-container="1"/);
   assert.match(html, /data-bst-action="toggle-text-short"/);
+  assert.match(html, /bst-expand-toggle/);
   assert.match(html, /hidden/);
   assert.match(html, />More</);
 });

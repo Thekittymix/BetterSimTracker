@@ -53,7 +53,7 @@ export function renderTextShortMarkup(options: {
   return `
     <div class="bst-text-short-value${expanded ? " bst-text-short-expanded" : ""}" data-bst-text-short-container="1" data-bst-text-short-key="${escapeHtml(key)}" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(title)}">
       <span class="bst-text-short-value-text">${escapeHtml(text)}</span>
-      ${expandable ? `<button type="button" class="bst-text-short-toggle" data-bst-action="toggle-text-short" data-bst-text-short-key="${escapeHtml(key)}" aria-expanded="${String(expanded)}" hidden>${expanded ? "Less" : "More"}</button>` : ""}
+      ${expandable ? `<button type="button" class="bst-expand-toggle bst-text-short-toggle" data-bst-action="toggle-text-short" data-bst-text-short-key="${escapeHtml(key)}" aria-expanded="${String(expanded)}" hidden>${expanded ? "Less" : "More"}</button>` : ""}
     </div>
   `;
 }

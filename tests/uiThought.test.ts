@@ -26,6 +26,7 @@ test("renderThoughtMarkup renders escaped text and proper toggle state", () => {
   const text = "<unsafe> " + "x".repeat(200);
   const htmlCollapsed = renderThoughtMarkup(text, "k1", "bubble", false);
   assert.match(htmlCollapsed, /bst-mood-bubble/);
+  assert.match(htmlCollapsed, /bst-expand-toggle/);
   assert.match(htmlCollapsed, /More thought/);
   assert.match(htmlCollapsed, /aria-expanded="false"/);
   assert.match(htmlCollapsed, /hidden/);
