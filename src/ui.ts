@@ -2594,35 +2594,32 @@ export function ensureStyles(): void {
 }
 .bst-expand-toggle {
   margin-top: 8px;
-  width: 100%;
-  min-height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: flex-start;
+  appearance: none;
+  -webkit-appearance: none;
   border: 1px solid rgba(255,255,255,0.3);
   border-radius: 999px;
   background: rgba(10, 15, 24, 0.72);
   color: #ffffff;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 1.1;
-  padding: 6px 10px;
+  line-height: 1;
+  padding: 4px 8px;
   cursor: pointer;
-  transition: border-color .15s ease, background .15s ease, transform .15s ease, box-shadow .15s ease;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
 }
 .bst-expand-toggle:hover {
   border-color: rgba(255,255,255,0.5);
-  background: rgba(18, 25, 36, 0.82);
-  transform: translateY(-1px);
+  background: rgba(18, 25, 36, 0.8);
 }
 .bst-expand-toggle:active {
-  transform: translateY(0);
+  transform: translateY(1px);
 }
 .bst-expand-toggle:focus-visible {
   outline: 2px solid rgba(125, 211, 252, 0.88);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 .bst-track {
   background: rgba(255,255,255,0.14);

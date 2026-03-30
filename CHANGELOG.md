@@ -25,6 +25,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Experimental tracker card expand controls now use one shared UI style for both `short_text` and `Thought`, so `More` and `More thought` no longer render as visually mismatched buttons on the same card.
 
+## [2.2.4.16-exp215] - 2026-03-30
+### Fixed
+- Experimental tracker card expand controls now keep the same compact pill styling across both `short_text` and `Thought`, so the shared toggle no longer expands into the larger full-width chrome while matching overflow behavior stays intact.
+
 ## [2.2.4.16-exp209] - 2026-03-29
 ### Fixed
 - Experimental mixed-group Camp replies now keep scene-only participants in the registry-backed display pool when the chat is rendering the full group scene, so known non-speaking members like Chloe no longer disappear from tracker cards just because they have no fresh stats on that specific reply.
