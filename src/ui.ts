@@ -5379,7 +5379,7 @@ export function renderTracker(
               container.classList.toggle("bst-thought-expanded", !expanded);
             }
             thoughtToggle.setAttribute("aria-expanded", String(!expanded));
-            thoughtToggle.textContent = expanded ? "More thought" : "Less thought";
+            thoughtToggle.textContent = expanded ? "More" : "Less";
           }
           return;
         }

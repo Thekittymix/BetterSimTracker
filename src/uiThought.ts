@@ -6,8 +6,9 @@ export function hasThoughtOverflow(metrics: {
   scrollWidth?: number;
   clientWidth?: number;
 }): boolean {
-  const verticalOverflow = Number(metrics.scrollHeight) > Number(metrics.clientHeight) + 1;
-  const horizontalOverflow = Number(metrics.scrollWidth ?? 0) > Number(metrics.clientWidth ?? 0) + 1;
+  const epsilon = 2;
+  const verticalOverflow = Number(metrics.scrollHeight) > Number(metrics.clientHeight) + epsilon;
+  const horizontalOverflow = Number(metrics.scrollWidth ?? 0) > Number(metrics.clientWidth ?? 0) + epsilon;
   return verticalOverflow || horizontalOverflow;
 }
 
@@ -20,14 +21,14 @@ export function resolveThoughtToggleState(metrics: {
   overflowing: boolean;
   hidden: boolean;
   ariaExpanded: "true" | "false";
-  label: "More thought" | "Less thought";
+  label: "More" | "Less";
 } {
   const overflowing = hasThoughtOverflow(metrics);
   return {
     overflowing,
     hidden: !overflowing,
     ariaExpanded: overflowing && expanded ? "true" : "false",
-    label: overflowing && expanded ? "Less thought" : "More thought",
+    label: overflowing && expanded ? "Less" : "More",
   };
 }
 
@@ -62,7 +63,7 @@ export function renderThoughtMarkup(
   return `
     <div class="${containerClass}${expanded ? " bst-thought-expanded" : ""}" data-bst-thought-container="1" data-bst-thought-key="${escapeHtml(key)}">
       <span class="${textClass}">${escapeHtml(text)}</span>
-      ${expandable ? `<button class="bst-expand-toggle bst-thought-toggle" data-bst-action="toggle-thought" data-bst-thought-key="${escapeHtml(key)}" aria-expanded="${String(expanded)}" hidden>${expanded ? "Less thought" : "More thought"}</button>` : ""}
+      ${expandable ? `<button type="button" class="bst-expand-toggle bst-thought-toggle" data-bst-action="toggle-thought" data-bst-thought-key="${escapeHtml(key)}" aria-expanded="${String(expanded)}" hidden>${expanded ? "Less" : "More"}</button>` : ""}
     </div>
   `;
 }

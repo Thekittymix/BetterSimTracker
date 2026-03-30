@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp217] - 2026-03-30
+### Fixed
+- Experimental `Thought` expand controls now use the same `More`/`Less` label as other expandable tracker text and ignore tiny measurement noise, so the toggle no longer appears when there is no extra thought text to reveal.
+
 ## [2.2.4.16-exp216] - 2026-03-30
 ### Fixed
 - Experimental tracker card expand controls now force the same compact pill chrome for both `short_text` and `Thought`, so SillyTavern button styling no longer leaves `More thought` with a different radius/shape than the small `More` control.
