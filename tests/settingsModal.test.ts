@@ -94,6 +94,16 @@ test("settings modal numeric custom stat defaults do not fall back from zero to 
   assert.doesNotMatch(source, /Number\(candidate\.defaultValue\) \|\| 50/);
 });
 
+test("custom stat wizard keeps text and array max-length fields distinct", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /data-bst-custom-field="textShortMaxLength"/);
+  assert.match(source, /data-bst-custom-field="arrayTextMaxLength"/);
+  assert.match(source, /const getTextMaxLengthField = \(\): HTMLInputElement \| null =>/);
+  assert.match(source, /return getField\("arrayTextMaxLength"\) as HTMLInputElement \| null;/);
+  assert.match(source, /return getField\("textShortMaxLength"\) as HTMLInputElement \| null;/);
+  assert.doesNotMatch(source, /data-bst-custom-field="textMaxLength"/);
+});
+
 test("settings checkbox checked state keeps a visible non-color-mix fallback", () => {
   const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
   assert.match(source, /\.bst-check input\[type="checkbox"\]::before \{[\s\S]*border-right: 2px solid rgba\(247, 250, 255, 0\.96\);/);

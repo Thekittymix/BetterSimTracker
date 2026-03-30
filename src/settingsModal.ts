@@ -2908,7 +2908,7 @@ export function openSettingsModal(input: {
             <input type="text" data-bst-custom-field="textDefaultValue" value="${escapeHtml(draft.kind === "text_short" ? draft.defaultValue : "")}" placeholder="focused on de-escalation">
           </label>
           <label>Text Max Length (20-200)
-            <input type="number" min="20" max="200" data-bst-custom-field="textMaxLength" value="${escapeHtml(draft.textMaxLength)}">
+            <input type="number" min="20" max="200" data-bst-custom-field="textShortMaxLength" value="${escapeHtml(draft.textMaxLength)}">
           </label>
         </div>
         <div class="bst-custom-wizard-grid" data-bst-kind-panel="array" style="display:none;">
@@ -2923,7 +2923,7 @@ export function openSettingsModal(input: {
             <textarea data-bst-custom-field="arrayDefaultValue" rows="1" style="display:none;">${escapeHtml(draft.kind === "array" ? draft.defaultValue : "")}</textarea>
           </label>
           <label>Item Max Length (20-200)
-            <input type="number" min="20" max="200" data-bst-custom-field="textMaxLength" value="${escapeHtml(draft.textMaxLength)}">
+            <input type="number" min="20" max="200" data-bst-custom-field="arrayTextMaxLength" value="${escapeHtml(draft.textMaxLength)}">
           </label>
         </div>
         <div class="bst-custom-wizard-grid bst-custom-wizard-grid-single" data-bst-kind-panel="date_time" style="display:none;">
@@ -3060,6 +3060,15 @@ export function openSettingsModal(input: {
     const generateBehaviorStatusNode = wizard.querySelector("[data-bst-custom-behavior-status]") as HTMLElement | null;
     const getField = (name: string): HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null =>
       wizard.querySelector(`[data-bst-custom-field="${name}"]`) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
+    const getTextMaxLengthField = (): HTMLInputElement | null => {
+      if (draft.kind === "array") {
+        return getField("arrayTextMaxLength") as HTMLInputElement | null;
+      }
+      if (draft.kind === "text_short") {
+        return getField("textShortMaxLength") as HTMLInputElement | null;
+      }
+      return null;
+    };
     const colorPickerNode = wizard.querySelector('[data-bst-custom-color-picker]') as HTMLInputElement | null;
     const arrayDefaultsListNode = wizard.querySelector("[data-bst-array-default-list]") as HTMLElement | null;
     const arrayDefaultsCounterNode = wizard.querySelector("[data-bst-array-default-counter]") as HTMLElement | null;
@@ -3091,7 +3100,7 @@ export function openSettingsModal(input: {
     };
 
     const getArrayEditorItemMaxLength = (): number =>
-      Math.max(20, Math.min(200, Math.round(Number((getField("textMaxLength") as HTMLInputElement | null)?.value || draft.textMaxLength) || 120)));
+      Math.max(20, Math.min(200, Math.round(Number(getTextMaxLengthField()?.value || draft.textMaxLength) || 120)));
 
     const getArrayEditorItemInputs = (): HTMLInputElement[] =>
       Array.from(arrayDefaultsListNode?.querySelectorAll<HTMLInputElement>('[data-bst-array-item="1"]') ?? []);
@@ -3220,7 +3229,7 @@ export function openSettingsModal(input: {
       const enumOptionsNode = getField("enumOptionsText");
       const trueLabelNode = getField("booleanTrueLabel");
       const falseLabelNode = getField("booleanFalseLabel");
-      const textMaxLengthNode = getField("textMaxLength");
+      const textMaxLengthNode = getTextMaxLengthField();
       const trackCharactersNode = getField("trackCharacters") as HTMLInputElement | null;
       const trackUserNode = getField("trackUser") as HTMLInputElement | null;
       const globalScopeNode = getField("globalScope") as HTMLInputElement | null;

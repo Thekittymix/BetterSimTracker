@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16.6] - 2026-03-30
+### Fixed
+- Fixed custom array stat editing so changing `Item Max Length` now saves and restores correctly instead of reading the hidden text-stat max-length field from another wizard panel.
+
 ## [2.2.4.16.5] - 2026-03-29
 ### Fixed
 - Fixed AI-turn continuity so the latest user-scoped tracker state is overlaid into the extraction baseline before saving a new character reply, preventing stale user stats from older snapshots from leaking into prompt injection and new tracker payloads.
