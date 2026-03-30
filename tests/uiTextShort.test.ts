@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderTextShortMarkup, shouldEnableTextShortExpand } from "../src/uiTextShort";
+import { renderTextShortMarkup, resolveTextShortToggleState, shouldEnableTextShortExpand } from "../src/uiTextShort";
 
 test("shouldEnableTextShortExpand enables for multiline and long text", () => {
   assert.equal(shouldEnableTextShortExpand("line1\nline2"), true);
@@ -32,4 +32,15 @@ test("renderTextShortMarkup omits toggle for short values", () => {
     expanded: false,
   });
   assert.doesNotMatch(html, /toggle-text-short/);
+});
+
+test("resolveTextShortToggleState exposes toggle only on real overflow", () => {
+  assert.deepEqual(
+    resolveTextShortToggleState({ scrollHeight: 59, clientHeight: 45, scrollWidth: 0, clientWidth: 0 }, false),
+    { overflowing: true, hidden: false, ariaExpanded: "false", label: "More" },
+  );
+  assert.deepEqual(
+    resolveTextShortToggleState({ scrollHeight: 45, clientHeight: 45, scrollWidth: 0, clientWidth: 0 }, true),
+    { overflowing: false, hidden: true, ariaExpanded: "false", label: "More" },
+  );
 });

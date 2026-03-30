@@ -57,10 +57,10 @@ import { closeEditStatsModal, openEditStatsModal, type EditStatsPayload } from "
 import { closeGraphModal, openGraphModal } from "./graphModal";
 import { getAllNumericStatDefinitions } from "./statRegistry";
 import { getDateTimeStructuredParts, normalizeDateTimeValue, toDateTimeInputValue } from "./dateTime";
-import { hasThoughtOverflow, renderThoughtMarkup } from "./uiThought";
+import { hasThoughtOverflow, renderThoughtMarkup, resolveThoughtToggleState } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
-import { renderTextShortMarkup } from "./uiTextShort";
+import { renderTextShortMarkup, resolveTextShortToggleState } from "./uiTextShort";
 import { cloneTrackerDataForEdit } from "./trackerUiState";
 import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
 import {
@@ -1115,6 +1115,8 @@ const expandedThoughtKeys = new Set<string>();
 const expandedArrayValueKeys = new Set<string>();
 const expandedTextShortKeys = new Set<string>();
 const renderedCardKeys = new Set<string>();
+let overflowResyncBound = false;
+let overflowResyncScheduled = false;
 export const EDIT_STATS_BACKDROP_CLASS = "bst-edit-backdrop";
 export const EDIT_STATS_MODAL_CLASS = "bst-edit-modal";
 export const EDIT_STATS_DIALOG_CLASS = "bst-edit-dialog";
@@ -1133,6 +1135,72 @@ type AutoCardColorAssignment = {
 const autoCardColorAssignments = new Map<string, AutoCardColorAssignment>();
 const AUTO_CARD_COLOR_CACHE_LIMIT = 300;
 const AUTO_CARD_MIN_HUE_DISTANCE = 24;
+
+function syncRenderedExpandableOverflowState(): void {
+  const syncThoughtOverflowIn = (host: ParentNode | null | undefined): void => {
+    if (!host) return;
+    host.querySelectorAll<HTMLElement>('[data-bst-thought-container="1"]').forEach(container => {
+      const key = String(container.getAttribute("data-bst-thought-key") ?? "").trim();
+      const textNode = container.querySelector<HTMLElement>(".bst-thought-text, .bst-mood-bubble-text");
+      const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-thought"]');
+      if (!textNode || !toggle) return;
+      const state = resolveThoughtToggleState({
+        scrollHeight: textNode.scrollHeight,
+        clientHeight: textNode.clientHeight,
+        scrollWidth: textNode.scrollWidth,
+        clientWidth: textNode.clientWidth,
+      }, expandedThoughtKeys.has(key));
+      if (!state.overflowing) {
+        if (key) expandedThoughtKeys.delete(key);
+        container.classList.remove("bst-thought-expanded");
+      }
+      toggle.hidden = state.hidden;
+      toggle.setAttribute("aria-expanded", state.ariaExpanded);
+      toggle.textContent = state.label;
+    });
+  };
+  const syncTextShortOverflowIn = (host: ParentNode | null | undefined): void => {
+    if (!host) return;
+    host.querySelectorAll<HTMLElement>('[data-bst-text-short-container="1"]').forEach(container => {
+      const key = String(container.getAttribute("data-bst-text-short-key") ?? "").trim();
+      const textNode = container.querySelector<HTMLElement>(".bst-text-short-value-text");
+      const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-text-short"]');
+      if (!textNode || !toggle) return;
+      const state = resolveTextShortToggleState({
+        scrollHeight: textNode.scrollHeight,
+        clientHeight: textNode.clientHeight,
+        scrollWidth: textNode.scrollWidth,
+        clientWidth: textNode.clientWidth,
+      }, expandedTextShortKeys.has(key));
+      if (!state.overflowing) {
+        if (key) expandedTextShortKeys.delete(key);
+        container.classList.remove("bst-text-short-expanded");
+      }
+      toggle.hidden = state.hidden;
+      toggle.setAttribute("aria-expanded", state.ariaExpanded);
+      toggle.textContent = state.label;
+    });
+  };
+  document.querySelectorAll<HTMLElement>(`.${ROOT_CLASS}, .bst-scene-root`).forEach(host => {
+    syncThoughtOverflowIn(host);
+    syncTextShortOverflowIn(host);
+  });
+}
+
+function bindOverflowResyncEvents(): void {
+  if (overflowResyncBound || typeof window === "undefined") return;
+  const schedule = (): void => {
+    if (overflowResyncScheduled) return;
+    overflowResyncScheduled = true;
+    window.requestAnimationFrame(() => {
+      overflowResyncScheduled = false;
+      syncRenderedExpandableOverflowState();
+    });
+  };
+  window.addEventListener("resize", schedule);
+  window.addEventListener("orientationchange", schedule);
+  overflowResyncBound = true;
+}
 
 export const SETTINGS_SUBDRAWER_STYLE_CONTRACT = {
   chevronIcon: "\\f13a",
@@ -6493,23 +6561,19 @@ export function renderTracker(
         const textNode = container.querySelector<HTMLElement>(".bst-thought-text, .bst-mood-bubble-text");
         const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-thought"]');
         if (!textNode || !toggle) return;
-        const overflowing = hasThoughtOverflow({
+        const state = resolveThoughtToggleState({
           scrollHeight: textNode.scrollHeight,
           clientHeight: textNode.clientHeight,
           scrollWidth: textNode.scrollWidth,
           clientWidth: textNode.clientWidth,
-        });
-        if (!overflowing) {
+        }, expandedThoughtKeys.has(key));
+        if (!state.overflowing) {
           if (key) expandedThoughtKeys.delete(key);
           container.classList.remove("bst-thought-expanded");
-          toggle.hidden = true;
-          toggle.setAttribute("aria-expanded", "false");
-          toggle.textContent = "More thought";
-          return;
         }
-        toggle.hidden = false;
-        toggle.setAttribute("aria-expanded", String(expandedThoughtKeys.has(key)));
-        toggle.textContent = expandedThoughtKeys.has(key) ? "Less thought" : "More thought";
+        toggle.hidden = state.hidden;
+        toggle.setAttribute("aria-expanded", state.ariaExpanded);
+        toggle.textContent = state.label;
       });
     };
     const syncTextShortOverflowIn = (host: ParentNode | null | undefined): void => {
@@ -6519,23 +6583,19 @@ export function renderTracker(
         const textNode = container.querySelector<HTMLElement>(".bst-text-short-value-text");
         const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-text-short"]');
         if (!textNode || !toggle) return;
-        const overflowing = hasThoughtOverflow({
+        const state = resolveTextShortToggleState({
           scrollHeight: textNode.scrollHeight,
           clientHeight: textNode.clientHeight,
           scrollWidth: textNode.scrollWidth,
           clientWidth: textNode.clientWidth,
-        });
-        if (!overflowing) {
+        }, expandedTextShortKeys.has(key));
+        if (!state.overflowing) {
           if (key) expandedTextShortKeys.delete(key);
           container.classList.remove("bst-text-short-expanded");
-          toggle.hidden = true;
-          toggle.setAttribute("aria-expanded", "false");
-          toggle.textContent = "More";
-          return;
         }
-        toggle.hidden = false;
-        toggle.setAttribute("aria-expanded", String(expandedTextShortKeys.has(key)));
-        toggle.textContent = expandedTextShortKeys.has(key) ? "Less" : "More";
+        toggle.hidden = state.hidden;
+        toggle.setAttribute("aria-expanded", state.ariaExpanded);
+        toggle.textContent = state.label;
       });
     };
     if (sceneRoot) {
@@ -6572,6 +6632,7 @@ export function renderTracker(
     }
     syncThoughtOverflowIn(sceneRoot);
     syncTextShortOverflowIn(sceneRoot);
+    bindOverflowResyncEvents();
   }
 }
 

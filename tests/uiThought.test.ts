@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hasThoughtOverflow, renderThoughtMarkup, shouldEnableThoughtExpand } from "../src/uiThought";
+import { hasThoughtOverflow, renderThoughtMarkup, resolveThoughtToggleState, shouldEnableThoughtExpand } from "../src/uiThought";
 
 test("shouldEnableThoughtExpand enables for long one-line text", () => {
   const longBubble = "a".repeat(111);
@@ -58,4 +58,15 @@ test("hasThoughtOverflow only reports real rendered overflow", () => {
     scrollWidth: 80,
     clientWidth: 80,
   }), false);
+});
+
+test("resolveThoughtToggleState hides toggle when there is no real overflow", () => {
+  assert.deepEqual(
+    resolveThoughtToggleState({ scrollHeight: 120, clientHeight: 80, scrollWidth: 0, clientWidth: 0 }, false),
+    { overflowing: true, hidden: false, ariaExpanded: "false", label: "More thought" },
+  );
+  assert.deepEqual(
+    resolveThoughtToggleState({ scrollHeight: 80, clientHeight: 80, scrollWidth: 0, clientWidth: 0 }, true),
+    { overflowing: false, hidden: true, ariaExpanded: "false", label: "More thought" },
+  );
 });

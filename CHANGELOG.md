@@ -17,6 +17,10 @@ All notable changes to BetterSimTracker are documented here.
 - Experimental tracker cards now give long `short_text` values a real expand/collapse control instead of leaving them visually cut off with no way to reveal the rest of the text.
 - Experimental `Thought` expand controls now start hidden and only appear after real measured overflow, so cards no longer show dead `More thought` buttons for text that already fits.
 
+## [2.2.4.16-exp213] - 2026-03-30
+### Fixed
+- Experimental tracker cards now resync `short_text` and `Thought` overflow controls after viewport/layout changes, so mobile-width reflow no longer leaves a hidden `More` toggle behind when text starts overflowing only after the resize.
+
 ## [2.2.4.16-exp209] - 2026-03-29
 ### Fixed
 - Experimental mixed-group Camp replies now keep scene-only participants in the registry-backed display pool when the chat is rendering the full group scene, so known non-speaking members like Chloe no longer disappear from tracker cards just because they have no fresh stats on that specific reply.

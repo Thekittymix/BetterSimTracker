@@ -6,6 +6,28 @@ export function shouldEnableTextShortExpand(text: string): boolean {
   return normalized.length > 120 || words.length > 18;
 }
 
+export function resolveTextShortToggleState(metrics: {
+  scrollHeight: number;
+  clientHeight: number;
+  scrollWidth?: number;
+  clientWidth?: number;
+}, expanded: boolean): {
+  overflowing: boolean;
+  hidden: boolean;
+  ariaExpanded: "true" | "false";
+  label: "More" | "Less";
+} {
+  const verticalOverflow = Number(metrics.scrollHeight) > Number(metrics.clientHeight) + 1;
+  const horizontalOverflow = Number(metrics.scrollWidth ?? 0) > Number(metrics.clientWidth ?? 0) + 1;
+  const overflowing = verticalOverflow || horizontalOverflow;
+  return {
+    overflowing,
+    hidden: !overflowing,
+    ariaExpanded: overflowing && expanded ? "true" : "false",
+    label: overflowing && expanded ? "Less" : "More",
+  };
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

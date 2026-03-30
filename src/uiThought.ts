@@ -11,6 +11,26 @@ export function hasThoughtOverflow(metrics: {
   return verticalOverflow || horizontalOverflow;
 }
 
+export function resolveThoughtToggleState(metrics: {
+  scrollHeight: number;
+  clientHeight: number;
+  scrollWidth?: number;
+  clientWidth?: number;
+}, expanded: boolean): {
+  overflowing: boolean;
+  hidden: boolean;
+  ariaExpanded: "true" | "false";
+  label: "More thought" | "Less thought";
+} {
+  const overflowing = hasThoughtOverflow(metrics);
+  return {
+    overflowing,
+    hidden: !overflowing,
+    ariaExpanded: overflowing && expanded ? "true" : "false",
+    label: overflowing && expanded ? "Less thought" : "More thought",
+  };
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
