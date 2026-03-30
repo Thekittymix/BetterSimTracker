@@ -1684,6 +1684,7 @@ export async function extractStatisticsParallel(input: {
             trackConnection: settings.trackConnection,
             trackMood: settings.trackMood,
           },
+          customOnlyMode: true,
         });
         const prompt = applyPromptCharacterAliases(builtPrompt);
         const groupLabel = group.map(stat => stat.id).join("+");

@@ -29,17 +29,7 @@ export const moodOptions = [
 ];
 
 export const MAIN_PROMPT = `SYSTEM:
-You are a relationship-state extraction engine. Follow the task and protocol exactly.
-Stat meanings:
-- affection: emotional warmth, fondness, care toward the user
-- trust: perceived safety/reliability; willingness to be vulnerable
-- desire: physical/romantic attraction and flirt/sexual tension
-- connection: felt closeness/bond depth and emotional attunement
-- mood: immediate emotional tone for this turn
-- lastThought: brief internal thought grounded in recent messages
-Rule:
-- If the relationship is non-romantic, desire deltas must be 0 or negative.
- - Do not infer romance from affection or playfulness.
+You are a tracker-state extraction engine. Follow the task and protocol exactly.
 Do not add commentary or roleplay.`;
 
 export const DEFAULT_UNIFIED_PROMPT_INSTRUCTION = [
@@ -464,7 +454,124 @@ type BuiltInTrackingFlags = {
   trackDesire?: boolean;
   trackConnection?: boolean;
   trackMood?: boolean;
+  trackLastThought?: boolean;
 };
+
+function buildRequestedBuiltInFlags(stats: StatKey[]): BuiltInTrackingFlags {
+  return {
+    trackAffection: stats.includes("affection"),
+    trackTrust: stats.includes("trust"),
+    trackDesire: stats.includes("desire"),
+    trackConnection: stats.includes("connection"),
+    trackMood: stats.includes("mood"),
+    trackLastThought: stats.includes("lastThought"),
+  };
+}
+
+function mergeBuiltInTrackingFlags(
+  requested: BuiltInTrackingFlags,
+  configured?: BuiltInTrackingFlags,
+): BuiltInTrackingFlags {
+  return {
+    trackAffection: requested.trackAffection === true && configured?.trackAffection !== false,
+    trackTrust: requested.trackTrust === true && configured?.trackTrust !== false,
+    trackDesire: requested.trackDesire === true && configured?.trackDesire !== false,
+    trackConnection: requested.trackConnection === true && configured?.trackConnection !== false,
+    trackMood: requested.trackMood === true && configured?.trackMood !== false,
+    trackLastThought: requested.trackLastThought === true && configured?.trackLastThought !== false,
+  };
+}
+
+function buildExtractionSystemPrompt(options: {
+  builtInStats?: StatKey[];
+}): string {
+  const builtInStats = (options.builtInStats ?? []).filter(stat =>
+    stat === "affection" || stat === "trust" || stat === "desire" || stat === "connection" || stat === "mood" || stat === "lastThought",
+  );
+  const uniqueStats = Array.from(new Set(builtInStats));
+  const lines = [
+    "SYSTEM:",
+    "You are a tracker-state extraction engine. Follow the task and protocol exactly.",
+  ];
+
+  if (uniqueStats.length) {
+    lines.push("Stat meanings:");
+    if (uniqueStats.includes("affection")) lines.push("- affection: emotional warmth, fondness, care toward the user");
+    if (uniqueStats.includes("trust")) lines.push("- trust: perceived safety/reliability; willingness to be vulnerable");
+    if (uniqueStats.includes("desire")) lines.push("- desire: physical/romantic attraction and flirt/sexual tension");
+    if (uniqueStats.includes("connection")) lines.push("- connection: felt closeness/bond depth and emotional attunement");
+    if (uniqueStats.includes("mood")) lines.push("- mood: immediate emotional tone for this turn");
+    if (uniqueStats.includes("lastThought")) lines.push("- lastThought: brief internal thought grounded in recent messages");
+  }
+
+  if (uniqueStats.includes("desire")) {
+    lines.push("Rule:");
+    lines.push("- If the relationship is non-romantic, desire deltas must be 0 or negative.");
+    lines.push("- Do not infer romance from affection or playfulness.");
+  }
+
+  lines.push("Do not add commentary or roleplay.");
+  return lines.join("\n");
+}
+
+function applyUnifiedDefaultInstructionGuards(
+  instruction: string,
+  stats: StatKey[],
+): string {
+  const hasDesire = stats.includes("desire");
+  return instruction
+    .split(/\r?\n/g)
+    .filter(line => {
+      if (hasDesire) return true;
+      return !/Only increase desire if the relationship is explicitly romantic\/sexual/i.test(line);
+    })
+    .join("\n")
+    .trim();
+}
+
+function buildUnifiedBuiltInProtocol(stats: StatKey[], safeMaxDelta: number, characters: string[]): string {
+  const numericStats = stats.filter(stat =>
+    stat === "affection" || stat === "trust" || stat === "desire" || stat === "connection",
+  );
+  const textStats = stats.filter(stat => stat === "mood" || stat === "lastThought");
+  const deltaSample = numericStats.length
+    ? numericStats.map(key => `        "${key}": 0`).join(",\n")
+    : "        ";
+
+  return [
+    `Numeric stats to update (${numericStats.length ? numericStats.join(", ") : "none"}):`,
+    `- Return deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
+    "",
+    ...(textStats.length
+      ? [
+          `Text stats to update (${textStats.join(", ")}):`,
+          ...(textStats.includes("mood") ? [`- mood must be one of: ${moodOptions.join(", ")}.`] : []),
+          ...(textStats.includes("lastThought") ? ["- lastThought must be one short sentence."] : []),
+          "",
+        ]
+      : []),
+    "Return STRICT JSON only:",
+    "{",
+    "  \"characters\": [",
+    "    {",
+    "      \"name\": \"Character Name\",",
+    "      \"confidence\": 0.0,",
+    "      \"delta\": {",
+    deltaSample,
+    "      }",
+    ...(textStats.includes("mood") ? ["      ,\"mood\": \"Neutral\""] : []),
+    ...(textStats.includes("lastThought") ? ["      ,\"lastThought\": \"\""] : []),
+    "    }",
+    "  ]",
+    "}",
+    "",
+    "Rules:",
+    "- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.",
+    `- include one entry for each character name exactly: ${characters.join(", ")}.`,
+    "- omit fields for stats that are not requested.",
+    "- output JSON only, no commentary.",
+  ].join("\n");
+}
 
 function renderBuiltInSnapshotChunk(
   stats: {
@@ -473,6 +580,7 @@ function renderBuiltInSnapshotChunk(
     desire?: number;
     connection?: number;
     mood?: string;
+    lastThought?: string;
   },
   flags?: BuiltInTrackingFlags,
 ): string {
@@ -495,6 +603,9 @@ function renderBuiltInSnapshotChunk(
   }
   if (flags?.trackMood !== false && typeof stats.mood === "string" && stats.mood.trim()) {
     chunks.push(`mood=${stats.mood.trim()}`);
+  }
+  if (flags?.trackLastThought !== false && typeof stats.lastThought === "string" && stats.lastThought.trim()) {
+    chunks.push(`lastThought=${JSON.stringify(stats.lastThought.trim())}`);
   }
   return chunks.join(", ");
 }
@@ -639,6 +750,7 @@ export function buildUnifiedPrompt(
   context?: STContext | null,
   currentData?: TrackerData | null,
 ): string {
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: stats });
   const envelope = commonEnvelope(userName, characters);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
   const contextSections = renderPromptContextSections(splitPromptContextSections(contextText), {
@@ -653,36 +765,47 @@ export function buildUnifiedPrompt(
   );
   const textStats = stats.filter(stat => stat === "mood" || stat === "lastThought");
 
+  const requestedFlags = buildRequestedBuiltInFlags(stats);
   const currentLines = characters.map(name => {
-    const affection = Number(resolveBuiltInNumericValue(context, currentData ?? null, current?.affection, name) ?? 50);
-    const trust = Number(resolveBuiltInNumericValue(context, currentData ?? null, current?.trust, name) ?? 50);
-    const desire = Number(resolveBuiltInNumericValue(context, currentData ?? null, current?.desire, name) ?? 50);
-    const connection = Number(resolveBuiltInNumericValue(context, currentData ?? null, current?.connection, name) ?? 50);
-    const mood = String(resolveBuiltInTextValue(context, currentData ?? null, current?.mood, name) ?? "Neutral");
-    return `- ${name}: affection=${Math.max(0, Math.min(100, Math.round(affection)))}, trust=${Math.max(0, Math.min(100, Math.round(trust)))}, desire=${Math.max(0, Math.min(100, Math.round(desire)))}, connection=${Math.max(0, Math.min(100, Math.round(connection)))}, mood=${mood}`;
+    const chunk = renderBuiltInSnapshotChunk({
+      affection: resolveBuiltInNumericValue(context, currentData ?? null, current?.affection, name),
+      trust: resolveBuiltInNumericValue(context, currentData ?? null, current?.trust, name),
+      desire: resolveBuiltInNumericValue(context, currentData ?? null, current?.desire, name),
+      connection: resolveBuiltInNumericValue(context, currentData ?? null, current?.connection, name),
+      mood: resolveBuiltInTextValue(context, currentData ?? null, current?.mood, name),
+      lastThought: resolveBuiltInTextValue(context, currentData ?? null, current?.lastThought, name),
+    }, requestedFlags);
+    return `- ${name}: ${chunk || "no requested built-in stats tracked"}`;
   }).join("\n");
 
   const historyLines = history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = characters.map(name => {
-      const affection = Number(resolveBuiltInNumericValue(context, entry, entry.statistics.affection, name) ?? 50);
-      const trust = Number(resolveBuiltInNumericValue(context, entry, entry.statistics.trust, name) ?? 50);
-      const desire = Number(resolveBuiltInNumericValue(context, entry, entry.statistics.desire, name) ?? 50);
-      const connection = Number(resolveBuiltInNumericValue(context, entry, entry.statistics.connection, name) ?? 50);
-      const mood = String(resolveBuiltInTextValue(context, entry, entry.statistics.mood, name) ?? "Neutral");
-      return `  - ${name}: affection=${Math.round(affection)}, trust=${Math.round(trust)}, desire=${Math.round(desire)}, connection=${Math.round(connection)}, mood=${mood}`;
+      const chunk = renderBuiltInSnapshotChunk({
+        affection: resolveBuiltInNumericValue(context, entry, entry.statistics.affection, name),
+        trust: resolveBuiltInNumericValue(context, entry, entry.statistics.trust, name),
+        desire: resolveBuiltInNumericValue(context, entry, entry.statistics.desire, name),
+        connection: resolveBuiltInNumericValue(context, entry, entry.statistics.connection, name),
+        mood: resolveBuiltInTextValue(context, entry, entry.statistics.mood, name),
+        lastThought: resolveBuiltInTextValue(context, entry, entry.statistics.lastThought, name),
+      }, requestedFlags);
+      return `  - ${name}: ${chunk || "no requested built-in stats tracked"}`;
     }).join("\n");
     return `${header}\n${rows}`;
   }).join("\n");
 
   const safeMaxDelta = Math.max(1, Math.round(Number(maxDeltaPerTurn) || 15));
-  const instructionRaw = template?.trim() ? template : DEFAULT_UNIFIED_PROMPT_INSTRUCTION;
+  const instructionRaw = template?.trim()
+    ? template
+    : applyUnifiedDefaultInstructionGuards(DEFAULT_UNIFIED_PROMPT_INSTRUCTION, stats);
   const instruction = applySourcePriorityRule(
     instructionRaw,
     includeCharacterCardsInPrompt,
     includeLorebookInExtraction,
   );
-  const protocol = protocolTemplate?.trim() ? protocolTemplate : UNIFIED_PROMPT_PROTOCOL;
+  const protocol = protocolTemplate?.trim()
+    ? protocolTemplate
+    : buildUnifiedBuiltInProtocol(stats, safeMaxDelta, characters);
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
   const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
@@ -694,7 +817,7 @@ export function buildUnifiedPrompt(
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
@@ -757,7 +880,11 @@ export function buildUnifiedAllStatsPrompt(input: {
   includeCharacterCardsInPrompt?: boolean;
   includeLorebookInExtraction?: boolean;
   builtInTracking?: BuiltInTrackingFlags;
+  customOnlyMode?: boolean;
 }): string {
+  const unifiedBuiltInStats = [...input.stats];
+  const customOnlyMode = input.customOnlyMode === true || unifiedBuiltInStats.length === 0;
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: customOnlyMode ? [] : unifiedBuiltInStats });
   const envelope = commonEnvelope(input.userName, input.characters);
   const char = resolvePrimaryCharacter(input.characters, input.preferredCharacterName);
   const contextSections = renderPromptContextSections(splitPromptContextSections(input.contextText), {
@@ -768,7 +895,9 @@ export function buildUnifiedAllStatsPrompt(input: {
     contextText: input.contextText,
   });
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
-  const instructionRaw = input.template?.trim() ? input.template : DEFAULT_UNIFIED_PROMPT_INSTRUCTION;
+  const instructionRaw = input.template?.trim()
+    ? input.template
+    : applyUnifiedDefaultInstructionGuards(DEFAULT_UNIFIED_PROMPT_INSTRUCTION, unifiedBuiltInStats);
   const instruction = applySourcePriorityRule(
     instructionRaw,
     Boolean(input.includeCharacterCardsInPrompt),
@@ -782,6 +911,10 @@ export function buildUnifiedAllStatsPrompt(input: {
   const customNonNumeric = input.customStats.filter(stat => (stat.kind ?? "numeric") !== "numeric");
   const numericDeltaKeys = [...builtInNumeric, ...customNumeric.map(stat => stat.id)];
 
+  const requestedBuiltInFlags = mergeBuiltInTrackingFlags(
+    buildRequestedBuiltInFlags(unifiedBuiltInStats),
+    input.builtInTracking,
+  );
   const currentLines = input.characters.map(name => {
     const chunks: string[] = [];
     const builtInChunk = renderBuiltInSnapshotChunk({
@@ -790,7 +923,8 @@ export function buildUnifiedAllStatsPrompt(input: {
       desire: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.desire, name),
       connection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.connection, name),
       mood: resolveBuiltInTextValue(input.context, input.currentData ?? null, input.current?.mood, name),
-    }, input.builtInTracking);
+      lastThought: resolveBuiltInTextValue(input.context, input.currentData ?? null, input.current?.lastThought, name),
+    }, requestedBuiltInFlags);
     if (builtInChunk) chunks.push(builtInChunk);
     for (const stat of customNumeric) {
       const customRaw = Number(resolveScopedCustomNumericValue(input.context, input.currentData ?? null, input.currentCustom, stat.id, name, stat.globalScope) ?? stat.defaultValue);
@@ -828,7 +962,8 @@ export function buildUnifiedAllStatsPrompt(input: {
         desire: resolveBuiltInNumericValue(input.context, entry, entry.statistics.desire, name),
         connection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.connection, name),
         mood: resolveBuiltInTextValue(input.context, entry, entry.statistics.mood, name),
-      }, input.builtInTracking);
+        lastThought: resolveBuiltInTextValue(input.context, entry, entry.statistics.lastThought, name),
+      }, requestedBuiltInFlags);
       if (builtInChunk) chunks.push(builtInChunk);
       for (const stat of customNumeric) {
         const customRaw = Number(resolveScopedCustomNumericValue(input.context, entry, entry.customStatistics ?? undefined, stat.id, name, stat.globalScope) ?? stat.defaultValue);
@@ -899,13 +1034,17 @@ export function buildUnifiedAllStatsPrompt(input: {
   }).join("\n");
 
   const protocol = [
-    `Numeric delta stats to update (${numericDeltaKeys.length ? numericDeltaKeys.join(", ") : "none"}):`,
+    `${customOnlyMode ? "Custom numeric delta stats to update" : "Numeric delta stats to update"} (${numericDeltaKeys.length ? numericDeltaKeys.join(", ") : "none"}):`,
     `- Return deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
     "",
-    `Text stats to update (${builtInText.length ? builtInText.join(", ") : "none"}):`,
-    `- mood must be one of: ${moodOptions.join(", ")}.`,
-    "- lastThought must be one short sentence.",
-    "",
+    ...(customOnlyMode
+      ? []
+      : [
+          `Text stats to update (${builtInText.length ? builtInText.join(", ") : "none"}):`,
+          `- mood must be one of: ${moodOptions.join(", ")}.`,
+          "- lastThought must be one short sentence.",
+          "",
+        ]),
     customNonNumeric.length
       ? [
         `Custom non-numeric stats to update (${customNonNumeric.map(stat => stat.id).join(", ")}):`,
@@ -940,7 +1079,7 @@ export function buildUnifiedAllStatsPrompt(input: {
     .join("\n");
 
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
@@ -957,7 +1096,7 @@ export function buildUnifiedAllStatsPrompt(input: {
 
   const taskContent = [
       "{{instruction}}",
-      "- Update built-in and custom stats in this single response.",
+      customOnlyMode ? "- Update only the requested custom stats in this single response." : "- Update built-in and custom stats in this single response.",
       "- For custom numeric stats, use `delta.<statId>`.",
       "- For custom non-numeric stats, use `value.<statId>`.",
     ].join("\n");
@@ -1016,6 +1155,7 @@ export function buildSequentialPrompt(
   context?: STContext | null,
   currentData?: TrackerData | null,
 ): string {
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: [stat] });
   const envelope = commonEnvelope(userName, characters);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
   const contextSections = renderPromptContextSections(splitPromptContextSections(contextText), {
@@ -1082,7 +1222,7 @@ export function buildSequentialPrompt(
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
@@ -1148,6 +1288,7 @@ export function buildSequentialCustomNumericPrompt(input: {
   includeLorebookInExtraction?: boolean;
   builtInTracking?: BuiltInTrackingFlags;
 }): string {
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: [] });
   const statId = input.statId.trim();
   const statLabel = input.statLabel.trim() || statId;
   const statDescription = String(input.statDescription ?? "").trim();
@@ -1227,7 +1368,7 @@ export function buildSequentialCustomNumericPrompt(input: {
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
@@ -1437,6 +1578,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   includeLorebookInExtraction?: boolean;
   builtInTracking?: BuiltInTrackingFlags;
 }): string {
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: [] });
   const statId = input.statId.trim();
   const statLabel = input.statLabel.trim() || statId;
   const statDescription = String(input.statDescription ?? "").trim();
@@ -1577,7 +1719,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",

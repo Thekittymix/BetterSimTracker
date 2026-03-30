@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp221] - 2026-03-30
+### Fixed
+- Experimental extraction prompts now render built-in meanings, baseline snapshots, and protocol sections only for the stats that are actually being requested, so disabled or non-requested built-in stats no longer leak into custom-only or partial-stat extraction prompts.
+
 ## [2.2.4.16-exp220] - 2026-03-30
 ### Fixed
 - Experimental thought cards now reuse the `short_text` overflow-state resolver and matching text-box layout rules, so thought expand visibility follows the same measurement path as the already working custom short-text cards.

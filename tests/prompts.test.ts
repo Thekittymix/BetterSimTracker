@@ -160,7 +160,10 @@ test("buildUnifiedPrompt resolves alias owner built-in state through registry lo
     } as never,
   );
 
-  assert.match(prompt, /- Ash: affection=61, trust=50, desire=50, connection=50, mood=Hopeful/);
+  assert.match(prompt, /- Ash: affection=61, mood=Hopeful/);
+  assert.doesNotMatch(prompt, /trust=50/);
+  assert.doesNotMatch(prompt, /desire=50/);
+  assert.doesNotMatch(prompt, /connection=50/);
 });
 
 test("buildUnifiedPrompt keeps same-name built-in reads scoped to the current entity id", () => {
@@ -279,8 +282,11 @@ test("buildUnifiedPrompt keeps same-name built-in reads scoped to the current en
     currentData,
   );
 
-  assert.match(prompt, /- Ash: affection=61, trust=50, desire=50, connection=50, mood=Hopeful/);
-  assert.match(prompt, /Snapshot 1 \(newest-0\):[\s\S]*- Ash: affection=58, trust=50, desire=50, connection=50, mood=Content/);
+  assert.match(prompt, /- Ash: affection=61, mood=Hopeful/);
+  assert.match(prompt, /Snapshot 1 \(newest-0\):[\s\S]*- Ash: affection=58, mood=Content/);
+  assert.doesNotMatch(prompt, /trust=50/);
+  assert.doesNotMatch(prompt, /desire=50/);
+  assert.doesNotMatch(prompt, /connection=50/);
   assert.doesNotMatch(prompt, /- Ash: affection=9, trust=50, desire=50, connection=50, mood=Angry/);
   assert.doesNotMatch(prompt, /- Ash: affection=14, trust=50, desire=50, connection=50, mood=Angry/);
 });
@@ -819,6 +825,40 @@ test("buildSequentialPrompt separates target card context from non-target cards"
   assert.match(prompt, /Character Card - Blake/);
 });
 
+test("buildUnifiedPrompt only includes requested built-in stat families", () => {
+  const prompt = buildUnifiedPrompt(
+    ["trust"],
+    "User",
+    ["Seraphina"],
+    "Recent lines",
+    {
+      affection: { Seraphina: 55 },
+      trust: { Seraphina: 42 },
+      desire: { Seraphina: 77 },
+      connection: { Seraphina: 12 },
+      mood: { Seraphina: "Neutral" },
+      lastThought: { Seraphina: "Hidden thought" },
+    },
+    [],
+    12,
+  );
+
+  assert.match(prompt, /Stat meanings:\n- trust:/);
+  assert.doesNotMatch(prompt, /- affection:/);
+  assert.doesNotMatch(prompt, /- desire:/);
+  assert.doesNotMatch(prompt, /- connection:/);
+  assert.doesNotMatch(prompt, /- mood:/);
+  assert.doesNotMatch(prompt, /- lastThought:/);
+  assert.match(prompt, /- Seraphina: trust=42/);
+  assert.doesNotMatch(prompt, /affection=55/);
+  assert.doesNotMatch(prompt, /desire=77/);
+  assert.doesNotMatch(prompt, /connection=12/);
+  assert.doesNotMatch(prompt, /mood=Neutral/);
+  assert.doesNotMatch(prompt, /lastThought=/);
+  assert.doesNotMatch(prompt, /Text stats to update/);
+  assert.doesNotMatch(prompt, /mood must be one of/);
+});
+
 test("buildSequentialCustomNumericPrompt includes BST tagged extraction sections", () => {
   const prompt = buildSequentialCustomNumericPrompt({
     statId: "satisfaction",
@@ -852,6 +892,12 @@ test("buildSequentialCustomNumericPrompt includes BST tagged extraction sections
   assert.match(prompt, /<BST_TASK>/);
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
   assert.match(prompt, /satisfaction=64/);
+  assert.doesNotMatch(prompt, /Stat meanings:\n- affection:/);
+  assert.doesNotMatch(prompt, /- trust:/);
+  assert.doesNotMatch(prompt, /- desire:/);
+  assert.doesNotMatch(prompt, /- connection:/);
+  assert.doesNotMatch(prompt, /- mood:/);
+  assert.doesNotMatch(prompt, /- lastThought:/);
 });
 
 test("buildSequentialCustomNumericPrompt preserves explicit zero defaults", () => {
@@ -1071,6 +1117,60 @@ test("buildSequentialCustomNonNumericPrompt preserves explicit empty arrays inst
 
   assert.match(prompt, /clothes=\[\]/);
   assert.doesNotMatch(prompt, /black sundress/);
+});
+
+test("buildUnifiedAllStatsPrompt custom-only mode omits built-in framing for grouped custom sequential requests", () => {
+  const prompt = buildUnifiedAllStatsPrompt({
+    stats: [],
+    customStats: [
+      {
+        id: "satisfaction",
+        label: "Satisfaction",
+        kind: "numeric",
+        defaultValue: 50,
+        maxDeltaPerTurn: 9,
+        scope: "character",
+      } as never,
+      {
+        id: "clothes",
+        label: "Clothes",
+        kind: "array",
+        defaultValue: [],
+        textMaxLength: 80,
+        scope: "character",
+      } as never,
+    ],
+    userName: "User",
+    characters: ["Ashley"],
+    contextText: "Recent lines",
+    current: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    currentCustom: {
+      satisfaction: { Ashley: 64 },
+    },
+    currentCustomNonNumeric: {
+      clothes: { Ashley: ["raincoat"] },
+    },
+    history: [],
+    maxDeltaPerTurn: 9,
+    template: "- Update only these custom stats in one response: satisfaction, clothes.",
+    customOnlyMode: true,
+  });
+
+  assert.match(prompt, /Update only the requested custom stats in this single response\./);
+  assert.match(prompt, /Custom numeric delta stats to update \(satisfaction\):/);
+  assert.match(prompt, /Custom non-numeric stats to update \(clothes\):/);
+  assert.doesNotMatch(prompt, /Update built-in and custom stats in this single response\./);
+  assert.doesNotMatch(prompt, /Stat meanings:\n- affection:/);
+  assert.doesNotMatch(prompt, /Text stats to update/);
+  assert.doesNotMatch(prompt, /mood must be one of/);
+  assert.doesNotMatch(prompt, /lastThought must be one short sentence/);
 });
 
 test("buildTrackerSummaryGenerationPrompt keeps tracked-dimension scope explicit", () => {
