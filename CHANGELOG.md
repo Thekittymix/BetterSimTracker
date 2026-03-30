@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp210] - 2026-03-30
+### Fixed
+- Fixed custom array stat editing so changing `Item Max Length` now saves and restores correctly instead of reading the hidden text-stat max-length field from another wizard panel.
+
 ## [2.2.4.16-exp209] - 2026-03-29
 ### Fixed
 - Experimental mixed-group Camp replies now keep scene-only participants in the registry-backed display pool when the chat is rendering the full group scene, so known non-speaking members like Chloe no longer disappear from tracker cards just because they have no fresh stats on that specific reply.
