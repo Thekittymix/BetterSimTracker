@@ -42,7 +42,7 @@ export function renderThoughtMarkup(
   return `
     <div class="${containerClass}${expanded ? " bst-thought-expanded" : ""}" data-bst-thought-container="1" data-bst-thought-key="${escapeHtml(key)}">
       <span class="${textClass}">${escapeHtml(text)}</span>
-      ${expandable ? `<button class="bst-thought-toggle" data-bst-action="toggle-thought" data-bst-thought-key="${escapeHtml(key)}" aria-expanded="${String(expanded)}">${expanded ? "Less thought" : "More thought"}</button>` : ""}
+      ${expandable ? `<button class="bst-thought-toggle" data-bst-action="toggle-thought" data-bst-thought-key="${escapeHtml(key)}" aria-expanded="${String(expanded)}" hidden>${expanded ? "Less thought" : "More thought"}</button>` : ""}
     </div>
   `;
 }

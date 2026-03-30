@@ -60,6 +60,7 @@ import { getDateTimeStructuredParts, normalizeDateTimeValue, toDateTimeInputValu
 import { hasThoughtOverflow, renderThoughtMarkup } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
+import { renderTextShortMarkup } from "./uiTextShort";
 import { cloneTrackerDataForEdit } from "./trackerUiState";
 import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
 import {
@@ -1112,6 +1113,7 @@ const expandedInactiveCardKeys = new Set<string>();
 const collapsedSceneMessages = new Set<number>();
 const expandedThoughtKeys = new Set<string>();
 const expandedArrayValueKeys = new Set<string>();
+const expandedTextShortKeys = new Set<string>();
 const renderedCardKeys = new Set<string>();
 export const EDIT_STATS_BACKDROP_CLASS = "bst-edit-backdrop";
 export const EDIT_STATS_MODAL_CLASS = "bst-edit-modal";
@@ -2494,7 +2496,9 @@ export function ensureStyles(): void {
   text-overflow: clip;
 }
 .bst-text-short-value {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   width: 100%;
   margin-top: 4px;
   padding: 8px 10px;
@@ -2507,6 +2511,32 @@ export function ensureStyles(): void {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.bst-text-short-value-text {
+  display: -webkit-box;
+  width: 100%;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bst-text-short-value.bst-text-short-expanded .bst-text-short-value-text {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.bst-text-short-toggle {
+  margin-top: 8px;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 999px;
+  background: rgba(10, 15, 24, 0.72);
+  color: #ffffff;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.bst-text-short-toggle:hover {
+  border-color: rgba(255,255,255,0.5);
 }
 .bst-track {
   background: rgba(255,255,255,0.14);
@@ -5281,6 +5311,29 @@ export function renderTracker(
           }
           return;
         }
+        const textShortToggle = target?.closest('[data-bst-action="toggle-text-short"]') as HTMLElement | null;
+        if (textShortToggle) {
+          const key = String(textShortToggle.getAttribute("data-bst-text-short-key") ?? "").trim();
+          if (!key) return;
+          const expanded = expandedTextShortKeys.has(key);
+          if (expanded) {
+            expandedTextShortKeys.delete(key);
+          } else {
+            expandedTextShortKeys.add(key);
+          }
+          root.dataset.bstRenderSignature = "";
+          if (onRequestRerender) {
+            onRequestRerender();
+          } else {
+            const container = root.querySelector(`[data-bst-text-short-container="1"][data-bst-text-short-key="${CSS.escape(key)}"]`) as HTMLElement | null;
+            if (container) {
+              container.classList.toggle("bst-text-short-expanded", !expanded);
+            }
+            textShortToggle.setAttribute("aria-expanded", String(!expanded));
+            textShortToggle.textContent = expanded ? "More" : "Less";
+          }
+          return;
+        }
         const arrayToggle = target?.closest('[data-bst-action="toggle-array-values"]') as HTMLElement | null;
         if (arrayToggle) {
           const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
@@ -5475,13 +5528,27 @@ export function renderTracker(
           return;
         }
         const arrayToggle = target?.closest('[data-bst-action="toggle-array-values"]') as HTMLElement | null;
-        if (!arrayToggle) return;
-        const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
+        if (arrayToggle) {
+          const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
+          if (!key) return;
+          if (expandedArrayValueKeys.has(key)) {
+            expandedArrayValueKeys.delete(key);
+          } else {
+            expandedArrayValueKeys.add(key);
+          }
+          root.dataset.bstRenderSignature = "";
+          sceneRoot.dataset.bstRenderSignature = "";
+          onRequestRerender?.();
+          return;
+        }
+        const textShortToggle = target?.closest('[data-bst-action="toggle-text-short"]') as HTMLElement | null;
+        if (!textShortToggle) return;
+        const key = String(textShortToggle.getAttribute("data-bst-text-short-key") ?? "").trim();
         if (!key) return;
-        if (expandedArrayValueKeys.has(key)) {
-          expandedArrayValueKeys.delete(key);
+        if (expandedTextShortKeys.has(key)) {
+          expandedTextShortKeys.delete(key);
         } else {
-          expandedArrayValueKeys.add(key);
+          expandedTextShortKeys.add(key);
         }
         root.dataset.bstRenderSignature = "";
         sceneRoot.dataset.bstRenderSignature = "";
@@ -6027,12 +6094,18 @@ export function renderTracker(
           }
           if (def.kind === "text_short") {
             const displayValue = resolved == null ? "not set" : formatNonNumericForDisplay(def, resolved);
+            const textShortKey = `txt:${entry.messageIndex}:${ownerUiKey}:${def.id}`;
             return `
               <div class="bst-row bst-row-non-numeric">
                 <div class="bst-label">
                   <span>${escapeHtml(def.label)}</span>
                 </div>
-                <div class="bst-text-short-value" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(displayValue)}">${escapeHtml(displayValue)}</div>
+                ${renderTextShortMarkup({
+                  text: displayValue,
+                  key: textShortKey,
+                  color,
+                  expanded: expandedTextShortKeys.has(textShortKey),
+                })}
               </div>
             `;
           }
@@ -6190,12 +6263,18 @@ export function renderTracker(
               }
               if (def.kind === "text_short") {
                 const displayValueRaw = resolved == null ? "Not set" : formatNonNumericForDisplay(def, resolved);
+                const sceneTextShortKey = `txtscene:${entry.messageIndex}:${def.id}`;
                 return `
                   <div class="bst-row bst-row-non-numeric">
                     <div class="bst-label">
                       ${showLabel ? `<span>${escapeHtml(statLabel)}</span>` : ""}
                     </div>
-                    <div class="bst-text-short-value" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(displayValueRaw)}">${escapeHtml(displayValueRaw)}</div>
+                    ${renderTextShortMarkup({
+                      text: displayValueRaw,
+                      key: sceneTextShortKey,
+                      color,
+                      expanded: expandedTextShortKeys.has(sceneTextShortKey),
+                    })}
                   </div>
                 `;
               }
@@ -6287,12 +6366,18 @@ export function renderTracker(
             }
             if (def.kind === "text_short") {
               const displayValueRaw = resolved == null ? "Not set" : formatNonNumericForDisplay(def, resolved);
+              const sceneTextShortKey = `txtscene:${entry.messageIndex}:${def.id}`;
               return `
                 <div class="bst-row bst-row-non-numeric">
                   <div class="bst-label">
                     ${showLabel ? `<span>${escapeHtml(statLabel)}</span>` : ""}
                   </div>
-                  <div class="bst-text-short-value" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(displayValueRaw)}">${escapeHtml(displayValueRaw)}</div>
+                  ${renderTextShortMarkup({
+                    text: displayValueRaw,
+                    key: sceneTextShortKey,
+                    color,
+                    expanded: expandedTextShortKeys.has(sceneTextShortKey),
+                  })}
                 </div>
               `;
             }
@@ -6423,6 +6508,34 @@ export function renderTracker(
           return;
         }
         toggle.hidden = false;
+        toggle.setAttribute("aria-expanded", String(expandedThoughtKeys.has(key)));
+        toggle.textContent = expandedThoughtKeys.has(key) ? "Less thought" : "More thought";
+      });
+    };
+    const syncTextShortOverflowIn = (host: ParentNode | null | undefined): void => {
+      if (!host) return;
+      host.querySelectorAll<HTMLElement>('[data-bst-text-short-container="1"]').forEach(container => {
+        const key = String(container.getAttribute("data-bst-text-short-key") ?? "").trim();
+        const textNode = container.querySelector<HTMLElement>(".bst-text-short-value-text");
+        const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-text-short"]');
+        if (!textNode || !toggle) return;
+        const overflowing = hasThoughtOverflow({
+          scrollHeight: textNode.scrollHeight,
+          clientHeight: textNode.clientHeight,
+          scrollWidth: textNode.scrollWidth,
+          clientWidth: textNode.clientWidth,
+        });
+        if (!overflowing) {
+          if (key) expandedTextShortKeys.delete(key);
+          container.classList.remove("bst-text-short-expanded");
+          toggle.hidden = true;
+          toggle.setAttribute("aria-expanded", "false");
+          toggle.textContent = "More";
+          return;
+        }
+        toggle.hidden = false;
+        toggle.setAttribute("aria-expanded", String(expandedTextShortKeys.has(key)));
+        toggle.textContent = expandedTextShortKeys.has(key) ? "Less" : "More";
       });
     };
     if (sceneRoot) {
@@ -6442,6 +6555,8 @@ export function renderTracker(
       appendOwnerCards();
       syncThoughtOverflowIn(inlineSceneHost);
       syncThoughtOverflowIn(root);
+      syncTextShortOverflowIn(inlineSceneHost);
+      syncTextShortOverflowIn(root);
     } else {
       appendOwnerCards();
       if (sceneCardVisible && !sceneRoot) {
@@ -6450,10 +6565,13 @@ export function renderTracker(
         root.appendChild(inlineSceneHost);
         appendSceneCard(inlineSceneHost);
         syncThoughtOverflowIn(inlineSceneHost);
+        syncTextShortOverflowIn(inlineSceneHost);
       }
       syncThoughtOverflowIn(root);
+      syncTextShortOverflowIn(root);
     }
     syncThoughtOverflowIn(sceneRoot);
+    syncTextShortOverflowIn(sceneRoot);
   }
 }
 

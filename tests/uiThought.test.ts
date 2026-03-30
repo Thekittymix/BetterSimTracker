@@ -28,6 +28,7 @@ test("renderThoughtMarkup renders escaped text and proper toggle state", () => {
   assert.match(htmlCollapsed, /bst-mood-bubble/);
   assert.match(htmlCollapsed, /More thought/);
   assert.match(htmlCollapsed, /aria-expanded="false"/);
+  assert.match(htmlCollapsed, /hidden/);
   assert.doesNotMatch(htmlCollapsed, /<unsafe>/);
   assert.match(htmlCollapsed, /&lt;unsafe&gt;/);
 
