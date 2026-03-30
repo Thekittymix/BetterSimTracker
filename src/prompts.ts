@@ -259,15 +259,86 @@ export const DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION = [
   "- Prefer recent messages first; use character cards only to disambiguate when needed.",
 ].join("\n");
 
-function commonEnvelope(userName: string, characters: string[], contextText: string): string {
+function commonEnvelope(userName: string, characters: string[]): string {
   return [
     `User: ${userName}`,
     `Characters: ${characters.join(", ")}`,
-    "",
-    "Recent messages:",
-    contextText,
-    ""
   ].join("\n");
+}
+
+const TARGET_CARD_CONTEXT_HEADER = "Target character card context";
+const OTHER_CARD_CONTEXT_HEADER = "Other character cards";
+const LEGACY_CARD_CONTEXT_HEADER = "Character cards (use only to disambiguate if recent messages are unclear):";
+const LOREBOOK_CONTEXT_HEADER = "Lorebook context (activated; use only to disambiguate if recent messages are unclear):";
+
+function extractPromptContextSection(
+  text: string,
+  startIndex: number,
+  header: string,
+  nextIndices: number[],
+): string {
+  const bodyStart = startIndex + header.length;
+  const candidates = nextIndices.filter(index => index > startIndex);
+  const nextBoundary = candidates.length ? Math.min(...candidates) : text.length;
+  return text.slice(bodyStart, nextBoundary).trim();
+}
+
+function splitPromptContextSections(contextText: string): {
+  recentMessages: string;
+  targetCardContext: string;
+  otherCardContext: string;
+  lorebookContext: string;
+} {
+  const text = String(contextText ?? "").trim();
+  if (!text) {
+    return {
+      recentMessages: "",
+      targetCardContext: "",
+      otherCardContext: "",
+      lorebookContext: "",
+    };
+  }
+
+  const targetIndex = text.indexOf(TARGET_CARD_CONTEXT_HEADER);
+  const otherIndex = text.indexOf(OTHER_CARD_CONTEXT_HEADER);
+  const legacyCardIndex = text.indexOf(LEGACY_CARD_CONTEXT_HEADER);
+  const lorebookIndex = text.indexOf(LOREBOOK_CONTEXT_HEADER);
+  const firstSectionIndex = [targetIndex, otherIndex, legacyCardIndex, lorebookIndex]
+    .filter(index => index >= 0)
+    .sort((a, b) => a - b)[0] ?? -1;
+
+  const recentMessages = (firstSectionIndex >= 0 ? text.slice(0, firstSectionIndex) : text).trim();
+  const targetCardContext = targetIndex >= 0
+    ? extractPromptContextSection(text, targetIndex, TARGET_CARD_CONTEXT_HEADER, [otherIndex, legacyCardIndex, lorebookIndex])
+    : "";
+  const structuredOtherCardContext = otherIndex >= 0
+    ? extractPromptContextSection(text, otherIndex, OTHER_CARD_CONTEXT_HEADER, [legacyCardIndex, lorebookIndex])
+    : "";
+  const legacyOtherCardContext = legacyCardIndex >= 0
+    ? extractPromptContextSection(text, legacyCardIndex, LEGACY_CARD_CONTEXT_HEADER, [lorebookIndex])
+    : "";
+  const lorebookContext = lorebookIndex >= 0
+    ? extractPromptContextSection(text, lorebookIndex, LOREBOOK_CONTEXT_HEADER, [])
+    : "";
+
+  return {
+    recentMessages,
+    targetCardContext,
+    otherCardContext: [structuredOtherCardContext, legacyOtherCardContext].filter(Boolean).join("\n\n").trim(),
+    lorebookContext,
+  };
+}
+
+function renderPromptContextSections(
+  sections: ReturnType<typeof splitPromptContextSections>,
+  values: Record<string, string>,
+): ReturnType<typeof splitPromptContextSections> {
+  return {
+    recentMessages: sections.recentMessages ? renderTemplate(sections.recentMessages, values).trim() : "",
+    targetCardContext: sections.targetCardContext ? renderTemplate(sections.targetCardContext, values).trim() : "",
+    otherCardContext: sections.otherCardContext ? renderTemplate(sections.otherCardContext, values).trim() : "",
+    lorebookContext: sections.lorebookContext ? renderTemplate(sections.lorebookContext, values).trim() : "",
+  };
 }
 
 function bstTagBlock(tag: string, content: string): string {
@@ -434,7 +505,7 @@ export function buildPrompt(
   characters: string[],
   contextText: string,
 ): string {
-  const envelope = commonEnvelope(userName, characters, contextText);
+  const envelope = [commonEnvelope(userName, characters), "", "Recent messages:", contextText, ""].join("\n");
 
   switch (stat) {
     case "affection":
@@ -568,8 +639,15 @@ export function buildUnifiedPrompt(
   context?: STContext | null,
   currentData?: TrackerData | null,
 ): string {
-  const envelope = commonEnvelope(userName, characters, contextText);
+  const envelope = commonEnvelope(userName, characters);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(contextText), {
+    user: userName,
+    userName,
+    char,
+    characters: characters.join(", "),
+    contextText,
+  });
   const numericStats = stats.filter(stat =>
     stat === "affection" || stat === "trust" || stat === "desire" || stat === "connection",
   );
@@ -607,8 +685,12 @@ export function buildUnifiedPrompt(
   const protocol = protocolTemplate?.trim() ? protocolTemplate : UNIFIED_PROMPT_PROTOCOL;
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
@@ -616,8 +698,12 @@ export function buildUnifiedPrompt(
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -625,8 +711,12 @@ export function buildUnifiedPrompt(
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock,
     envelope,
@@ -635,6 +725,10 @@ export function buildUnifiedPrompt(
     char,
     characters: characters.join(", "),
     contextText,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -664,8 +758,15 @@ export function buildUnifiedAllStatsPrompt(input: {
   includeLorebookInExtraction?: boolean;
   builtInTracking?: BuiltInTrackingFlags;
 }): string {
-  const envelope = commonEnvelope(input.userName, input.characters, input.contextText);
+  const envelope = commonEnvelope(input.userName, input.characters);
   const char = resolvePrimaryCharacter(input.characters, input.preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(input.contextText), {
+    user: input.userName,
+    userName: input.userName,
+    char,
+    characters: input.characters.join(", "),
+    contextText: input.contextText,
+  });
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
   const instructionRaw = input.template?.trim() ? input.template : DEFAULT_UNIFIED_PROMPT_INSTRUCTION;
   const instruction = applySourcePriorityRule(
@@ -843,8 +944,12 @@ export function buildUnifiedAllStatsPrompt(input: {
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -858,16 +963,24 @@ export function buildUnifiedAllStatsPrompt(input: {
     ].join("\n");
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", taskContent);
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
 
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock,
     envelope,
@@ -876,6 +989,10 @@ export function buildUnifiedAllStatsPrompt(input: {
     char,
     characters: input.characters.join(", "),
     contextText: input.contextText,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -899,8 +1016,15 @@ export function buildSequentialPrompt(
   context?: STContext | null,
   currentData?: TrackerData | null,
 ): string {
-  const envelope = commonEnvelope(userName, characters, contextText);
+  const envelope = commonEnvelope(userName, characters);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(contextText), {
+    user: userName,
+    userName,
+    char,
+    characters: characters.join(", "),
+    contextText,
+  });
   const numericStats = stat === "affection" || stat === "trust" || stat === "desire" || stat === "connection"
     ? [stat]
     : [];
@@ -949,8 +1073,12 @@ export function buildSequentialPrompt(
   const protocol = protocolTemplate?.trim() ? protocolTemplate : defaultProtocol;
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
@@ -958,8 +1086,12 @@ export function buildSequentialPrompt(
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -967,8 +1099,12 @@ export function buildSequentialPrompt(
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock,
     envelope,
@@ -977,6 +1113,10 @@ export function buildSequentialPrompt(
     char,
     characters: characters.join(", "),
     contextText,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -1012,8 +1152,15 @@ export function buildSequentialCustomNumericPrompt(input: {
   const statLabel = input.statLabel.trim() || statId;
   const statDescription = String(input.statDescription ?? "").trim();
   const defaultValue = normalizeCustomNumericDefaultValue(input.statDefault);
-  const envelope = commonEnvelope(input.userName, input.characters, input.contextText);
+  const envelope = commonEnvelope(input.userName, input.characters);
   const char = resolvePrimaryCharacter(input.characters, input.preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(input.contextText), {
+    user: input.userName,
+    userName: input.userName,
+    char,
+    characters: input.characters.join(", "),
+    contextText: input.contextText,
+  });
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
 
   const currentLines = input.characters.map(name => {
@@ -1071,8 +1218,12 @@ export function buildSequentialCustomNumericPrompt(input: {
   const protocol = input.protocolTemplate?.trim() || NUMERIC_PROMPT_PROTOCOL(statId);
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
@@ -1080,8 +1231,12 @@ export function buildSequentialCustomNumericPrompt(input: {
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -1090,14 +1245,22 @@ export function buildSequentialCustomNumericPrompt(input: {
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock,
     envelope,
     user: input.userName,
     userName: input.userName,
     char,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -1285,8 +1448,15 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   const dateTimeMode = input.dateTimeMode === "structured" ? "structured" : "timestamp";
   const trueLabel = String(input.booleanTrueLabel ?? "enabled").trim() || "enabled";
   const falseLabel = String(input.booleanFalseLabel ?? "disabled").trim() || "disabled";
-  const envelope = commonEnvelope(input.userName, input.characters, input.contextText);
+  const envelope = commonEnvelope(input.userName, input.characters);
   const char = resolvePrimaryCharacter(input.characters, input.preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(input.contextText), {
+    user: input.userName,
+    userName: input.userName,
+    char,
+    characters: input.characters.join(", "),
+    contextText: input.contextText,
+  });
 
   const defaultFallback = statKind === "boolean"
     ? false
@@ -1399,16 +1569,24 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   }));
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const assembled = [
     MAIN_PROMPT,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -1417,14 +1595,22 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock: protocolBlock,
     envelope,
     user: input.userName,
     userName: input.userName,
     char,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,

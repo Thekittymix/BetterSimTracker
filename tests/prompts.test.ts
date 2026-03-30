@@ -772,10 +772,51 @@ test("buildSequentialPrompt resolves {{char}} inside included character card tex
     "Blake",
   );
 
+  assert.match(prompt, /<BST_RECENT_MESSAGES>/);
+  assert.match(prompt, /<BST_OTHER_CARD_CONTEXT>/);
+  assert.match(prompt, /<BST_OTHER_CARD_CONTEXT>[\s\S]*Character Card - Blake/);
   assert.match(prompt, /Description: Blake studies the campfire in silence\./);
   assert.doesNotMatch(prompt, /Description: Kuba studies the campfire in silence\./);
   assert.doesNotMatch(prompt, /Description: User studies the campfire in silence\./);
   assert.doesNotMatch(prompt, /Description: __bst_user__ studies the campfire in silence\./);
+});
+
+test("buildSequentialPrompt separates target card context from non-target cards", () => {
+  const prompt = buildSequentialPrompt(
+    "mood",
+    "Kuba",
+    ["Ashley"],
+    [
+      "Recent messages:",
+      "\"Ashley keeps the flashlight steady while Blake checks the door.\"",
+      "",
+      "Target character card context (highest priority card context for Ashley; do not use any other card as this target's state source):",
+      "Character Card - Ashley",
+      "Description: Ashley keeps everyone focused.",
+      "",
+      "Other character cards (non-target context only; never copy their traits into the current target unless the recent messages explicitly attribute them to that target):",
+      "Character Card - Blake",
+      "Description: Blake studies the campfire in silence.",
+    ].join("\n"),
+    {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Serious" },
+      lastThought: {},
+    },
+    [],
+    12,
+    undefined,
+    undefined,
+    "Ashley",
+  );
+
+  assert.match(prompt, /<BST_TARGET_CARD_CONTEXT>/);
+  assert.match(prompt, /Character Card - Ashley/);
+  assert.match(prompt, /<BST_OTHER_CARD_CONTEXT>/);
+  assert.match(prompt, /Character Card - Blake/);
 });
 
 test("buildSequentialCustomNumericPrompt includes BST tagged extraction sections", () => {

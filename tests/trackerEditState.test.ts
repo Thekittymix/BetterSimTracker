@@ -261,6 +261,35 @@ test("buildEditedTrackerDataSnapshot prefers resolver scene owners over stale ac
   assert.deepEqual(next.activeCharacters, ["Blake"]);
 });
 
+test("buildEditedTrackerDataSnapshot preserves explicit user owner alongside resolver scene continuity", () => {
+  const current = {
+    ...makeTrackerData(),
+    activeCharacters: ["__bst_user__"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      messageOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      source: "fallback" as const,
+    }),
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { __bst_user__: "Serious" },
+      lastThought: { __bst_user__: "Stay sharp." },
+    },
+  } satisfies TrackerData;
+
+  const next = buildEditedTrackerDataSnapshot({
+    current,
+    timestamp: 2000,
+    activeCharacters: ["__bst_user__"],
+    statistics: current.statistics,
+  });
+
+  assert.deepEqual(next.activeCharacters, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "__bst_user__"]);
+});
+
 test("syncEditedTrackerEntityState mirrors edited alias values into byEntityId buckets", () => {
   const current = makeTrackerData();
   const edited = buildEditedTrackerDataSnapshot({

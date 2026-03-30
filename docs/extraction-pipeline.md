@@ -33,6 +33,14 @@ Extractor is called with:
 - `history` (recent tracker snapshots)
 - cancellation callbacks and progress callback
 
+When optional character-card context is included, BST now structures it as separate prompt blocks instead of mixing all card text into the same freeform context body:
+
+- `CURRENT / RECENT MESSAGE` remains the message evidence block.
+- `PREVIOUS TARGET STATE` remains target-scoped tracker continuity.
+- `TARGET CARD CONTEXT` is reserved for the extracted character's own card only.
+- `OTHER CARD CONTEXT` is non-target context only and must not be copied into the target unless the recent messages explicitly attribute those traits to that target.
+- User extraction does not get a privileged target character-card block.
+
 ## Enabled Stat Resolution
 
 1. Built-in/text stats are filtered by settings toggles.

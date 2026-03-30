@@ -13,6 +13,7 @@ test("buildCharacterCardsContext includes all same-name cards and disambiguates 
   } as any;
 
   const rendered = buildCharacterCardsContext(context, ["Chloe"]);
+  assert.match(rendered, /Other character cards \(non-target context only;/);
   assert.match(rendered, /Character Card - Chloe \[chloe_a\.png\]/);
   assert.match(rendered, /Character Card - Chloe \[chloe_b\.png\]/);
   assert.match(rendered, /Variant A description\./);
@@ -76,6 +77,7 @@ test("buildCharacterCardsContext includes source card context when an active ali
   } as any;
 
   const rendered = buildCharacterCardsContext(context, ["Ashley"], [], "dynamic_characters");
+  assert.match(rendered, /Other character cards \(non-target context only;/);
   assert.match(rendered, /Camp Whispering Pines \| Ashley, Blake, Garret, & Raleigh/);
   assert.match(rendered, /Whispering Pines description\./);
   assert.doesNotMatch(rendered, /Billie card\./);
@@ -121,6 +123,7 @@ test("buildCharacterCardsContext can include multi-character source card context
   } as any;
 
   const rendered = buildCharacterCardsContext(context, [], ["ent-ashley"], "dynamic_characters");
+  assert.match(rendered, /Other character cards \(non-target context only;/);
   assert.match(rendered, /Camp Whispering Pines \| Ashley, Blake, Garret, & Raleigh/);
   assert.match(rendered, /Whispering Pines description\./);
   assert.doesNotMatch(rendered, /Billie card\./);
@@ -166,8 +169,24 @@ test("buildCharacterCardsContext prefers explicit entity ids over stale raw acti
   } as any;
 
   const rendered = buildCharacterCardsContext(context, ["Billie"], ["ent-ashley"], "dynamic_characters");
+  assert.match(rendered, /Other character cards \(non-target context only;/);
   assert.match(rendered, /Camp Whispering Pines \| Ashley, Blake, Garret, & Raleigh/);
   assert.match(rendered, /Whispering Pines description\./);
   assert.doesNotMatch(rendered, /Billie card\./);
+});
+
+test("buildCharacterCardsContext separates target card context from other cards", () => {
+  const context = {
+    characters: [
+      { name: "Ashley", avatar: "ashley.png", description: "Ashley description." },
+      { name: "Blake", avatar: "blake.png", description: "Blake description." },
+    ],
+  } as any;
+
+  const rendered = buildCharacterCardsContext(context, ["Ashley", "Blake"], [], "dynamic_characters", "Ashley");
+  assert.match(rendered, /Target character card context \(highest priority card context for Ashley;/);
+  assert.match(rendered, /Character Card - Ashley/);
+  assert.match(rendered, /Other character cards \(non-target context only;/);
+  assert.match(rendered, /Character Card - Blake/);
 });
 

@@ -32,6 +32,7 @@ export function buildCharacterCardsContext(
   activeCharacters: string[],
   activeEntityIds: string[] = [],
   entityTrackingMode: SettingsEntityTrackingMode = "standard",
+  preferredCharacterName?: string,
 ): string {
   const allCharacters = Array.isArray(context?.characters) ? context.characters : [];
   if (!allCharacters.length) return "";
@@ -73,7 +74,15 @@ export function buildCharacterCardsContext(
   }
 
   const duplicateNameIndices = new Map<string, number>();
-  const chunks: string[] = [];
+  const targetChunks: string[] = [];
+  const otherChunks: string[] = [];
+  const preferredIdentity = preferredCharacterName
+    ? resolveCharacterIdentity(context, preferredCharacterName, resolvedMode)
+    : null;
+  const preferredNameKey = normalizeNameKey(preferredCharacterName);
+  const preferredSourceKey = preferredIdentity
+    ? buildEntitySourceKey(preferredIdentity.sourceName, preferredIdentity.sourceAvatar)
+    : "";
   for (const character of allCharacters) {
     const nameKey = normalizeNameKey(character?.name);
     const avatarKey = normalizeToken(character?.avatar);
@@ -103,10 +112,33 @@ export function buildCharacterCardsContext(
     duplicateNameIndices.set(nameKey, duplicateIndex + 1);
 
     const chunk = buildCharacterCardChunk(character, duplicateCount, duplicateIndex);
-    if (chunk) chunks.push(chunk);
+    if (!chunk) continue;
+
+    const isTargetCard = Boolean(preferredNameKey) && (
+      normalizeNameKey(character?.name) === preferredNameKey
+      || (preferredSourceKey && sourceKey === preferredSourceKey)
+      || (avatarKey && preferredIdentity?.sourceAvatar && avatarKey === normalizeToken(preferredIdentity.sourceAvatar))
+    );
+    if (isTargetCard) {
+      targetChunks.push(chunk);
+    } else {
+      otherChunks.push(chunk);
+    }
   }
 
-  if (!chunks.length) return "";
-  return `\n\nCharacter cards (use only to disambiguate if recent messages are unclear):\n${chunks.join("\n\n")}`;
+  if (!targetChunks.length && !otherChunks.length) return "";
+  const blocks: string[] = [];
+  if (targetChunks.length) {
+    const targetLabel = normalizeToken(preferredCharacterName) || "current target";
+    blocks.push(
+      `\n\nTarget character card context (highest priority card context for ${targetLabel}; do not use any other card as this target's state source):\n${targetChunks.join("\n\n")}`,
+    );
+  }
+  if (otherChunks.length) {
+    blocks.push(
+      `\n\nOther character cards (non-target context only; never copy their traits into the current target unless the recent messages explicitly attribute them to that target):\n${otherChunks.join("\n\n")}`,
+    );
+  }
+  return blocks.join("");
 }
 

@@ -1,5 +1,16 @@
 export type ThoughtVariant = "bubble" | "panel";
 
+export function hasThoughtOverflow(metrics: {
+  scrollHeight: number;
+  clientHeight: number;
+  scrollWidth?: number;
+  clientWidth?: number;
+}): boolean {
+  const verticalOverflow = Number(metrics.scrollHeight) > Number(metrics.clientHeight) + 1;
+  const horizontalOverflow = Number(metrics.scrollWidth ?? 0) > Number(metrics.clientWidth ?? 0) + 1;
+  return verticalOverflow || horizontalOverflow;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

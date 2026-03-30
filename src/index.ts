@@ -3818,6 +3818,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         activeCharacters,
         sceneEntityIdsForCardContext,
         resolveEntityTrackingMode(runScopedSettings),
+        preferredCharacterName,
       )}`.trim();
     }
     if (activeSettings.includeLorebookInExtraction) {

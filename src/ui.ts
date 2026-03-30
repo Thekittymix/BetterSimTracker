@@ -57,7 +57,7 @@ import { closeEditStatsModal, openEditStatsModal, type EditStatsPayload } from "
 import { closeGraphModal, openGraphModal } from "./graphModal";
 import { getAllNumericStatDefinitions } from "./statRegistry";
 import { getDateTimeStructuredParts, normalizeDateTimeValue, toDateTimeInputValue } from "./dateTime";
-import { renderThoughtMarkup } from "./uiThought";
+import { hasThoughtOverflow, renderThoughtMarkup } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
 import { cloneTrackerDataForEdit } from "./trackerUiState";
@@ -2492,6 +2492,21 @@ export function ensureStyles(): void {
   word-break: break-word;
   overflow: visible;
   text-overflow: clip;
+}
+.bst-text-short-value {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--bst-stat-color, var(--bst-accent)) 45%, rgba(255,255,255,0.18) 55%);
+  background: color-mix(in srgb, var(--bst-stat-color, var(--bst-accent)) 10%, rgba(10, 15, 24, 0.82) 90%);
+  color: #f5f9ff;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .bst-track {
   background: rgba(255,255,255,0.14);
@@ -6010,6 +6025,17 @@ export function renderTracker(
               </div>
             `;
           }
+          if (def.kind === "text_short") {
+            const displayValue = resolved == null ? "not set" : formatNonNumericForDisplay(def, resolved);
+            return `
+              <div class="bst-row bst-row-non-numeric">
+                <div class="bst-label">
+                  <span>${escapeHtml(def.label)}</span>
+                </div>
+                <div class="bst-text-short-value" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(displayValue)}">${escapeHtml(displayValue)}</div>
+              </div>
+            `;
+          }
           const displayValue = resolved == null ? "not set" : formatNonNumericForDisplay(def, resolved);
           return `
             <div class="bst-row bst-row-non-numeric">
@@ -6162,6 +6188,17 @@ export function renderTracker(
                   </div>
                 `;
               }
+              if (def.kind === "text_short") {
+                const displayValueRaw = resolved == null ? "Not set" : formatNonNumericForDisplay(def, resolved);
+                return `
+                  <div class="bst-row bst-row-non-numeric">
+                    <div class="bst-label">
+                      ${showLabel ? `<span>${escapeHtml(statLabel)}</span>` : ""}
+                    </div>
+                    <div class="bst-text-short-value" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(displayValueRaw)}">${escapeHtml(displayValueRaw)}</div>
+                  </div>
+                `;
+              }
               if (def.kind === "date_time") {
                 const dateFormat =
                   display?.dateTimeDateFormat === "dmy" ||
@@ -6245,6 +6282,17 @@ export function renderTracker(
                       ? `<button type="button" class="bst-array-toggle" data-bst-action="toggle-array-values" data-bst-array-key="${escapeHtml(sceneArrayKey)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Show less" : `+${items.length - arrayLimit} more`}</button>`
                       : ""}
                   </div>
+                </div>
+              `;
+            }
+            if (def.kind === "text_short") {
+              const displayValueRaw = resolved == null ? "Not set" : formatNonNumericForDisplay(def, resolved);
+              return `
+                <div class="bst-row bst-row-non-numeric">
+                  <div class="bst-label">
+                    ${showLabel ? `<span>${escapeHtml(statLabel)}</span>` : ""}
+                  </div>
+                  <div class="bst-text-short-value" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(displayValueRaw)}">${escapeHtml(displayValueRaw)}</div>
                 </div>
               `;
             }
@@ -6353,6 +6401,30 @@ export function renderTracker(
         root.appendChild(card);
       }
     };
+    const syncThoughtOverflowIn = (host: ParentNode | null | undefined): void => {
+      if (!host) return;
+      host.querySelectorAll<HTMLElement>('[data-bst-thought-container="1"]').forEach(container => {
+        const key = String(container.getAttribute("data-bst-thought-key") ?? "").trim();
+        const textNode = container.querySelector<HTMLElement>(".bst-thought-text, .bst-mood-bubble-text");
+        const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-thought"]');
+        if (!textNode || !toggle) return;
+        const overflowing = hasThoughtOverflow({
+          scrollHeight: textNode.scrollHeight,
+          clientHeight: textNode.clientHeight,
+          scrollWidth: textNode.scrollWidth,
+          clientWidth: textNode.clientWidth,
+        });
+        if (!overflowing) {
+          if (key) expandedThoughtKeys.delete(key);
+          container.classList.remove("bst-thought-expanded");
+          toggle.hidden = true;
+          toggle.setAttribute("aria-expanded", "false");
+          toggle.textContent = "More thought";
+          return;
+        }
+        toggle.hidden = false;
+      });
+    };
     if (sceneRoot) {
       const sceneSignature = `sceneRoot:${sceneCardVisible ? "1" : "0"}:${sceneCollapsed ? "1" : "0"}:${sceneCardHtml}`;
       if (sceneRoot.dataset.bstRenderPhase !== "idle" || sceneRoot.dataset.bstRenderSignature !== sceneSignature) {
@@ -6368,6 +6440,8 @@ export function renderTracker(
       root.appendChild(inlineSceneHost);
       appendSceneCard(inlineSceneHost);
       appendOwnerCards();
+      syncThoughtOverflowIn(inlineSceneHost);
+      syncThoughtOverflowIn(root);
     } else {
       appendOwnerCards();
       if (sceneCardVisible && !sceneRoot) {
@@ -6375,8 +6449,11 @@ export function renderTracker(
         inlineSceneHost.className = "bst-inline-scene-host";
         root.appendChild(inlineSceneHost);
         appendSceneCard(inlineSceneHost);
+        syncThoughtOverflowIn(inlineSceneHost);
       }
+      syncThoughtOverflowIn(root);
     }
+    syncThoughtOverflowIn(sceneRoot);
   }
 }
 

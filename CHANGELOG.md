@@ -6,6 +6,12 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed custom array stat editing so changing `Item Max Length` now saves and restores correctly instead of reading the hidden text-stat max-length field from another wizard panel.
 
+## [2.2.4.16-exp211] - 2026-03-30
+### Fixed
+- Experimental manual user-tracker edits now preserve the explicit user owner alongside resolver-backed scene continuity, so saving a user card no longer makes that card fall into `Inactive`.
+- Experimental tracker cards now render long `short_text` custom-stat values as wrapped multiline text, and `Thought` no longer shows a dead `More thought` control when there is no real overflow to expand.
+- Experimental extraction prompts now split target-card context from non-target card context and keep legacy included character-card text out of the recent-message block, so user extraction stops copying character-card traits into user state and target character extraction stops mixing in other characters' cards.
+
 ## [2.2.4.16-exp209] - 2026-03-29
 ### Fixed
 - Experimental mixed-group Camp replies now keep scene-only participants in the registry-backed display pool when the chat is rendering the full group scene, so known non-speaking members like Chloe no longer disappear from tracker cards just because they have no fresh stats on that specific reply.

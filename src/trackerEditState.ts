@@ -1,3 +1,4 @@
+import { USER_TRACKER_KEY } from "./constants";
 import { resolveTrackerSceneOwners } from "./entityRegistry";
 import type {
   ClearedCustomNonNumericStatistics,
@@ -114,9 +115,14 @@ export function applyEditedTrackerActiveState(
 export function buildEditedTrackerDataSnapshot(input: BuildEditedTrackerDataSnapshotInput): TrackerData {
   const current = input.current;
   const resolvedSceneOwners = resolveTrackerSceneOwners(null, current);
+  const inputHasUserOwner = (input.activeCharacters ?? []).some(owner => normalizeNameKey(owner) === normalizeNameKey(USER_TRACKER_KEY));
+  const nextActiveCharacters = resolvedSceneOwners.length ? [...resolvedSceneOwners] : [...input.activeCharacters];
+  if (inputHasUserOwner && !nextActiveCharacters.some(owner => normalizeNameKey(owner) === normalizeNameKey(USER_TRACKER_KEY))) {
+    nextActiveCharacters.push(USER_TRACKER_KEY);
+  }
   return {
     timestamp: input.timestamp,
-    activeCharacters: resolvedSceneOwners.length ? resolvedSceneOwners : [...input.activeCharacters],
+    activeCharacters: nextActiveCharacters,
     entityResolution: current.entityResolution ? structuredClone(current.entityResolution) : undefined,
     statistics: input.statistics,
     statisticsByEntityId: current.statisticsByEntityId ? structuredClone(current.statisticsByEntityId) : undefined,

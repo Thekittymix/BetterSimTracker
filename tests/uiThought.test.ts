@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderThoughtMarkup, shouldEnableThoughtExpand } from "../src/uiThought";
+import { hasThoughtOverflow, renderThoughtMarkup, shouldEnableThoughtExpand } from "../src/uiThought";
 
 test("shouldEnableThoughtExpand enables for long one-line text", () => {
   const longBubble = "a".repeat(111);
@@ -36,4 +36,25 @@ test("renderThoughtMarkup renders escaped text and proper toggle state", () => {
   assert.match(htmlExpanded, /bst-thought-expanded/);
   assert.match(htmlExpanded, /Less thought/);
   assert.match(htmlExpanded, /aria-expanded="true"/);
+});
+
+test("hasThoughtOverflow only reports real rendered overflow", () => {
+  assert.equal(hasThoughtOverflow({
+    scrollHeight: 120,
+    clientHeight: 80,
+    scrollWidth: 0,
+    clientWidth: 0,
+  }), true);
+  assert.equal(hasThoughtOverflow({
+    scrollHeight: 80,
+    clientHeight: 80,
+    scrollWidth: 120,
+    clientWidth: 80,
+  }), true);
+  assert.equal(hasThoughtOverflow({
+    scrollHeight: 80,
+    clientHeight: 80,
+    scrollWidth: 80,
+    clientWidth: 80,
+  }), false);
 });
