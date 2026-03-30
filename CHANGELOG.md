@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp216] - 2026-03-30
+### Fixed
+- Experimental tracker card expand controls now force the same compact pill chrome for both `short_text` and `Thought`, so SillyTavern button styling no longer leaves `More thought` with a different radius/shape than the small `More` control.
+
 ## [2.2.4.16-exp210] - 2026-03-30
 ### Fixed
 - Fixed custom array stat editing so changing `Item Max Length` now saves and restores correctly instead of reading the hidden text-stat max-length field from another wizard panel.

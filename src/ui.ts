@@ -2594,16 +2594,19 @@ export function ensureStyles(): void {
 }
 .bst-expand-toggle {
   margin-top: 8px;
-  display: inline-flex;
+  display: inline-flex !important;
   align-items: center;
   justify-content: center;
   align-self: flex-start;
   appearance: none;
   -webkit-appearance: none;
-  border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 999px;
-  background: rgba(10, 15, 24, 0.72);
-  color: #ffffff;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  border-radius: 999px !important;
+  background: rgba(10, 15, 24, 0.72) !important;
+  color: #ffffff !important;
   font-size: 11px;
   line-height: 1;
   padding: 4px 8px;
