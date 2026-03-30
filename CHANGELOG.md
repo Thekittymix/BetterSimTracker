@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp218] - 2026-03-30
+### Fixed
+- Experimental thought toggles now get a deferred post-render overflow resync and are forced out of layout when there is no real overflow, so transient render states no longer leave a visible dead `More` button on fully visible thoughts.
+
 ## [2.2.4.16-exp217] - 2026-03-30
 ### Fixed
 - Experimental `Thought` expand controls now use the same `More`/`Less` label as other expandable tracker text and ignore tiny measurement noise, so the toggle no longer appears when there is no extra thought text to reveal.

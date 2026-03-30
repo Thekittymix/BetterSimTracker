@@ -1117,6 +1117,7 @@ const expandedTextShortKeys = new Set<string>();
 const renderedCardKeys = new Set<string>();
 let overflowResyncBound = false;
 let overflowResyncScheduled = false;
+let deferredOverflowResyncScheduled = false;
 export const EDIT_STATS_BACKDROP_CLASS = "bst-edit-backdrop";
 export const EDIT_STATS_MODAL_CLASS = "bst-edit-modal";
 export const EDIT_STATS_DIALOG_CLASS = "bst-edit-dialog";
@@ -1155,6 +1156,7 @@ function syncRenderedExpandableOverflowState(): void {
         container.classList.remove("bst-thought-expanded");
       }
       toggle.hidden = state.hidden;
+      toggle.style.display = state.hidden ? "none" : "inline-flex";
       toggle.setAttribute("aria-expanded", state.ariaExpanded);
       toggle.textContent = state.label;
     });
@@ -1177,6 +1179,7 @@ function syncRenderedExpandableOverflowState(): void {
         container.classList.remove("bst-text-short-expanded");
       }
       toggle.hidden = state.hidden;
+      toggle.style.display = state.hidden ? "none" : "inline-flex";
       toggle.setAttribute("aria-expanded", state.ariaExpanded);
       toggle.textContent = state.label;
     });
@@ -1184,6 +1187,17 @@ function syncRenderedExpandableOverflowState(): void {
   document.querySelectorAll<HTMLElement>(`.${ROOT_CLASS}, .bst-scene-root`).forEach(host => {
     syncThoughtOverflowIn(host);
     syncTextShortOverflowIn(host);
+  });
+}
+
+function scheduleDeferredOverflowResync(): void {
+  if (deferredOverflowResyncScheduled || typeof window === "undefined") return;
+  deferredOverflowResyncScheduled = true;
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      deferredOverflowResyncScheduled = false;
+      syncRenderedExpandableOverflowState();
+    });
   });
 }
 
@@ -6637,6 +6651,7 @@ export function renderTracker(
     syncThoughtOverflowIn(sceneRoot);
     syncTextShortOverflowIn(sceneRoot);
     bindOverflowResyncEvents();
+    scheduleDeferredOverflowResync();
   }
 }
 
