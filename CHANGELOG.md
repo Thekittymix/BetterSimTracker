@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.2.4.16-exp220] - 2026-03-30
+### Fixed
+- Experimental thought cards now reuse the `short_text` overflow-state resolver and matching text-box layout rules, so thought expand visibility follows the same measurement path as the already working custom short-text cards.
+
 ## [2.2.4.16-exp219] - 2026-03-30
 ### Fixed
 - Experimental thought text now uses the same wrapping and overflow-state resolver as `short_text`, so thought expand buttons follow the same measurement path instead of a separate divergent implementation.

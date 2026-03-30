@@ -1138,6 +1138,31 @@ const AUTO_CARD_COLOR_CACHE_LIMIT = 300;
 const AUTO_CARD_MIN_HUE_DISTANCE = 24;
 
 function syncRenderedExpandableOverflowState(): void {
+  const applyExpandableToggleVisibility = (toggle: HTMLButtonElement, hidden: boolean): void => {
+    toggle.hidden = hidden;
+    toggle.toggleAttribute("hidden", hidden);
+    if (hidden) {
+      toggle.style.setProperty("display", "none", "important");
+      toggle.style.setProperty("visibility", "hidden", "important");
+      toggle.style.setProperty("pointer-events", "none", "important");
+      toggle.style.setProperty("margin-top", "0", "important");
+      toggle.style.setProperty("padding", "0", "important");
+      toggle.style.setProperty("border-width", "0", "important");
+      toggle.style.setProperty("min-height", "0", "important");
+      toggle.style.setProperty("height", "0", "important");
+      toggle.style.setProperty("overflow", "hidden", "important");
+    } else {
+      toggle.style.removeProperty("display");
+      toggle.style.removeProperty("visibility");
+      toggle.style.removeProperty("pointer-events");
+      toggle.style.removeProperty("margin-top");
+      toggle.style.removeProperty("padding");
+      toggle.style.removeProperty("border-width");
+      toggle.style.removeProperty("min-height");
+      toggle.style.removeProperty("height");
+      toggle.style.removeProperty("overflow");
+    }
+  };
   const syncThoughtOverflowIn = (host: ParentNode | null | undefined): void => {
     if (!host) return;
     host.querySelectorAll<HTMLElement>('[data-bst-thought-container="1"]').forEach(container => {
@@ -1155,8 +1180,7 @@ function syncRenderedExpandableOverflowState(): void {
         if (key) expandedThoughtKeys.delete(key);
         container.classList.remove("bst-thought-expanded");
       }
-      toggle.hidden = state.hidden;
-      toggle.style.display = state.hidden ? "none" : "inline-flex";
+      applyExpandableToggleVisibility(toggle, state.hidden);
       toggle.setAttribute("aria-expanded", state.ariaExpanded);
       toggle.textContent = state.label;
     });
@@ -1178,8 +1202,7 @@ function syncRenderedExpandableOverflowState(): void {
         if (key) expandedTextShortKeys.delete(key);
         container.classList.remove("bst-text-short-expanded");
       }
-      toggle.hidden = state.hidden;
-      toggle.style.display = state.hidden ? "none" : "inline-flex";
+      applyExpandableToggleVisibility(toggle, state.hidden);
       toggle.setAttribute("aria-expanded", state.ariaExpanded);
       toggle.textContent = state.label;
     });
