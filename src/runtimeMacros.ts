@@ -669,6 +669,9 @@ export function syncBstMacros(input: {
     avatar: target.avatar,
   }));
   const currentCharacterTarget = resolveCurrentCharacterMacroTarget(context, characterTargets);
+  const currentCharacterTargetSignature = currentCharacterTarget
+    ? `${currentCharacterTarget.ownerName}:${currentCharacterTarget.entityId ?? ""}:${currentCharacterTarget.macroSlug}:${currentCharacterTarget.legacyNameSlug ?? ""}:${currentCharacterTarget.avatar ?? ""}`
+    : "none";
   const characterSignature = characterTargets
     .map(target => `${target.ownerName}:${target.entityId ?? ""}:${target.macroSlug}:${target.legacyNameSlug ?? ""}:${target.avatar ?? ""}`)
     .join("|");
@@ -694,6 +697,7 @@ export function syncBstMacros(input: {
       .join("|"),
     customStatIds.join("|"),
     characterSignature,
+    currentCharacterTargetSignature,
   ].join("::");
   if (signature === bstMacroSignature && registeredBstMacros.size > 0) {
     lastBstMacroDebugSnapshot = {
