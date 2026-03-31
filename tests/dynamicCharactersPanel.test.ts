@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { listManageableDynamicCharacters } from "../src/dynamicCharactersPanel";
+import { listManageableDynamicCharacters, renderDynamicCharactersDialogMarkup } from "../src/dynamicCharactersPanel";
 import { syncEntityRegistryFromRender, setEntityRegistryCardColor, setEntityRegistryLifecycleOverride } from "../src/entityRegistry";
 import type { BetterSimTrackerSettings, STContext } from "../src/types";
 
@@ -183,4 +183,27 @@ test("listManageableDynamicCharacters includes archived entries and card colors"
   const refreshed = listManageableDynamicCharacters(context, makeSettings("dynamic_characters"));
   assert.equal(refreshed[0]?.lifecycleState, "archived");
   assert.equal(refreshed[0]?.cardColor, "#abcdef");
+});
+
+test("renderDynamicCharactersDialogMarkup reuses BST modal and color input patterns", () => {
+  const markup = renderDynamicCharactersDialogMarkup([
+    {
+      entityId: "bst_mc_alias:camp:ashley",
+      ownerName: "Ashley",
+      lifecycleState: "active",
+      cardColor: "#abcdef",
+      kind: "multi_character_alias",
+      introducedAtMessageIndex: 0,
+      lastSeenMessageIndex: 3,
+    },
+  ]);
+
+  assert.match(markup, /bst-edit-head bst-surface-header/);
+  assert.match(markup, /bst-close-btn/);
+  assert.match(markup, /bst-custom-stat-row/);
+  assert.match(markup, /bst-custom-stat-flag/);
+  assert.match(markup, /bst-color-inputs/);
+  assert.match(markup, /Card Color/);
+  assert.doesNotMatch(markup, /bst-dynamic-color-preview/);
+  assert.doesNotMatch(markup, />Close</);
 });

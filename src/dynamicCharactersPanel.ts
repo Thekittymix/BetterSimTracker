@@ -10,7 +10,13 @@ import type {
   TrackerEntityLifecycleState,
   TrackerEntityRegistryEntry,
 } from "./types";
-import { ensureStyles, escapeHtml, normalizeHexColor } from "./ui";
+import {
+  EDIT_STATS_DIALOG_CLASS,
+  EDIT_STATS_MODAL_CLASS,
+  ensureStyles,
+  escapeHtml,
+  normalizeHexColor,
+} from "./ui";
 
 const OPTION_ID = "bst-option-dynamic-characters";
 const DIALOG_ID = "bst-dynamic-characters-dialog";
@@ -31,115 +37,60 @@ function ensurePanelStyles(): void {
   const style = document.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `
-.bst-dynamic-dialog {
-  width: min(680px, calc(100vw - 32px));
-  max-width: min(680px, calc(100vw - 32px));
-  border: 1px solid rgba(168, 203, 245, 0.24);
-  border-radius: 18px;
-  padding: 0;
-  background:
-    radial-gradient(circle at top left, rgba(103, 168, 255, 0.15), transparent 34%),
-    linear-gradient(180deg, rgba(16, 21, 33, 0.98), rgba(12, 17, 28, 0.98));
-  color: #f3f5f9;
-  box-shadow: 0 28px 80px rgba(0,0,0,0.55);
+.bst-dynamic-dialog.bst-edit-dialog {
+  z-index: 2147483647;
 }
-.bst-dynamic-dialog::backdrop {
-  background: rgba(4, 8, 14, 0.66);
-  backdrop-filter: blur(2px);
-}
-.bst-dynamic-dialog-body {
-  padding: 18px 18px 16px;
+.bst-dynamic-dialog-modal.bst-edit-modal {
+  width: min(860px, calc(100vw - 20px));
   display: grid;
   gap: 12px;
-}
-.bst-dynamic-dialog-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-.bst-dynamic-dialog-title {
-  font-size: 17px;
-  font-weight: 700;
-}
-.bst-dynamic-dialog-subtitle {
-  margin-top: 4px;
-  font-size: 12px;
-  color: rgba(220, 235, 255, 0.74);
-}
-.bst-dynamic-dialog-close {
-  flex: 0 0 auto;
 }
 .bst-dynamic-list {
   display: grid;
   gap: 10px;
 }
-.bst-dynamic-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px 14px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(188, 212, 242, 0.22);
-  background: rgba(255,255,255,0.04);
+.bst-dynamic-item.bst-custom-stat-row {
+  align-items: stretch;
 }
-.bst-dynamic-item-main {
-  min-width: 0;
-  display: grid;
-  gap: 8px;
+.bst-dynamic-item-main.bst-custom-stat-main {
+  gap: 6px;
 }
 .bst-dynamic-item-title-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.bst-dynamic-item-name {
-  font-size: 14px;
-  font-weight: 700;
-  color: #f7fbff;
-}
-.bst-dynamic-item-meta {
-  font-size: 12px;
-  color: rgba(220, 235, 255, 0.72);
-}
-.bst-dynamic-item-actions {
-  display: flex;
-  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.bst-dynamic-item-actions.bst-custom-stat-actions {
+  min-width: min(320px, 100%);
+  display: grid;
+  gap: 8px;
+  align-content: flex-start;
+}
+.bst-dynamic-color-field {
+  min-width: min(280px, 100%);
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: rgba(241, 246, 255, 0.94);
+}
+.bst-dynamic-color-field .bst-color-inputs {
+  margin-top: 0;
+}
+.bst-dynamic-item-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-end;
 }
-.bst-dynamic-color-preview {
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.35);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
-}
-.bst-dynamic-color-picker {
-  width: 32px;
-  height: 28px;
-  padding: 0;
-  border-radius: 999px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.28);
-  background: rgba(255,255,255,0.06);
-  cursor: pointer;
-}
-.bst-dynamic-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
-.bst-dynamic-color-picker::-webkit-color-swatch,
-.bst-dynamic-color-picker::-moz-color-swatch {
-  border: 0;
-  border-radius: 999px;
-}
 .bst-dynamic-empty {
-  padding: 18px 16px;
-  border-radius: 16px;
-  border: 1px dashed rgba(188, 212, 242, 0.26);
-  color: rgba(220, 235, 255, 0.78);
-  background: rgba(255,255,255,0.03);
-  font-size: 13px;
+  border: 1px dashed rgba(255,255,255,0.2);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.82;
+  background: rgba(6, 10, 18, 0.44);
 }
 `;
   document.head.appendChild(style);
@@ -153,6 +104,16 @@ function lifecycleRank(state: TrackerEntityLifecycleState): number {
   if (state === "active") return 0;
   if (state === "inactive") return 1;
   return 2;
+}
+
+function statusLabel(state: TrackerEntityLifecycleState): string {
+  if (state === "active") return "Active";
+  if (state === "inactive") return "Inactive";
+  return "Archived";
+}
+
+function colorInputValue(cardColor: string | null): string {
+  return normalizeHexColor(cardColor) ?? "#66ccff";
 }
 
 export function listManageableDynamicCharacters(
@@ -188,10 +149,44 @@ export function listManageableDynamicCharacters(
     });
 }
 
-function statusLabel(state: TrackerEntityLifecycleState): string {
-  if (state === "active") return "Active";
-  if (state === "inactive") return "Inactive";
-  return "Archived";
+export function renderDynamicCharactersDialogMarkup(items: DynamicCharactersManagerItem[]): string {
+  return `
+    <div class="bst-edit-head bst-surface-header">
+      <div class="bst-surface-header-copy">
+        <div class="bst-surface-title">Dynamic Characters</div>
+        <div class="bst-surface-subtitle">Manage archive state and card color for this chat's dynamic characters.</div>
+      </div>
+      <div class="bst-surface-actions">
+        <button type="button" class="bst-btn bst-btn-soft bst-close-btn" data-bst-dynamic-action="close" aria-label="Close dynamic characters manager">&times;</button>
+      </div>
+    </div>
+    <div class="bst-dynamic-list">
+      ${items.length ? items.map(item => `
+        <div class="bst-dynamic-item bst-custom-stat-row" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">
+          <div class="bst-dynamic-item-main bst-custom-stat-main">
+            <div class="bst-dynamic-item-title-row bst-custom-stat-title">
+              <span>${escapeHtml(item.ownerName)}</span>
+              <span class="bst-custom-stat-flag">${escapeHtml(statusLabel(item.lifecycleState))}</span>
+            </div>
+            <div class="bst-custom-stat-meta">First seen at message #${item.introducedAtMessageIndex} &middot; Last seen #${item.lastSeenMessageIndex}</div>
+          </div>
+          <div class="bst-dynamic-item-actions bst-custom-stat-actions">
+            <label class="bst-dynamic-color-field">
+              <span>Card Color</span>
+              <div class="bst-color-inputs">
+                <input type="color" value="${escapeHtml(colorInputValue(item.cardColor))}" data-bst-dynamic-action="color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color picker for ${escapeHtml(item.ownerName)}">
+                <input type="text" value="${escapeHtml(item.cardColor ?? "")}" placeholder="#66ccff" data-bst-dynamic-action="color-text" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color hex value for ${escapeHtml(item.ownerName)}">
+              </div>
+            </label>
+            <div class="bst-dynamic-item-action-row">
+              <button type="button" class="bst-btn bst-btn-soft" data-bst-dynamic-action="auto-color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">Auto</button>
+              <button type="button" class="bst-btn ${item.lifecycleState === "archived" ? "bst-btn-soft" : "bst-btn-danger"}" data-bst-dynamic-action="${item.lifecycleState === "archived" ? "restore" : "archive"}" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">${item.lifecycleState === "archived" ? "Restore" : "Archive"}</button>
+            </div>
+          </div>
+        </div>
+      `).join("") : `<div class="bst-dynamic-empty">No dynamic characters are currently tracked in this chat.</div>`}
+    </div>
+  `;
 }
 
 export function initDynamicCharactersPanel(input: {
@@ -224,35 +219,10 @@ export function initDynamicCharactersPanel(input: {
 
     const dialog = document.createElement("dialog");
     dialog.id = DIALOG_ID;
-    dialog.className = "bst-dynamic-dialog";
+    dialog.className = `${EDIT_STATS_DIALOG_CLASS} bst-dynamic-dialog`;
     dialog.innerHTML = `
-      <div class="bst-dynamic-dialog-body">
-        <div class="bst-dynamic-dialog-header">
-          <div>
-            <div class="bst-dynamic-dialog-title">Dynamic Characters</div>
-            <div class="bst-dynamic-dialog-subtitle">Manage archive state and card color for this chat's dynamic characters.</div>
-          </div>
-          <button type="button" class="bst-btn bst-btn-soft bst-dynamic-dialog-close" data-bst-dynamic-action="close">Close</button>
-        </div>
-        <div class="bst-dynamic-list">
-          ${items.length ? items.map(item => `
-            <div class="bst-dynamic-item" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">
-              <div class="bst-dynamic-item-main">
-                <div class="bst-dynamic-item-title-row">
-                  <span class="bst-dynamic-item-name">${escapeHtml(item.ownerName)}</span>
-                  <span class="bst-status ${item.lifecycleState === "active" ? "bst-status-active" : (item.lifecycleState === "inactive" ? "bst-status-inactive" : "bst-status-archived")}">${escapeHtml(statusLabel(item.lifecycleState))}</span>
-                </div>
-                <div class="bst-dynamic-item-meta">Introduced at message #${item.introducedAtMessageIndex} · Last seen #${item.lastSeenMessageIndex}</div>
-              </div>
-              <div class="bst-dynamic-item-actions">
-                <span class="bst-dynamic-color-preview" style="background:${escapeHtml(item.cardColor ?? "#1f2028")};"></span>
-                <input class="bst-dynamic-color-picker" type="color" value="${escapeHtml(item.cardColor ?? "#1f2028")}" data-bst-dynamic-action="color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color for ${escapeHtml(item.ownerName)}">
-                <button type="button" class="bst-btn bst-btn-soft" data-bst-dynamic-action="auto-color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">Auto</button>
-                <button type="button" class="bst-btn ${item.lifecycleState === "archived" ? "bst-btn-soft" : "bst-btn-danger"}" data-bst-dynamic-action="${item.lifecycleState === "archived" ? "restore" : "archive"}" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">${item.lifecycleState === "archived" ? "Restore" : "Archive"}</button>
-              </div>
-            </div>
-          `).join("") : `<div class="bst-dynamic-empty">No dynamic characters are currently tracked in this chat.</div>`}
-        </div>
+      <div class="${EDIT_STATS_MODAL_CLASS} bst-dynamic-dialog-modal">
+        ${renderDynamicCharactersDialogMarkup(items)}
       </div>
     `;
 
@@ -284,13 +254,16 @@ export function initDynamicCharactersPanel(input: {
 
     dialog.addEventListener("change", event => {
       const target = event.target as HTMLInputElement | null;
-      if (!target || target.getAttribute("data-bst-dynamic-action") !== "color") return;
+      if (!target) return;
       const liveContext = input.getContext();
       const entityId = String(target.getAttribute("data-bst-dynamic-entity") ?? "").trim();
       if (!liveContext || !entityId) return;
-      if (setEntityRegistryCardColor(liveContext, entityId, target.value)) {
-        input.onStateChanged();
-        renderDialog();
+      const action = String(target.getAttribute("data-bst-dynamic-action") ?? "").trim();
+      if (action === "color" || action === "color-text") {
+        if (setEntityRegistryCardColor(liveContext, entityId, target.value)) {
+          input.onStateChanged();
+          renderDialog();
+        }
       }
     });
 

@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0-dev2] - 2026-03-31
+### Changed
+- Restyled the `Dynamic Characters` manager to reuse the existing BST modal, row, and color-input UI patterns instead of a bespoke dialog layout.
+
 ## [2.5.0-dev1] - 2026-03-31
 ### Added
 - Added a `Dynamic Characters` manager under the chat options menu for the current chat.
