@@ -150,6 +150,36 @@ function shouldSkipAggregateSourceMacroTarget(
   return aliases.length >= 2;
 }
 
+function shouldSkipAggregateSourceMacroTargetFromSnapshot(
+  data: TrackerData | null,
+  ownerName: string,
+  entityId: string | null,
+): boolean {
+  if (entityId || !data?.entityOwnerMap || typeof data.entityOwnerMap !== "object") return false;
+  const normalizedOwner = normalizeName(ownerName);
+  if (!normalizedOwner) return false;
+  const aliasEntries = Object.values(data.entityOwnerMap)
+    .filter(entry => entry?.kind === "multi_character_alias")
+    .filter(entry => String(entry?.entityId ?? "").trim());
+  if (aliasEntries.length < 2) return false;
+  const grouped = new Map<string, typeof aliasEntries>();
+  for (const entry of aliasEntries) {
+    const sourceKey = String(entry?.sourceKey ?? "").trim().toLowerCase();
+    if (!sourceKey) continue;
+    const bucket = grouped.get(sourceKey) ?? [];
+    bucket.push(entry);
+    grouped.set(sourceKey, bucket);
+  }
+  for (const [sourceKey, entries] of grouped.entries()) {
+    if (entries.length < 2) continue;
+    const [, rawSourceName = ""] = sourceKey.split("|");
+    if (normalizeName(rawSourceName) !== normalizedOwner) continue;
+    if (entries.some(entry => normalizeName(entry?.ownerName) === normalizedOwner)) return false;
+    return true;
+  }
+  return false;
+}
+
 function buildCharacterMacroTargets(
   context: STContext,
   settings: BetterSimTrackerSettings,
@@ -171,6 +201,9 @@ function buildCharacterMacroTargets(
     const ownerKey = normalizeName(identity.ownerName || ownerName);
     if (!entityId && seenOwnerKeys.has(ownerKey)) continue;
     seenOwnerKeys.add(ownerKey);
+    if (shouldSkipAggregateSourceMacroTargetFromSnapshot(data, identity.ownerName || ownerName, entityId || null)) {
+      continue;
+    }
     if (shouldSkipAggregateSourceMacroTarget(context, settings, identity.ownerName || ownerName, entityId || null)) {
       continue;
     }

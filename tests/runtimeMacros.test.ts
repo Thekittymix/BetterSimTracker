@@ -929,6 +929,71 @@ test("syncBstMacros refreshes bare character macro when the mixed-scene current 
   assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "{{bst_stat_char_clothes}}");
 });
 
+test("syncBstMacros does not register aggregate source-owner macros when entityOwnerMap already provides multi-character aliases", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const settings = {
+    ...makeSettings(),
+    entityTrackingMode: "dynamic_characters" as const,
+  };
+
+  context.characterId = 1;
+  context.name2 = "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh";
+  context.characters = [
+    { name: "Billie", avatar: "Billie.png" } as any,
+    { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png" } as any,
+  ];
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+    }),
+    entityOwnerMap: {
+      Ashley: { entityId: "ent-ashley", ownerName: "Ashley", canonicalName: "Ashley", aliases: ["Ashley"], sourceKey: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", kind: "multi_character_alias" },
+      Blake: { entityId: "ent-blake", ownerName: "Blake", canonicalName: "Blake", aliases: ["Blake"], sourceKey: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", kind: "multi_character_alias" },
+      Garret: { entityId: "ent-garret", ownerName: "Garret", canonicalName: "Garret", aliases: ["Garret"], sourceKey: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", kind: "multi_character_alias" },
+      Raleigh: { entityId: "ent-raleigh", ownerName: "Raleigh", canonicalName: "Raleigh", aliases: ["Raleigh"], sourceKey: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", kind: "multi_character_alias" },
+    },
+    statistics: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    statisticsByEntityId: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: { clothes: {} },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn oversized hoodie"],
+        "ent-blake": ["oversized dark shirt"],
+        "ent-garret": ["leather jacket"],
+        "ent-raleigh": ["preppy shirt"],
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      USER_TRACKER_KEY,
+    ],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.has("bst_stat_char_clothes_camp_whispering_pines_ashley_blake_garret_raleigh"), false);
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "\\{\\{bst_stat_char_clothes\\}\\}");
+  assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "{{bst_stat_char_clothes}}");
+});
+
 test("syncBstMacros keeps character stat macros scoped to the current entity id instead of stale same-name registry aliases", () => {
   const { context, registeredNewEngine } = makeContext();
   context.name2 = "Blake";
