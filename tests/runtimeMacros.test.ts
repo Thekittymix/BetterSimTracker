@@ -942,6 +942,34 @@ test("syncBstMacros does not register aggregate source-owner macros when entityO
     { name: "Billie", avatar: "Billie.png" } as any,
     { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png" } as any,
   ];
+  (context as STContext & { chatMetadata?: unknown }).chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_owner:camp": {
+          id: "bst_owner:camp",
+          ownerName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          canonicalName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceKey: "camp whispering pines  ashley, blake, garret, & raleigh.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "owner",
+        },
+        "ent-ashley": {
+          id: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          sourceKey: "camp whispering pines  ashley, blake, garret, & raleigh.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+        },
+        "ent-blake": {
+          id: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          sourceKey: "camp whispering pines  ashley, blake, garret, & raleigh.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+        },
+      },
+    },
+  };
 
   const tracker: TrackerData = {
     timestamp: 1,

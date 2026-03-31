@@ -151,13 +151,43 @@ function shouldSkipAggregateSourceMacroTarget(
 }
 
 function shouldSkipAggregateSourceMacroTargetFromSnapshot(
+  context: STContext,
   data: TrackerData | null,
   ownerName: string,
   entityId: string | null,
 ): boolean {
-  if (entityId || !data?.entityOwnerMap || typeof data.entityOwnerMap !== "object") return false;
   const normalizedOwner = normalizeName(ownerName);
   if (!normalizedOwner) return false;
+
+  const registryEntities = (
+    context.chatMetadata as { bstEntityRegistry?: { entities?: Record<string, {
+      ownerName?: string;
+      canonicalName?: string;
+      sourceKey?: string;
+      kind?: string;
+    }> } } | undefined
+  )?.bstEntityRegistry?.entities;
+  if (registryEntities && typeof registryEntities === "object") {
+    const entries = Object.values(registryEntities);
+    const ownerEntry = entries.find(entry =>
+      entry?.kind === "owner"
+      && normalizeName(entry?.ownerName) === normalizedOwner,
+    );
+    if (ownerEntry) {
+      const ownerSourceKey = String(ownerEntry.sourceKey ?? "").trim().toLowerCase();
+      if (ownerSourceKey) {
+        const aliasCount = entries.filter(entry =>
+          entry?.kind === "multi_character_alias"
+          && String(entry?.sourceKey ?? "").trim().toLowerCase() === ownerSourceKey,
+        ).length;
+        if (aliasCount >= 2) {
+          return true;
+        }
+      }
+    }
+  }
+
+  if (entityId || !data?.entityOwnerMap || typeof data.entityOwnerMap !== "object") return false;
   const aliasEntries = Object.values(data.entityOwnerMap)
     .filter(entry => entry?.kind === "multi_character_alias")
     .filter(entry => String(entry?.entityId ?? "").trim());
@@ -201,7 +231,7 @@ function buildCharacterMacroTargets(
     const ownerKey = normalizeName(identity.ownerName || ownerName);
     if (!entityId && seenOwnerKeys.has(ownerKey)) continue;
     seenOwnerKeys.add(ownerKey);
-    if (shouldSkipAggregateSourceMacroTargetFromSnapshot(data, identity.ownerName || ownerName, entityId || null)) {
+    if (shouldSkipAggregateSourceMacroTargetFromSnapshot(context, data, identity.ownerName || ownerName, entityId || null)) {
       continue;
     }
     if (shouldSkipAggregateSourceMacroTarget(context, settings, identity.ownerName || ownerName, entityId || null)) {
