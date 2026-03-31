@@ -1615,8 +1615,10 @@ function getResolvedCardColor(
   settings: BetterSimTrackerSettings,
   characterName: string,
   characterAvatar?: string,
-  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind" | "cardColor"> | null,
 ): string | null {
+  const registryColor = normalizeHexColor(registryEntry?.cardColor);
+  if (registryColor) return registryColor;
   if (!shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)) {
     return null;
   }

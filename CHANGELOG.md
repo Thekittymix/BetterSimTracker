@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0-dev1] - 2026-03-31
+### Added
+- Added a `Dynamic Characters` manager under the chat options menu for the current chat.
+
+### Fixed
+- Dynamic character cards can now be archived, restored, and given a chat-scoped card color directly from the manager without duplicating tracker edit controls.
+
 ## [2.5.0] - 2026-03-31
 ### Added
 - Added `Dynamic Characters` mode for chats with multiple character participants.

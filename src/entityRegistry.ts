@@ -66,6 +66,13 @@ function uniqueStrings(values: string[]): string[] {
   return out;
 }
 
+function normalizeHexColor(raw: unknown): string | null {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+  const normalized = value.startsWith("#") ? value : `#${value}`;
+  return /^#(?:[0-9a-fA-F]{6})$/.test(normalized) ? normalized.toLowerCase() : null;
+}
+
 export function buildEntitySourceKey(sourceName: string, sourceAvatar: string | null): string {
   return `${normalizeKey(sourceAvatar ?? "")}|${normalizeKey(sourceName)}`;
 }
@@ -232,6 +239,7 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
       const archivedAtMessageIndex = entry.archivedAtMessageIndex == null
         ? null
         : (Number.isFinite(Number(entry.archivedAtMessageIndex)) ? Number(entry.archivedAtMessageIndex) : null);
+      const cardColor = normalizeHexColor(entry.cardColor);
       const lifecycleEvents = sanitizeLifecycleEvents(entry.lifecycleEvents, lifecycleState, introducedAtMessageIndex);
       if (!id || !ownerName || !canonicalName || !sourceName || !sourceKey) continue;
       entities[id] = {
@@ -248,6 +256,7 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
         lastActiveMessageIndex,
         lifecycleState,
         archivedAtMessageIndex,
+        cardColor: cardColor ?? undefined,
         lifecycleEvents,
       };
     }
@@ -582,6 +591,72 @@ export function syncNarrativeEntityRegistryFromResolvedEntities(input: {
 
 export function readEntityRegistry(context: STContext | null): TrackerEntityRegistry {
   return readRegistry(context);
+}
+
+export function setEntityRegistryLifecycleOverride(
+  context: STContext | null,
+  entityId: string,
+  messageIndex: number,
+  lifecycleState: TrackerEntityLifecycleState,
+): boolean {
+  if (!context || !Number.isFinite(messageIndex)) return false;
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return false;
+  const registry = readRegistry(context);
+  const entry = registry.entities[normalizedEntityId];
+  if (!entry) return false;
+
+  let changed = false;
+  if (upsertLifecycleEvent(entry, messageIndex, lifecycleState)) {
+    changed = true;
+  }
+  const derived = resolveDerivedLifecycleMetadata(entry);
+  if (entry.introducedAtMessageIndex !== derived.introducedAtMessageIndex) {
+    entry.introducedAtMessageIndex = derived.introducedAtMessageIndex;
+    changed = true;
+  }
+  if (entry.lastSeenMessageIndex !== derived.lastSeenMessageIndex) {
+    entry.lastSeenMessageIndex = derived.lastSeenMessageIndex;
+    changed = true;
+  }
+  if (entry.lastActiveMessageIndex !== derived.lastActiveMessageIndex) {
+    entry.lastActiveMessageIndex = derived.lastActiveMessageIndex;
+    changed = true;
+  }
+  if (entry.lifecycleState !== derived.lifecycleState) {
+    entry.lifecycleState = derived.lifecycleState;
+    changed = true;
+  }
+  if (entry.archivedAtMessageIndex !== derived.archivedAtMessageIndex) {
+    entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
+    changed = true;
+  }
+  if (!changed) return false;
+  writeRegistry(context, registry);
+  return true;
+}
+
+export function setEntityRegistryCardColor(
+  context: STContext | null,
+  entityId: string,
+  cardColor: string | null,
+): boolean {
+  if (!context) return false;
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return false;
+  const registry = readRegistry(context);
+  const entry = registry.entities[normalizedEntityId];
+  if (!entry) return false;
+  const normalizedColor = normalizeHexColor(cardColor);
+  const currentColor = normalizeHexColor(entry.cardColor);
+  if ((normalizedColor ?? null) === (currentColor ?? null)) return false;
+  if (normalizedColor) {
+    entry.cardColor = normalizedColor;
+  } else {
+    delete entry.cardColor;
+  }
+  writeRegistry(context, registry);
+  return true;
 }
 
 export function getEntityRegistryEntryByOwnerName(

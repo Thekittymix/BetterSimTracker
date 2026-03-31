@@ -16,6 +16,7 @@ It tracks character relationship stats over time, stores them per AI message, vi
 - Current ST builds use the modern macro engine path, reducing BST macro warning noise while keeping prompt macros working.
 - The settings modal is split into clearer sections (`Setup`, `Extraction`, `Context Sources`, `User Tracking`, `Prompt Injection`, `Tracking Schema`, `Display`, `Prompts`, `Diagnostics`) with cleaner subdrawer grouping.
 - Experimental builds expose `Entity Tracking Mode` with `Dynamic Characters`, keeping scene continuity separate from current-message speaker ownership while allowing conservative runtime-owned character entities without reusing ST character defaults or owner-specific runtime overrides as their source of truth.
+- Dev builds add a chat-scoped `Dynamic Characters` manager under the chat options menu for quick archive/restore and card-color control.
 - Character/persona defaults, mood-image integrations (BST + ST expressions), graphing, and diagnostics are built-in.
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dogzera)
@@ -27,6 +28,7 @@ It tracks character relationship stats over time, stores them per AI message, vi
 - Group chat support (multiple character cards in one message)
 - Experimental multi-character source-card mode for cards that represent multiple named characters, while keeping current speaker targeting separate from broader scene continuity
 - Experimental dynamic-character mode for conservative runtime-owned character entities that can be archived and later reactivated through the entity registry
+- Chat-scoped `Dynamic Characters` manager in the chat options menu for archive/restore and per-chat card color
 - Scene activity detection (active vs inactive character state)
 - Polished tracker action controls for `Collapse cards`, `Summarize`, and `Retrack`
 - Polished extension settings modal with sticky header/footer actions and one-click `Expand all` / `Collapse all` section control

@@ -134,6 +134,7 @@ import { cancelActiveGenerations, generateJson } from "./generator";
 import { registerSlashCommands } from "./slashCommands";
 import { initCharacterPanel } from "./characterPanel";
 import { initPersonaPanel } from "./personaPanel";
+import { initDynamicCharactersPanel } from "./dynamicCharactersPanel";
 import { extractLorebookEntriesFromPayload, readLorebookContext } from "./lorebook";
 import { normalizeDateTimeWithMode } from "./dateTime";
 import {
@@ -212,6 +213,7 @@ let pendingLateRenderStartLastAiIndex: number | null = null;
 let lateRenderPollTimer: number | null = null;
 let autoBootstrapExtractionKey: string | null = null;
 let promptRefreshController: ReturnType<typeof createPromptRefreshController> | null = null;
+let dynamicCharactersPanelController: ReturnType<typeof initDynamicCharactersPanel> | null = null;
 const BOOTSTRAP_CONTINUE_REASON = "AUTO_BOOTSTRAP_MISSING_TRACKER_CONTINUE";
 let userTurnGateActive = false;
 let userTurnGateMessageIndex: number | null = null;
@@ -4218,6 +4220,7 @@ function refreshFromStoredData(): void {
   });
   queuePromptSync(context);
   queueRender();
+  dynamicCharactersPanelController?.sync();
   upsertSettingsPanel({
     settings,
     onSave: patch => {
@@ -4930,6 +4933,12 @@ async function init(): Promise<void> {
     saveSettings: (ctx, next) => saveSettings(ctx, next),
     onSettingsUpdated: () => refreshFromStoredData(),
   });
+  dynamicCharactersPanelController = initDynamicCharactersPanel({
+    getContext: () => getSafeContext(),
+    getSettings: () => settings,
+    onStateChanged: () => refreshFromStoredData(),
+  });
+  dynamicCharactersPanelController.sync();
   exposeWindowApi();
   ensureSlashCommandsRegistered();
 }
