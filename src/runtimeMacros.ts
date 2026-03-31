@@ -351,7 +351,8 @@ function formatMacroValue(value: unknown): string {
 }
 
 function buildLiteralMacroEcho(name: string): string {
-  return `{{${String(name ?? "").trim()}}}`;
+  const normalized = String(name ?? "").trim();
+  return `\\{\\{${normalized}\\}\\}`;
 }
 
 function buildImageMacroStatDefs(settings: BetterSimTrackerSettings): ImageMacroStatDef[] {

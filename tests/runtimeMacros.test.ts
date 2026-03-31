@@ -27,11 +27,12 @@ function makeContext(options?: { includeNewEngine?: boolean }) {
       registered.delete(name);
     },
     substituteParams(value: string) {
-      return String(value ?? "").replace(/\{\{([^{}]+)\}\}/g, (_, rawName) => {
+      const resolved = String(value ?? "").replace(/\{\{([^{}]+)\}\}/g, (_, rawName) => {
         const name = String(rawName ?? "").trim();
         const handler = registeredNewEngine.get(name) ?? registered.get(name);
         return typeof handler === "function" ? handler() : `{{${name}}}`;
       });
+      return resolved.replace(/\\([{}])/g, "$1");
     },
   } as STContext & { substituteParams: (value: string) => string; macros?: unknown };
 
@@ -718,7 +719,8 @@ test("syncBstMacros registers explicit mixed-scene macros for alias and narrativ
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_blake")?.(), "oversized dark shirt");
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_elias_mercer")?.(), "heavy work boots, lantern");
   assert.equal(registeredNewEngine.has("bst_stat_char_clothes_camp_whispering_pines_ashley_blake_garret_raleigh"), false);
-  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "{{bst_stat_char_clothes}}");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "\\{\\{bst_stat_char_clothes\\}\\}");
+  assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "{{bst_stat_char_clothes}}");
 
   const previewCandidates = buildMacroPreviewCandidates({
     context,
@@ -842,8 +844,9 @@ test("syncBstMacros resets bare character macros to a literal fallback when swit
     getLastInjectedPrompt: () => "",
   });
 
-  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "{{bst_stat_char_clothes}}");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "\\{\\{bst_stat_char_clothes\\}\\}");
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_ashley")?.(), "worn oversized hoodie");
+  assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "{{bst_stat_char_clothes}}");
 });
 
 test("syncBstMacros keeps character stat macros scoped to the current entity id instead of stale same-name registry aliases", () => {
