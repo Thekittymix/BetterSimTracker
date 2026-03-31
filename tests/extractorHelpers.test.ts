@@ -1,19 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { defaultSettings } from "../src/settings";
 import {
   applyConfidenceScaledDelta,
+  buildNoActiveContinuityTrackerData,
+  buildPromptCurrentTrackerData,
   enabledBuiltInAndTextStats,
   enabledCustomStats,
   groupCustomStatsForSequential,
   isManualExtractionReason,
   normalizeSequentialGroupId,
+  overlayLatestOwnerScopedContinuity,
   resolveBaselineBeforeIndex,
   resolveMoodWithConfidence,
+  selectNoActiveContinuityTrackerEntry,
   shouldBypassConfidenceControls,
 } from "../src/extractorHelpers";
-import { overlayLatestOwnerScopedContinuity } from "../src/extractionBaselineHelpers";
+import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
 import type { BetterSimTrackerSettings, CustomStatDefinition } from "../src/types";
 
 function makeSettings(overrides: Partial<BetterSimTrackerSettings> = {}): BetterSimTrackerSettings {
@@ -164,77 +169,352 @@ test("resolveBaselineBeforeIndex excludes the current message for retrack baseli
   );
 });
 
-test("overlayLatestOwnerScopedContinuity refreshes user-scoped values without disturbing character data", () => {
-  const base = {
-    timestamp: 100,
-    activeCharacters: ["Elias"],
+test("buildPromptCurrentTrackerData prefers the current resolver entityResolution over stale previous tracker data", () => {
+  const tracker = buildPromptCurrentTrackerData({
+    activeCharacters: ["Blake"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+      source: "model",
+    }),
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Ashley", "Garret"],
+      entityResolution: buildEntityResolution({
+        sceneOwners: ["Ashley", "Garret"],
+        messageOwners: ["Ashley", "Garret"],
+        sceneEntityIds: ["ent-ashley", "ent-garret"],
+        messageEntityIds: ["ent-ashley", "ent-garret"],
+        source: "fallback",
+      }),
+      statistics: {
+        affection: { Ashley: 60 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    previousStatistics: {
+      affection: { Blake: 52 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: {},
+  });
+
+  assert.deepEqual(tracker.activeCharacters, ["Blake"]);
+  assert.deepEqual(tracker.entityResolution, buildEntityResolution({
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: ["ent-blake"],
+    messageEntityIds: ["ent-blake"],
+    source: "model",
+  }));
+  assert.deepEqual(tracker.statistics.affection, { Blake: 52 });
+});
+
+test("overlayLatestOwnerScopedContinuity refreshes only the requested owner scope from the latest user tracker", () => {
+  const next = overlayLatestOwnerScopedContinuity({
+    timestamp: 1,
+    activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    statistics: {
+      affection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 53 },
+      trust: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 61 },
+      desire: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 49 },
+      connection: { "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": 62 },
+      mood: {
+        [USER_TRACKER_KEY]: "Serious",
+        "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "Serious",
+      },
+      lastThought: {
+        [USER_TRACKER_KEY]: "Jones is hiding something dangerous in those woods, and I need to know if Ashley noticed it too.",
+        "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "This interrogation just cemented that we're all liabilities to each other.",
+      },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      pose: {
+        [USER_TRACKER_KEY]: "glancing toward Ashley and lowering voice",
+        "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": "Ashley pulls her hoodie tight; Blake leans on the wall pointing a finger; Garret paces; Raleigh stands rigid facing the group",
+      },
+      clothes: {
+        [USER_TRACKER_KEY]: ["t-shirt", "jeans"],
+        "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh": ["black sundress", "white panties", "sandals", "silver necklace"],
+      },
+    },
+  } as never, {
+    timestamp: 2,
+    activeCharacters: [USER_TRACKER_KEY],
     statistics: {
       affection: {},
       trust: {},
       desire: {},
       connection: {},
-      mood: {
-        "__bst_user__": "Frustrated",
-        "Elias": "Excited",
-      },
-      lastThought: {
-        "__bst_user__": "Another self-important creep playing games.",
-        "Elias": "Her surrender tastes better than any wine.",
-      },
+      mood: { [USER_TRACKER_KEY]: "Serious" },
+      lastThought: { [USER_TRACKER_KEY]: "I have to push them past their defenses and fear to see exactly how fragile this group really is." },
     },
     customStatistics: {},
     customNonNumericStatistics: {
-      relationships: {
-        "__bst_user__": ["Elias: Stranger"],
-        "Elias": ["Maiko: Lover"],
-      },
-      outfit: {
-        "__bst_user__": ["Plain grey cardigan", "Dark skirt", "Simple blouse"],
-      },
-      situation: {
-        "__bst_user__": "Location: A busy city street — Activity: Standing after a collision — Goal: To dismiss the man and leave",
-      },
+      pose: { [USER_TRACKER_KEY]: "folding arms and scanning each counselor in turn" },
+      clothes: { [USER_TRACKER_KEY]: ["t-shirt", "jeans"] },
     },
-  };
-  const latestUser = {
-    timestamp: 110,
-    activeCharacters: ["__bst_user__"],
-    statistics: {
-      affection: {},
-      trust: {},
-      desire: {},
-      connection: {},
-      mood: {
-        "__bst_user__": "Anxious",
-      },
-      lastThought: {
-        "__bst_user__": "He's going to break me on my own chair.",
-      },
-    },
-    customStatistics: {},
-    customNonNumericStatistics: {
-      relationships: {
-        "__bst_user__": ["Elias: Lover"],
-      },
-      outfit: {
-        "__bst_user__": ["Silk stockings", "High heels"],
-      },
-      situation: {
-        "__bst_user__": "Location: Her apartment — Activity: Kneeling before him — Goal: To survive this encounter",
-      },
-    },
-  };
+  } as never, [USER_TRACKER_KEY]);
 
-  const merged = overlayLatestOwnerScopedContinuity(base as never, latestUser as never, ["__bst_user__"]);
-
-  assert.equal(merged.statistics.mood["__bst_user__"], "Anxious");
-  assert.equal(merged.statistics.lastThought["__bst_user__"], "He's going to break me on my own chair.");
-  assert.deepEqual(merged.customNonNumericStatistics?.relationships?.["__bst_user__"], ["Elias: Lover"]);
-  assert.deepEqual(merged.customNonNumericStatistics?.outfit?.["__bst_user__"], ["Silk stockings", "High heels"]);
   assert.equal(
-    merged.customNonNumericStatistics?.situation?.["__bst_user__"],
-    "Location: Her apartment — Activity: Kneeling before him — Goal: To survive this encounter",
+    next.statistics.lastThought[USER_TRACKER_KEY],
+    "I have to push them past their defenses and fear to see exactly how fragile this group really is.",
   );
-  assert.equal(merged.statistics.mood.Elias, "Excited");
-  assert.deepEqual(merged.customNonNumericStatistics?.relationships?.Elias, ["Maiko: Lover"]);
+  assert.equal(
+    next.customNonNumericStatistics?.pose?.[USER_TRACKER_KEY],
+    "folding arms and scanning each counselor in turn",
+  );
+  assert.deepEqual(
+    next.customNonNumericStatistics?.pose?.["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    "Ashley pulls her hoodie tight; Blake leans on the wall pointing a finger; Garret paces; Raleigh stands rigid facing the group",
+  );
+});
+
+test("buildNoActiveContinuityTrackerData preserves continuity stats while keeping scene continuity and clearing active resolver state", () => {
+  const snapshot = buildNoActiveContinuityTrackerData({
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Blake"],
+      entityResolution: buildEntityResolution({
+        sceneOwners: ["Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-blake"],
+        messageEntityIds: ["ent-blake"],
+        source: "model",
+      }),
+      statistics: {
+        affection: { Blake: 55 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { Blake: "Neutral" },
+        lastThought: { Blake: "Finally some quiet." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        pose: { Blake: "Standing in the doorway." },
+      },
+      entityOwnerMap: {
+        Blake: {
+          entityId: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blackout Blake"],
+          sourceKey: "camp.png|camp",
+          kind: "multi_character_alias",
+        },
+      },
+    },
+    timestamp: 999,
+  });
+
+  assert.ok(snapshot);
+  assert.equal(snapshot?.timestamp, 999);
+  assert.deepEqual(snapshot?.activeCharacters, []);
+  assert.deepEqual(snapshot?.entityResolution, buildEntityResolution({
+    sceneOwners: ["Blake"],
+    messageOwners: [],
+    sceneEntityIds: ["ent-blake"],
+    messageEntityIds: [],
+    source: "model",
+  }));
+  assert.deepEqual(snapshot?.statistics.affection, { Blake: 55 });
+  assert.deepEqual(snapshot?.statistics.mood, { Blake: "Neutral" });
+  assert.deepEqual(snapshot?.customNonNumericStatistics, {
+    pose: { Blake: "Standing in the doorway." },
+  });
+  assert.deepEqual(snapshot?.entityOwnerMap, {
+    Blake: {
+      entityId: "ent-blake",
+      ownerName: "Blake",
+      canonicalName: "Blake",
+      aliases: ["Blackout Blake"],
+      sourceKey: "camp.png|camp",
+      kind: "multi_character_alias",
+    },
+  });
+});
+
+test("buildNoActiveContinuityTrackerData overlays latest scene and user continuity without wiping prior character continuity", () => {
+  const snapshot = buildNoActiveContinuityTrackerData({
+    previousTrackerData: {
+      timestamp: 1,
+      activeCharacters: ["Blake"],
+      entityResolution: buildEntityResolution({
+        sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+        messageEntityIds: ["ent-blake"],
+        source: "model",
+      }),
+      statistics: {
+        affection: { Blake: 48 },
+        trust: { Blake: 50 },
+        desire: { Blake: 50 },
+        connection: { Blake: 49 },
+        mood: { [USER_TRACKER_KEY]: "Neutral", Blake: "Frustrated" },
+        lastThought: {
+          [USER_TRACKER_KEY]: "I want to see if Blake will actually follow my instructions.",
+          Blake: "Great, another would-be director trying to script my lines.",
+        },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        clothes: {
+          [USER_TRACKER_KEY]: ["t-shirt", "jeans"],
+          Blake: ["oversized baggy dark emo goth clothes", "heavy charcoal eyeliner"],
+        },
+        characters_in_scene: {
+          [GLOBAL_TRACKER_KEY]: ["Jones", "Blake", "Raleigh", "Ashley", "Garret", "Kuba"],
+        },
+        pose: {
+          [USER_TRACKER_KEY]: "Unknown",
+          Blake: "Smirking with arms crossed over his chest",
+        },
+        scene_date_time: {
+          [GLOBAL_TRACKER_KEY]: "2026-03-04 20:05",
+        },
+      },
+    },
+    latestSceneTrackerData: {
+      timestamp: 2,
+      activeCharacters: [USER_TRACKER_KEY],
+      entityResolution: buildEntityResolution({
+        sceneOwners: [],
+        messageOwners: [USER_TRACKER_KEY],
+        sceneEntityIds: [],
+        messageEntityIds: [],
+        source: "fallback",
+      }),
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { [USER_TRACKER_KEY]: "Neutral" },
+        lastThought: { [USER_TRACKER_KEY]: "Finally, I have a moment of peace and quiet to myself in this office." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        clothes: { [USER_TRACKER_KEY]: ["t-shirt", "jeans"] },
+        characters_in_scene: { [GLOBAL_TRACKER_KEY]: ["Kuba"] },
+        pose: { [USER_TRACKER_KEY]: "standing alone inside the office" },
+        scene_date_time: { [GLOBAL_TRACKER_KEY]: "2026-03-04 20:10" },
+      },
+    },
+    timestamp: 999,
+  });
+
+  assert.ok(snapshot);
+  assert.equal(snapshot?.timestamp, 999);
+  assert.deepEqual(snapshot?.activeCharacters, []);
+  assert.deepEqual(snapshot?.entityResolution, buildEntityResolution({
+    sceneOwners: [],
+    messageOwners: [],
+    sceneEntityIds: [],
+    messageEntityIds: [],
+    source: "model",
+  }));
+  assert.deepEqual(snapshot?.statistics.affection, { Blake: 48 });
+  assert.deepEqual(snapshot?.statistics.lastThought, {
+    [USER_TRACKER_KEY]: "Finally, I have a moment of peace and quiet to myself in this office.",
+    Blake: "Great, another would-be director trying to script my lines.",
+  });
+  assert.deepEqual(snapshot?.customNonNumericStatistics, {
+    clothes: {
+      [USER_TRACKER_KEY]: ["t-shirt", "jeans"],
+      Blake: ["oversized baggy dark emo goth clothes", "heavy charcoal eyeliner"],
+    },
+    characters_in_scene: {
+      [GLOBAL_TRACKER_KEY]: ["Kuba"],
+    },
+    pose: {
+      [USER_TRACKER_KEY]: "standing alone inside the office",
+      Blake: "Smirking with arms crossed over his chest",
+    },
+    scene_date_time: {
+      [GLOBAL_TRACKER_KEY]: "2026-03-04 20:10",
+    },
+  });
+});
+
+test("selectNoActiveContinuityTrackerEntry prefers the latest earlier character continuity entry for AI no-active turns", () => {
+  const userOnly = {
+    data: {
+      timestamp: 2,
+      activeCharacters: [USER_TRACKER_KEY],
+      entityResolution: buildEntityResolution({
+        sceneOwners: [],
+        messageOwners: [USER_TRACKER_KEY],
+        sceneEntityIds: [],
+        messageEntityIds: [],
+        source: "fallback" as const,
+      }),
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { [USER_TRACKER_KEY]: "Neutral" },
+        lastThought: { [USER_TRACKER_KEY]: "Quiet at last." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    messageIndex: 6,
+  };
+  const priorAi = {
+    data: {
+      timestamp: 1,
+      activeCharacters: ["Ashley", "Blake"],
+      entityResolution: buildEntityResolution({
+        sceneOwners: ["Ashley", "Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-ashley", "ent-blake"],
+        messageEntityIds: ["ent-blake"],
+        source: "model" as const,
+      }),
+      statistics: {
+        affection: { Blake: 55 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { Blake: "Neutral" },
+        lastThought: { Blake: "Still here." },
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+    },
+    messageIndex: 5,
+  };
+
+  assert.equal(
+    selectNoActiveContinuityTrackerEntry({
+      entries: [priorAi as never, userOnly as never],
+      userExtraction: false,
+    })?.messageIndex,
+    5,
+  );
+
+  assert.equal(
+    selectNoActiveContinuityTrackerEntry({
+      entries: [priorAi as never, userOnly as never],
+      userExtraction: true,
+    })?.messageIndex,
+    6,
+  );
 });

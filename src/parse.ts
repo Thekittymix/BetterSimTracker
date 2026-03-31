@@ -50,11 +50,17 @@ function coerceNumeric(value: unknown): number | null {
 }
 
 function coerceText(value: unknown): string | null {
+  return coerceTextWithMaxLength(value, 200);
+}
+
+function coerceTextWithMaxLength(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  return trimmed.slice(0, 200);
+  return trimmed.slice(0, Math.max(1, Math.round(maxLength) || 1));
 }
+
+const LAST_THOUGHT_MAX_CHARS = 600;
 
 const MOOD_LABEL_LOOKUP = new Map(moodOptions.map(label => [label.toLowerCase(), label]));
 const MOOD_LABELS_BY_LENGTH = [...moodOptions].sort((a, b) => b.length - a.length);
@@ -152,7 +158,9 @@ export function parseStatResponse(
     if (rawValue === undefined) continue;
 
     if (stat === "mood" || stat === "lastThought") {
-      const text = coerceText(rawValue);
+      const text = stat === "lastThought"
+        ? coerceTextWithMaxLength(rawValue, LAST_THOUGHT_MAX_CHARS)
+        : coerceText(rawValue);
       if (text !== null) {
         result[character] = stat === "mood" ? normalizeMoodLabel(text) : text;
       }
@@ -237,7 +245,7 @@ export function parseUnifiedStatResponse(
       if (v !== null) output.mood[name] = normalizeMoodLabel(v);
     }
     if (enabledSet.has("lastThought")) {
-      const v = coerceText(row.lastThought);
+      const v = coerceTextWithMaxLength(row.lastThought, LAST_THOUGHT_MAX_CHARS);
       if (v !== null) output.lastThought[name] = v;
     }
   }
@@ -333,7 +341,7 @@ export function parseUnifiedDeltaResponse(
       if (v !== null) result.mood[name] = normalizeMoodLabel(v);
     }
     if (enabledSet.has("lastThought")) {
-      const v = coerceText(row.lastThought);
+      const v = coerceTextWithMaxLength(row.lastThought, LAST_THOUGHT_MAX_CHARS);
       if (v !== null) result.lastThought[name] = v;
     }
   }

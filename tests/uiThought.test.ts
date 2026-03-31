@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderThoughtMarkup, shouldEnableThoughtExpand } from "../src/uiThought";
+import { hasThoughtOverflow, renderThoughtMarkup, resolveThoughtToggleState, shouldEnableThoughtExpand } from "../src/uiThought";
 
 test("shouldEnableThoughtExpand enables for long one-line text", () => {
-  const longBubble = "a".repeat(191);
-  const longPanel = "b".repeat(151);
+  const longBubble = "a".repeat(111);
+  const longPanel = "b".repeat(81);
   assert.equal(shouldEnableThoughtExpand(longBubble, "bubble"), true);
   assert.equal(shouldEnableThoughtExpand(longPanel, "panel"), true);
 });
@@ -15,18 +15,65 @@ test("shouldEnableThoughtExpand enables for multiline and disables for short tex
   assert.equal(shouldEnableThoughtExpand("   ", "panel"), false);
 });
 
+test("shouldEnableThoughtExpand catches wrapped sentence thoughts before they silently disappear behind the line clamp", () => {
+  const wrappedPanelThought = "He keeps replaying the whole exchange in his head, trying to decide whether that pause meant fear, doubt, or a lie.";
+  const wrappedBubbleThought = "She notices the tremor in his voice and quietly decides to keep smiling until she figures out whether he is bluffing or begging for help.";
+  assert.equal(shouldEnableThoughtExpand(wrappedPanelThought, "panel"), true);
+  assert.equal(shouldEnableThoughtExpand(wrappedBubbleThought, "bubble"), true);
+});
+
 test("renderThoughtMarkup renders escaped text and proper toggle state", () => {
   const text = "<unsafe> " + "x".repeat(200);
   const htmlCollapsed = renderThoughtMarkup(text, "k1", "bubble", false);
   assert.match(htmlCollapsed, /bst-mood-bubble/);
-  assert.match(htmlCollapsed, /More thought/);
+  assert.match(htmlCollapsed, /bst-expand-toggle/);
+  assert.match(htmlCollapsed, />More</);
   assert.match(htmlCollapsed, /aria-expanded="false"/);
+  assert.match(htmlCollapsed, /hidden/);
   assert.doesNotMatch(htmlCollapsed, /<unsafe>/);
   assert.match(htmlCollapsed, /&lt;unsafe&gt;/);
 
   const htmlExpanded = renderThoughtMarkup(text, "k1", "panel", true);
   assert.match(htmlExpanded, /bst-thought/);
   assert.match(htmlExpanded, /bst-thought-expanded/);
-  assert.match(htmlExpanded, /Less thought/);
+  assert.match(htmlExpanded, />Less</);
   assert.match(htmlExpanded, /aria-expanded="true"/);
+});
+
+test("hasThoughtOverflow only reports real rendered overflow", () => {
+  assert.equal(hasThoughtOverflow({
+    scrollHeight: 120,
+    clientHeight: 80,
+    scrollWidth: 0,
+    clientWidth: 0,
+  }), true);
+  assert.equal(hasThoughtOverflow({
+    scrollHeight: 80,
+    clientHeight: 80,
+    scrollWidth: 120,
+    clientWidth: 80,
+  }), true);
+  assert.equal(hasThoughtOverflow({
+    scrollHeight: 80,
+    clientHeight: 80,
+    scrollWidth: 80,
+    clientWidth: 80,
+  }), false);
+});
+
+test("resolveThoughtToggleState hides toggle when there is no real overflow", () => {
+  assert.deepEqual(
+    resolveThoughtToggleState({ scrollHeight: 120, clientHeight: 80, scrollWidth: 0, clientWidth: 0 }, false),
+    { overflowing: true, hidden: false, ariaExpanded: "false", label: "More" },
+  );
+  assert.deepEqual(
+    resolveThoughtToggleState({ scrollHeight: 80, clientHeight: 80, scrollWidth: 0, clientWidth: 0 }, true),
+    { overflowing: false, hidden: true, ariaExpanded: "false", label: "More" },
+  );
+});
+
+test("hasThoughtOverflow ignores tiny measurement noise without real hidden content", () => {
+  assert.equal(hasThoughtOverflow({ scrollHeight: 81, clientHeight: 80, scrollWidth: 0, clientWidth: 0 }), false);
+  assert.equal(hasThoughtOverflow({ scrollHeight: 80, clientHeight: 80, scrollWidth: 81, clientWidth: 80 }), false);
+  assert.equal(hasThoughtOverflow({ scrollHeight: 83, clientHeight: 80, scrollWidth: 0, clientWidth: 0 }), true);
 });

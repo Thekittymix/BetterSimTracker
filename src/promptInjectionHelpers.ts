@@ -1,5 +1,6 @@
 import { GLOBAL_TRACKER_KEY } from "./constants";
-import type { TrackerData } from "./types";
+import { resolveTrackerDataLookupValue } from "./entityRegistry";
+import type { STContext, TrackerData } from "./types";
 
 const MAX_INJECT_NON_NUMERIC_TEXT = 120;
 
@@ -51,6 +52,7 @@ export function customStatTracksScope(
   stat: { track?: boolean; trackCharacters?: boolean; trackUser?: boolean },
   scope: "character" | "user",
 ): boolean {
+  if (stat.track === false) return false;
   if (scope === "user") {
     if (stat.trackUser !== undefined) return Boolean(stat.trackUser);
     return Boolean(stat.track);
@@ -70,12 +72,29 @@ export function resolveScopedCustomNumericValue(
   statId: string,
   ownerName: string,
   globalScope?: boolean,
+  options?: { context?: STContext | null; explicitEntityIds?: string[] | null },
 ): number | undefined {
-  const numericOwnerKey = globalScope ? GLOBAL_TRACKER_KEY : ownerName;
-  if (data.clearedCustomStatistics?.[statId]?.[numericOwnerKey]) return undefined;
+  return resolveScopedCustomNumericValueForOwners(data, statId, [ownerName], globalScope, options);
+}
+
+export function resolveScopedCustomNumericValueForOwners(
+  data: TrackerData,
+  statId: string,
+  ownerNames: string[],
+  globalScope?: boolean,
+  options?: { context?: STContext | null; explicitEntityIds?: string[] | null },
+): number | undefined {
   const byOwner = data.customStatistics?.[statId];
-  if (!byOwner) return undefined;
+  const byEntityId = data.customStatisticsByEntityId?.[statId];
+  if (!byOwner && !byEntityId) return undefined;
+  const lookupOwners = Array.from(new Set(ownerNames.map(name => String(name ?? "").trim()).filter(Boolean)));
+  if (!lookupOwners.length) return undefined;
+  for (const ownerName of lookupOwners) {
+    const numericOwnerKey = globalScope ? GLOBAL_TRACKER_KEY : ownerName;
+    if (data.clearedCustomStatistics?.[statId]?.[numericOwnerKey]) return undefined;
+  }
   const legacyFallback = (): number | undefined => {
+    if (!byOwner) return undefined;
     for (const [owner, value] of Object.entries(byOwner)) {
       if (owner === GLOBAL_TRACKER_KEY) continue;
       const parsed = Number(value);
@@ -84,15 +103,29 @@ export function resolveScopedCustomNumericValue(
     return undefined;
   };
   if (globalScope) {
+    if (!byOwner) return undefined;
     const globalValue = byOwner[GLOBAL_TRACKER_KEY];
     if (globalValue !== undefined) return Number(globalValue);
-    const ownerValue = byOwner[ownerName];
-    if (ownerValue !== undefined) return Number(ownerValue);
+    for (const ownerName of lookupOwners) {
+      const ownerValue = byOwner[ownerName];
+      if (ownerValue !== undefined) return Number(ownerValue);
+    }
     const fallback = legacyFallback();
     if (fallback !== undefined) return fallback;
   }
-  const ownerValue = byOwner[ownerName];
-  if (ownerValue !== undefined) return Number(ownerValue);
+  for (const ownerName of lookupOwners) {
+    const ownerValue = resolveTrackerDataLookupValue({
+      context: options?.context ?? null,
+      data,
+      byOwner,
+      byEntityId,
+      ownerName,
+      explicitEntityIds: options?.explicitEntityIds,
+    });
+    if (ownerValue === undefined) continue;
+    const parsed = Number(ownerValue);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
   return undefined;
 }
 
@@ -101,12 +134,29 @@ export function resolveScopedCustomNonNumericValue(
   statId: string,
   ownerName: string,
   globalScope?: boolean,
+  options?: { context?: STContext | null; explicitEntityIds?: string[] | null },
 ): unknown {
-  const nonNumericOwnerKey = globalScope ? GLOBAL_TRACKER_KEY : ownerName;
-  if (data.clearedCustomNonNumericStatistics?.[statId]?.[nonNumericOwnerKey]) return undefined;
+  return resolveScopedCustomNonNumericValueForOwners(data, statId, [ownerName], globalScope, options);
+}
+
+export function resolveScopedCustomNonNumericValueForOwners(
+  data: TrackerData,
+  statId: string,
+  ownerNames: string[],
+  globalScope?: boolean,
+  options?: { context?: STContext | null; explicitEntityIds?: string[] | null },
+): unknown {
   const byOwner = data.customNonNumericStatistics?.[statId];
-  if (!byOwner) return undefined;
+  const byEntityId = data.customNonNumericStatisticsByEntityId?.[statId];
+  if (!byOwner && !byEntityId) return undefined;
+  const lookupOwners = Array.from(new Set(ownerNames.map(name => String(name ?? "").trim()).filter(Boolean)));
+  if (!lookupOwners.length) return undefined;
+  for (const ownerName of lookupOwners) {
+    const nonNumericOwnerKey = globalScope ? GLOBAL_TRACKER_KEY : ownerName;
+    if (data.clearedCustomNonNumericStatistics?.[statId]?.[nonNumericOwnerKey]) return undefined;
+  }
   const legacyFallback = (): unknown => {
+    if (!byOwner) return undefined;
     for (const [owner, value] of Object.entries(byOwner)) {
       if (owner === GLOBAL_TRACKER_KEY) continue;
       if (value !== undefined) return value;
@@ -114,14 +164,26 @@ export function resolveScopedCustomNonNumericValue(
     return undefined;
   };
   if (globalScope) {
+    if (!byOwner) return undefined;
     const globalValue = byOwner[GLOBAL_TRACKER_KEY];
     if (globalValue !== undefined) return globalValue;
-    const ownerValue = byOwner[ownerName];
-    if (ownerValue !== undefined) return ownerValue;
+    for (const ownerName of lookupOwners) {
+      const ownerValue = byOwner[ownerName];
+      if (ownerValue !== undefined) return ownerValue;
+    }
     const fallback = legacyFallback();
     if (fallback !== undefined) return fallback;
   }
-  const ownerValue = byOwner[ownerName];
-  if (ownerValue !== undefined) return ownerValue;
+  for (const ownerName of lookupOwners) {
+    const ownerValue = resolveTrackerDataLookupValue({
+      context: options?.context ?? null,
+      data,
+      byOwner,
+      byEntityId,
+      ownerName,
+      explicitEntityIds: options?.explicitEntityIds,
+    });
+    if (ownerValue !== undefined) return ownerValue;
+  }
   return undefined;
 }

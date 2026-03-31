@@ -53,7 +53,8 @@ test("behaviorGuidanceLines normalizes bullets and keeps bounded count", () => {
 test("customStatTracksScope resolves track flags per owner scope", () => {
   assert.equal(customStatTracksScope({ track: true }, "character"), true);
   assert.equal(customStatTracksScope({ track: true, trackCharacters: false }, "character"), false);
-  assert.equal(customStatTracksScope({ track: false, trackUser: true }, "user"), true);
+  assert.equal(customStatTracksScope({ track: false, trackUser: true }, "user"), false);
+  assert.equal(customStatTracksScope({ track: false, trackCharacters: true }, "character"), false);
   assert.equal(customStatTracksAnyScope({ track: false, trackUser: false, trackCharacters: false }), false);
 });
 

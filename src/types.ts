@@ -25,6 +25,7 @@ export type MoodLabel =
   | "Neutral";
 export type MoodSource = "bst_images" | "st_expressions";
 export type MoodSymbolMap = Partial<Record<MoodLabel, string>>;
+export type EntityTrackingMode = "standard" | "dynamic_characters";
 export type SceneCardPosition = "above_tracker_cards" | "above_message";
 export type SceneCardLayout = "chips" | "rows";
 export type SceneStatLayout = "auto" | "chips" | "rows";
@@ -100,12 +101,83 @@ export type BuiltInNumericStatUiSettings = Record<NumericStatKey, BuiltInNumeric
 export interface TrackerData {
   timestamp: number;
   activeCharacters: string[];
+  entityResolution?: TrackerDataEntityResolution;
   statistics: Statistics;
+  statisticsByEntityId?: Statistics;
   customStatistics?: CustomStatistics;
+  customStatisticsByEntityId?: CustomStatistics;
   customNonNumericStatistics?: CustomNonNumericStatistics;
+  customNonNumericStatisticsByEntityId?: CustomNonNumericStatistics;
   clearedStatistics?: ClearedStatistics;
   clearedCustomStatistics?: ClearedCustomStatistics;
   clearedCustomNonNumericStatistics?: ClearedCustomNonNumericStatistics;
+  entityOwnerMap?: Record<string, TrackerDataEntityOwner>;
+}
+
+export type TrackerResolvedEntityKind = "st-character" | "persona" | "narrative-entity";
+
+export interface TrackerResolvedEntity {
+  entityId: string;
+  kind: TrackerResolvedEntityKind;
+  name: string;
+  avatar?: string | null;
+  aliases?: string[];
+  inScene: boolean;
+  inMessage: boolean;
+  created?: boolean;
+}
+
+export interface TrackerDataEntityResolution {
+  resolvedEntities?: TrackerResolvedEntity[];
+  unresolvedMentions?: string[];
+  source: "model" | "fallback";
+}
+
+export interface TrackerDataEntityOwner {
+  entityId: string;
+  ownerName: string;
+  canonicalName: string;
+  aliases: string[];
+  sourceKey: string;
+  kind: "owner" | "multi_character_alias" | "narrative-entity";
+}
+
+export type TrackerEntityLifecycleState = "active" | "inactive" | "archived";
+
+export interface TrackerEntityRegistryEntry {
+  id: string;
+  ownerName: string;
+  canonicalName: string;
+  aliases: string[];
+  sourceName: string;
+  sourceAvatar: string | null;
+  sourceKey: string;
+  kind: "owner" | "multi_character_alias" | "narrative-entity";
+  introducedAtMessageIndex: number;
+  lastSeenMessageIndex: number;
+  lastActiveMessageIndex: number | null;
+  lifecycleState: TrackerEntityLifecycleState;
+  archivedAtMessageIndex: number | null;
+  lifecycleEvents?: Array<{
+    messageIndex: number;
+    state: TrackerEntityLifecycleState;
+  }>;
+}
+
+export interface TrackerRegistrySyncTarget {
+  ownerName: string;
+  registryEntry?: TrackerEntityRegistryEntry | null;
+}
+
+export interface TrackerGraphTarget {
+  ownerName: string;
+  entityId?: string | null;
+}
+
+export interface TrackerEntityRegistry {
+  version: 1;
+  entities: Record<string, TrackerEntityRegistryEntry>;
+  ownerToEntityId: Record<string, string>;
 }
 
 export interface BetterSimTrackerSettings {
@@ -134,6 +206,8 @@ export interface BetterSimTrackerSettings {
   showLastThought: boolean;
   collapseCardsByDefault: boolean;
   showInactive: boolean;
+  autoArchiveInactiveCards: boolean;
+  archiveInactiveAfterTurns: number;
   inactiveLabel: string;
   sceneCardEnabled: boolean;
   sceneCardPosition: SceneCardPosition;
@@ -148,6 +222,7 @@ export interface BetterSimTrackerSettings {
   characterCardStatOrder: string[];
   autoDetectActive: boolean;
   autoGenerateTracker: boolean;
+  entityTrackingMode: EntityTrackingMode;
   regenerateOnMessageEdit: boolean;
   generateOnGreetingMessages: boolean;
   activityLookback: number;

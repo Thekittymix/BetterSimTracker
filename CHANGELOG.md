@@ -2,6 +2,22 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0] - 2026-03-31
+### Added
+- Added `Dynamic Characters` mode for chats with multiple character participants.
+- Added explicit per-character macros for mixed scenes.
+
+### Changed
+- Standard mode now keeps the classic single-character behavior, while dynamic multi-character handling is available through `Dynamic Characters`.
+- Extraction prompts now adapt to the enabled stat families and the active extraction target more cleanly.
+
+### Fixed
+- Fixed mixed-scene character tracking, continuity, and character identity handling.
+- Fixed mixed-scene character macros so explicit target macros resolve correctly and bare character macros no longer resolve to the wrong target.
+- Fixed extraction scoping when character cards are included in prompts.
+- Fixed tracker card expand/collapse behavior.
+- Fixed several tracker and settings persistence issues.
+
 ## [2.2.4.16.6] - 2026-03-30
 ### Fixed
 - Fixed custom array stat editing so changing `Item Max Length` now saves and restores correctly instead of reading the hidden text-stat max-length field from another wizard panel.
@@ -920,18 +936,4 @@ And more...
 - First stable public release.
 
 
-<<<<<<< HEAD
-=======
-
-
-
-
-
-
-
-
-
-
-
->>>>>>> 94eede0 (Preview injection placeholders in settings)
 

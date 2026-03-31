@@ -2,6 +2,13 @@
 
 Last verified commit: `000d643`
 
+## Settings Surface
+
+- The `Extraction` section exposes `Entity Tracking Mode` with:
+  - `Standard`
+  - `Dynamic Characters (Experimental)`
+- `Dynamic Characters` reuses the existing multi-character lifecycle controls rather than introducing a separate card-behavior model.
+
 Primary implementation: `src/ui.ts`, `src/settingsPanel.ts`, `src/characterPanel.ts`.
 
 ## UI Surfaces

@@ -1,7 +1,9 @@
-import { EXTENSION_KEY, STAT_KEYS } from "./constants";
+import { EXTENSION_KEY, STAT_KEYS, USER_TRACKER_KEY } from "./constants";
 import { isTrackableMessage } from "./messageFilter";
+import { clearManualInactiveCharacters } from "./activity";
 import type {
   BetterSimTrackerSettings,
+  CharacterStatMap,
   ChatMessage,
   ClearedCustomNonNumericStatistics,
   ClearedCustomStatistics,
@@ -11,10 +13,46 @@ import type {
   STContext,
   StatKey,
   Statistics,
-  TrackerData
+  TrackerData,
+  TrackerDataEntityOwner,
+  TrackerResolvedEntity,
 } from "./types";
 import { normalizeCustomNonNumericValue } from "./customStatRuntime";
+import { buildTrackerDataEntityOwnerMap, clearEntityRegistry } from "./entityRegistry";
 const CHAT_STATE_KEY = `${EXTENSION_KEY}:chat`;
+
+function normalizeKey(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function normalizeToken(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function buildNarrativeEntitySourceKey(entityId: string, ownerName: string, canonicalName: string): string {
+  const seed = normalizeKey(entityId) || normalizeKey(canonicalName) || normalizeKey(ownerName);
+  return seed ? `narrative:${seed}` : "";
+}
+
+function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return "";
+  if (normalizedEntityId.startsWith("bst_mc_alias:")) {
+    return normalizedEntityId.slice(normalizedEntityId.lastIndexOf(":") + 1);
+  }
+  if (normalizedEntityId.includes(USER_TRACKER_KEY)) {
+    return USER_TRACKER_KEY;
+  }
+  return "";
+}
+
+function isTechnicalResolvedEntityName(name: string, entityId: string): boolean {
+  const normalizedName = normalizeToken(name);
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedName) return true;
+  if (normalizedEntityId && normalizedName === normalizedEntityId) return true;
+  return normalizedName.startsWith("bst_");
+}
 
 function createEmptyStatistics(): Statistics {
   return {
@@ -27,6 +65,104 @@ function createEmptyStatistics(): Statistics {
   };
 }
 
+function normalizeStatistics(raw: unknown): Statistics {
+  const record = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? raw as Partial<Statistics>
+    : {};
+  return {
+    affection: { ...(record.affection ?? {}) },
+    trust: { ...(record.trust ?? {}) },
+    desire: { ...(record.desire ?? {}) },
+    connection: { ...(record.connection ?? {}) },
+    mood: { ...(record.mood ?? {}) },
+    lastThought: { ...(record.lastThought ?? {}) },
+  };
+}
+
+function normalizeResolvedEntities(raw: unknown): TrackerResolvedEntity[] {
+  if (!Array.isArray(raw)) return [];
+  const out: TrackerResolvedEntity[] = [];
+  const seen = new Set<string>();
+  for (const value of raw) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const record = value as Record<string, unknown>;
+    const entityId = String(record.entityId ?? "").trim();
+    const name = String(record.name ?? "").trim();
+    if (!entityId || !name || seen.has(entityId)) continue;
+    seen.add(entityId);
+    const kind = record.kind === "persona" || record.kind === "narrative-entity"
+      ? record.kind
+      : "st-character";
+    const aliases = Array.isArray(record.aliases)
+      ? Array.from(new Set(record.aliases.map(item => String(item ?? "").trim()).filter(Boolean)))
+      : undefined;
+    out.push({
+      entityId,
+      kind,
+      name,
+      avatar: String(record.avatar ?? "").trim() || null,
+      aliases: aliases?.length ? aliases : undefined,
+      inScene: Boolean(record.inScene),
+      inMessage: Boolean(record.inMessage),
+      created: Boolean(record.created),
+    });
+  }
+  return out;
+}
+
+function cloneEntityResolution(
+  entityResolution: TrackerData["entityResolution"] | undefined,
+): TrackerData["entityResolution"] {
+  if (!entityResolution) return undefined;
+  const cloned: NonNullable<TrackerData["entityResolution"]> = {
+    resolvedEntities: entityResolution.resolvedEntities?.map(entity => ({
+      ...entity,
+      aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+      created: Boolean(entity.created),
+    })) ?? [],
+    source: entityResolution.source,
+  };
+  if (entityResolution.unresolvedMentions?.length) {
+    cloned.unresolvedMentions = [...entityResolution.unresolvedMentions];
+  }
+  return cloned;
+}
+
+function resolveNamesFromResolvedEntitiesWithOwnerMap(
+  resolvedEntities: TrackerResolvedEntity[] | undefined,
+  entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
+  predicate: (entity: TrackerResolvedEntity) => boolean,
+): string[] {
+  if (!resolvedEntities?.length) return [];
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: unknown): void => {
+    const value = String(raw ?? "").trim();
+    const key = value.toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    names.push(value);
+  };
+  const ownerByEntityId = new Map<string, TrackerDataEntityOwner>();
+  for (const snapshot of Object.values(entityOwnerMap ?? {})) {
+    if (!snapshot?.entityId) continue;
+    ownerByEntityId.set(String(snapshot.entityId).trim(), snapshot);
+  }
+  for (const entity of resolvedEntities) {
+    if (!predicate(entity)) continue;
+    const entityId = normalizeToken(entity.entityId);
+    const entityName = normalizeToken(entity.name);
+    const owner = ownerByEntityId.get(entityId);
+    push(
+      owner?.ownerName
+      || (!isTechnicalResolvedEntityName(entityName, entityId) ? entityName : "")
+      || resolveOwnerNameFallbackFromEntityId(entityId)
+      || entityName,
+    );
+  }
+  return names;
+}
+
 export function getTrackerDataFromMessage(message: ChatMessage): TrackerData | null {
   const raw = message.extra?.[EXTENSION_KEY];
   const data = resolveTrackerDataForSwipe(message, raw);
@@ -34,23 +170,122 @@ export function getTrackerDataFromMessage(message: ChatMessage): TrackerData | n
   return normalizeTrackerData(data);
 }
 
+export function resolveNormalizedTrackerActiveCharacters(
+  data: { activeCharacters?: TrackerData["activeCharacters"] | null },
+  resolvedSceneOwners: string[] = [],
+  resolvedMessageOwners: string[] = [],
+): string[] {
+  const rawActiveCharacters = Array.isArray(data.activeCharacters)
+    ? Array.from(new Set((data.activeCharacters ?? []).map(item => String(item ?? "").trim()).filter(Boolean)))
+    : [];
+  if (rawActiveCharacters.includes(USER_TRACKER_KEY)) {
+    return rawActiveCharacters;
+  }
+  if (resolvedMessageOwners.length) {
+    return [...resolvedMessageOwners];
+  }
+  if (resolvedSceneOwners.length) {
+    return [...resolvedSceneOwners];
+  }
+  return rawActiveCharacters;
+}
+
 function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
   const clearedStatistics = normalizeClearedStatistics(data.clearedStatistics);
   const clearedCustomStatistics = normalizeClearedOwnerBuckets(data.clearedCustomStatistics);
   const clearedCustomNonNumericStatistics = normalizeClearedOwnerBuckets(data.clearedCustomNonNumericStatistics);
-  return {
+  const normalizedEntityOwnerMap = normalizeEntityOwnerMap(data.entityOwnerMap);
+  const normalizedEntityResolution = normalizeEntityResolution(data.entityResolution);
+  const normalizedSceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    normalizedEntityResolution?.resolvedEntities,
+    normalizedEntityOwnerMap,
+    entity => entity.inScene,
+  );
+  const normalizedMessageOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    normalizedEntityResolution?.resolvedEntities,
+    normalizedEntityOwnerMap,
+    entity => entity.inMessage,
+  );
+  const normalizedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
+    { activeCharacters: data.activeCharacters },
+    normalizedSceneOwners,
+    normalizedMessageOwners,
+  );
+  return normalizeTrackerDataEntityBuckets({
     timestamp: Number(data.timestamp ?? Date.now()),
-    activeCharacters: Array.isArray(data.activeCharacters) ? data.activeCharacters : [],
+    activeCharacters: normalizedActiveCharacters,
+    entityResolution: normalizedEntityResolution,
     statistics: {
       ...createEmptyStatistics(),
       ...(data.statistics as Statistics)
     },
+    statisticsByEntityId: normalizeStatistics(data.statisticsByEntityId),
     customStatistics: normalizeCustomStatistics(data.customStatistics),
+    customStatisticsByEntityId: normalizeCustomStatistics(data.customStatisticsByEntityId),
     customNonNumericStatistics: normalizeCustomNonNumericStatistics(data.customNonNumericStatistics),
+    customNonNumericStatisticsByEntityId: normalizeCustomNonNumericStatistics(data.customNonNumericStatisticsByEntityId),
     clearedStatistics: pruneClearedStatistics(clearedStatistics),
     clearedCustomStatistics: pruneClearedOwnerBuckets(clearedCustomStatistics),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(clearedCustomNonNumericStatistics),
+    entityOwnerMap: normalizedEntityOwnerMap,
+  });
+}
+
+function normalizeEntityResolution(
+  raw: unknown,
+): TrackerData["entityResolution"] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const record = raw as Record<string, unknown>;
+  const resolvedEntities = normalizeResolvedEntities(record.resolvedEntities);
+  const unresolvedMentions = Array.isArray(record.unresolvedMentions)
+    ? Array.from(new Set(record.unresolvedMentions.map(item => String(item ?? "").trim()).filter(Boolean)))
+    : [];
+  const source = record.source === "model" ? "model" : "fallback";
+  if (
+    !resolvedEntities.length
+    && !unresolvedMentions.length
+    && !Object.prototype.hasOwnProperty.call(record, "source")
+  ) {
+    return undefined;
+  }
+  const normalized: NonNullable<TrackerData["entityResolution"]> = {
+    resolvedEntities,
+    source,
   };
+  if (unresolvedMentions.length) {
+    normalized.unresolvedMentions = unresolvedMentions;
+  }
+  return normalized;
+}
+
+function normalizeEntityOwnerMap(raw: unknown): TrackerData["entityOwnerMap"] {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const out: NonNullable<TrackerData["entityOwnerMap"]> = {};
+  for (const [ownerName, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const record = value as Record<string, unknown>;
+    const entityId = String(record.entityId ?? "").trim();
+    const normalizedOwnerName = String(record.ownerName ?? ownerName).trim();
+    const canonicalName = String(record.canonicalName ?? "").trim() || normalizedOwnerName;
+    const kind = record.kind === "multi_character_alias" || record.kind === "narrative-entity"
+      ? record.kind
+      : "owner";
+    const sourceKey = String(record.sourceKey ?? "").trim()
+      || (kind === "narrative-entity" ? buildNarrativeEntitySourceKey(entityId, normalizedOwnerName, canonicalName) : "");
+    if (!entityId || !normalizedOwnerName || !canonicalName || !sourceKey) continue;
+    const aliases = Array.isArray(record.aliases)
+      ? Array.from(new Set(record.aliases.map(item => String(item ?? "").trim()).filter(Boolean)))
+      : [];
+    out[ownerName] = {
+      entityId,
+      ownerName: normalizedOwnerName,
+      canonicalName,
+      aliases,
+      sourceKey,
+      kind,
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function normalizeClearedOwnerMap(raw: unknown): Record<string, true> {
@@ -63,6 +298,293 @@ function normalizeClearedOwnerMap(raw: unknown): Record<string, true> {
     out[key] = true;
   }
   return out;
+}
+
+function buildEntityOwnerProjection(
+  entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
+): {
+  ownerToTarget: Record<string, string>;
+  targetToEntity: Record<string, string>;
+  mergedEntityOwnerMap?: TrackerData["entityOwnerMap"];
+} {
+  if (!entityOwnerMap || typeof entityOwnerMap !== "object") {
+    return { ownerToTarget: {}, targetToEntity: {}, mergedEntityOwnerMap: undefined };
+  }
+  const ownerToTarget: Record<string, string> = {};
+  const targetToEntity: Record<string, string> = {};
+  const byEntityId = new Map<string, NonNullable<TrackerData["entityOwnerMap"]>[string]>();
+  for (const [snapshotOwner, snapshot] of Object.entries(entityOwnerMap)) {
+    if (!snapshot) continue;
+    const entityId = String(snapshot.entityId ?? "").trim();
+    const ownerName = String(snapshot.ownerName ?? snapshotOwner).trim();
+    const canonicalName = String(snapshot.canonicalName ?? ownerName).trim() || ownerName;
+    if (!entityId || !ownerName) continue;
+    const targetOwner = ownerName;
+    targetToEntity[targetOwner] = entityId;
+    ownerToTarget[snapshotOwner] = targetOwner;
+    ownerToTarget[ownerName] = targetOwner;
+    ownerToTarget[canonicalName] = targetOwner;
+    for (const alias of snapshot.aliases ?? []) {
+      if (alias) ownerToTarget[alias] = targetOwner;
+    }
+    const existing = byEntityId.get(entityId);
+    if (!existing) {
+      byEntityId.set(entityId, {
+        entityId,
+        ownerName: targetOwner,
+        canonicalName,
+        aliases: Array.from(new Set((snapshot.aliases ?? []).filter(Boolean))),
+        sourceKey: snapshot.sourceKey,
+        kind: snapshot.kind,
+      });
+      continue;
+    }
+    existing.ownerName = targetOwner;
+    existing.canonicalName = canonicalName || existing.canonicalName;
+    existing.aliases = Array.from(new Set([...(existing.aliases ?? []), ...(snapshot.aliases ?? [])].filter(Boolean)));
+    existing.sourceKey = snapshot.sourceKey || existing.sourceKey;
+    existing.kind = snapshot.kind;
+  }
+  const mergedEntityOwnerMap = Object.fromEntries(
+    Array.from(byEntityId.values()).map(snapshot => [snapshot.ownerName, snapshot]),
+  );
+  return {
+    ownerToTarget,
+    targetToEntity,
+    mergedEntityOwnerMap: Object.keys(mergedEntityOwnerMap).length ? mergedEntityOwnerMap : undefined,
+  };
+}
+
+function remapOwnerRecord<T>(
+  byOwner: Record<string, T> | undefined,
+  ownerToTarget: Record<string, string>,
+): Record<string, T> | undefined {
+  if (!byOwner || typeof byOwner !== "object") return undefined;
+  const out: Record<string, T> = {};
+  for (const [owner, value] of Object.entries(byOwner)) {
+    const targetOwner = ownerToTarget[owner] || owner;
+    out[targetOwner] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function buildEntityScopedRecord<T>(
+  byOwner: Record<string, T> | undefined,
+  targetToEntity: Record<string, string>,
+): Record<string, T> | undefined {
+  if (!byOwner || typeof byOwner !== "object") return undefined;
+  const out: Record<string, T> = {};
+  for (const [owner, value] of Object.entries(byOwner)) {
+    const entityId = targetToEntity[owner];
+    if (!entityId) continue;
+    out[entityId] = value;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function resolveOwnersFromEntityIdsWithOwnerMap(
+  entityIds: string[] | undefined,
+  entityOwnerMap: TrackerData["entityOwnerMap"] | undefined,
+): string[] {
+  if (!Array.isArray(entityIds) || !entityIds.length || !entityOwnerMap || typeof entityOwnerMap !== "object") {
+    return [];
+  }
+  const ownerByEntityId = new Map<string, string>();
+  for (const [snapshotOwner, snapshot] of Object.entries(entityOwnerMap)) {
+    const entityId = String(snapshot?.entityId ?? "").trim();
+    const ownerName = String(snapshot?.ownerName ?? snapshotOwner).trim();
+    if (!entityId || !ownerName || ownerByEntityId.has(entityId)) continue;
+    ownerByEntityId.set(entityId, ownerName);
+  }
+  return Array.from(new Set(
+    entityIds
+      .map(entityId => ownerByEntityId.get(String(entityId ?? "").trim()) ?? "")
+      .filter(Boolean),
+  ));
+}
+
+function buildEntityScopedStatistics(
+  statistics: Statistics,
+  targetToEntity: Record<string, string>,
+): Statistics | undefined {
+  const next: Statistics = {
+    affection: buildEntityScopedRecord(statistics.affection ?? {}, targetToEntity) ?? {},
+    trust: buildEntityScopedRecord(statistics.trust ?? {}, targetToEntity) ?? {},
+    desire: buildEntityScopedRecord(statistics.desire ?? {}, targetToEntity) ?? {},
+    connection: buildEntityScopedRecord(statistics.connection ?? {}, targetToEntity) ?? {},
+    mood: buildEntityScopedRecord(statistics.mood ?? {}, targetToEntity) ?? {},
+    lastThought: buildEntityScopedRecord(statistics.lastThought ?? {}, targetToEntity) ?? {},
+  };
+  return Object.values(next).some(bucket => Object.keys(bucket).length) ? next : undefined;
+}
+
+function buildEntityScopedCustomStatistics(
+  customStatistics: CustomStatistics | undefined,
+  targetToEntity: Record<string, string>,
+): CustomStatistics | undefined {
+  if (!customStatistics) return undefined;
+  const out: CustomStatistics = {};
+  for (const [statId, bucket] of Object.entries(customStatistics)) {
+    const nextBucket = buildEntityScopedRecord(bucket, targetToEntity);
+    if (nextBucket && Object.keys(nextBucket).length) out[statId] = nextBucket;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function buildEntityScopedCustomNonNumericStatistics(
+  customNonNumericStatistics: CustomNonNumericStatistics | undefined,
+  targetToEntity: Record<string, string>,
+): CustomNonNumericStatistics | undefined {
+  if (!customNonNumericStatistics) return undefined;
+  const out: CustomNonNumericStatistics = {};
+  for (const [statId, bucket] of Object.entries(customNonNumericStatistics)) {
+    const nextBucket = buildEntityScopedRecord(bucket, targetToEntity);
+    if (nextBucket && Object.keys(nextBucket).length) out[statId] = nextBucket;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function remapClearedOwnerBuckets<T extends ClearedCustomStatistics | ClearedCustomNonNumericStatistics>(
+  raw: T | undefined,
+  ownerToTarget: Record<string, string>,
+): T | undefined {
+  if (!raw) return undefined;
+  const out: Record<string, Record<string, true>> = {};
+  for (const [statId, owners] of Object.entries(raw)) {
+    const nextOwners: Record<string, true> = {};
+    for (const owner of Object.keys(owners ?? {})) {
+      nextOwners[ownerToTarget[owner] || owner] = true;
+    }
+    if (Object.keys(nextOwners).length) out[statId] = nextOwners;
+  }
+  return Object.keys(out).length ? (out as T) : undefined;
+}
+
+function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
+  const { ownerToTarget, targetToEntity, mergedEntityOwnerMap } = buildEntityOwnerProjection(data.entityOwnerMap);
+  if (!Object.keys(ownerToTarget).length) {
+    return {
+      ...data,
+      statisticsByEntityId: normalizeStatistics(data.statisticsByEntityId),
+      customStatisticsByEntityId: normalizeCustomStatistics(data.customStatisticsByEntityId),
+      customNonNumericStatisticsByEntityId: normalizeCustomNonNumericStatistics(data.customNonNumericStatisticsByEntityId),
+    };
+  }
+  const remapStatBucket = (bucket: CharacterStatMap): CharacterStatMap => remapOwnerRecord(bucket, ownerToTarget) ?? {};
+  const remappedStatistics: Statistics = {
+    affection: remapStatBucket(data.statistics.affection ?? {}),
+    trust: remapStatBucket(data.statistics.trust ?? {}),
+    desire: remapStatBucket(data.statistics.desire ?? {}),
+    connection: remapStatBucket(data.statistics.connection ?? {}),
+    mood: remapStatBucket(data.statistics.mood ?? {}),
+    lastThought: remapStatBucket(data.statistics.lastThought ?? {}),
+  };
+  const remappedCustomStatistics = Object.fromEntries(
+    Object.entries(data.customStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
+  );
+  const remappedCustomNonNumericStatistics = Object.fromEntries(
+    Object.entries(data.customNonNumericStatistics ?? {}).map(([statId, bucket]) => [statId, remapOwnerRecord(bucket, ownerToTarget) ?? {}]),
+  );
+  const derivedStatisticsByEntityId = buildEntityScopedStatistics(remappedStatistics, targetToEntity);
+  const derivedCustomStatisticsByEntityId = buildEntityScopedCustomStatistics(remappedCustomStatistics, targetToEntity);
+  const derivedCustomNonNumericStatisticsByEntityId = buildEntityScopedCustomNonNumericStatistics(remappedCustomNonNumericStatistics, targetToEntity);
+  const statisticsByEntityId = mergeStatisticsWithFallback(
+    derivedStatisticsByEntityId ?? createEmptyStatistics(),
+    normalizeStatistics(data.statisticsByEntityId),
+  );
+  const customStatisticsByEntityId = mergeCustomStatisticsWithFallback(
+    derivedCustomStatisticsByEntityId,
+    normalizeCustomStatistics(data.customStatisticsByEntityId),
+  );
+  const customNonNumericStatisticsByEntityId = mergeCustomNonNumericStatisticsWithFallback(
+    derivedCustomNonNumericStatisticsByEntityId,
+    normalizeCustomNonNumericStatistics(data.customNonNumericStatisticsByEntityId),
+  );
+  const ownerByEntityId = new Map<string, TrackerDataEntityOwner>();
+  for (const snapshot of Object.values(mergedEntityOwnerMap ?? {})) {
+    const entityId = String(snapshot?.entityId ?? "").trim();
+    if (!entityId) continue;
+    ownerByEntityId.set(entityId, snapshot);
+  }
+  const remappedResolvedEntities = data.entityResolution?.resolvedEntities?.length
+    ? data.entityResolution.resolvedEntities.map(entity => ({
+        ...entity,
+        name: (() => {
+          const directOwner = ownerToTarget[entity.name];
+          if (directOwner) return directOwner;
+          const entityId = String(entity.entityId ?? "").trim();
+          return ownerByEntityId.get(entityId)?.ownerName || entity.name;
+        })(),
+      }))
+    : [];
+  const remappedEntityResolution = data.entityResolution
+    ? cloneEntityResolution({
+        resolvedEntities: remappedResolvedEntities,
+        unresolvedMentions: data.entityResolution.unresolvedMentions,
+        source: data.entityResolution.source,
+      })
+    : undefined;
+  const remappedSceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    remappedResolvedEntities,
+    mergedEntityOwnerMap,
+    entity => entity.inScene,
+  );
+  const remappedMessageOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    remappedResolvedEntities,
+    mergedEntityOwnerMap,
+    entity => entity.inMessage,
+  );
+  const remappedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
+    {
+      activeCharacters: Array.isArray(data.activeCharacters)
+        ? Array.from(new Set(data.activeCharacters.map(owner => ownerToTarget[owner] || owner)))
+        : data.activeCharacters,
+    },
+    remappedSceneOwners,
+    remappedMessageOwners,
+  );
+  return {
+    ...data,
+    activeCharacters: remappedActiveCharacters,
+    entityResolution: remappedEntityResolution,
+    statistics: remappedStatistics,
+    statisticsByEntityId,
+    customStatistics: remappedCustomStatistics,
+    customStatisticsByEntityId,
+    customNonNumericStatistics: remappedCustomNonNumericStatistics,
+    customNonNumericStatisticsByEntityId,
+    clearedStatistics: data.clearedStatistics
+      ? Object.fromEntries(
+          Object.entries(data.clearedStatistics).map(([statId, owners]) => [statId, remapOwnerRecord(owners, ownerToTarget) ?? {}]),
+        ) as ClearedStatistics
+      : undefined,
+    clearedCustomStatistics: remapClearedOwnerBuckets(data.clearedCustomStatistics, ownerToTarget),
+    clearedCustomNonNumericStatistics: remapClearedOwnerBuckets(data.clearedCustomNonNumericStatistics, ownerToTarget),
+    entityOwnerMap: mergedEntityOwnerMap,
+  };
+}
+
+function mergeEntityOwnerMapsChronologically(
+  entries: TrackerData[],
+): TrackerData["entityOwnerMap"] | undefined {
+  const byEntityId = new Map<string, TrackerDataEntityOwner>();
+  for (const entry of entries) {
+    const { mergedEntityOwnerMap } = buildEntityOwnerProjection(entry.entityOwnerMap);
+    for (const snapshot of Object.values(mergedEntityOwnerMap ?? {})) {
+      const existing = byEntityId.get(snapshot.entityId);
+      if (!existing) {
+        byEntityId.set(snapshot.entityId, { ...snapshot, aliases: [...(snapshot.aliases ?? [])] });
+        continue;
+      }
+      byEntityId.set(snapshot.entityId, {
+        ...existing,
+        ...snapshot,
+        aliases: Array.from(new Set([...(existing.aliases ?? []), ...(snapshot.aliases ?? [])].filter(Boolean))),
+      });
+    }
+  }
+  const out = Object.fromEntries(Array.from(byEntityId.values()).map(snapshot => [snapshot.ownerName, snapshot]));
+  return Object.keys(out).length ? out : undefined;
 }
 
 function normalizeClearedStatistics(raw: unknown): ClearedStatistics {
@@ -228,7 +750,11 @@ function normalizeCustomNonNumericStatistics(raw: unknown): CustomNonNumericStat
 function isTrackerPayload(raw: unknown): raw is Partial<TrackerData> {
   if (!raw || typeof raw !== "object") return false;
   const data = raw as Partial<TrackerData>;
-  if (!data.statistics || !data.activeCharacters) return false;
+  const hasResolverSceneIdentity = Boolean(
+    Array.isArray(data.entityResolution?.resolvedEntities) && data.entityResolution.resolvedEntities.length,
+  );
+  if (!data.statistics) return false;
+  if (!data.activeCharacters && !hasResolverSceneIdentity) return false;
   return true;
 }
 
@@ -347,6 +873,12 @@ function getScopeKey(context: STContext): string {
 }
 
 const HISTORY_LIMIT = 120;
+const LOCAL_HISTORY_LIMIT = 16;
+const LOCAL_STORE_MAX_CHARS = 12_000;
+const LOCAL_STORE_SCOPE_LIMIT = 6;
+const LOCAL_STORE_TOTAL_MAX_CHARS = 72_000;
+const LATEST_BY_SCOPE_LIMIT = 6;
+const LATEST_BY_SCOPE_MAX_CHARS = 24_000;
 const LATEST_BY_SCOPE_KEY = `${EXTENSION_KEY}:latestByScope`;
 
 type SnapshotEntry = { data: TrackerData; timestamp: number; messageIndex?: number };
@@ -374,6 +906,48 @@ function getStoreKey(context: STContext): string {
   return `${EXTENSION_KEY}:history:${getScopeKey(context)}`;
 }
 
+function getHistoryStoreTimestamp(store: SnapshotStore): number {
+  const latestTimestamp = Number(store.latest?.timestamp ?? 0);
+  if (Number.isFinite(latestTimestamp) && latestTimestamp > 0) {
+    return latestTimestamp;
+  }
+  const historyTimestamp = Number(store.history[0]?.timestamp ?? 0);
+  return Number.isFinite(historyTimestamp) ? historyTimestamp : 0;
+}
+
+function listLocalHistoryStores(): Array<{ key: string; totalChars: number; timestamp: number }> {
+  const stores: Array<{ key: string; totalChars: number; timestamp: number }> = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key || !key.startsWith(`${EXTENSION_KEY}:history:`)) continue;
+    const raw = localStorage.getItem(key) ?? "";
+    let timestamp = 0;
+    try {
+      timestamp = getHistoryStoreTimestamp(normalizeStore(JSON.parse(raw)));
+    } catch {
+      timestamp = 0;
+    }
+    stores.push({ key, totalChars: raw.length, timestamp });
+  }
+  return stores.sort((left, right) => right.timestamp - left.timestamp);
+}
+
+function pruneLocalHistoryStores(currentKey?: string): void {
+  let stores = listLocalHistoryStores();
+  let totalChars = stores.reduce((sum, store) => sum + store.totalChars, 0);
+
+  const chooseVictim = (): { key: string } | undefined =>
+    [...stores].reverse().find(store => store.key !== currentKey);
+
+  while (stores.length > LOCAL_STORE_SCOPE_LIMIT || totalChars > LOCAL_STORE_TOTAL_MAX_CHARS) {
+    const victim = chooseVictim();
+    if (!victim) return;
+    localStorage.removeItem(victim.key);
+    stores = listLocalHistoryStores();
+    totalChars = stores.reduce((sum, store) => sum + store.totalChars, 0);
+  }
+}
+
 function readLatestByScopeMap(): Record<string, { data: TrackerData; messageIndex: number; timestamp: number }> {
   try {
     const raw = localStorage.getItem(LATEST_BY_SCOPE_KEY);
@@ -386,11 +960,52 @@ function readLatestByScopeMap(): Record<string, { data: TrackerData; messageInde
   }
 }
 
-function writeLatestByScopeMap(map: Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>): void {
+function pruneLatestByScopeMap(
+  map: Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>,
+  currentScope?: string,
+): Record<string, { data: TrackerData; messageIndex: number; timestamp: number }> {
+  const entries = Object.entries(map)
+    .filter(([, entry]) => Boolean(entry?.data))
+    .sort((left, right) => Number(right[1]?.timestamp ?? 0) - Number(left[1]?.timestamp ?? 0));
+
+  const kept = entries.slice(0, LATEST_BY_SCOPE_LIMIT);
+  if (currentScope && map[currentScope] && !kept.some(([scope]) => scope === currentScope)) {
+    const replacementIndex = kept.length > 0 ? kept.length - 1 : 0;
+    kept.splice(replacementIndex, kept.length > 0 ? 1 : 0, [currentScope, map[currentScope]]);
+  }
+
+  const chooseVictimIndex = (): number => {
+    for (let index = kept.length - 1; index >= 0; index -= 1) {
+      if (!currentScope || kept[index]?.[0] !== currentScope) return index;
+    }
+    return -1;
+  };
+
+  let next = Object.fromEntries(kept);
+  while (kept.length > 1 && JSON.stringify(next).length > LATEST_BY_SCOPE_MAX_CHARS) {
+    const victimIndex = chooseVictimIndex();
+    if (victimIndex < 0) break;
+    kept.splice(victimIndex, 1);
+    next = Object.fromEntries(kept);
+  }
+
+  return next;
+}
+
+function writeLatestByScopeMap(
+  map: Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>,
+  currentScope?: string,
+): void {
+  const pruned = pruneLatestByScopeMap(map, currentScope);
   try {
-    localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify(map));
+    localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify(pruned));
   } catch {
-    // ignore
+    if (!currentScope || !pruned[currentScope]) return;
+    try {
+      localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify({ [currentScope]: pruned[currentScope] }));
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -405,13 +1020,45 @@ function readStore(context: STContext): SnapshotStore {
   }
 }
 
+function compactStoreForLocalStorage(store: SnapshotStore): SnapshotStore {
+  let history = store.history.slice(0, LOCAL_HISTORY_LIMIT);
+  let compacted: SnapshotStore = {
+    latest: store.latest,
+    history,
+  };
+
+  while (history.length > 0 && JSON.stringify(compacted).length > LOCAL_STORE_MAX_CHARS) {
+    history = history.slice(0, -1);
+    compacted = {
+      latest: store.latest,
+      history,
+    };
+  }
+
+  return compacted;
+}
+
 function writeStore(context: STContext, store: SnapshotStore): void {
   const key = getStoreKey(context);
+  const compacted = compactStoreForLocalStorage(store);
+  pruneLocalHistoryStores(key);
   try {
-    localStorage.setItem(key, JSON.stringify(store));
+    localStorage.setItem(key, JSON.stringify(compacted));
   } catch {
-    // ignore
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        latest: compacted.latest,
+        history: compacted.latest ? [{
+          data: compacted.latest.data,
+          timestamp: compacted.latest.timestamp,
+          messageIndex: compacted.latest.messageIndex,
+        }] : [],
+      } satisfies SnapshotStore));
+    } catch {
+      // ignore
+    }
   }
+  pruneLocalHistoryStores(key);
 }
 
 function readMetadataStore(context: STContext): SnapshotStore {
@@ -451,6 +1098,51 @@ function writeChatStateStore(context: STContext, store: ChatStateStore): void {
   firstMessage.extra[CHAT_STATE_KEY] = store;
 }
 
+function rebuildPersistedTrackerStores(context: STContext): void {
+  const entries: Array<{ data: TrackerData; timestamp: number; messageIndex: number }> = [];
+  for (let i = 0; i < context.chat.length; i += 1) {
+    const message = context.chat[i];
+    if (!isTrackableMessage(message)) continue;
+    const data = getTrackerDataFromMessage(message);
+    if (!data) continue;
+    entries.push({
+      data,
+      timestamp: Number(data.timestamp ?? Date.now()),
+      messageIndex: i,
+    });
+  }
+
+  const sorted = [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  const latest = sorted[0]
+    ? {
+        data: sorted[0].data,
+        messageIndex: sorted[0].messageIndex,
+        timestamp: sorted[0].timestamp,
+      }
+    : undefined;
+  const store: SnapshotStore = {
+    latest,
+    history: sorted.slice(0, HISTORY_LIMIT).map(entry => ({
+      data: entry.data,
+      timestamp: entry.timestamp,
+      messageIndex: entry.messageIndex,
+    })),
+  };
+
+  writeStore(context, store);
+  writeMetadataStore(context, store);
+  writeChatStateStore(context, store);
+
+  const scope = getScopeKey(context);
+  const latestByScope = readLatestByScopeMap();
+  if (latest) {
+    latestByScope[scope] = latest;
+  } else if (Object.prototype.hasOwnProperty.call(latestByScope, scope)) {
+    delete latestByScope[scope];
+  }
+  writeLatestByScopeMap(latestByScope, scope);
+}
+
 export function saveTrackerSnapshot(
   context: STContext,
   data: TrackerData,
@@ -476,7 +1168,7 @@ export function saveTrackerSnapshot(
   const scope = getScopeKey(context);
   const latestByScope = readLatestByScopeMap();
   latestByScope[scope] = { data, messageIndex, timestamp };
-  writeLatestByScopeMap(latestByScope);
+  writeLatestByScopeMap(latestByScope, scope);
 }
 
 export function getChatStateLatestTrackerData(context: STContext): { data: TrackerData; messageIndex: number } | null {
@@ -630,9 +1322,53 @@ export function writeTrackerDataToMessage(
     }
   }
 
-  swipeStorage[swipeKey] = data;
+  const enriched: TrackerData = {
+    ...data,
+    entityOwnerMap: buildTrackerDataEntityOwnerMap(context, data) ?? data.entityOwnerMap,
+  };
+  swipeStorage[swipeKey] = normalizeTrackerData(enriched);
   message.extra[EXTENSION_KEY] = swipeStorage;
-  saveTrackerSnapshot(context, data, messageIndex);
+  saveTrackerSnapshot(context, swipeStorage[swipeKey], messageIndex);
+}
+
+export function clearTrackerDataForMessage(
+  context: STContext,
+  messageIndex: number,
+): void {
+  if (messageIndex < 0 || messageIndex >= context.chat.length) return;
+  const message = context.chat[messageIndex];
+  if (!message.extra || !Object.prototype.hasOwnProperty.call(message.extra, EXTENSION_KEY)) {
+    rebuildPersistedTrackerStores(context);
+    return;
+  }
+
+  const raw = message.extra[EXTENSION_KEY];
+  if (isTrackerPayload(raw)) {
+    delete message.extra[EXTENSION_KEY];
+    rebuildPersistedTrackerStores(context);
+    return;
+  }
+
+  if (raw && typeof raw === "object") {
+    const swipeId = Number(message.swipe_id ?? 0);
+    const swipeKey = String(Number.isNaN(swipeId) ? 0 : swipeId);
+    const next: Record<string, TrackerData> = {};
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (key === swipeKey) continue;
+      if (isTrackerPayload(value)) {
+        next[key] = normalizeTrackerData(value);
+      }
+    }
+    if (Object.keys(next).length) {
+      message.extra[EXTENSION_KEY] = next;
+    } else {
+      delete message.extra[EXTENSION_KEY];
+    }
+  } else {
+    delete message.extra[EXTENSION_KEY];
+  }
+
+  rebuildPersistedTrackerStores(context);
 }
 
 export function mergeStatisticsWithFallback(
@@ -771,22 +1507,41 @@ function pruneClearedOwnerBuckets<T extends ClearedCustomStatistics | ClearedCus
 
 export function mergeTrackerDataChronologically(entries: TrackerData[]): TrackerData | null {
   if (!entries.length) return null;
-  const sorted = [...entries].sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0));
+  const sorted = [...entries]
+    .map(entry => normalizeTrackerDataEntityBuckets(entry))
+    .sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0));
   let mergedStatistics: Statistics | null = null;
+  let mergedStatisticsByEntityId: Statistics | null = null;
   let mergedCustomStatistics: CustomStatistics | null = null;
+  let mergedCustomStatisticsByEntityId: CustomStatistics | null = null;
   let mergedCustomNonNumericStatistics: CustomNonNumericStatistics | null = null;
+  let mergedCustomNonNumericStatisticsByEntityId: CustomNonNumericStatistics | null = null;
   let mergedClearedStatistics: ClearedStatistics | null = null;
   let mergedClearedCustomStatistics: ClearedCustomStatistics | null = null;
   let mergedClearedCustomNonNumericStatistics: ClearedCustomNonNumericStatistics | null = null;
+  let mergedEntityResolution: TrackerData["entityResolution"];
   let mergedTimestamp = 0;
-  let fallbackActiveCharacters: string[] = [];
+  let fallbackActiveCharacters: string[] | null = null;
 
   for (const entry of sorted) {
     mergedStatistics = mergeStatisticsWithFallback(entry.statistics, mergedStatistics, undefined);
+    mergedStatisticsByEntityId = mergeStatisticsWithFallback(
+      entry.statisticsByEntityId ?? createEmptyStatistics(),
+      mergedStatisticsByEntityId,
+      undefined,
+    );
     mergedCustomStatistics = mergeCustomStatisticsWithFallback(entry.customStatistics, mergedCustomStatistics);
+    mergedCustomStatisticsByEntityId = mergeCustomStatisticsWithFallback(
+      entry.customStatisticsByEntityId,
+      mergedCustomStatisticsByEntityId,
+    );
     mergedCustomNonNumericStatistics = mergeCustomNonNumericStatisticsWithFallback(
       entry.customNonNumericStatistics,
       mergedCustomNonNumericStatistics,
+    );
+    mergedCustomNonNumericStatisticsByEntityId = mergeCustomNonNumericStatisticsWithFallback(
+      entry.customNonNumericStatisticsByEntityId,
+      mergedCustomNonNumericStatisticsByEntityId,
     );
     mergedClearedStatistics = mergeClearedStatisticsWithFallback(entry.clearedStatistics, mergedClearedStatistics);
     mergedClearedCustomStatistics = mergeClearedOwnerBucketsWithFallback(entry.clearedCustomStatistics, mergedClearedCustomStatistics);
@@ -801,21 +1556,73 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
       mergedClearedCustomNonNumericStatistics,
     );
     mergedTimestamp = Math.max(mergedTimestamp, Number(entry.timestamp ?? 0));
-    if (Array.isArray(entry.activeCharacters) && entry.activeCharacters.length) {
+    if (entry.entityResolution) {
+      mergedEntityResolution = cloneEntityResolution(entry.entityResolution);
+      const explicitActiveCharacters = Array.isArray(entry.activeCharacters)
+        ? entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean)
+        : [];
+      const sceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+        entry.entityResolution.resolvedEntities,
+        entry.entityOwnerMap,
+        entity => entity.inScene,
+      );
+      const messageOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+        entry.entityResolution.resolvedEntities,
+        entry.entityOwnerMap,
+        entity => entity.inMessage,
+      );
+      if (explicitActiveCharacters.includes(USER_TRACKER_KEY)) {
+        fallbackActiveCharacters = explicitActiveCharacters;
+      } else if (messageOwners.length) {
+        fallbackActiveCharacters = messageOwners;
+      } else if (sceneOwners.length) {
+        fallbackActiveCharacters = sceneOwners;
+      } else if (explicitActiveCharacters.length) {
+        fallbackActiveCharacters = explicitActiveCharacters;
+      }
+      if (messageOwners.includes(USER_TRACKER_KEY)) {
+        const currentFallbackActiveCharacters: string[] = fallbackActiveCharacters ?? [];
+        if (!currentFallbackActiveCharacters.includes(USER_TRACKER_KEY)) {
+          fallbackActiveCharacters = [...currentFallbackActiveCharacters, USER_TRACKER_KEY];
+        }
+      }
+    } else if (Array.isArray(entry.activeCharacters) && entry.activeCharacters.length) {
       fallbackActiveCharacters = entry.activeCharacters.map(name => String(name ?? "").trim()).filter(Boolean);
     }
   }
 
-  return {
+  const mergedEntityOwnerMap = mergeEntityOwnerMapsChronologically(sorted);
+  const hydratedSceneOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    mergedEntityResolution?.resolvedEntities,
+    mergedEntityOwnerMap,
+    entity => entity.inScene,
+  );
+  const hydratedMessageOwners = resolveNamesFromResolvedEntitiesWithOwnerMap(
+    mergedEntityResolution?.resolvedEntities,
+    mergedEntityOwnerMap,
+    entity => entity.inMessage,
+  );
+  const normalizedFallbackActiveCharacters = resolveNormalizedTrackerActiveCharacters(
+    { activeCharacters: fallbackActiveCharacters },
+    hydratedSceneOwners,
+    hydratedMessageOwners,
+  );
+
+  return normalizeTrackerDataEntityBuckets({
     timestamp: mergedTimestamp || Date.now(),
-    activeCharacters: fallbackActiveCharacters,
+    activeCharacters: normalizedFallbackActiveCharacters,
+    entityResolution: mergedEntityResolution,
     statistics: mergedStatistics ?? createEmptyStatistics(),
+    statisticsByEntityId: mergedStatisticsByEntityId ?? createEmptyStatistics(),
     customStatistics: mergedCustomStatistics ?? {},
+    customStatisticsByEntityId: mergedCustomStatisticsByEntityId ?? {},
     customNonNumericStatistics: mergedCustomNonNumericStatistics ?? {},
+    customNonNumericStatisticsByEntityId: mergedCustomNonNumericStatisticsByEntityId ?? {},
     clearedStatistics: pruneClearedStatistics(mergedClearedStatistics ?? undefined),
     clearedCustomStatistics: pruneClearedOwnerBuckets(mergedClearedCustomStatistics ?? undefined),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(mergedClearedCustomNonNumericStatistics ?? undefined),
-  };
+    entityOwnerMap: mergedEntityOwnerMap,
+  });
 }
 
 export function clearTrackerDataForCurrentChat(context: STContext): void {
@@ -833,6 +1640,8 @@ export function clearTrackerDataForCurrentChat(context: STContext): void {
     delete context.chatMetadata[EXTENSION_KEY];
     context.saveMetadataDebounced?.();
   }
+  clearEntityRegistry(context);
+  clearManualInactiveCharacters(context);
 
   const scopeKey = getStoreKey(context);
   try {

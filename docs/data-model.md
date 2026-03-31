@@ -37,6 +37,9 @@ Key groups:
 
 - Runtime toggles:
   - `enabled`
+  - `entityTrackingMode`
+    - `standard`
+    - `dynamic_characters`
   - `sequentialExtraction`
   - `injectTrackerIntoPrompt`
   - `lastThoughtPrivate`
@@ -66,6 +69,19 @@ Key groups:
   - mood source/mapping/frame settings
 
 Sanitization is centralized in `src/settings.ts`.
+
+## Entity Resolution / Registry Contracts
+
+- `TrackerResolvedEntity.kind` can be:
+  - `st-character`
+  - `persona`
+  - `narrative-entity`
+- `TrackerData.entityResolution.resolvedEntities` remains entity-first and is the runtime source of truth for scene/message entity scope.
+- `TrackerData.entityOwnerMap` is a projection/materialization layer for owner-facing lookups, not the source of truth for resolver identity.
+- In `dynamic_characters` mode, new character-like narrative entities receive runtime-owned IDs (for example `bst_narrative:*`) and are then synchronized into chat-scoped registry entries with `kind: narrative-entity`.
+- Narrative entities do not inherit ST character/persona defaults as part of bootstrap seeding; known ST owners keep the existing defaults pipeline, while narrative entities use the generic narrative seed path and then continue from persisted tracker state.
+- Scene props or objects are not valid narrative entities for tracker creation and should remain unresolved.
+- Narrative entities also bypass owner-specific runtime default reads such as `trackerEnabled`, `statEnabled`, mood-source overrides, and per-owner card styling; those overrides remain scoped to known ST owners/personas only.
 
 ## Custom Stat Definition (`CustomStatDefinition`)
 

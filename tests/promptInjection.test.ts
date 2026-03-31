@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
 import { __testables } from "../src/promptInjection";
@@ -162,6 +163,39 @@ test("buildPrompt excludes global custom stats when includeInInjection is disabl
 
   const prompt = __testables.buildPrompt(data, settings, makeContext());
   assert.equal(prompt, "");
+});
+
+test("buildPrompt excludes custom stats from semantics and lines when track is disabled", () => {
+  const settings = makeSettings({
+    customStats: [
+      {
+        id: "characters_in_scene",
+        kind: "array",
+        label: "Characters in Scene",
+        defaultValue: [],
+        textMaxLength: 64,
+        track: false,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+        description: "Global scene roster of all entities physically present right now.",
+      },
+    ],
+  });
+  const data = makeTracker({
+    customNonNumericStatistics: {
+      characters_in_scene: {
+        [GLOBAL_TRACKER_KEY]: ["Blake", "Kuba"],
+      },
+    },
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, makeContext());
+  assert.doesNotMatch(prompt, /characters_in_scene/i);
 });
 
 test("buildPrompt keeps BST tags when using custom injection template", () => {
@@ -347,4 +381,497 @@ test("buildPrompt filters reserved system owner names and avoids fake fallback v
   assert.doesNotMatch(prompt, /affection=50/);
   assert.match(prompt, /- Seraphina:/);
   assert.match(prompt, /affection=12/);
+});
+
+test("buildPrompt resolves alias owner lines through registry-backed lookup names", () => {
+  const settings = makeSettings({
+    trackMood: true,
+    includeUserTrackerInInjection: false,
+    customStats: [
+      {
+        id: "clothes",
+        kind: "array",
+        label: "Clothes",
+        defaultValue: [],
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+  });
+  const data = makeTracker({
+    activeCharacters: ["Ash"],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Hopeful" },
+      lastThought: {},
+    },
+    customNonNumericStatistics: {
+      clothes: {
+        Ashley: ["worn hoodie"],
+      },
+    },
+  });
+  const context = makeContext({
+    name2: "Ash",
+    groupId: "group-1",
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-ashley": {
+            id: "ent-ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            aliases: ["Ash"],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 1,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          ashley: "ent-ashley",
+          ash: "ent-ashley",
+        },
+      },
+    } as any,
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Ash: clothes=\["worn hoodie"\]; mood=Hopeful/);
+});
+
+test("buildPrompt prefers resolved scene owners over request-only activeCharacters", () => {
+  const settings = makeSettings({
+    trackMood: true,
+    includeUserTrackerInInjection: false,
+    enableUserTracking: false,
+  });
+  const data = makeTracker({
+    activeCharacters: ["Blake"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: [],
+      messageEntityIds: [],
+    }),
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Neutral", Blake: "Hopeful" },
+      lastThought: {},
+    },
+  });
+  const context = makeContext({
+    name2: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    groupId: "group-1",
+    characterId: 0,
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Ashley: mood=Neutral/);
+  assert.match(prompt, /- Blake: mood=Hopeful/);
+});
+
+test("resolveInjectionTargetOwner prefers resolver message entity ids over source-card fallback names", () => {
+  const data = makeTracker({
+    activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: [],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: ["ent-ashley"],
+    }),
+  });
+  const context = makeContext({
+    name2: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    groupId: "group-1",
+    characterId: 0,
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-ashley": {
+            id: "ent-ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            aliases: ["Ash"],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 1,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 1, state: "active" }],
+          },
+          "ent-blake": {
+            id: "ent-blake",
+            ownerName: "Blake",
+            canonicalName: "Blake",
+            aliases: [],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 1,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 1, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          ashley: "ent-ashley",
+          ash: "ent-ashley",
+          blake: "ent-blake",
+        },
+      },
+    } as any,
+    chat: [
+      {
+        is_user: false,
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        mes: "source-card style reply",
+      },
+    ] as any,
+  });
+
+  assert.equal(__testables.resolveInjectionTargetOwner(context, data), "Ashley");
+});
+
+test("resolveInjectionTargetOwner can materialize message owners from messageEntityIds plus entityOwnerMap when registry lookup is unavailable", () => {
+  const data = makeTracker({
+    activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: [],
+      sceneEntityIds: ["ent-ashley", "ent-blake"],
+      messageEntityIds: ["ent-ashley"],
+    }),
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+  });
+  const context = makeContext({
+    name2: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    groupId: "group-1",
+    characterId: 0,
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {},
+        ownerToEntityId: {},
+      },
+    } as any,
+    chat: [
+      {
+        is_user: false,
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        mes: "source-card style reply",
+      },
+    ] as any,
+  });
+
+  assert.equal(__testables.resolveInjectionTargetOwner(context, data), "Ashley");
+});
+
+test("buildPrompt resolves owner lines through tracker entityOwnerMap before raw owner-name lookup", () => {
+  const settings = makeSettings({
+    trackMood: true,
+    includeUserTrackerInInjection: false,
+    customStats: [
+      {
+        id: "clothes",
+        kind: "array",
+        label: "Clothes",
+        defaultValue: [],
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+  });
+  const data: TrackerData = {
+    timestamp: Date.now(),
+    activeCharacters: ["Ash"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ash"],
+      messageOwners: ["Ash"],
+      sceneEntityIds: ["ent-ashley"],
+      messageEntityIds: ["ent-ashley"],
+    }),
+    entityOwnerMap: {
+      Ash: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Hopeful" },
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: {
+        Ashley: ["worn hoodie"],
+      },
+    },
+  };
+  const context = makeContext({
+    name2: "Ash",
+    groupId: "group-1",
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-ashley": {
+            id: "ent-ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            aliases: ["Ash"],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 1,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 1, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          ashley: "ent-ashley",
+          ash: "ent-ashley",
+        },
+      },
+    } as any,
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Ashley: clothes=\["worn hoodie"\]; mood=Hopeful/);
+});
+
+test("buildPrompt keeps built-in owner stats scoped to the current entity id instead of stale same-name registry aliases", () => {
+  const settings = makeSettings({
+    trackAffection: true,
+    includeUserTrackerInInjection: false,
+  });
+  const data: TrackerData = {
+    timestamp: Date.now(),
+    activeCharacters: ["Blake"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake-current"],
+      messageEntityIds: ["ent-blake-current"],
+    }),
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake-current",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["B-current"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: {
+        "B-current": 82,
+        "B-stale": 15,
+      },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    statisticsByEntityId: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+  };
+  const context = makeContext({
+    name2: "Blake",
+    groupId: "group-1",
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-blake-stale": {
+            id: "ent-blake-stale",
+            ownerName: "Blake",
+            canonicalName: "Blake",
+            aliases: ["B-stale"],
+            sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+            sourceAvatar: "camp.png",
+            sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+            kind: "multi_character_alias",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "inactive",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 0, state: "inactive" }],
+          },
+        },
+        ownerToEntityId: {
+          blake: "ent-blake-stale",
+          "b-stale": "ent-blake-stale",
+        },
+      },
+    } as any,
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Blake: affection=82/);
+  assert.doesNotMatch(prompt, /affection=15/);
+});
+
+test("buildPrompt prefers the current narrative entity id over colliding owner defaults", () => {
+  const settings = makeSettings({
+    entityTrackingMode: "dynamic_characters",
+    trackMood: true,
+    characterDefaults: {
+      "avatar:blake.png": {
+        statEnabled: {
+          mood: false,
+        },
+      },
+    },
+  });
+  const data: TrackerData = {
+    timestamp: Date.now(),
+    activeCharacters: ["Blake"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["bst_narrative:blake-shadow"],
+      messageEntityIds: ["bst_narrative:blake-shadow"],
+    }),
+    entityOwnerMap: {
+      Blake: {
+        entityId: "bst_narrative:blake-shadow",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["Shadow Blake"],
+        sourceKey: "narrative:bst_narrative:blake-shadow",
+        kind: "narrative-entity",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Blake: "Guarded" },
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+  };
+  const context = makeContext({
+    name2: "Blake",
+    groupId: "group-1",
+    characters: [{ name: "Blake", avatar: "blake.png" }],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "bst_owner:blake.png|blake": {
+            id: "bst_owner:blake.png|blake",
+            ownerName: "Blake",
+            canonicalName: "Blake",
+            aliases: [],
+            sourceName: "Blake",
+            sourceAvatar: "blake.png",
+            sourceKey: "blake.png|blake",
+            kind: "owner",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          blake: "bst_owner:blake.png|blake",
+        },
+      },
+    } as any,
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Blake: mood=Guarded/);
 });

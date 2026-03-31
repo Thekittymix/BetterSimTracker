@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildRecentContext,
+  getAllTrackedCharacterNames,
   readManualInactiveCharacters,
   resolveActiveCharacterAnalysis,
   setManualInactiveCharacter,
@@ -89,4 +91,286 @@ test("manual inactive override can still be cleared manually before the characte
     activityLookback: 5,
   });
   assert.deepEqual(clearedResult.activeCharacters, ["Billie"]);
+});
+
+test("getAllTrackedCharacterNames expands multi-character source cards into aliases when enabled", () => {
+  const context = {
+    groupId: "group-1",
+    groups: [{ id: "group-1", members: ["camp.png", "billie.png"] }],
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+      { name: "Billie", avatar: "billie.png" },
+    ],
+    chatMetadata: {},
+    chat: [],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
+    [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Billie",
+    ],
+  );
+});
+
+test("getAllTrackedCharacterNames keeps muted multi-character group members in the known identity universe", () => {
+  const context = {
+    groupId: "group-1",
+    groups: [{
+      id: "group-1",
+      members: ["camp.png", "chloe.png"],
+      disabled_members: ["camp.png", "chloe.png"],
+    }],
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+      { name: "Chloe", avatar: "chloe.png" },
+    ],
+    chatMetadata: {},
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Raleigh checked the porch while Blake watched the treeline.", is_user: false, is_system: false },
+      { name: "Chloe", mes: "\"I'm still here,\" Chloe whispered.", is_user: false, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
+    [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Chloe",
+    ],
+  );
+});
+
+test("getAllTrackedCharacterNames includes visible registry-backed narrative entities in multi-character mode", () => {
+  const context = {
+    groupId: undefined,
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-forest-spirit": {
+            id: "ent-forest-spirit",
+            ownerName: "Forest Spirit",
+            canonicalName: "Forest Spirit",
+            aliases: ["Spirit"],
+            sourceName: "Forest Spirit",
+            sourceAvatar: null,
+            sourceKey: "narrative:ent-forest-spirit",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          "forest spirit": "ent-forest-spirit",
+          spirit: "ent-forest-spirit",
+        },
+      },
+    },
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "A forest spirit watches from the trees.", is_user: false, is_system: false },
+      { name: "User", mes: "Keep going.", is_user: true, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
+    [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Forest Spirit",
+    ],
+  );
+});
+
+test("getAllTrackedCharacterNames includes registry-backed narrative entities in dynamic entity mode", () => {
+  const context = {
+    groupId: undefined,
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-forest-spirit": {
+            id: "ent-forest-spirit",
+            ownerName: "Forest Spirit",
+            canonicalName: "Forest Spirit",
+            aliases: ["Spirit"],
+            sourceName: "Forest Spirit",
+            sourceAvatar: null,
+            sourceKey: "narrative:ent-forest-spirit",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 1,
+            lastActiveMessageIndex: 1,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          "forest spirit": "ent-forest-spirit",
+          spirit: "ent-forest-spirit",
+        },
+      },
+    },
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "A forest spirit watches from the trees.", is_user: false, is_system: false },
+      { name: "User", mes: "Keep going.", is_user: true, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  assert.deepEqual(
+    getAllTrackedCharacterNames(context, { entityTrackingMode: "dynamic_characters" }),
+    [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Forest Spirit",
+    ],
+  );
+});
+
+test("activity analysis keeps the full alias pool active for a multi-character source-card reply", () => {
+  const context = {
+    groupId: undefined,
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chatMetadata: {},
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Ashley froze at the door while Blake glanced over her shoulder.", is_user: false, is_system: false },
+      { name: "User", mes: "What now?", is_user: true, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  const result = resolveActiveCharacterAnalysis(context, {
+    ...defaultSettings,
+    autoDetectActive: true,
+    activityLookback: 5,
+    entityTrackingMode: "dynamic_characters",
+  });
+
+  assert.deepEqual(result.activeCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
+  assert.match(result.reasons.Ashley, /spoke in last 5 messages/i);
+  assert.match(result.reasons.Blake, /spoke in last 5 messages/i);
+});
+
+test("manual inactive alias override clears when a later source-card reply explicitly mentions that alias again", () => {
+  const context = {
+    groupId: undefined,
+    characterId: 0,
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    extensionSettings: {
+      bettersimtracker: {
+        entityTrackingMode: "dynamic_characters",
+      },
+    },
+    chatMetadata: {},
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Ashley stared toward the window.", is_user: false, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  setManualInactiveCharacter(context, "Ashley", true);
+  assert.deepEqual(readManualInactiveCharacters(context), ["Ashley"]);
+
+  context.chat.push(
+    { name: "User", mes: "Ashley, answer again.", is_user: true, is_system: false },
+    { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Ashley flinched and answered quietly.", is_user: false, is_system: false },
+  );
+
+  const result = resolveActiveCharacterAnalysis(context, {
+    ...defaultSettings,
+    autoDetectActive: true,
+    activityLookback: 5,
+    entityTrackingMode: "dynamic_characters",
+  });
+
+  assert.deepEqual(result.manualInactiveCharacters, []);
+  assert.deepEqual(readManualInactiveCharacters(context), []);
+  assert.deepEqual(result.activeCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
+});
+
+test("activity analysis can scope retrack detection away from later messages", () => {
+  const context = {
+    groupId: "group-1",
+    groups: [{ id: "group-1", members: ["blake.png", "garret.png"] }],
+    characters: [
+      { name: "Blake", avatar: "blake.png" },
+      { name: "Garret", avatar: "garret.png" },
+    ],
+    chatMetadata: {},
+    chat: [
+      { name: "Blake", mes: "Blake answered first.", is_user: false, is_system: false },
+      { name: "User", mes: "Keep going.", is_user: true, is_system: false },
+      { name: "Blake", mes: "Blake answered again.", is_user: false, is_system: false },
+      { name: "User", mes: "The scene drifts forward.", is_user: true, is_system: false },
+      { name: "User", mes: "Still no Garret yet.", is_user: true, is_system: false },
+      { name: "User", mes: "Now Garret replies later.", is_user: true, is_system: false },
+      { name: "Garret", mes: "Garret took over the later scene.", is_user: false, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  const currentResult = resolveActiveCharacterAnalysis(context, {
+    ...defaultSettings,
+    autoDetectActive: true,
+    activityLookback: 1,
+  });
+  assert.deepEqual(currentResult.activeCharacters, ["Garret"]);
+
+  const retrackResult = resolveActiveCharacterAnalysis(context, {
+    ...defaultSettings,
+    autoDetectActive: true,
+    activityLookback: 1,
+  }, {
+    targetMessageIndex: 2,
+  });
+  assert.deepEqual(retrackResult.activeCharacters, ["Blake"]);
+});
+
+test("buildRecentContext can scope retrack context to an older target message", () => {
+  const context = {
+    name1: "User",
+    chat: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Raleigh welcomed User to camp.", is_user: false, is_system: false },
+      { name: "User", mes: "Ashley leaves the room. Blake stays here alone now and answers in one short reply.", is_user: true, is_system: false },
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Blake answered in a flat monotone.", is_user: false, is_system: false },
+      { name: "User", mes: "Later, Garret and Raleigh come back.", is_user: true, is_system: false },
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", mes: "Garret laughed while Raleigh watched.", is_user: false, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  const currentContext = buildRecentContext(context, 4);
+  assert.match(currentContext, /Garret laughed while Raleigh watched/i);
+
+  const retrackContext = buildRecentContext(context, 4, 2);
+  assert.match(retrackContext, /Blake answered in a flat monotone/i);
+  assert.doesNotMatch(retrackContext, /Garret laughed while Raleigh watched/i);
 });

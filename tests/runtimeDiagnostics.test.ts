@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
   buildDiagnosticsReport,
@@ -13,6 +14,20 @@ function makeTracker(timestamp: number): TrackerData {
   return {
     timestamp,
     activeCharacters: ["Seraphina"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "bst_owner:seraphina.png|seraphina",
+          kind: "st-character",
+          name: "Seraphina",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
+      source: "model",
+    }),
     statistics: {
       affection: { Seraphina: 55 },
       trust: { Seraphina: 52 },
@@ -166,6 +181,28 @@ test("buildHistorySample keeps tracked snapshot structure", () => {
   assert.equal(sample[0].statistics.mood.Seraphina, "Hopeful");
 });
 
+test("buildHistorySample prefers resolver-backed activeCharacters over stale non-user explicit arrays", () => {
+  const tracker = makeTracker(1234);
+  tracker.activeCharacters = ["Garret"];
+  tracker.entityResolution = buildEntityResolution({
+    resolvedEntities: [
+      {
+        entityId: "ent-blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    source: "model",
+  });
+
+  const sample = buildHistorySample([{ messageIndex: 4, timestamp: 1234, data: tracker }]);
+
+  assert.deepEqual(sample[0].activeCharacters, ["Blake"]);
+});
+
 test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
   const record: DeltaDebugRecord = {
     rawModelOutput: "{}",
@@ -289,6 +326,23 @@ test("buildDiagnosticsReport produces expected core fields", () => {
     (report.promptInjection as { latestDataMessageIndex: number }).latestDataMessageIndex,
     2,
   );
+  assert.deepEqual(
+    ((report.promptInjection as { latestStoredTrackerData: { entityResolution: unknown } }).latestStoredTrackerData.entityResolution),
+    buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "bst_owner:seraphina.png|seraphina",
+          kind: "st-character",
+          name: "Seraphina",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
+      source: "model",
+    }),
+  );
   assert.equal(
     (report.promptInjection as { currentPromptMatchesLatestDataMessage: boolean }).currentPromptMatchesLatestDataMessage,
     false,
@@ -308,4 +362,128 @@ test("buildDiagnosticsReport produces expected core fields", () => {
       cachedActivatedLorebookEntryCount: 0,
     },
   );
+});
+
+test("buildDiagnosticsReport prefers resolver-backed activeCharacters in tracker summaries", () => {
+  const context = {
+    chat: [{}, {}],
+    groupId: null,
+    characterId: "1",
+  } as unknown as STContext;
+  const tracker = makeTracker(123456);
+  tracker.activeCharacters = ["Garret"];
+  tracker.entityResolution = buildEntityResolution({
+    resolvedEntities: [
+      {
+        entityId: "ent-blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    source: "model",
+  });
+
+  const report = buildDiagnosticsReport({
+    context,
+    settings: makeSettings(),
+    extensionVersion: "2.2.4.16-expX",
+    isExtracting: false,
+    runSequence: 1,
+    trackerUiState: { phase: "idle", done: 0, total: 0, messageIndex: null },
+    latestDataMessageIndex: 2,
+    latestDataTimestamp: 123456,
+    allCharacterNames: ["Seraphina"],
+    settingsProvenance: { enabled: "context" },
+    graphPreferences: { window: "all", smoothing: true },
+    profileDebug: { selectedProfile: "", resolvedProfileId: null, activeProfileId: null },
+    historySample: buildHistorySample([{ messageIndex: 2, timestamp: 123456, data: tracker }]),
+    activity: null,
+    latestData: tracker,
+    latestPromptMacroData: tracker,
+    promptInjectionPreview: "preview",
+    promptInjectionCurrentPrompt: "preview",
+    promptInjectionLastMessage: null,
+    promptInjectionPreviousMessage: null,
+    promptInjectionLatestDataMessage: null,
+    promptInjectionDebugMeta: null,
+    macroDebugMeta: null,
+    baselineDebugMeta: null,
+    traceTailMemory: [],
+    traceTailPersisted: [],
+    debugRecord: null,
+  });
+
+  assert.deepEqual(
+    ((report.promptInjection as { latestStoredTrackerData: { activeCharacters: string[] } }).latestStoredTrackerData.activeCharacters),
+    ["Blake"],
+  );
+});
+
+test("buildDiagnosticsReport includes entity registry lifecycle summary", () => {
+  const context = {
+    chat: [{}, {}],
+    groupId: null,
+    characterId: "1",
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "ent-ashley": {
+            id: "ent-ashley",
+            ownerName: "Ashley",
+            canonicalName: "Ashley",
+            kind: "multi_character_alias",
+            lifecycleState: "archived",
+            introducedAtMessageIndex: 3,
+            lastActiveMessageIndex: 7,
+            archivedAtMessageIndex: 9,
+          },
+        },
+      },
+    },
+  } as unknown as STContext;
+
+  const report = buildDiagnosticsReport({
+    context,
+    settings: makeSettings(),
+    extensionVersion: "2.2.4.16-expX",
+    isExtracting: false,
+    runSequence: 1,
+    trackerUiState: { phase: "idle", done: 0, total: 0, messageIndex: null },
+    latestDataMessageIndex: 2,
+    latestDataTimestamp: 123456,
+    allCharacterNames: ["Ashley"],
+    settingsProvenance: { enabled: "context" },
+    graphPreferences: { window: "all", smoothing: true },
+    profileDebug: { selectedProfile: "", resolvedProfileId: null, activeProfileId: null },
+    historySample: buildHistorySample([{ messageIndex: 2, timestamp: 123456, data: makeTracker(123456) }]),
+    activity: null,
+    latestData: makeTracker(123456),
+    latestPromptMacroData: makeTracker(123456),
+    promptInjectionPreview: "preview",
+    promptInjectionCurrentPrompt: "preview",
+    promptInjectionLastMessage: null,
+    promptInjectionPreviousMessage: null,
+    promptInjectionLatestDataMessage: null,
+    promptInjectionDebugMeta: null,
+    macroDebugMeta: null,
+    baselineDebugMeta: null,
+    traceTailMemory: [],
+    traceTailPersisted: [],
+    debugRecord: null,
+  });
+
+  assert.deepEqual(report.entityRegistry, [{
+    id: "ent-ashley",
+    ownerName: "Ashley",
+    canonicalName: "Ashley",
+    kind: "multi_character_alias",
+    lifecycleState: "archived",
+    introducedAtMessageIndex: 3,
+    lastActiveMessageIndex: 7,
+    archivedAtMessageIndex: 9,
+  }]);
 });

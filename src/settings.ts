@@ -31,6 +31,7 @@ import type {
   StExpressionImageOptions,
   STContext,
 } from "./types";
+import { normalizeEntityTrackingMode } from "./entityResolution";
 import { normalizeDateTimeValue } from "./dateTime";
 import {
   MAX_CUSTOM_ARRAY_ITEMS,
@@ -104,6 +105,8 @@ export const defaultSettings: BetterSimTrackerSettings = {
   showLastThought: true,
   collapseCardsByDefault: false,
   showInactive: true,
+  autoArchiveInactiveCards: false,
+  archiveInactiveAfterTurns: 8,
   inactiveLabel: "Off-screen",
   sceneCardEnabled: false,
   sceneCardPosition: "above_tracker_cards",
@@ -118,6 +121,7 @@ export const defaultSettings: BetterSimTrackerSettings = {
   characterCardStatOrder: [],
   autoDetectActive: true,
   autoGenerateTracker: true,
+  entityTrackingMode: "standard",
   regenerateOnMessageEdit: true,
   generateOnGreetingMessages: true,
   activityLookback: 5,
@@ -617,6 +621,8 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
     showLastThought: asBool(input.showLastThought, defaultSettings.showLastThought),
     collapseCardsByDefault: asBool(input.collapseCardsByDefault, defaultSettings.collapseCardsByDefault),
     showInactive: asBool(input.showInactive, defaultSettings.showInactive),
+    autoArchiveInactiveCards: asBool(input.autoArchiveInactiveCards, defaultSettings.autoArchiveInactiveCards),
+    archiveInactiveAfterTurns: clampInt(input.archiveInactiveAfterTurns, defaultSettings.archiveInactiveAfterTurns, 1, 200),
     inactiveLabel: asText(input.inactiveLabel, defaultSettings.inactiveLabel).slice(0, 40),
     sceneCardEnabled: asBool(input.sceneCardEnabled, defaultSettings.sceneCardEnabled),
     sceneCardPosition: sanitizeSceneCardPosition(input.sceneCardPosition, defaultSettings.sceneCardPosition),
@@ -639,6 +645,7 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
       : [...defaultSettings.characterCardStatOrder],
     autoDetectActive: asBool(input.autoDetectActive, defaultSettings.autoDetectActive),
     autoGenerateTracker: asBool(input.autoGenerateTracker, defaultSettings.autoGenerateTracker),
+    entityTrackingMode: normalizeEntityTrackingMode(input.entityTrackingMode),
     regenerateOnMessageEdit: asBool(input.regenerateOnMessageEdit, defaultSettings.regenerateOnMessageEdit),
     generateOnGreetingMessages: asBool(input.generateOnGreetingMessages, defaultSettings.generateOnGreetingMessages),
     activityLookback: clampInt(input.activityLookback, defaultSettings.activityLookback, 1, 25),

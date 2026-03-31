@@ -1,4 +1,6 @@
-import type { Character, STContext } from "./types";
+import { buildEntitySourceKey, getEntityRegistryEntryByEntityIdForMessage } from "./entityRegistry";
+import type { Character, EntityTrackingMode as SettingsEntityTrackingMode, STContext } from "./types";
+import { isMultiCharacterEntityTrackingMode, resolveCharacterIdentity, resolveEntityTrackingMode } from "./entityResolution";
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
@@ -25,9 +27,16 @@ function buildCharacterCardChunk(character: Character, duplicateNameCount: numbe
   return `${buildCardHeader(character, duplicateNameCount, duplicateIndex)}\n${lines.join("\n")}`;
 }
 
-export function buildCharacterCardsContext(context: STContext, activeCharacters: string[]): string {
+export function buildCharacterCardsContext(
+  context: STContext,
+  activeCharacters: string[],
+  activeEntityIds: string[] = [],
+  entityTrackingMode: SettingsEntityTrackingMode = "standard",
+  preferredCharacterName?: string,
+): string {
   const allCharacters = Array.isArray(context?.characters) ? context.characters : [];
   if (!allCharacters.length) return "";
+  const resolvedMode = resolveEntityTrackingMode({ entityTrackingMode });
 
   const inGroup = Boolean(String(context?.groupId ?? "").trim());
   const focusedCharacterId = Number(context?.characterId);
@@ -41,13 +50,21 @@ export function buildCharacterCardsContext(context: STContext, activeCharacters:
 
   const activeNameKeys = new Set<string>();
   const activeAvatarKeys = new Set<string>();
+  const activeSourceKeys = new Set<string>();
   for (const token of activeCharacters) {
     const raw = normalizeToken(token);
     if (!raw) continue;
     activeNameKeys.add(raw.toLowerCase());
     activeAvatarKeys.add(raw);
   }
-  if (!activeNameKeys.size && !activeAvatarKeys.size) return "";
+  for (const entityId of activeEntityIds) {
+    const entry = getEntityRegistryEntryByEntityIdForMessage(context, entityId, Number.MAX_SAFE_INTEGER);
+    if (!entry) continue;
+    const sourceKey = buildEntitySourceKey(entry.sourceName, entry.sourceAvatar);
+    if (sourceKey) activeSourceKeys.add(sourceKey);
+  }
+  if (!activeNameKeys.size && !activeAvatarKeys.size && !activeSourceKeys.size) return "";
+  const hasExplicitEntityTargets = activeSourceKeys.size > 0;
 
   const duplicateNameCounts = new Map<string, number>();
   for (const character of allCharacters) {
@@ -57,27 +74,71 @@ export function buildCharacterCardsContext(context: STContext, activeCharacters:
   }
 
   const duplicateNameIndices = new Map<string, number>();
-  const chunks: string[] = [];
+  const targetChunks: string[] = [];
+  const otherChunks: string[] = [];
+  const preferredIdentity = preferredCharacterName
+    ? resolveCharacterIdentity(context, preferredCharacterName, resolvedMode)
+    : null;
+  const preferredNameKey = normalizeNameKey(preferredCharacterName);
+  const preferredSourceKey = preferredIdentity
+    ? buildEntitySourceKey(preferredIdentity.sourceName, preferredIdentity.sourceAvatar)
+    : "";
   for (const character of allCharacters) {
     const nameKey = normalizeNameKey(character?.name);
     const avatarKey = normalizeToken(character?.avatar);
+    const sourceKey = buildEntitySourceKey(
+      normalizeToken(character?.name),
+      avatarKey || null,
+    );
     if (!nameKey && !avatarKey) continue;
 
     if (focusedAvatar && avatarKey !== focusedAvatar) continue;
 
-    const isActiveByAvatar = avatarKey ? activeAvatarKeys.has(avatarKey) : false;
-    const isActiveByName = nameKey ? activeNameKeys.has(nameKey) : false;
-    if (!isActiveByAvatar && !isActiveByName) continue;
+    const isActiveByAvatar = !hasExplicitEntityTargets && avatarKey ? activeAvatarKeys.has(avatarKey) : false;
+    const isActiveByName = !hasExplicitEntityTargets && nameKey ? activeNameKeys.has(nameKey) : false;
+    const isActiveByEntitySource = isMultiCharacterEntityTrackingMode(resolvedMode)
+      && sourceKey
+      && activeSourceKeys.has(sourceKey);
+    const isActiveByAlias = !hasExplicitEntityTargets
+      && isMultiCharacterEntityTrackingMode(resolvedMode)
+      && activeCharacters.some(token => {
+        const resolved = resolveCharacterIdentity(context, token, resolvedMode);
+        return Boolean(resolved && normalizeNameKey(resolved.sourceName) === nameKey);
+      });
+    if (!isActiveByAvatar && !isActiveByName && !isActiveByAlias && !isActiveByEntitySource) continue;
 
     const duplicateCount = duplicateNameCounts.get(nameKey) ?? 1;
     const duplicateIndex = duplicateNameIndices.get(nameKey) ?? 0;
     duplicateNameIndices.set(nameKey, duplicateIndex + 1);
 
     const chunk = buildCharacterCardChunk(character, duplicateCount, duplicateIndex);
-    if (chunk) chunks.push(chunk);
+    if (!chunk) continue;
+
+    const isTargetCard = Boolean(preferredNameKey) && (
+      normalizeNameKey(character?.name) === preferredNameKey
+      || (preferredSourceKey && sourceKey === preferredSourceKey)
+      || (avatarKey && preferredIdentity?.sourceAvatar && avatarKey === normalizeToken(preferredIdentity.sourceAvatar))
+    );
+    if (isTargetCard) {
+      targetChunks.push(chunk);
+    } else {
+      otherChunks.push(chunk);
+    }
   }
 
-  if (!chunks.length) return "";
-  return `\n\nCharacter cards (use only to disambiguate if recent messages are unclear):\n${chunks.join("\n\n")}`;
+  if (!targetChunks.length && !otherChunks.length) return "";
+  const blocks: string[] = [];
+  if (targetChunks.length) {
+    const targetLabel = normalizeToken(preferredCharacterName) || "current target";
+    blocks.push(
+      `\n\nTarget character card context (highest priority card context for ${targetLabel}; do not use any other card as this target's state source):\n${targetChunks.join("\n\n")}`,
+    );
+  }
+  if (otherChunks.length) {
+    blocks.push(
+      `\n\nOther character cards (non-target context only; never copy their traits into the current target unless the recent messages explicitly attribute them to that target):\n${otherChunks.join("\n\n")}`,
+    );
+  }
+  return blocks.join("");
 }
 

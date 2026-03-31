@@ -4,6 +4,24 @@ Last verified commit: `000d643`
 
 Primary implementation: `src/extractor.ts`.
 
+## Resolver Prepass
+
+Before stat extraction, BST can run an entity-resolution prepass for the non-standard `Dynamic Characters` mode.
+
+- `standard`
+  - skips resolver prepass and uses normal owner-target selection.
+- `dynamic_characters`
+  - uses the entity-first resolver flow for known entities and may additionally accept conservative `created` proposals for clearly new character-like scene actors.
+
+Important rules:
+
+- Stable IDs remain runtime-owned.
+- Resolver output is still entity-first (`resolvedEntities`), not owner-array-first.
+- `created` proposals are matched against existing candidates and full registry state before any new `narrative-entity` ID is minted.
+- Archived narrative entities can therefore be reactivated instead of duplicated when their exact/normalized name reappears later.
+- Fresh `narrative-entity` seeds do not reuse per-character ST defaults; known ST owners keep the old defaults path, while dynamic narrative entities use the generic narrative seed/default path instead.
+- Props, objects, furniture, containers, maps, lockets, letters, and other scene items must stay unresolved instead of becoming tracker entities.
+
 ## Inputs
 
 Extractor is called with:
@@ -14,6 +32,14 @@ Extractor is called with:
 - `previousStatistics`
 - `history` (recent tracker snapshots)
 - cancellation callbacks and progress callback
+
+When optional character-card context is included, BST now structures it as separate prompt blocks instead of mixing all card text into the same freeform context body:
+
+- `CURRENT / RECENT MESSAGE` remains the message evidence block.
+- `PREVIOUS TARGET STATE` remains target-scoped tracker continuity.
+- `TARGET CARD CONTEXT` is reserved for the extracted character's own card only.
+- `OTHER CARD CONTEXT` is non-target context only and must not be copied into the target unless the recent messages explicitly attribute those traits to that target.
+- User extraction does not get a privileged target character-card block.
 
 ## Enabled Stat Resolution
 

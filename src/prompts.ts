@@ -1,9 +1,14 @@
-import type { CustomStatDefinition, CustomStatKind, CustomNonNumericStatistics, CustomStatistics, StatKey } from "./types";
+import type { CustomStatDefinition, CustomStatKind, CustomNonNumericStatistics, CustomStatistics, STContext, StatKey } from "./types";
 import type { Statistics } from "./types";
 import type { TrackerData } from "./types";
-import { GLOBAL_TRACKER_KEY } from "./constants";
+import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { normalizeDateTimeValue } from "./dateTime";
 import { MAX_CUSTOM_ARRAY_ITEMS, MAX_CUSTOM_ENUM_OPTIONS, normalizeCustomNumericDefaultValue, normalizeNonNumericArrayItems } from "./customStatRuntime";
+import {
+  resolveTrackerDataEntityOwnerSnapshot,
+  resolveTrackerDataLookupValue,
+  resolveTrackerEntityIdsForOwners,
+} from "./entityRegistry";
 
 export const moodOptions = [
   "Happy",
@@ -24,17 +29,7 @@ export const moodOptions = [
 ];
 
 export const MAIN_PROMPT = `SYSTEM:
-You are a relationship-state extraction engine. Follow the task and protocol exactly.
-Stat meanings:
-- affection: emotional warmth, fondness, care toward the user
-- trust: perceived safety/reliability; willingness to be vulnerable
-- desire: physical/romantic attraction and flirt/sexual tension
-- connection: felt closeness/bond depth and emotional attunement
-- mood: immediate emotional tone for this turn
-- lastThought: brief internal thought grounded in recent messages
-Rule:
-- If the relationship is non-romantic, desire deltas must be 0 or negative.
- - Do not infer romance from affection or playfulness.
+You are a tracker-state extraction engine. Follow the task and protocol exactly.
 Do not add commentary or roleplay.`;
 
 export const DEFAULT_UNIFIED_PROMPT_INSTRUCTION = [
@@ -254,15 +249,86 @@ export const DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION = [
   "- Prefer recent messages first; use character cards only to disambiguate when needed.",
 ].join("\n");
 
-function commonEnvelope(userName: string, characters: string[], contextText: string): string {
+function commonEnvelope(userName: string, characters: string[]): string {
   return [
     `User: ${userName}`,
     `Characters: ${characters.join(", ")}`,
-    "",
-    "Recent messages:",
-    contextText,
-    ""
   ].join("\n");
+}
+
+const TARGET_CARD_CONTEXT_HEADER = "Target character card context";
+const OTHER_CARD_CONTEXT_HEADER = "Other character cards";
+const LEGACY_CARD_CONTEXT_HEADER = "Character cards (use only to disambiguate if recent messages are unclear):";
+const LOREBOOK_CONTEXT_HEADER = "Lorebook context (activated; use only to disambiguate if recent messages are unclear):";
+
+function extractPromptContextSection(
+  text: string,
+  startIndex: number,
+  header: string,
+  nextIndices: number[],
+): string {
+  const bodyStart = startIndex + header.length;
+  const candidates = nextIndices.filter(index => index > startIndex);
+  const nextBoundary = candidates.length ? Math.min(...candidates) : text.length;
+  return text.slice(bodyStart, nextBoundary).trim();
+}
+
+function splitPromptContextSections(contextText: string): {
+  recentMessages: string;
+  targetCardContext: string;
+  otherCardContext: string;
+  lorebookContext: string;
+} {
+  const text = String(contextText ?? "").trim();
+  if (!text) {
+    return {
+      recentMessages: "",
+      targetCardContext: "",
+      otherCardContext: "",
+      lorebookContext: "",
+    };
+  }
+
+  const targetIndex = text.indexOf(TARGET_CARD_CONTEXT_HEADER);
+  const otherIndex = text.indexOf(OTHER_CARD_CONTEXT_HEADER);
+  const legacyCardIndex = text.indexOf(LEGACY_CARD_CONTEXT_HEADER);
+  const lorebookIndex = text.indexOf(LOREBOOK_CONTEXT_HEADER);
+  const firstSectionIndex = [targetIndex, otherIndex, legacyCardIndex, lorebookIndex]
+    .filter(index => index >= 0)
+    .sort((a, b) => a - b)[0] ?? -1;
+
+  const recentMessages = (firstSectionIndex >= 0 ? text.slice(0, firstSectionIndex) : text).trim();
+  const targetCardContext = targetIndex >= 0
+    ? extractPromptContextSection(text, targetIndex, TARGET_CARD_CONTEXT_HEADER, [otherIndex, legacyCardIndex, lorebookIndex])
+    : "";
+  const structuredOtherCardContext = otherIndex >= 0
+    ? extractPromptContextSection(text, otherIndex, OTHER_CARD_CONTEXT_HEADER, [legacyCardIndex, lorebookIndex])
+    : "";
+  const legacyOtherCardContext = legacyCardIndex >= 0
+    ? extractPromptContextSection(text, legacyCardIndex, LEGACY_CARD_CONTEXT_HEADER, [lorebookIndex])
+    : "";
+  const lorebookContext = lorebookIndex >= 0
+    ? extractPromptContextSection(text, lorebookIndex, LOREBOOK_CONTEXT_HEADER, [])
+    : "";
+
+  return {
+    recentMessages,
+    targetCardContext,
+    otherCardContext: [structuredOtherCardContext, legacyOtherCardContext].filter(Boolean).join("\n\n").trim(),
+    lorebookContext,
+  };
+}
+
+function renderPromptContextSections(
+  sections: ReturnType<typeof splitPromptContextSections>,
+  values: Record<string, string>,
+): ReturnType<typeof splitPromptContextSections> {
+  return {
+    recentMessages: sections.recentMessages ? renderTemplate(sections.recentMessages, values).trim() : "",
+    targetCardContext: sections.targetCardContext ? renderTemplate(sections.targetCardContext, values).trim() : "",
+    otherCardContext: sections.otherCardContext ? renderTemplate(sections.otherCardContext, values).trim() : "",
+    lorebookContext: sections.lorebookContext ? renderTemplate(sections.lorebookContext, values).trim() : "",
+  };
 }
 
 function bstTagBlock(tag: string, content: string): string {
@@ -291,6 +357,57 @@ function buildSourcePriorityRule(includeCharacterCards: boolean, includeLorebook
   return "";
 }
 
+function resolvePromptExplicitEntityIds(
+  context: STContext | null | undefined,
+  data: TrackerData | null | undefined,
+  ownerName: string,
+): string[] {
+  const snapshotEntityId = String(resolveTrackerDataEntityOwnerSnapshot(data, ownerName)?.entityId ?? "").trim();
+  if (snapshotEntityId) return [snapshotEntityId];
+  if (!context) return [];
+  return resolveTrackerEntityIdsForOwners(context, [ownerName])
+    .map(entityId => String(entityId ?? "").trim())
+    .filter(Boolean);
+}
+
+function resolveBuiltInNumericValue(
+  context: STContext | null | undefined,
+  data: TrackerData | null | undefined,
+  byOwner: Record<string, unknown> | null | undefined,
+  ownerName: string,
+): number | undefined {
+  if (!byOwner) return undefined;
+  const ownerValue = resolveTrackerDataLookupValue({
+    context: context ?? null,
+    data,
+    byOwner,
+    ownerName,
+    explicitEntityIds: resolvePromptExplicitEntityIds(context, data, ownerName),
+  });
+  if (ownerValue === undefined) return undefined;
+  const numeric = Number(ownerValue);
+  if (!Number.isNaN(numeric)) return numeric;
+  return undefined;
+}
+
+function resolveBuiltInTextValue(
+  context: STContext | null | undefined,
+  data: TrackerData | null | undefined,
+  byOwner: Record<string, unknown> | null | undefined,
+  ownerName: string,
+): string | undefined {
+  if (!byOwner) return undefined;
+  const ownerValue = resolveTrackerDataLookupValue({
+    context: context ?? null,
+    data,
+    byOwner,
+    ownerName,
+    explicitEntityIds: resolvePromptExplicitEntityIds(context, data, ownerName),
+  });
+  if (typeof ownerValue === "string") return ownerValue;
+  return undefined;
+}
+
 function applySourcePriorityRule(
   instruction: string,
   includeCharacterCards: boolean,
@@ -305,14 +422,20 @@ function applySourcePriorityRule(
     .join("\n");
 }
 
+function isPromptCharacterCandidate(value: string): boolean {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized !== USER_TRACKER_KEY.toLowerCase() && normalized !== GLOBAL_TRACKER_KEY.toLowerCase();
+}
+
 function primaryCharacter(characters: string[]): string {
-  const first = characters.find(name => typeof name === "string" && name.trim());
+  const first = characters.find(name => typeof name === "string" && isPromptCharacterCandidate(name));
   return first?.trim() || "Character";
 }
 
 function resolvePrimaryCharacter(characters: string[], preferredCharacterName?: string): string {
   const preferred = String(preferredCharacterName ?? "").trim();
-  if (preferred) {
+  if (preferred && isPromptCharacterCandidate(preferred)) {
     const preferredLower = preferred.toLowerCase();
     const matched = characters.find(name => {
       if (typeof name !== "string") return false;
@@ -320,6 +443,7 @@ function resolvePrimaryCharacter(characters: string[], preferredCharacterName?: 
       return Boolean(trimmed) && trimmed.toLowerCase() === preferredLower;
     });
     if (matched && matched.trim()) return matched.trim();
+    return preferred;
   }
   return primaryCharacter(characters);
 }
@@ -330,7 +454,124 @@ type BuiltInTrackingFlags = {
   trackDesire?: boolean;
   trackConnection?: boolean;
   trackMood?: boolean;
+  trackLastThought?: boolean;
 };
+
+function buildRequestedBuiltInFlags(stats: StatKey[]): BuiltInTrackingFlags {
+  return {
+    trackAffection: stats.includes("affection"),
+    trackTrust: stats.includes("trust"),
+    trackDesire: stats.includes("desire"),
+    trackConnection: stats.includes("connection"),
+    trackMood: stats.includes("mood"),
+    trackLastThought: stats.includes("lastThought"),
+  };
+}
+
+function mergeBuiltInTrackingFlags(
+  requested: BuiltInTrackingFlags,
+  configured?: BuiltInTrackingFlags,
+): BuiltInTrackingFlags {
+  return {
+    trackAffection: requested.trackAffection === true && configured?.trackAffection !== false,
+    trackTrust: requested.trackTrust === true && configured?.trackTrust !== false,
+    trackDesire: requested.trackDesire === true && configured?.trackDesire !== false,
+    trackConnection: requested.trackConnection === true && configured?.trackConnection !== false,
+    trackMood: requested.trackMood === true && configured?.trackMood !== false,
+    trackLastThought: requested.trackLastThought === true && configured?.trackLastThought !== false,
+  };
+}
+
+function buildExtractionSystemPrompt(options: {
+  builtInStats?: StatKey[];
+}): string {
+  const builtInStats = (options.builtInStats ?? []).filter(stat =>
+    stat === "affection" || stat === "trust" || stat === "desire" || stat === "connection" || stat === "mood" || stat === "lastThought",
+  );
+  const uniqueStats = Array.from(new Set(builtInStats));
+  const lines = [
+    "SYSTEM:",
+    "You are a tracker-state extraction engine. Follow the task and protocol exactly.",
+  ];
+
+  if (uniqueStats.length) {
+    lines.push("Stat meanings:");
+    if (uniqueStats.includes("affection")) lines.push("- affection: emotional warmth, fondness, care toward the user");
+    if (uniqueStats.includes("trust")) lines.push("- trust: perceived safety/reliability; willingness to be vulnerable");
+    if (uniqueStats.includes("desire")) lines.push("- desire: physical/romantic attraction and flirt/sexual tension");
+    if (uniqueStats.includes("connection")) lines.push("- connection: felt closeness/bond depth and emotional attunement");
+    if (uniqueStats.includes("mood")) lines.push("- mood: immediate emotional tone for this turn");
+    if (uniqueStats.includes("lastThought")) lines.push("- lastThought: brief internal thought grounded in recent messages");
+  }
+
+  if (uniqueStats.includes("desire")) {
+    lines.push("Rule:");
+    lines.push("- If the relationship is non-romantic, desire deltas must be 0 or negative.");
+    lines.push("- Do not infer romance from affection or playfulness.");
+  }
+
+  lines.push("Do not add commentary or roleplay.");
+  return lines.join("\n");
+}
+
+function applyUnifiedDefaultInstructionGuards(
+  instruction: string,
+  stats: StatKey[],
+): string {
+  const hasDesire = stats.includes("desire");
+  return instruction
+    .split(/\r?\n/g)
+    .filter(line => {
+      if (hasDesire) return true;
+      return !/Only increase desire if the relationship is explicitly romantic\/sexual/i.test(line);
+    })
+    .join("\n")
+    .trim();
+}
+
+function buildUnifiedBuiltInProtocol(stats: StatKey[], safeMaxDelta: number, characters: string[]): string {
+  const numericStats = stats.filter(stat =>
+    stat === "affection" || stat === "trust" || stat === "desire" || stat === "connection",
+  );
+  const textStats = stats.filter(stat => stat === "mood" || stat === "lastThought");
+  const deltaSample = numericStats.length
+    ? numericStats.map(key => `        "${key}": 0`).join(",\n")
+    : "        ";
+
+  return [
+    `Numeric stats to update (${numericStats.length ? numericStats.join(", ") : "none"}):`,
+    `- Return deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
+    "",
+    ...(textStats.length
+      ? [
+          `Text stats to update (${textStats.join(", ")}):`,
+          ...(textStats.includes("mood") ? [`- mood must be one of: ${moodOptions.join(", ")}.`] : []),
+          ...(textStats.includes("lastThought") ? ["- lastThought must be one short sentence."] : []),
+          "",
+        ]
+      : []),
+    "Return STRICT JSON only:",
+    "{",
+    "  \"characters\": [",
+    "    {",
+    "      \"name\": \"Character Name\",",
+    "      \"confidence\": 0.0,",
+    "      \"delta\": {",
+    deltaSample,
+    "      }",
+    ...(textStats.includes("mood") ? ["      ,\"mood\": \"Neutral\""] : []),
+    ...(textStats.includes("lastThought") ? ["      ,\"lastThought\": \"\""] : []),
+    "    }",
+    "  ]",
+    "}",
+    "",
+    "Rules:",
+    "- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.",
+    `- include one entry for each character name exactly: ${characters.join(", ")}.`,
+    "- omit fields for stats that are not requested.",
+    "- output JSON only, no commentary.",
+  ].join("\n");
+}
 
 function renderBuiltInSnapshotChunk(
   stats: {
@@ -339,6 +580,7 @@ function renderBuiltInSnapshotChunk(
     desire?: number;
     connection?: number;
     mood?: string;
+    lastThought?: string;
   },
   flags?: BuiltInTrackingFlags,
 ): string {
@@ -362,6 +604,9 @@ function renderBuiltInSnapshotChunk(
   if (flags?.trackMood !== false && typeof stats.mood === "string" && stats.mood.trim()) {
     chunks.push(`mood=${stats.mood.trim()}`);
   }
+  if (flags?.trackLastThought !== false && typeof stats.lastThought === "string" && stats.lastThought.trim()) {
+    chunks.push(`lastThought=${JSON.stringify(stats.lastThought.trim())}`);
+  }
   return chunks.join(", ");
 }
 
@@ -371,7 +616,7 @@ export function buildPrompt(
   characters: string[],
   contextText: string,
 ): string {
-  const envelope = commonEnvelope(userName, characters, contextText);
+  const envelope = [commonEnvelope(userName, characters), "", "Recent messages:", contextText, ""].join("\n");
 
   switch (stat) {
     case "affection":
@@ -405,6 +650,8 @@ Return JSON object only, keys must be exact character names, values must be plai
 }
 
 function resolveScopedCustomNumericValue(
+  context: STContext | null | undefined,
+  data: TrackerData | null | undefined,
   byStat: CustomStatistics | Record<string, Record<string, number>> | null | undefined,
   statId: string,
   ownerName: string,
@@ -423,17 +670,31 @@ function resolveScopedCustomNumericValue(
   if (globalScope) {
     const globalValue = byOwner[GLOBAL_TRACKER_KEY];
     if (globalValue !== undefined) return Number(globalValue);
-    const ownerValue = byOwner[ownerName];
+    const ownerValue = resolveTrackerDataLookupValue({
+      context: context ?? null,
+      data,
+      byOwner,
+      ownerName,
+      explicitEntityIds: resolvePromptExplicitEntityIds(context, data, ownerName),
+    });
     if (ownerValue !== undefined) return Number(ownerValue);
     const fallback = legacyFallback();
     if (fallback !== undefined) return fallback;
   }
-  const ownerValue = byOwner[ownerName];
+  const ownerValue = resolveTrackerDataLookupValue({
+    context: context ?? null,
+    data,
+    byOwner,
+    ownerName,
+    explicitEntityIds: resolvePromptExplicitEntityIds(context, data, ownerName),
+  });
   if (ownerValue !== undefined) return Number(ownerValue);
   return undefined;
 }
 
 function resolveScopedCustomNonNumericValue(
+  context: STContext | null | undefined,
+  data: TrackerData | null | undefined,
   byStat: CustomNonNumericStatistics | null | undefined,
   statId: string,
   ownerName: string,
@@ -451,12 +712,24 @@ function resolveScopedCustomNonNumericValue(
   if (globalScope) {
     const globalValue = byOwner[GLOBAL_TRACKER_KEY];
     if (globalValue !== undefined) return globalValue;
-    const ownerValue = byOwner[ownerName];
+    const ownerValue = resolveTrackerDataLookupValue({
+      context: context ?? null,
+      data,
+      byOwner,
+      ownerName,
+      explicitEntityIds: resolvePromptExplicitEntityIds(context, data, ownerName),
+    });
     if (ownerValue !== undefined) return ownerValue;
     const fallback = legacyFallback();
     if (fallback !== undefined) return fallback;
   }
-  const ownerValue = byOwner[ownerName];
+  const ownerValue = resolveTrackerDataLookupValue({
+    context: context ?? null,
+    data,
+    byOwner,
+    ownerName,
+    explicitEntityIds: resolvePromptExplicitEntityIds(context, data, ownerName),
+  });
   if (ownerValue !== undefined) return ownerValue;
   return undefined;
 }
@@ -474,57 +747,86 @@ export function buildUnifiedPrompt(
   preferredCharacterName?: string,
   includeCharacterCardsInPrompt = true,
   includeLorebookInExtraction = true,
+  context?: STContext | null,
+  currentData?: TrackerData | null,
 ): string {
-  const envelope = commonEnvelope(userName, characters, contextText);
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: stats });
+  const envelope = commonEnvelope(userName, characters);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(contextText), {
+    user: userName,
+    userName,
+    char,
+    characters: characters.join(", "),
+    contextText,
+  });
   const numericStats = stats.filter(stat =>
     stat === "affection" || stat === "trust" || stat === "desire" || stat === "connection",
   );
   const textStats = stats.filter(stat => stat === "mood" || stat === "lastThought");
 
+  const requestedFlags = buildRequestedBuiltInFlags(stats);
   const currentLines = characters.map(name => {
-    const affection = Number(current?.affection?.[name] ?? 50);
-    const trust = Number(current?.trust?.[name] ?? 50);
-    const desire = Number(current?.desire?.[name] ?? 50);
-    const connection = Number(current?.connection?.[name] ?? 50);
-    const mood = String(current?.mood?.[name] ?? "Neutral");
-    return `- ${name}: affection=${Math.max(0, Math.min(100, Math.round(affection)))}, trust=${Math.max(0, Math.min(100, Math.round(trust)))}, desire=${Math.max(0, Math.min(100, Math.round(desire)))}, connection=${Math.max(0, Math.min(100, Math.round(connection)))}, mood=${mood}`;
+    const chunk = renderBuiltInSnapshotChunk({
+      affection: resolveBuiltInNumericValue(context, currentData ?? null, current?.affection, name),
+      trust: resolveBuiltInNumericValue(context, currentData ?? null, current?.trust, name),
+      desire: resolveBuiltInNumericValue(context, currentData ?? null, current?.desire, name),
+      connection: resolveBuiltInNumericValue(context, currentData ?? null, current?.connection, name),
+      mood: resolveBuiltInTextValue(context, currentData ?? null, current?.mood, name),
+      lastThought: resolveBuiltInTextValue(context, currentData ?? null, current?.lastThought, name),
+    }, requestedFlags);
+    return `- ${name}: ${chunk || "no requested built-in stats tracked"}`;
   }).join("\n");
 
   const historyLines = history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = characters.map(name => {
-      const affection = Number(entry.statistics.affection?.[name] ?? 50);
-      const trust = Number(entry.statistics.trust?.[name] ?? 50);
-      const desire = Number(entry.statistics.desire?.[name] ?? 50);
-      const connection = Number(entry.statistics.connection?.[name] ?? 50);
-      const mood = String(entry.statistics.mood?.[name] ?? "Neutral");
-      return `  - ${name}: affection=${Math.round(affection)}, trust=${Math.round(trust)}, desire=${Math.round(desire)}, connection=${Math.round(connection)}, mood=${mood}`;
+      const chunk = renderBuiltInSnapshotChunk({
+        affection: resolveBuiltInNumericValue(context, entry, entry.statistics.affection, name),
+        trust: resolveBuiltInNumericValue(context, entry, entry.statistics.trust, name),
+        desire: resolveBuiltInNumericValue(context, entry, entry.statistics.desire, name),
+        connection: resolveBuiltInNumericValue(context, entry, entry.statistics.connection, name),
+        mood: resolveBuiltInTextValue(context, entry, entry.statistics.mood, name),
+        lastThought: resolveBuiltInTextValue(context, entry, entry.statistics.lastThought, name),
+      }, requestedFlags);
+      return `  - ${name}: ${chunk || "no requested built-in stats tracked"}`;
     }).join("\n");
     return `${header}\n${rows}`;
   }).join("\n");
 
   const safeMaxDelta = Math.max(1, Math.round(Number(maxDeltaPerTurn) || 15));
-  const instructionRaw = template?.trim() ? template : DEFAULT_UNIFIED_PROMPT_INSTRUCTION;
+  const instructionRaw = template?.trim()
+    ? template
+    : applyUnifiedDefaultInstructionGuards(DEFAULT_UNIFIED_PROMPT_INSTRUCTION, stats);
   const instruction = applySourcePriorityRule(
     instructionRaw,
     includeCharacterCardsInPrompt,
     includeLorebookInExtraction,
   );
-  const protocol = protocolTemplate?.trim() ? protocolTemplate : UNIFIED_PROMPT_PROTOCOL;
+  const protocol = protocolTemplate?.trim()
+    ? protocolTemplate
+    : buildUnifiedBuiltInProtocol(stats, safeMaxDelta, characters);
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -532,8 +834,12 @@ export function buildUnifiedPrompt(
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock,
     envelope,
@@ -542,6 +848,10 @@ export function buildUnifiedPrompt(
     char,
     characters: characters.join(", "),
     contextText,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -553,12 +863,14 @@ export function buildUnifiedPrompt(
 }
 
 export function buildUnifiedAllStatsPrompt(input: {
+  context?: STContext | null;
   stats: StatKey[];
   customStats: CustomStatDefinition[];
   userName: string;
   characters: string[];
   contextText: string;
   current: Statistics | null;
+  currentData?: TrackerData | null;
   currentCustom?: CustomStatistics | null;
   currentCustomNonNumeric?: CustomNonNumericStatistics | null;
   history: TrackerData[];
@@ -568,11 +880,24 @@ export function buildUnifiedAllStatsPrompt(input: {
   includeCharacterCardsInPrompt?: boolean;
   includeLorebookInExtraction?: boolean;
   builtInTracking?: BuiltInTrackingFlags;
+  customOnlyMode?: boolean;
 }): string {
-  const envelope = commonEnvelope(input.userName, input.characters, input.contextText);
+  const unifiedBuiltInStats = [...input.stats];
+  const customOnlyMode = input.customOnlyMode === true || unifiedBuiltInStats.length === 0;
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: customOnlyMode ? [] : unifiedBuiltInStats });
+  const envelope = commonEnvelope(input.userName, input.characters);
   const char = resolvePrimaryCharacter(input.characters, input.preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(input.contextText), {
+    user: input.userName,
+    userName: input.userName,
+    char,
+    characters: input.characters.join(", "),
+    contextText: input.contextText,
+  });
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
-  const instructionRaw = input.template?.trim() ? input.template : DEFAULT_UNIFIED_PROMPT_INSTRUCTION;
+  const instructionRaw = input.template?.trim()
+    ? input.template
+    : applyUnifiedDefaultInstructionGuards(DEFAULT_UNIFIED_PROMPT_INSTRUCTION, unifiedBuiltInStats);
   const instruction = applySourcePriorityRule(
     instructionRaw,
     Boolean(input.includeCharacterCardsInPrompt),
@@ -586,18 +911,23 @@ export function buildUnifiedAllStatsPrompt(input: {
   const customNonNumeric = input.customStats.filter(stat => (stat.kind ?? "numeric") !== "numeric");
   const numericDeltaKeys = [...builtInNumeric, ...customNumeric.map(stat => stat.id)];
 
+  const requestedBuiltInFlags = mergeBuiltInTrackingFlags(
+    buildRequestedBuiltInFlags(unifiedBuiltInStats),
+    input.builtInTracking,
+  );
   const currentLines = input.characters.map(name => {
     const chunks: string[] = [];
     const builtInChunk = renderBuiltInSnapshotChunk({
-      affection: Number(input.current?.affection?.[name]),
-      trust: Number(input.current?.trust?.[name]),
-      desire: Number(input.current?.desire?.[name]),
-      connection: Number(input.current?.connection?.[name]),
-      mood: typeof input.current?.mood?.[name] === "string" ? String(input.current?.mood?.[name]) : undefined,
-    }, input.builtInTracking);
+      affection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.affection, name),
+      trust: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.trust, name),
+      desire: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.desire, name),
+      connection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.connection, name),
+      mood: resolveBuiltInTextValue(input.context, input.currentData ?? null, input.current?.mood, name),
+      lastThought: resolveBuiltInTextValue(input.context, input.currentData ?? null, input.current?.lastThought, name),
+    }, requestedBuiltInFlags);
     if (builtInChunk) chunks.push(builtInChunk);
     for (const stat of customNumeric) {
-      const customRaw = Number(resolveScopedCustomNumericValue(input.currentCustom, stat.id, name, stat.globalScope) ?? stat.defaultValue);
+      const customRaw = Number(resolveScopedCustomNumericValue(input.context, input.currentData ?? null, input.currentCustom, stat.id, name, stat.globalScope) ?? stat.defaultValue);
       const customValue = Math.max(0, Math.min(100, Math.round(customRaw)));
       chunks.push(`${stat.id}=${customValue}`);
     }
@@ -608,12 +938,13 @@ export function buildUnifiedAllStatsPrompt(input: {
         : kind === "array"
           ? (Array.isArray(stat.defaultValue) ? stat.defaultValue : [])
           : String(stat.defaultValue ?? "");
-      const customRaw = resolveScopedCustomNonNumericValue(input.currentCustomNonNumeric ?? undefined, stat.id, name, stat.globalScope);
+      const customRaw = resolveScopedCustomNonNumericValue(input.context, input.currentData ?? null, input.currentCustomNonNumeric ?? undefined, stat.id, name, stat.globalScope);
       const customValue = formatCustomNonNumericValue(
         kind,
         customRaw,
         fallback,
         Math.max(20, Math.min(200, Math.round(Number(stat.textMaxLength) || 120))),
+        { preserveExplicitEmpty: true },
       );
       const literal = customNonNumericLiteral(customValue);
       chunks.push(`${stat.id}=${literal}`);
@@ -626,15 +957,16 @@ export function buildUnifiedAllStatsPrompt(input: {
     const rows = input.characters.map(name => {
       const chunks: string[] = [];
       const builtInChunk = renderBuiltInSnapshotChunk({
-        affection: Number(entry.statistics.affection?.[name]),
-        trust: Number(entry.statistics.trust?.[name]),
-        desire: Number(entry.statistics.desire?.[name]),
-        connection: Number(entry.statistics.connection?.[name]),
-        mood: typeof entry.statistics.mood?.[name] === "string" ? String(entry.statistics.mood?.[name]) : undefined,
-      }, input.builtInTracking);
+        affection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.affection, name),
+        trust: resolveBuiltInNumericValue(input.context, entry, entry.statistics.trust, name),
+        desire: resolveBuiltInNumericValue(input.context, entry, entry.statistics.desire, name),
+        connection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.connection, name),
+        mood: resolveBuiltInTextValue(input.context, entry, entry.statistics.mood, name),
+        lastThought: resolveBuiltInTextValue(input.context, entry, entry.statistics.lastThought, name),
+      }, requestedBuiltInFlags);
       if (builtInChunk) chunks.push(builtInChunk);
       for (const stat of customNumeric) {
-        const customRaw = Number(resolveScopedCustomNumericValue(entry.customStatistics ?? undefined, stat.id, name, stat.globalScope) ?? stat.defaultValue);
+        const customRaw = Number(resolveScopedCustomNumericValue(input.context, entry, entry.customStatistics ?? undefined, stat.id, name, stat.globalScope) ?? stat.defaultValue);
         const customValue = Math.max(0, Math.min(100, Math.round(customRaw)));
         chunks.push(`${stat.id}=${customValue}`);
       }
@@ -645,12 +977,13 @@ export function buildUnifiedAllStatsPrompt(input: {
           : kind === "array"
             ? (Array.isArray(stat.defaultValue) ? stat.defaultValue : [])
             : String(stat.defaultValue ?? "");
-        const customRaw = resolveScopedCustomNonNumericValue(entry.customNonNumericStatistics ?? undefined, stat.id, name, stat.globalScope);
+        const customRaw = resolveScopedCustomNonNumericValue(input.context, entry, entry.customNonNumericStatistics ?? undefined, stat.id, name, stat.globalScope);
         const customValue = formatCustomNonNumericValue(
           kind,
           customRaw,
           fallback,
           Math.max(20, Math.min(200, Math.round(Number(stat.textMaxLength) || 120))),
+          { preserveExplicitEmpty: true },
         );
         const literal = customNonNumericLiteral(customValue);
         chunks.push(`${stat.id}=${literal}`);
@@ -701,13 +1034,17 @@ export function buildUnifiedAllStatsPrompt(input: {
   }).join("\n");
 
   const protocol = [
-    `Numeric delta stats to update (${numericDeltaKeys.length ? numericDeltaKeys.join(", ") : "none"}):`,
+    `${customOnlyMode ? "Custom numeric delta stats to update" : "Numeric delta stats to update"} (${numericDeltaKeys.length ? numericDeltaKeys.join(", ") : "none"}):`,
     `- Return deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
     "",
-    `Text stats to update (${builtInText.length ? builtInText.join(", ") : "none"}):`,
-    `- mood must be one of: ${moodOptions.join(", ")}.`,
-    "- lastThought must be one short sentence.",
-    "",
+    ...(customOnlyMode
+      ? []
+      : [
+          `Text stats to update (${builtInText.length ? builtInText.join(", ") : "none"}):`,
+          `- mood must be one of: ${moodOptions.join(", ")}.`,
+          "- lastThought must be one short sentence.",
+          "",
+        ]),
     customNonNumeric.length
       ? [
         `Custom non-numeric stats to update (${customNonNumeric.map(stat => stat.id).join(", ")}):`,
@@ -742,12 +1079,16 @@ export function buildUnifiedAllStatsPrompt(input: {
     .join("\n");
 
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -755,22 +1096,30 @@ export function buildUnifiedAllStatsPrompt(input: {
 
   const taskContent = [
       "{{instruction}}",
-      "- Update built-in and custom stats in this single response.",
+      customOnlyMode ? "- Update only the requested custom stats in this single response." : "- Update built-in and custom stats in this single response.",
       "- For custom numeric stats, use `delta.<statId>`.",
       "- For custom non-numeric stats, use `value.<statId>`.",
     ].join("\n");
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", taskContent);
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
 
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock,
     envelope,
@@ -779,6 +1128,10 @@ export function buildUnifiedAllStatsPrompt(input: {
     char,
     characters: input.characters.join(", "),
     contextText: input.contextText,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -799,9 +1152,19 @@ export function buildSequentialPrompt(
   includeCharacterCardsInPrompt = true,
   includeLorebookInExtraction = true,
   builtInTracking?: BuiltInTrackingFlags,
+  context?: STContext | null,
+  currentData?: TrackerData | null,
 ): string {
-  const envelope = commonEnvelope(userName, characters, contextText);
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: [stat] });
+  const envelope = commonEnvelope(userName, characters);
   const char = resolvePrimaryCharacter(characters, preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(contextText), {
+    user: userName,
+    userName,
+    char,
+    characters: characters.join(", "),
+    contextText,
+  });
   const numericStats = stat === "affection" || stat === "trust" || stat === "desire" || stat === "connection"
     ? [stat]
     : [];
@@ -809,11 +1172,11 @@ export function buildSequentialPrompt(
 
   const currentLines = characters.map(name => {
     const chunk = renderBuiltInSnapshotChunk({
-      affection: Number(current?.affection?.[name]),
-      trust: Number(current?.trust?.[name]),
-      desire: Number(current?.desire?.[name]),
-      connection: Number(current?.connection?.[name]),
-      mood: typeof current?.mood?.[name] === "string" ? String(current?.mood?.[name]) : undefined,
+      affection: resolveBuiltInNumericValue(context, currentData ?? null, current?.affection, name),
+      trust: resolveBuiltInNumericValue(context, currentData ?? null, current?.trust, name),
+      desire: resolveBuiltInNumericValue(context, currentData ?? null, current?.desire, name),
+      connection: resolveBuiltInNumericValue(context, currentData ?? null, current?.connection, name),
+      mood: resolveBuiltInTextValue(context, currentData ?? null, current?.mood, name),
     }, builtInTracking);
     return `- ${name}: ${chunk || "no built-in stats tracked"}`;
   }).join("\n");
@@ -822,11 +1185,11 @@ export function buildSequentialPrompt(
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = characters.map(name => {
       const chunk = renderBuiltInSnapshotChunk({
-        affection: Number(entry.statistics.affection?.[name]),
-        trust: Number(entry.statistics.trust?.[name]),
-        desire: Number(entry.statistics.desire?.[name]),
-        connection: Number(entry.statistics.connection?.[name]),
-        mood: typeof entry.statistics.mood?.[name] === "string" ? String(entry.statistics.mood?.[name]) : undefined,
+        affection: resolveBuiltInNumericValue(context, entry, entry.statistics.affection, name),
+        trust: resolveBuiltInNumericValue(context, entry, entry.statistics.trust, name),
+        desire: resolveBuiltInNumericValue(context, entry, entry.statistics.desire, name),
+        connection: resolveBuiltInNumericValue(context, entry, entry.statistics.connection, name),
+        mood: resolveBuiltInTextValue(context, entry, entry.statistics.mood, name),
       }, builtInTracking);
       return `  - ${name}: ${chunk || "no built-in stats tracked"}`;
     }).join("\n");
@@ -850,17 +1213,25 @@ export function buildSequentialPrompt(
   const protocol = protocolTemplate?.trim() ? protocolTemplate : defaultProtocol;
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -868,8 +1239,12 @@ export function buildSequentialPrompt(
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock,
     envelope,
@@ -878,6 +1253,10 @@ export function buildSequentialPrompt(
     char,
     characters: characters.join(", "),
     contextText,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -889,6 +1268,7 @@ export function buildSequentialPrompt(
 }
 
 export function buildSequentialCustomNumericPrompt(input: {
+  context?: STContext | null;
   statId: string;
   statLabel: string;
   statDescription?: string;
@@ -898,6 +1278,7 @@ export function buildSequentialCustomNumericPrompt(input: {
   characters: string[];
   contextText: string;
   current: Statistics | null;
+  currentData?: TrackerData | null;
   currentCustom?: Record<string, Record<string, number>> | null;
   history: TrackerData[];
   template?: string;
@@ -907,23 +1288,31 @@ export function buildSequentialCustomNumericPrompt(input: {
   includeLorebookInExtraction?: boolean;
   builtInTracking?: BuiltInTrackingFlags;
 }): string {
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: [] });
   const statId = input.statId.trim();
   const statLabel = input.statLabel.trim() || statId;
   const statDescription = String(input.statDescription ?? "").trim();
   const defaultValue = normalizeCustomNumericDefaultValue(input.statDefault);
-  const envelope = commonEnvelope(input.userName, input.characters, input.contextText);
+  const envelope = commonEnvelope(input.userName, input.characters);
   const char = resolvePrimaryCharacter(input.characters, input.preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(input.contextText), {
+    user: input.userName,
+    userName: input.userName,
+    char,
+    characters: input.characters.join(", "),
+    contextText: input.contextText,
+  });
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
 
   const currentLines = input.characters.map(name => {
     const builtInChunk = renderBuiltInSnapshotChunk({
-      affection: Number(input.current?.affection?.[name]),
-      trust: Number(input.current?.trust?.[name]),
-      desire: Number(input.current?.desire?.[name]),
-      connection: Number(input.current?.connection?.[name]),
-      mood: typeof input.current?.mood?.[name] === "string" ? String(input.current?.mood?.[name]) : undefined,
+      affection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.affection, name),
+      trust: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.trust, name),
+      desire: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.desire, name),
+      connection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.connection, name),
+      mood: resolveBuiltInTextValue(input.context, input.currentData ?? null, input.current?.mood, name),
     }, input.builtInTracking);
-    const customValueRaw = Number(resolveScopedCustomNumericValue(input.currentCustom, statId, name, false) ?? defaultValue);
+    const customValueRaw = Number(resolveScopedCustomNumericValue(input.context, input.currentData ?? null, input.currentCustom, statId, name, false) ?? defaultValue);
     const customValue = Math.max(0, Math.min(100, Math.round(customValueRaw)));
     const chunks = [builtInChunk, `${statId}=${customValue}`].filter(Boolean).join(", ");
     return `- ${name}: ${chunks}`;
@@ -933,13 +1322,13 @@ export function buildSequentialCustomNumericPrompt(input: {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
       const builtInChunk = renderBuiltInSnapshotChunk({
-        affection: Number(entry.statistics.affection?.[name]),
-        trust: Number(entry.statistics.trust?.[name]),
-        desire: Number(entry.statistics.desire?.[name]),
-        connection: Number(entry.statistics.connection?.[name]),
-        mood: typeof entry.statistics.mood?.[name] === "string" ? String(entry.statistics.mood?.[name]) : undefined,
+        affection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.affection, name),
+        trust: resolveBuiltInNumericValue(input.context, entry, entry.statistics.trust, name),
+        desire: resolveBuiltInNumericValue(input.context, entry, entry.statistics.desire, name),
+        connection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.connection, name),
+        mood: resolveBuiltInTextValue(input.context, entry, entry.statistics.mood, name),
       }, input.builtInTracking);
-      const customValueRaw = Number(resolveScopedCustomNumericValue(entry.customStatistics ?? undefined, statId, name, false) ?? defaultValue);
+      const customValueRaw = Number(resolveScopedCustomNumericValue(input.context, entry, entry.customStatistics ?? undefined, statId, name, false) ?? defaultValue);
       const customValue = Math.max(0, Math.min(100, Math.round(customValueRaw)));
       const chunks = [builtInChunk, `${statId}=${customValue}`].filter(Boolean).join(", ");
       return `  - ${name}: ${chunks}`;
@@ -970,17 +1359,25 @@ export function buildSequentialCustomNumericPrompt(input: {
   const protocol = input.protocolTemplate?.trim() || NUMERIC_PROMPT_PROTOCOL(statId);
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const outputProtocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", protocol);
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -989,14 +1386,22 @@ export function buildSequentialCustomNumericPrompt(input: {
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock,
     envelope,
     user: input.userName,
     userName: input.userName,
     char,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -1016,7 +1421,11 @@ function formatCustomNonNumericValue(
   value: unknown,
   fallback: string | boolean | string[],
   textMaxLen = 120,
+  options?: {
+    preserveExplicitEmpty?: boolean;
+  },
 ): string | boolean | string[] {
+  const preserveExplicitEmpty = options?.preserveExplicitEmpty === true;
   if (kind === "boolean") {
     if (typeof value === "boolean") return value;
     if (typeof value === "string") {
@@ -1028,6 +1437,7 @@ function formatCustomNonNumericValue(
   }
 
   if (kind === "array") {
+    if (preserveExplicitEmpty && Array.isArray(value) && value.length === 0) return [];
     const items = normalizeNonNumericArrayItems(value, textMaxLen);
     if (items.length) return items;
     const fallbackItems = normalizeNonNumericArrayItems(fallback, textMaxLen);
@@ -1045,6 +1455,7 @@ function formatCustomNonNumericValue(
   }
 
   const text = typeof value === "string" ? value.trim() : "";
+  if (preserveExplicitEmpty && typeof value === "string" && !text) return "";
   if (text) return text;
   return typeof fallback === "string" ? fallback : "";
 }
@@ -1141,6 +1552,7 @@ function customNonNumericProtocol(input: {
 }
 
 export function buildSequentialCustomNonNumericPrompt(input: {
+  context?: STContext | null;
   statId: string;
   statKind: Exclude<CustomStatKind, "numeric">;
   globalScope?: boolean;
@@ -1156,6 +1568,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   characters: string[];
   contextText: string;
   current: Statistics | null;
+  currentData?: TrackerData | null;
   currentCustomNonNumeric?: CustomNonNumericStatistics | null;
   history: TrackerData[];
   template?: string;
@@ -1165,6 +1578,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   includeLorebookInExtraction?: boolean;
   builtInTracking?: BuiltInTrackingFlags;
 }): string {
+  const systemPrompt = buildExtractionSystemPrompt({ builtInStats: [] });
   const statId = input.statId.trim();
   const statLabel = input.statLabel.trim() || statId;
   const statDescription = String(input.statDescription ?? "").trim();
@@ -1176,8 +1590,15 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   const dateTimeMode = input.dateTimeMode === "structured" ? "structured" : "timestamp";
   const trueLabel = String(input.booleanTrueLabel ?? "enabled").trim() || "enabled";
   const falseLabel = String(input.booleanFalseLabel ?? "disabled").trim() || "disabled";
-  const envelope = commonEnvelope(input.userName, input.characters, input.contextText);
+  const envelope = commonEnvelope(input.userName, input.characters);
   const char = resolvePrimaryCharacter(input.characters, input.preferredCharacterName);
+  const contextSections = renderPromptContextSections(splitPromptContextSections(input.contextText), {
+    user: input.userName,
+    userName: input.userName,
+    char,
+    characters: input.characters.join(", "),
+    contextText: input.contextText,
+  });
 
   const defaultFallback = statKind === "boolean"
     ? false
@@ -1199,19 +1620,23 @@ export function buildSequentialCustomNonNumericPrompt(input: {
 
   const currentLines = input.characters.map(name => {
     const builtInChunk = renderBuiltInSnapshotChunk({
-      affection: Number(input.current?.affection?.[name]),
-      trust: Number(input.current?.trust?.[name]),
-      desire: Number(input.current?.desire?.[name]),
-      connection: Number(input.current?.connection?.[name]),
-      mood: typeof input.current?.mood?.[name] === "string" ? String(input.current?.mood?.[name]) : undefined,
+      affection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.affection, name),
+      trust: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.trust, name),
+      desire: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.desire, name),
+      connection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.connection, name),
+      mood: resolveBuiltInTextValue(input.context, input.currentData ?? null, input.current?.mood, name),
     }, input.builtInTracking);
     const customRaw = resolveScopedCustomNonNumericValue(
+      input.context,
+      input.currentData ?? null,
       input.currentCustomNonNumeric ?? undefined,
       statId,
       name,
       input.globalScope,
     );
-    const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue);
+    const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue, textMaxLen, {
+      preserveExplicitEmpty: true,
+    });
     const customLiteral = customNonNumericLiteral(customValue);
     const chunks = [builtInChunk, `${statId}=${customLiteral}`].filter(Boolean).join(", ");
     return `- ${name}: ${chunks}`;
@@ -1221,19 +1646,23 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
       const builtInChunk = renderBuiltInSnapshotChunk({
-        affection: Number(entry.statistics.affection?.[name]),
-        trust: Number(entry.statistics.trust?.[name]),
-        desire: Number(entry.statistics.desire?.[name]),
-        connection: Number(entry.statistics.connection?.[name]),
-        mood: typeof entry.statistics.mood?.[name] === "string" ? String(entry.statistics.mood?.[name]) : undefined,
+        affection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.affection, name),
+        trust: resolveBuiltInNumericValue(input.context, entry, entry.statistics.trust, name),
+        desire: resolveBuiltInNumericValue(input.context, entry, entry.statistics.desire, name),
+        connection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.connection, name),
+        mood: resolveBuiltInTextValue(input.context, entry, entry.statistics.mood, name),
       }, input.builtInTracking);
       const customRaw = resolveScopedCustomNonNumericValue(
+        input.context,
+        entry,
         entry.customNonNumericStatistics ?? undefined,
         statId,
         name,
         input.globalScope,
       );
-      const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue);
+      const customValue = formatCustomNonNumericValue(statKind, customRaw, defaultValue, textMaxLen, {
+        preserveExplicitEmpty: true,
+      });
       const customLiteral = customNonNumericLiteral(customValue);
       const chunks = [builtInChunk, `${statId}=${customLiteral}`].filter(Boolean).join(", ");
       return `  - ${name}: ${chunks}`;
@@ -1282,16 +1711,24 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   }));
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
+  const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
+  const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
+  const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
   const taskBlock = bstTagBlock("BST_TASK", "{{instruction}}");
   const assembled = [
-    MAIN_PROMPT,
+    systemPrompt,
     "",
     "{{criticalInstruction}}",
     "{{envelopeBlock}}",
+    "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{targetCardContextBlock}}",
+    "{{otherCardContextBlock}}",
+    "{{lorebookContextBlock}}",
     "{{taskBlock}}",
     "",
     "{{outputProtocolBlock}}",
@@ -1300,14 +1737,22 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   return renderTemplate(assembled, {
     criticalInstruction,
     envelopeBlock,
+    recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    targetCardContextBlock,
+    otherCardContextBlock,
+    lorebookContextBlock,
     taskBlock,
     outputProtocolBlock: protocolBlock,
     envelope,
     user: input.userName,
     userName: input.userName,
     char,
+    recentMessages: contextSections.recentMessages || "- none",
+    targetCardContext: contextSections.targetCardContext || "- none",
+    otherCardContext: contextSections.otherCardContext || "- none",
+    lorebookContext: contextSections.lorebookContext || "- none",
     currentLines,
     historyLines: historyLines || "- none",
     instruction,

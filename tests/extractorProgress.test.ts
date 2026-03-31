@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildProgressBaseline,
   buildProgressApply,
   buildProgressApplyingDefaults,
   buildProgressNoExtractionNeeded,
   buildProgressParse,
   buildProgressRequest,
+  buildProgressResolveActive,
   buildProgressSeedingDefaults,
   buildProgressUnifiedBatch,
   formatBuiltInProgressLabel,
@@ -41,6 +43,9 @@ test("built-in and custom progress label formatters are stable", () => {
 });
 
 test("progress wrappers keep consistent prefixes", () => {
+  assert.equal(buildProgressResolveActive("standard"), "Resolving active characters");
+  assert.equal(buildProgressResolveActive("dynamic_characters"), "Resolving dynamic characters");
+  assert.equal(buildProgressBaseline(), "Building extraction baseline");
   assert.equal(buildProgressRequest("Custom: Clothes"), "Requesting Custom: Clothes");
   assert.equal(buildProgressParse("Custom: Clothes"), "Parsing Custom: Clothes");
   assert.equal(buildProgressApply("Custom: Clothes"), "Applying Custom: Clothes");

@@ -11,6 +11,7 @@ import {
 } from "../src/parse";
 
 test("parseStatResponse parses numeric and mood/text maps", () => {
+  const longThought = "Ashley worries the secret predates the camp itself; Blake feels intellectually superior to the speculation; Garret is desperate to escape the stifling room; Raleigh silently warns Kuba not to destabilize the group.";
   assert.deepEqual(
     parseStatResponse("affection", "{\"Alice\": 52, \"Bob\": \"70\"}", ["Alice", "Bob"]),
     { Alice: 52, Bob: 70 },
@@ -22,6 +23,10 @@ test("parseStatResponse parses numeric and mood/text maps", () => {
   assert.deepEqual(
     parseStatResponse("lastThought", "{\"Alice\": \"  Keep moving.  \"}", ["Alice"]),
     { Alice: "Keep moving." },
+  );
+  assert.deepEqual(
+    parseStatResponse("lastThought", JSON.stringify({ Alice: longThought }), ["Alice"]),
+    { Alice: longThought },
   );
 });
 
@@ -57,6 +62,7 @@ test("parseUnifiedStatResponse resolves aliases and enabled stats", () => {
 });
 
 test("parseUnifiedDeltaResponse clamps deltas and confidence", () => {
+  const longThought = "Ashley worries the secret predates the camp itself; Blake feels intellectually superior to the speculation; Garret is desperate to escape the stifling room; Raleigh silently warns Kuba not to destabilize the group.";
   const raw = JSON.stringify({
     characters: [
       {
@@ -64,7 +70,7 @@ test("parseUnifiedDeltaResponse clamps deltas and confidence", () => {
         confidence: 1.5,
         delta: { affection: 99, trust: -99 },
         mood: "glad",
-        lastThought: "Stay here.",
+        lastThought: longThought,
       },
     ],
   });
@@ -78,7 +84,7 @@ test("parseUnifiedDeltaResponse clamps deltas and confidence", () => {
   assert.deepEqual(parsed.deltas.affection, { Alice: 10 });
   assert.deepEqual(parsed.deltas.trust, { Alice: -10 });
   assert.deepEqual(parsed.mood, { Alice: "Happy" });
-  assert.deepEqual(parsed.lastThought, { Alice: "Stay here." });
+  assert.deepEqual(parsed.lastThought, { Alice: longThought });
 });
 
 test("parseCustomDeltaResponse resolves delta from nested or flat values", () => {

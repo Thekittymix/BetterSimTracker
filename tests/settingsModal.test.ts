@@ -64,20 +64,47 @@ test("settings modal exposes mood symbol chip display controls in Card Appearanc
   assert.match(source, /Mood Symbol Font Size/);
 });
 
-test("settings modal collectSettings persists mood symbol numeric controls", () => {
-  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
-  assert.match(source, /moodSymbolMinWidth:\s*readNumber\("moodSymbolMinWidth"/);
-  assert.match(source, /moodSymbolMinHeight:\s*readNumber\("moodSymbolMinHeight"/);
-  assert.match(source, /moodSymbolBoxRadius:\s*readNumber\("moodSymbolBoxRadius"/);
-  assert.match(source, /moodSymbolFontSize:\s*readNumber\("moodSymbolFontSize"/);
-});
-
 test("settings modal seeds mood symbol numeric controls from saved settings on reopen", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
   assert.match(source, /set\("moodSymbolMinWidth", String\(input\.settings\.moodSymbolMinWidth\)\)/);
   assert.match(source, /set\("moodSymbolMinHeight", String\(input\.settings\.moodSymbolMinHeight\)\)/);
   assert.match(source, /set\("moodSymbolBoxRadius", String\(input\.settings\.moodSymbolBoxRadius\)\)/);
   assert.match(source, /set\("moodSymbolFontSize", String\(input\.settings\.moodSymbolFontSize\)\)/);
+});
+
+test("settings modal exposes multi-character archive lifecycle controls in Extraction only", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Auto-Archive Inactive/);
+  assert.match(source, /Archive After Turns/);
+  assert.match(source, /Dynamic Character Lifecycle/);
+  assert.match(source, /entityTrackingMode === "dynamic_characters"/);
+  assert.doesNotMatch(source, /Show Archived/);
+});
+
+test("settings modal exposes entity tracking mode control in Extraction", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Entity Tracking Mode/);
+  assert.match(source, /Dynamic Characters \(Experimental\)/);
+});
+
+test("settings modal diagnostics section exposes stable debug box hooks for live refresh", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /data-bst-row="latestDebugRecordBox"/);
+  assert.match(source, /data-bst-row="latestInjectedPromptBox"/);
+});
+
+test("settings modal explains that explicit character macros are required for multi-target chats", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /When multiple character targets exist in the current chat, use explicit target macros/);
+  assert.match(source, /examples\.length >= 6/);
+});
+
+test("settings modal collectSettings persists mood symbol numeric controls", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /moodSymbolMinWidth:\s*readNumber\("moodSymbolMinWidth"/);
+  assert.match(source, /moodSymbolMinHeight:\s*readNumber\("moodSymbolMinHeight"/);
+  assert.match(source, /moodSymbolBoxRadius:\s*readNumber\("moodSymbolBoxRadius"/);
+  assert.match(source, /moodSymbolFontSize:\s*readNumber\("moodSymbolFontSize"/);
 });
 
 test("settings modal exposes live preview for non-dynamic injection placeholders", () => {

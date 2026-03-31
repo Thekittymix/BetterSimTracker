@@ -1,5 +1,6 @@
 import { GLOBAL_TRACKER_KEY } from "./constants";
-import type { TrackerData } from "./types";
+import { resolveTrackerDataLookupValue } from "./entityRegistry";
+import type { TrackerData, TrackerGraphTarget } from "./types";
 
 export type GraphNumericStatDefinition = {
   key: string;
@@ -9,21 +10,85 @@ export type GraphNumericStatDefinition = {
 
 const BUILT_IN_NUMERIC_STAT_KEYS = new Set(["affection", "trust", "desire", "connection"]);
 
+function normalizeLookupNames(nameOrNames: string | string[]): string[] {
+  const values = Array.isArray(nameOrNames) ? nameOrNames : [nameOrNames];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values) {
+    const trimmed = String(value ?? "").trim();
+    if (!trimmed) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+function normalizeEntityIds(values: string[] | null | undefined): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const value of values ?? []) {
+    const trimmed = String(value ?? "").trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+type GraphTargetSelection =
+  | string
+  | string[]
+  | TrackerGraphTarget;
+
+function resolveLookupNames(
+  entry: TrackerData,
+  nameOrNames: GraphTargetSelection | ((entry: TrackerData) => GraphTargetSelection),
+): { lookupNames: string[]; entityIds: string[] } {
+  const resolved = typeof nameOrNames === "function" ? nameOrNames(entry) : nameOrNames;
+  if (resolved && typeof resolved === "object" && !Array.isArray(resolved)) {
+    return {
+      lookupNames: normalizeLookupNames(resolved.ownerName),
+      entityIds: normalizeEntityIds([resolved.entityId ?? ""]),
+    };
+  }
+  return {
+    lookupNames: normalizeLookupNames(resolved),
+    entityIds: [],
+  };
+}
+
 function getNumericRawValue(
   entry: TrackerData,
   key: string,
-  name: string,
+  nameOrNames: GraphTargetSelection | ((entry: TrackerData) => GraphTargetSelection),
   globalScope = false,
 ): number | undefined {
+  const { lookupNames, entityIds } = resolveLookupNames(entry, nameOrNames);
+  if (!lookupNames.length) return undefined;
   if (BUILT_IN_NUMERIC_STAT_KEYS.has(key)) {
-    const raw = entry.statistics[key as "affection" | "trust" | "desire" | "connection"]?.[name];
-    if (raw === undefined) return undefined;
-    return Number(raw);
+    const byOwner = entry.statistics[key as "affection" | "trust" | "desire" | "connection"];
+    if (!byOwner) return undefined;
+    for (const name of lookupNames) {
+      const raw = resolveTrackerDataLookupValue({
+        context: null,
+        data: entry,
+        ownerName: name,
+        byOwner,
+        byEntityId: entry.statisticsByEntityId?.[key as "affection" | "trust" | "desire" | "connection"],
+        explicitEntityIds: entityIds,
+      });
+      if (raw === undefined) continue;
+      return Number(raw);
+    }
+    return undefined;
   }
 
   const byOwner = entry.customStatistics?.[key];
-  if (!byOwner) return undefined;
+  const byEntityId = entry.customStatisticsByEntityId?.[key];
+  if (!byOwner && !byEntityId) return undefined;
   const legacyFallback = (): number | undefined => {
+    if (!byOwner) return undefined;
     for (const [owner, value] of Object.entries(byOwner)) {
       if (owner === GLOBAL_TRACKER_KEY) continue;
       const parsed = Number(value);
@@ -33,15 +98,26 @@ function getNumericRawValue(
   };
 
   const customRaw = globalScope
-    ? (byOwner[GLOBAL_TRACKER_KEY] ?? byOwner[name] ?? legacyFallback())
-    : byOwner[name];
+    ? ((byOwner?.[GLOBAL_TRACKER_KEY])
+      ?? lookupNames.map(name => byOwner?.[name]).find(value => value !== undefined)
+      ?? legacyFallback())
+    : lookupNames
+      .map(name => resolveTrackerDataLookupValue({
+        context: null,
+        data: entry,
+        ownerName: name,
+        byOwner,
+        byEntityId,
+        explicitEntityIds: entityIds,
+      }))
+      .find(value => value !== undefined);
   if (customRaw === undefined) return undefined;
   return Number(customRaw);
 }
 
 export function hasNumericSnapshot(
   entry: TrackerData,
-  character: string,
+  character: GraphTargetSelection | ((entry: TrackerData) => GraphTargetSelection),
   defs: GraphNumericStatDefinition[],
 ): boolean {
   for (const def of defs) {
@@ -51,9 +127,20 @@ export function hasNumericSnapshot(
   return false;
 }
 
+export function selectGraphTimelineEntries(
+  history: TrackerData[],
+  character: GraphTargetSelection | ((entry: TrackerData) => GraphTargetSelection),
+  defs: GraphNumericStatDefinition[],
+): TrackerData[] {
+  return [...history]
+    .filter(item => Number.isFinite(item.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp)
+    .filter(item => hasNumericSnapshot(item, character, defs));
+}
+
 export function buildStatSeries(
   timeline: TrackerData[],
-  character: string,
+  character: GraphTargetSelection | ((entry: TrackerData) => GraphTargetSelection),
   def: GraphNumericStatDefinition,
 ): number[] {
   let carry = Math.max(0, Math.min(100, Math.round(def.defaultValue)));

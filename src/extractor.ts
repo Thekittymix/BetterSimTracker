@@ -18,6 +18,7 @@ import {
 import { normalizeDateTimeWithMode } from "./dateTime";
 import {
   applyConfidenceScaledDelta,
+  buildPromptCurrentTrackerData,
   enabledBuiltInAndTextStats,
   enabledCustomStats,
   groupCustomStatsForSequential,
@@ -26,6 +27,7 @@ import {
 } from "./extractorHelpers";
 import {
   buildProgressApply,
+  buildProgressBaseline,
   buildProgressApplyingDefaults,
   buildProgressNoExtractionNeeded,
   buildProgressParse,
@@ -36,6 +38,7 @@ import {
   formatCustomGroupProgressLabel,
   formatCustomProgressLabel,
 } from "./extractorProgress";
+import { resolvePreviousCustomNonNumericValue, resolvePreviousTrackerLookupValue } from "./extractorRegistry";
 import type {
   BetterSimTrackerSettings,
   CustomNonNumericValue,
@@ -44,6 +47,7 @@ import type {
   CustomStatistics,
   DeltaDebugRecord,
   GenerateRequestMeta,
+  STContext,
   StatKey,
   Statistics,
   TrackerData
@@ -258,11 +262,14 @@ function resolveLegacyNonNumericFallback(
 }
 
 export async function extractStatisticsParallel(input: {
+  context?: STContext | null;
   settings: BetterSimTrackerSettings;
   userName: string;
   activeCharacters: string[];
+  entityResolution?: TrackerData["entityResolution"] | null;
   preferredCharacterName?: string;
   contextText: string;
+  previousTrackerData?: TrackerData | null;
   previousStatistics: Statistics | null;
   previousCustomStatistics?: CustomStatistics | null;
   previousCustomStatisticsRaw?: CustomStatistics | null;
@@ -280,11 +287,14 @@ export async function extractStatisticsParallel(input: {
   debug: DeltaDebugRecord | null;
 }> {
   const {
+    context,
     settings,
     userName,
     activeCharacters,
+    entityResolution,
     preferredCharacterName,
     contextText,
+    previousTrackerData,
     previousStatistics,
     previousCustomStatistics,
     previousCustomStatisticsRaw,
@@ -295,6 +305,7 @@ export async function extractStatisticsParallel(input: {
     isOwnerStatEnabled,
     bypassConfidenceControls = false,
   } = input;
+  const registryContext = context ?? null;
   const builtInAndTextStats = enabledBuiltInAndTextStats(settings).filter(stat =>
     activeCharacters.some(name => isOwnerStatEnabled?.(name, stat) !== false),
   );
@@ -310,6 +321,14 @@ export async function extractStatisticsParallel(input: {
   const output = emptyStatistics();
   const outputCustom: CustomStatistics = {};
   const outputCustomNonNumeric: CustomNonNumericStatistics = {};
+  const promptCurrentData = buildPromptCurrentTrackerData({
+    activeCharacters,
+    entityResolution,
+    previousTrackerData,
+    previousStatistics,
+    previousCustomStatistics,
+    previousCustomNonNumericStatistics,
+  });
   let debugRecord: DeltaDebugRecord | null = null;
   let cancelled = false;
   const normalizedUserName = String(userName ?? "").trim();
@@ -395,7 +414,7 @@ export async function extractStatisticsParallel(input: {
   const progressTotal = settings.sequentialExtraction
     ? Math.max(1, sequentialStatPasses * 3)
     : Math.max(1, unifiedBatchCount * 3);
-  onProgress?.(0, progressTotal, "Preparing context");
+  onProgress?.(0, progressTotal, buildProgressBaseline());
 
   try {
     const applyDelta = (prev: number, delta: number, confidence: number, maxDeltaOverride?: number): number => {
@@ -448,35 +467,80 @@ export async function extractStatisticsParallel(input: {
         const confidence = parsedOne.confidence[name] ?? 0.8;
         if (stat === "affection" && parsedOne.deltas.affection[name] !== undefined) {
           parsed.deltas.affection[name] = parsedOne.deltas.affection[name];
-          const prevAffection = Number(previousStatistics?.affection?.[name] ?? settings.defaultAffection);
+          const prevAffection = Number(
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.affection,
+              previousTrackerData?.statisticsByEntityId?.affection,
+              name,
+            )
+            ?? settings.defaultAffection,
+          );
           const next = applyDelta(prevAffection, parsedOne.deltas.affection[name], confidence);
           output.affection[name] = next;
           applied.affection[name] = next;
         }
         if (stat === "trust" && parsedOne.deltas.trust[name] !== undefined) {
           parsed.deltas.trust[name] = parsedOne.deltas.trust[name];
-          const prevTrust = Number(previousStatistics?.trust?.[name] ?? settings.defaultTrust);
+          const prevTrust = Number(
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.trust,
+              previousTrackerData?.statisticsByEntityId?.trust,
+              name,
+            )
+            ?? settings.defaultTrust,
+          );
           const next = applyDelta(prevTrust, parsedOne.deltas.trust[name], confidence);
           output.trust[name] = next;
           applied.trust[name] = next;
         }
         if (stat === "desire" && parsedOne.deltas.desire[name] !== undefined) {
           parsed.deltas.desire[name] = parsedOne.deltas.desire[name];
-          const prevDesire = Number(previousStatistics?.desire?.[name] ?? settings.defaultDesire);
+          const prevDesire = Number(
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.desire,
+              previousTrackerData?.statisticsByEntityId?.desire,
+              name,
+            )
+            ?? settings.defaultDesire,
+          );
           const next = applyDelta(prevDesire, parsedOne.deltas.desire[name], confidence);
           output.desire[name] = next;
           applied.desire[name] = next;
         }
         if (stat === "connection" && parsedOne.deltas.connection[name] !== undefined) {
           parsed.deltas.connection[name] = parsedOne.deltas.connection[name];
-          const prevConnection = Number(previousStatistics?.connection?.[name] ?? settings.defaultConnection);
+          const prevConnection = Number(
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.connection,
+              previousTrackerData?.statisticsByEntityId?.connection,
+              name,
+            )
+            ?? settings.defaultConnection,
+          );
           const next = applyDelta(prevConnection, parsedOne.deltas.connection[name], confidence);
           output.connection[name] = next;
           applied.connection[name] = next;
         }
         if (stat === "mood" && parsedOne.mood[name] !== undefined) {
           parsed.mood[name] = parsedOne.mood[name];
-          const prevMood = String(previousStatistics?.mood?.[name] ?? settings.defaultMood);
+          const prevMood = String(
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.mood,
+              previousTrackerData?.statisticsByEntityId?.mood,
+              name,
+            )
+            ?? settings.defaultMood,
+          );
           output.mood[name] = resolveMoodWithConfidence({
             previousMood: prevMood,
             nextMood: parsedOne.mood[name],
@@ -496,7 +560,16 @@ export async function extractStatisticsParallel(input: {
         for (const name of activeCharacters) {
           if (isOwnerStatEnabled?.(name, stat) === false) continue;
           if (output.mood[name] !== undefined) continue;
-          const prevMood = String(previousStatistics?.mood?.[name] ?? settings.defaultMood);
+          const prevMood = String(
+            resolvePreviousTrackerLookupValue(
+              registryContext,
+              previousTrackerData,
+              previousStatistics?.mood,
+              previousTrackerData?.statisticsByEntityId?.mood,
+              name,
+            )
+            ?? settings.defaultMood,
+          );
           output.mood[name] = prevMood;
           applied.mood[name] = prevMood;
           moodFallbackApplied.add(name);
@@ -541,7 +614,16 @@ export async function extractStatisticsParallel(input: {
         if (delta === undefined) continue;
         parsed.deltas.custom[statId][name] = delta;
         const confidence = parsedOne.confidence[name] ?? 0.8;
-        const prevValue = Number(previousCustomStatistics?.[statId]?.[name] ?? statDef.defaultValue);
+        const prevValue = Number(
+          resolvePreviousTrackerLookupValue(
+            registryContext,
+            previousTrackerData,
+            previousCustomStatistics?.[statId],
+            previousTrackerData?.customStatisticsByEntityId?.[statId],
+            name,
+          )
+          ?? statDef.defaultValue,
+        );
         const next = applyDelta(prevValue, delta, confidence, statDef.maxDeltaPerTurn);
         outputCustom[statId][name] = next;
         applied.customStatistics[statId][name] = next;
@@ -604,7 +686,16 @@ export async function extractStatisticsParallel(input: {
       }
       for (const name of names) {
         if (isOwnerStatEnabled?.(name, statId) === false) continue;
-        const seedValue = clamp(Number(previousCustomStatistics?.[statId]?.[name] ?? statDef.defaultValue));
+        const seedValue = clamp(Number(
+          resolvePreviousTrackerLookupValue(
+            registryContext,
+            previousTrackerData,
+            previousCustomStatistics?.[statId],
+            previousTrackerData?.customStatisticsByEntityId?.[statId],
+            name,
+          )
+          ?? statDef.defaultValue,
+        ));
         outputCustom[statId][name] = seedValue;
         applied.customStatistics[statId][name] = seedValue;
       }
@@ -666,7 +757,13 @@ export async function extractStatisticsParallel(input: {
       for (const name of names) {
         if (isOwnerStatEnabled?.(name, statId) === false) continue;
         let seedValue: CustomNonNumericValue;
-        const previous = previousCustomNonNumericStatistics?.[statId]?.[name];
+        const previous = resolvePreviousTrackerLookupValue(
+          registryContext,
+          previousTrackerData,
+          previousCustomNonNumericStatistics?.[statId],
+          previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId],
+          name,
+        );
         if (previous !== undefined) {
           if (Array.isArray(previous)) {
             const seen = new Set<string>();
@@ -738,7 +835,16 @@ export async function extractStatisticsParallel(input: {
       const existing: string[] = [];
       const firstRunSeedOnly: string[] = [];
       for (const name of names) {
-        if (hasPrior && rawMap[name] !== undefined) {
+        const previousValue = resolvePreviousTrackerLookupValue(
+          registryContext,
+          previousTrackerData,
+          rawMap as Record<string, unknown>,
+          kind === "numeric"
+            ? previousTrackerData?.customStatisticsByEntityId?.[statId]
+            : previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId],
+          name,
+        );
+        if (hasPrior && previousValue !== undefined) {
           existing.push(name);
         } else {
           firstRunSeedOnly.push(name);
@@ -857,7 +963,14 @@ export async function extractStatisticsParallel(input: {
     ): boolean => {
       if (settings.sequentialExtraction) return false;
       if ((statDef.kind ?? "numeric") !== "text_short") return false;
-      const previousValue = previousCustomNonNumericStatistics?.[statDef.id]?.[characterName];
+      const previousValue = resolvePreviousCustomNonNumericValue(
+        registryContext,
+        previousCustomNonNumericStatistics?.[statDef.id] ?? null,
+        previousTrackerData,
+        previousTrackerData?.customNonNumericStatisticsByEntityId?.[statDef.id] ?? null,
+        characterName,
+        Boolean(statDef.globalScope),
+      );
       if (typeof previousValue !== "string") return false;
 
       const nextNorm = normalizeTextForComparison(value);
@@ -919,9 +1032,14 @@ export async function extractStatisticsParallel(input: {
           if (candidateRaw === undefined) continue;
           const candidate = toArrayItems(candidateRaw);
           const previousByOwner = previousCustomNonNumericStatistics?.[statDef.id];
-          const previousRaw = statDef.globalScope
-            ? (previousByOwner?.[GLOBAL_TRACKER_KEY] ?? previousByOwner?.[name])
-            : previousByOwner?.[name];
+          const previousRaw = resolvePreviousCustomNonNumericValue(
+            registryContext,
+            previousByOwner ?? null,
+            previousTrackerData,
+            previousTrackerData?.customNonNumericStatisticsByEntityId?.[statDef.id] ?? null,
+            name,
+            Boolean(statDef.globalScope),
+          );
           const previous = toArrayItems(previousRaw);
           const confidenceRaw = Number(next.confidence[name]);
           const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 0.8;
@@ -950,9 +1068,14 @@ export async function extractStatisticsParallel(input: {
         for (const name of requestCharacters) {
           const candidate = next.value[name];
           const previousByOwner = previousCustomNonNumericStatistics?.[statDef.id];
-          const previous = statDef.globalScope
-            ? (previousByOwner?.[GLOBAL_TRACKER_KEY] ?? previousByOwner?.[name])
-            : previousByOwner?.[name];
+          const previous = resolvePreviousCustomNonNumericValue(
+            registryContext,
+            previousByOwner ?? null,
+            previousTrackerData,
+            previousTrackerData?.customNonNumericStatisticsByEntityId?.[statDef.id] ?? null,
+            name,
+            Boolean(statDef.globalScope),
+          );
           const normalized = normalizeDateTimeWithMode(candidate, mode, previous);
           if (!normalized) {
             delete next.value[name];
@@ -1009,6 +1132,8 @@ export async function extractStatisticsParallel(input: {
               trackConnection: settings.trackConnection,
               trackMood: settings.trackMood,
             },
+            context,
+            promptCurrentData,
           )
         : buildUnifiedPrompt(
             statList,
@@ -1023,6 +1148,8 @@ export async function extractStatisticsParallel(input: {
             preferredCharacterName,
             settings.includeCharacterCardsInPrompt,
             settings.includeLorebookInExtraction,
+            context,
+            promptCurrentData,
           );
       const prompt = applyPromptCharacterAliases(builtPrompt);
       tickProgress(buildProgressRequest(progressLabel));
@@ -1118,6 +1245,7 @@ export async function extractStatisticsParallel(input: {
       const kind = statDef.kind ?? "numeric";
       const builtPrompt = kind === "numeric"
         ? buildSequentialCustomNumericPrompt({
+          context,
           statId,
           statLabel: label,
           statDescription: statDef.description,
@@ -1127,6 +1255,7 @@ export async function extractStatisticsParallel(input: {
           characters: requestCharacters,
           contextText,
           current: previousStatistics,
+          currentData: promptCurrentData,
           currentCustom: previousCustomStatistics ?? {},
           history,
           template: (statDef.promptOverride ?? statDef.sequentialPromptTemplate)
@@ -1145,6 +1274,7 @@ export async function extractStatisticsParallel(input: {
           },
         })
         : buildSequentialCustomNonNumericPrompt({
+          context,
           statId,
           statKind: kind,
           globalScope: statDef.globalScope,
@@ -1164,6 +1294,7 @@ export async function extractStatisticsParallel(input: {
           characters: requestCharacters,
           contextText,
           current: previousStatistics,
+          currentData: promptCurrentData,
           currentCustomNonNumeric: previousCustomNonNumericStatistics ?? {},
           history,
           template: (statDef.promptOverride ?? statDef.sequentialPromptTemplate)
@@ -1360,12 +1491,14 @@ export async function extractStatisticsParallel(input: {
           ...batchCustomStats.map(stat => stat.id),
         ];
         const builtPrompt = buildUnifiedAllStatsPrompt({
+          context,
           stats: batchBuiltInStats,
           customStats: batchCustomStats,
           userName,
           characters: requestCharacters,
           contextText,
           current: previousStatistics,
+          currentData: promptCurrentData,
           currentCustom: previousCustomStatistics ?? {},
           currentCustomNonNumeric: previousCustomNonNumericStatistics ?? {},
           history,
@@ -1528,12 +1661,14 @@ export async function extractStatisticsParallel(input: {
         const statsForRequest = group.map(stat => stat.id);
         const requestTemplate = buildGroupedCustomTemplate(group);
         const builtPrompt = buildUnifiedAllStatsPrompt({
+          context,
           stats: [],
           customStats: group,
           userName,
           characters: requestCharacters,
           contextText,
           current: previousStatistics,
+          currentData: promptCurrentData,
           currentCustom: previousCustomStatistics ?? {},
           currentCustomNonNumeric: previousCustomNonNumericStatistics ?? {},
           history,
@@ -1549,6 +1684,7 @@ export async function extractStatisticsParallel(input: {
             trackConnection: settings.trackConnection,
             trackMood: settings.trackMood,
           },
+          customOnlyMode: true,
         });
         const prompt = applyPromptCharacterAliases(builtPrompt);
         const groupLabel = group.map(stat => stat.id).join("+");

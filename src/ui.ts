@@ -1,5 +1,6 @@
 import { CUSTOM_STAT_ID_REGEX, GLOBAL_TRACKER_KEY, MAX_CUSTOM_STATS, RESERVED_CUSTOM_STAT_IDS, STYLE_ID, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
+import { shouldUseConfiguredOwnerDefaults } from "./entitySeedPolicy";
 import { generateJson } from "./generator";
 import { logDebug } from "./settings";
 import type {
@@ -15,9 +16,13 @@ import type {
   MoodSource,
   MoodSymbolMap,
   SceneCardStatDisplayOptions,
+  STContext,
   StExpressionImageOptions,
   StatValue,
   TrackerData,
+  TrackerEntityRegistryEntry,
+  TrackerGraphTarget,
+  TrackerRegistrySyncTarget,
 } from "./types";
 import {
   DEFAULT_INJECTION_PROMPT_TEMPLATE,
@@ -52,9 +57,22 @@ import { closeEditStatsModal, openEditStatsModal, type EditStatsPayload } from "
 import { closeGraphModal, openGraphModal } from "./graphModal";
 import { getAllNumericStatDefinitions } from "./statRegistry";
 import { getDateTimeStructuredParts, normalizeDateTimeValue, toDateTimeInputValue } from "./dateTime";
-import { renderThoughtMarkup } from "./uiThought";
+import { hasThoughtOverflow, renderThoughtMarkup, resolveThoughtToggleState } from "./uiThought";
 import { formatDateTimeTimestampDisplay, renderDateTimeStructuredChips } from "./uiDateTimeDisplay";
 import { formatNonNumericForDisplay, truncateDisplayText } from "./uiNonNumericDisplay";
+import { renderTextShortMarkup, resolveTextShortToggleState } from "./uiTextShort";
+import { cloneTrackerDataForEdit } from "./trackerUiState";
+import { type CardLifecycleRegistryState, type CardLifecycleSnapshot, type CardLifecycleState, resolveCardLifecycleState } from "./cardLifecycle";
+import {
+  buildLifecycleHistorySnapshotsFromTrackerEntries,
+  resolveTrackerDataEntityOwnerSnapshot,
+  resolveTrackerActiveEntityIds,
+  resolveTrackerActiveOwners,
+  resolveTrackerDataLookupValue,
+  resolveTrackerMessageOwners,
+  resolveTrackerSceneEntityIds,
+  resolveTrackerSceneOwners,
+} from "./entityRegistry";
 import {
   buildLastPointCircle,
   buildPointCircles,
@@ -104,6 +122,10 @@ type UiNonNumericStatDefinition = {
   showOnCard: boolean;
   includeInInjection: boolean;
   color: string;
+};
+
+type UiRegistryLookupEntry = Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> & {
+  id?: string;
 };
 
 export const BUILT_IN_NUMERIC_STAT_KEYS = new Set(["affection", "trust", "desire", "connection"]);
@@ -289,6 +311,59 @@ export function getNumericRawValue(entry: TrackerData, key: string, name: string
   return Number(customRaw);
 }
 
+export function resolveCurrentNumericRawValue(
+  entry: TrackerData,
+  key: string,
+  ownerName: string,
+  input?: {
+    globalScope?: boolean;
+    registryEntry?: UiRegistryLookupEntry | null;
+  },
+): number | undefined {
+  const globalScope = Boolean(input?.globalScope);
+  if (globalScope) {
+    const value = getNumericRawValue(entry, key, GLOBAL_TRACKER_KEY, true);
+    return value !== undefined && !Number.isNaN(value) ? value : undefined;
+  }
+  const byOwner = BUILT_IN_NUMERIC_STAT_KEYS.has(key)
+    ? entry.statistics[key as "affection" | "trust" | "desire" | "connection"]
+    : entry.customStatistics?.[key];
+  const byEntityId = BUILT_IN_NUMERIC_STAT_KEYS.has(key)
+    ? entry.statisticsByEntityId?.[key as "affection" | "trust" | "desire" | "connection"]
+    : entry.customStatisticsByEntityId?.[key];
+  const byEntityValue = resolveTrackerDataLookupValue({
+    context: null,
+    data: input?.registryEntry?.id ? {
+      ...entry,
+      entityOwnerMap: {
+        ...(entry.entityOwnerMap ?? {}),
+        [ownerName]: {
+          entityId: input.registryEntry.id,
+          ownerName: input.registryEntry.ownerName,
+          canonicalName: input.registryEntry.canonicalName,
+          aliases: [...(input.registryEntry.aliases ?? [])],
+          sourceKey: "",
+          kind: input.registryEntry.kind,
+        },
+      },
+    } : entry,
+    ownerName,
+    byOwner,
+    byEntityId,
+  });
+  if (byEntityValue !== undefined) {
+    const parsed = Number(byEntityValue);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+  const lookupNames = resolveRegistryLookupNamesForOwner(ownerName, input?.registryEntry ?? null);
+  for (const lookupName of lookupNames) {
+    const value = getNumericRawValue(entry, key, lookupName, false);
+    if (value !== undefined && !Number.isNaN(value)) return value;
+    if (isNumericExplicitlyCleared(entry, key, lookupName, false)) return undefined;
+  }
+  return undefined;
+}
+
 function isNumericExplicitlyCleared(entry: TrackerData, key: string, name: string, globalScope = false): boolean {
   if (BUILT_IN_NUMERIC_STAT_KEYS.has(key)) {
     const ownerKey = name;
@@ -319,6 +394,49 @@ function getNonNumericRawValue(
     : byOwner[name];
 }
 
+export function resolveCurrentNonNumericRawValue(
+  entry: TrackerData,
+  statId: string,
+  ownerName: string,
+  input?: {
+    globalScope?: boolean;
+    registryEntry?: UiRegistryLookupEntry | null;
+  },
+): CustomNonNumericValue | undefined {
+  const globalScope = Boolean(input?.globalScope);
+  if (globalScope) {
+    return getNonNumericRawValue(entry, statId, GLOBAL_TRACKER_KEY, true);
+  }
+  const byEntityValue = resolveTrackerDataLookupValue({
+    context: null,
+    data: input?.registryEntry?.id ? {
+      ...entry,
+      entityOwnerMap: {
+        ...(entry.entityOwnerMap ?? {}),
+        [ownerName]: {
+          entityId: input.registryEntry.id,
+          ownerName: input.registryEntry.ownerName,
+          canonicalName: input.registryEntry.canonicalName,
+          aliases: [...(input.registryEntry.aliases ?? [])],
+          sourceKey: "",
+          kind: input.registryEntry.kind,
+        },
+      },
+    } : entry,
+    ownerName,
+    byOwner: entry.customNonNumericStatistics?.[statId],
+    byEntityId: entry.customNonNumericStatisticsByEntityId?.[statId],
+  });
+  if (byEntityValue !== undefined) return byEntityValue;
+  const lookupNames = resolveRegistryLookupNamesForOwner(ownerName, input?.registryEntry ?? null);
+  for (const lookupName of lookupNames) {
+    const value = getNonNumericRawValue(entry, statId, lookupName, false);
+    if (value !== undefined) return value;
+    if (isNonNumericExplicitlyCleared(entry, statId, lookupName, false)) return undefined;
+  }
+  return undefined;
+}
+
 function isNonNumericExplicitlyCleared(
   entry: TrackerData,
   statId: string,
@@ -333,9 +451,64 @@ function isTextStatExplicitlyCleared(entry: TrackerData, stat: "mood" | "lastTho
   return Boolean(entry.clearedStatistics?.[stat]?.[name]);
 }
 
+export function resolveCurrentBuiltInTextValue(
+  entry: TrackerData,
+  stat: "mood" | "lastThought",
+  ownerName: string,
+  registryEntry?: UiRegistryLookupEntry | null,
+): string | undefined {
+  const value = resolveTrackerDataLookupValue({
+    context: null,
+    data: registryEntry?.id ? {
+      ...entry,
+      entityOwnerMap: {
+        ...(entry.entityOwnerMap ?? {}),
+        [ownerName]: {
+          entityId: registryEntry.id,
+          ownerName: registryEntry.ownerName,
+          canonicalName: registryEntry.canonicalName,
+          aliases: [...(registryEntry.aliases ?? [])],
+          sourceKey: "",
+          kind: registryEntry.kind,
+        },
+      },
+    } : entry,
+    ownerName,
+    byOwner: stat === "mood" ? entry.statistics.mood : entry.statistics.lastThought,
+    byEntityId: entry.statisticsByEntityId?.[stat],
+  });
+  if (value !== undefined) return String(value ?? "");
+  const lookupNames = resolveRegistryLookupNamesForOwner(ownerName, registryEntry ?? null);
+  const source = stat === "mood" ? entry.statistics.mood : entry.statistics.lastThought;
+  for (const lookupName of lookupNames) {
+    if (source?.[lookupName] !== undefined) return String(source[lookupName] ?? "");
+    if (isTextStatExplicitlyCleared(entry, stat, lookupName)) return undefined;
+  }
+  return undefined;
+}
+
+export function shouldSuppressAliasNonNumericDefaultFallback(
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "kind"> | null,
+  globalScope = false,
+): boolean {
+  return Boolean(registryEntry?.kind === "multi_character_alias" && !globalScope);
+}
+
 function hasNumericValue(entry: TrackerData, key: string, name: string, globalScope = false): boolean {
   const raw = getNumericRawValue(entry, key, name, globalScope);
   return raw !== undefined && !Number.isNaN(raw);
+}
+
+export function hasCurrentNonNumericValue(
+  entry: TrackerData,
+  def: UiNonNumericStatDefinition,
+  ownerName: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+): boolean {
+  return resolveCurrentNonNumericRawValue(entry, def.id, ownerName, {
+    globalScope: def.globalScope,
+    registryEntry,
+  }) !== undefined;
 }
 
 function getNumericStatsForCharacter(
@@ -442,6 +615,483 @@ export type TrackerUiState = {
   stepLabel?: string | null;
 };
 
+export type OwnerRenderIdentity = {
+  sourceKey: string;
+  isAlias: boolean;
+  isSource: boolean;
+};
+
+export type UiRenderTarget = {
+  ownerName: string;
+  uiKey: string;
+  registryEntry: TrackerEntityRegistryEntry | null;
+};
+
+export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | null): { title: string; subtitle: string } {
+  const normalizedLabel = String(stepLabel ?? "").trim();
+  if (/^Resolving /i.test(normalizedLabel)) {
+    return {
+      title: normalizedLabel,
+      subtitle: /multi-character aliases/i.test(normalizedLabel)
+        ? "Matching source cards, aliases, and active owners before extraction."
+        : "Determining who is active for this message before extraction.",
+    };
+  }
+  if (/^Building extraction baseline$/i.test(normalizedLabel) || /^Preparing context$/i.test(normalizedLabel)) {
+    return {
+      title: normalizedLabel || "Building extraction baseline",
+      subtitle: "Collecting recent messages, tracker history, and owner context for extraction.",
+    };
+  }
+  if (done === 1) {
+    return {
+      title: normalizedLabel || "Requesting relationship analysis",
+      subtitle: normalizedLabel && normalizedLabel !== "Requesting relationship analysis"
+        ? normalizedLabel
+        : "Sending extraction prompt to backend/profile.",
+    };
+  }
+  if (done >= 2) {
+    return {
+      title: normalizedLabel || "Parsing and applying tracker update",
+      subtitle: normalizedLabel && normalizedLabel !== "Parsing and applying tracker update"
+        ? normalizedLabel
+        : "Validating AI delta output and updating relationship state.",
+    };
+  }
+  return {
+    title: normalizedLabel || "Building extraction baseline",
+    subtitle: "Collecting recent messages, tracker history, and owner context for extraction.",
+  };
+}
+
+export function resolveExtractionProgressDisplayWithLabel(
+  done: number,
+  total: number,
+  label?: string | null,
+): {
+  stageText: string;
+  percent: number;
+  ratio: number;
+} {
+  const normalizedTotal = Math.max(0, Math.floor(Number(total) || 0));
+  const normalizedDone = Math.max(0, Math.floor(Number(done) || 0));
+  const normalizedLabel = String(label ?? "").trim();
+  const isZeroProgress = normalizedDone === 0;
+  const isResolverPreflight = normalizedDone === 0 && /^Resolving\b/i.test(normalizedLabel);
+  const isBaselinePreflight = normalizedDone === 0
+    && normalizedTotal <= 1
+    && (/^Building extraction baseline$/i.test(normalizedLabel) || /^Preparing context$/i.test(normalizedLabel));
+  if (normalizedTotal <= 0) {
+    return {
+      stageText: "preparing",
+      percent: 0,
+      ratio: 0,
+    };
+  }
+  if (isZeroProgress && (normalizedTotal <= 1 || isResolverPreflight || isBaselinePreflight)) {
+    return {
+      stageText: "preparing",
+      percent: 0,
+      ratio: 0,
+    };
+  }
+  const clampedDone = Math.max(0, Math.min(normalizedTotal, normalizedDone));
+  const ratio = Math.max(0, Math.min(1, clampedDone / normalizedTotal));
+  return {
+    stageText: `stage ${Math.min(clampedDone + 1, normalizedTotal)}/${normalizedTotal}`,
+    percent: Math.round(ratio * 100),
+    ratio,
+  };
+}
+
+export function resolveExtractionProgressDisplay(done: number, total: number): {
+  stageText: string;
+  percent: number;
+  ratio: number;
+} {
+  return resolveExtractionProgressDisplayWithLabel(done, total, null);
+}
+
+export function filterTechnicalSourceOwnersFromTargets(
+  targets: string[],
+  resolveOwnerRenderIdentity?: (ownerName: string) => OwnerRenderIdentity | null,
+): string[] {
+  if (!resolveOwnerRenderIdentity) return [...targets];
+  const aliasSourceKeys = new Set<string>();
+  for (const ownerName of targets) {
+    const identity = resolveOwnerRenderIdentity(ownerName);
+    if (identity?.isAlias) {
+      aliasSourceKeys.add(identity.sourceKey);
+    }
+  }
+  if (!aliasSourceKeys.size) return [...targets];
+  return targets.filter(ownerName => {
+    const identity = resolveOwnerRenderIdentity(ownerName);
+    if (!identity?.isSource) return true;
+    return !aliasSourceKeys.has(identity.sourceKey);
+  });
+}
+
+export function filterArchivedOwnersFromTargets(
+  targets: string[],
+  getLifecycleState?: (ownerName: string) => CardLifecycleState,
+): string[] {
+  if (!getLifecycleState) return [...targets];
+  return targets.filter(ownerName => getLifecycleState(ownerName) !== "archived");
+}
+
+export function mergeRegistryOwnersIntoTargets(
+  targets: string[],
+  registryOwners: string[],
+): string[] {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  for (const ownerName of [...targets, ...registryOwners]) {
+    const normalized = normalizeName(ownerName);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    merged.push(ownerName);
+  }
+  return merged;
+}
+
+export function mergeRegistryEntitiesIntoTargets(input: {
+  targets: string[];
+  registryEntries: TrackerEntityRegistryEntry[];
+  resolveRegistryEntry?: (ownerName: string) => TrackerEntityRegistryEntry | null;
+}): string[] {
+  const merged: string[] = [];
+  const seenNames = new Set<string>();
+  const seenEntityIds = new Set<string>();
+  const pushOwner = (ownerName: string, registryEntry?: TrackerEntityRegistryEntry | null): void => {
+    const normalized = normalizeName(ownerName);
+    const entityId = String(registryEntry?.id ?? "").trim();
+    if (!normalized) return;
+    if (entityId) {
+      if (seenEntityIds.has(entityId)) return;
+      seenEntityIds.add(entityId);
+    } else if (seenNames.has(normalized)) {
+      return;
+    }
+    seenNames.add(normalized);
+    merged.push(ownerName);
+  };
+  for (const ownerName of input.targets) {
+    pushOwner(ownerName, input.resolveRegistryEntry?.(ownerName) ?? null);
+  }
+  for (const entry of input.registryEntries) {
+    const ownerName = String(entry?.ownerName ?? "").trim();
+    if (!ownerName) continue;
+    pushOwner(ownerName, entry);
+  }
+  return merged;
+}
+
+function buildUiRenderTarget(
+  ownerName: string,
+  registryEntry?: TrackerEntityRegistryEntry | null,
+): UiRenderTarget | null {
+  const normalizedOwnerName = String(ownerName ?? "").trim();
+  if (!normalizedOwnerName) return null;
+  const entry = registryEntry ?? null;
+  return {
+    ownerName: normalizedOwnerName,
+    uiKey: resolveOwnerUiKey(normalizedOwnerName, entry),
+    registryEntry: entry,
+  };
+}
+
+export function mergeRegistryRenderTargets(input: {
+  targets: string[];
+  registryEntries: TrackerEntityRegistryEntry[];
+  resolveRegistryEntry?: (ownerName: string) => TrackerEntityRegistryEntry | null;
+}): UiRenderTarget[] {
+  const merged: UiRenderTarget[] = [];
+  const seen = new Set<string>();
+  const pushTarget = (ownerName: string, registryEntry?: TrackerEntityRegistryEntry | null): void => {
+    const target = buildUiRenderTarget(ownerName, registryEntry);
+    if (!target || seen.has(target.uiKey)) return;
+    seen.add(target.uiKey);
+    merged.push(target);
+  };
+  for (const ownerName of input.targets) {
+    pushTarget(ownerName, input.resolveRegistryEntry?.(ownerName) ?? null);
+  }
+  for (const entry of input.registryEntries) {
+    pushTarget(String(entry?.ownerName ?? ""), entry);
+  }
+  return merged;
+}
+
+export function filterShadowedAliasRenderTargets(
+  targets: UiRenderTarget[],
+): UiRenderTarget[] {
+  const aliasedOwners = new Set(
+    targets
+      .filter(target => target.registryEntry?.kind === "multi_character_alias")
+      .map(target => normalizeName(target.ownerName))
+      .filter(Boolean),
+  );
+  if (!aliasedOwners.size) return [...targets];
+  return targets.filter(target => {
+    const normalizedOwner = normalizeName(target.ownerName);
+    if (!normalizedOwner) return false;
+    return !(target.registryEntry?.kind === "owner" && aliasedOwners.has(normalizedOwner));
+  });
+}
+
+export function resolveRegistryOwnersFromEntries(
+  entries: TrackerEntityRegistryEntry[],
+): string[] {
+  const owners: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of entries) {
+    const ownerName = String(entry?.ownerName ?? "").trim();
+    const normalized = normalizeName(ownerName);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    owners.push(ownerName);
+  }
+  return owners;
+}
+
+function filterTechnicalSourceRenderTargets(
+  targets: UiRenderTarget[],
+  resolveOwnerRenderIdentity?: (ownerName: string) => OwnerRenderIdentity | null,
+): UiRenderTarget[] {
+  if (!resolveOwnerRenderIdentity) return [...targets];
+  const aliasSourceKeys = new Set<string>();
+  for (const target of targets) {
+    const identity = resolveOwnerRenderIdentity(target.ownerName);
+    if (identity?.isAlias) {
+      aliasSourceKeys.add(identity.sourceKey);
+    }
+  }
+  if (!aliasSourceKeys.size) return [...targets];
+  return targets.filter(target => {
+    const identity = resolveOwnerRenderIdentity(target.ownerName);
+    if (!identity?.isSource) return true;
+    return !aliasSourceKeys.has(identity.sourceKey);
+  });
+}
+
+function filterArchivedRenderTargets(
+  targets: UiRenderTarget[],
+  getLifecycleState?: (target: UiRenderTarget) => CardLifecycleState,
+): UiRenderTarget[] {
+  if (!getLifecycleState) return [...targets];
+  return targets.filter(target => getLifecycleState(target) !== "archived");
+}
+
+export function resolveRegistryLookupNamesForOwner(
+  ownerName: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const pushName = (raw: unknown): void => {
+    const value = String(raw ?? "").trim();
+    const normalized = normalizeName(value);
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    names.push(value);
+  };
+  pushName(ownerName);
+  if (!registryEntry) return names;
+  pushName(registryEntry.ownerName);
+  pushName(registryEntry.canonicalName);
+  for (const alias of registryEntry.aliases ?? []) {
+    pushName(alias);
+  }
+  return names;
+}
+
+export function resolveRegistryEntryForOwnerInMessageData(input: {
+  ownerName: string;
+  messageIndex: number;
+  data?: TrackerData | null;
+  resolveRegistryEntryForMessage?: (ownerName: string, messageIndex: number) => TrackerEntityRegistryEntry | null;
+  resolveRegistryEntryByEntityIdForMessage?: (entityId: string, messageIndex: number) => TrackerEntityRegistryEntry | null;
+}): TrackerEntityRegistryEntry | null {
+  const ownerName = String(input.ownerName ?? "").trim();
+  if (!ownerName) return null;
+  const targetEntityId = String(resolveTrackerDataEntityOwnerSnapshot(input.data, ownerName)?.entityId ?? "").trim();
+  if (targetEntityId) {
+    const byEntityId = input.resolveRegistryEntryByEntityIdForMessage?.(targetEntityId, input.messageIndex) ?? null;
+    if (byEntityId) return byEntityId;
+  }
+  return input.resolveRegistryEntryForMessage?.(ownerName, input.messageIndex) ?? null;
+}
+
+export function resolveLifecycleRegistryStateForOwnerInMessageData(input: {
+  ownerName: string;
+  messageIndex: number;
+  data?: TrackerData | null;
+  resolveLifecycleRegistryState?: (ownerName: string, messageIndex: number) => CardLifecycleRegistryState | null;
+  resolveLifecycleRegistryStateByEntityId?: (entityId: string, messageIndex: number) => CardLifecycleRegistryState | null;
+}): CardLifecycleRegistryState | null {
+  const ownerName = String(input.ownerName ?? "").trim();
+  if (!ownerName) return null;
+  const targetEntityId = String(resolveTrackerDataEntityOwnerSnapshot(input.data, ownerName)?.entityId ?? "").trim();
+  if (targetEntityId) {
+    const byEntityId = input.resolveLifecycleRegistryStateByEntityId?.(targetEntityId, input.messageIndex) ?? null;
+    if (byEntityId) return byEntityId;
+  }
+  return input.resolveLifecycleRegistryState?.(ownerName, input.messageIndex) ?? null;
+}
+
+export function buildDisplayPoolWithRegistry(input: {
+  entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
+  includeAllTargets: boolean;
+  activeCharacters: string[];
+  dataCharacterNames: string[];
+  mergedWithRegistryOwners: string[];
+}): string[] {
+  const preferRegistryOwners = input.entityTrackingMode === "dynamic_characters"
+    && input.mergedWithRegistryOwners.length > 0;
+  if (input.includeAllTargets) {
+    return preferRegistryOwners
+      ? input.mergedWithRegistryOwners
+      : input.dataCharacterNames.length > 0
+        ? input.dataCharacterNames
+        : input.activeCharacters;
+  }
+  return preferRegistryOwners
+    ? input.mergedWithRegistryOwners
+    : input.activeCharacters.length > 0
+      ? input.activeCharacters
+      : input.dataCharacterNames;
+}
+
+export function selectDisplayPoolTargetsWithRegistry(input: {
+  entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
+  includeAllTargets: boolean;
+  activeCharacters: string[];
+  dataCharacterNames: string[];
+  mergedWithRegistryTargets: UiRenderTarget[];
+  resolveTarget: (ownerName: string) => UiRenderTarget | null;
+  shouldKeepTarget: (target: UiRenderTarget) => boolean;
+}): UiRenderTarget[] {
+  const mergedWithRegistryOwners = input.mergedWithRegistryTargets.map(target => target.ownerName);
+  const displayPool = buildDisplayPoolWithRegistry({
+    entityTrackingMode: input.entityTrackingMode,
+    includeAllTargets: input.includeAllTargets,
+    activeCharacters: input.activeCharacters,
+    dataCharacterNames: input.dataCharacterNames,
+    mergedWithRegistryOwners,
+  });
+  const preferRegistryTargets = input.entityTrackingMode === "dynamic_characters"
+    && input.mergedWithRegistryTargets.length > 0;
+  const displayPoolTargets = preferRegistryTargets
+    ? [...input.mergedWithRegistryTargets]
+    : displayPool
+      .map(ownerName => input.resolveTarget(ownerName))
+      .filter((target): target is UiRenderTarget => Boolean(target));
+  return input.includeAllTargets
+    ? displayPoolTargets
+    : displayPoolTargets.filter(target => input.shouldKeepTarget(target));
+}
+
+export function filterRenderTargetsForTrackingMode(input: {
+  entityTrackingMode: BetterSimTrackerSettings["entityTrackingMode"];
+  targets: UiRenderTarget[];
+}): UiRenderTarget[] {
+  if (input.entityTrackingMode === "dynamic_characters") {
+    return [...input.targets];
+  }
+  return input.targets.filter(target => target.registryEntry?.kind !== "narrative-entity");
+}
+
+export function isUserOwnerToken(
+  ownerName: string,
+  resolveDisplayName?: (ownerName: string) => string | null | undefined,
+): boolean {
+  const normalizedOwner = normalizeName(ownerName);
+  if (!normalizedOwner) return false;
+  if (normalizedOwner === normalizeName(USER_TRACKER_KEY)) return true;
+  if (!resolveDisplayName) return false;
+  const normalizedUserDisplayName = normalizeName(resolveDisplayName(USER_TRACKER_KEY) ?? "User");
+  if (!normalizedUserDisplayName) return false;
+  const displayName = resolveDisplayName(ownerName) ?? ownerName;
+  return normalizeName(displayName) === normalizedUserDisplayName;
+}
+
+export function shouldKeepOwnerInRenderTargetPool(input: {
+  ownerName: string;
+  hasAnyStat: boolean;
+  isActive: boolean;
+}): boolean {
+  const normalized = normalizeName(input.ownerName);
+  if (!normalized) return false;
+  return input.hasAnyStat || input.isActive;
+}
+
+export function resolveTrackerCardCollapsed(input: {
+  cardKey: string;
+  isActive: boolean;
+  collapsedActiveCardKeys: ReadonlySet<string>;
+  expandedInactiveCardKeys: ReadonlySet<string>;
+}): boolean {
+  const key = String(input.cardKey ?? "").trim();
+  if (!key) return !input.isActive;
+  return input.isActive
+    ? input.collapsedActiveCardKeys.has(key)
+    : !input.expandedInactiveCardKeys.has(key);
+}
+
+export function applyTrackerCardCollapsed(input: {
+  cardKey: string;
+  isActive: boolean;
+  nextCollapsed: boolean;
+  collapsedActiveCardKeys: Set<string>;
+  expandedInactiveCardKeys: Set<string>;
+}): void {
+  const key = String(input.cardKey ?? "").trim();
+  if (!key) return;
+  if (input.isActive) {
+    if (input.nextCollapsed) {
+      input.collapsedActiveCardKeys.add(key);
+    } else {
+      input.collapsedActiveCardKeys.delete(key);
+    }
+    return;
+  }
+  if (input.nextCollapsed) {
+    input.expandedInactiveCardKeys.delete(key);
+  } else {
+    input.expandedInactiveCardKeys.add(key);
+  }
+}
+
+export function resolveCurrentLifecycleOwners(input: {
+  sceneOwners: string[];
+  messageOwners: string[];
+}): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const name of [...(input.sceneOwners ?? []), ...(input.messageOwners ?? [])]) {
+    const trimmed = String(name ?? "").trim();
+    if (!trimmed) continue;
+    const normalized = normalizeName(trimmed);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+export function resolveCurrentLifecycleOwnersForTrackerData(data: TrackerData | null | undefined): string[] {
+  if (!data) return [];
+  if (Array.isArray(data.activeCharacters)) {
+    return resolveTrackerActiveOwners(null, data);
+  }
+  return resolveCurrentLifecycleOwners({
+    sceneOwners: resolveTrackerSceneOwners(null, data),
+    messageOwners: resolveTrackerMessageOwners(null, data),
+  });
+}
+
 export type TrackerRecoveryEntry = {
   kind: "error" | "stopped";
   title: string;
@@ -458,10 +1108,16 @@ type RenderEntry = {
 const ROOT_CLASS = "bst-root";
 const collapsedTrackerMessages = new Set<number>();
 const expandedTrackerMessages = new Set<number>();
+const collapsedActiveCardKeys = new Set<string>();
+const expandedInactiveCardKeys = new Set<string>();
 const collapsedSceneMessages = new Set<number>();
 const expandedThoughtKeys = new Set<string>();
 const expandedArrayValueKeys = new Set<string>();
+const expandedTextShortKeys = new Set<string>();
 const renderedCardKeys = new Set<string>();
+let overflowResyncBound = false;
+let overflowResyncScheduled = false;
+let deferredOverflowResyncScheduled = false;
 export const EDIT_STATS_BACKDROP_CLASS = "bst-edit-backdrop";
 export const EDIT_STATS_MODAL_CLASS = "bst-edit-modal";
 export const EDIT_STATS_DIALOG_CLASS = "bst-edit-dialog";
@@ -480,6 +1136,108 @@ type AutoCardColorAssignment = {
 const autoCardColorAssignments = new Map<string, AutoCardColorAssignment>();
 const AUTO_CARD_COLOR_CACHE_LIMIT = 300;
 const AUTO_CARD_MIN_HUE_DISTANCE = 24;
+
+function syncRenderedExpandableOverflowState(): void {
+  const applyExpandableToggleVisibility = (toggle: HTMLButtonElement, hidden: boolean): void => {
+    toggle.hidden = hidden;
+    toggle.toggleAttribute("hidden", hidden);
+    if (hidden) {
+      toggle.style.setProperty("display", "none", "important");
+      toggle.style.setProperty("visibility", "hidden", "important");
+      toggle.style.setProperty("pointer-events", "none", "important");
+      toggle.style.setProperty("margin-top", "0", "important");
+      toggle.style.setProperty("padding", "0", "important");
+      toggle.style.setProperty("border-width", "0", "important");
+      toggle.style.setProperty("min-height", "0", "important");
+      toggle.style.setProperty("height", "0", "important");
+      toggle.style.setProperty("overflow", "hidden", "important");
+    } else {
+      toggle.style.removeProperty("display");
+      toggle.style.removeProperty("visibility");
+      toggle.style.removeProperty("pointer-events");
+      toggle.style.removeProperty("margin-top");
+      toggle.style.removeProperty("padding");
+      toggle.style.removeProperty("border-width");
+      toggle.style.removeProperty("min-height");
+      toggle.style.removeProperty("height");
+      toggle.style.removeProperty("overflow");
+    }
+  };
+  const syncThoughtOverflowIn = (host: ParentNode | null | undefined): void => {
+    if (!host) return;
+    host.querySelectorAll<HTMLElement>('[data-bst-thought-container="1"]').forEach(container => {
+      const key = String(container.getAttribute("data-bst-thought-key") ?? "").trim();
+      const textNode = container.querySelector<HTMLElement>(".bst-thought-text, .bst-mood-bubble-text");
+      const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-thought"]');
+      if (!textNode || !toggle) return;
+      const state = resolveThoughtToggleState({
+        scrollHeight: textNode.scrollHeight,
+        clientHeight: textNode.clientHeight,
+        scrollWidth: textNode.scrollWidth,
+        clientWidth: textNode.clientWidth,
+      }, expandedThoughtKeys.has(key));
+      if (!state.overflowing) {
+        if (key) expandedThoughtKeys.delete(key);
+        container.classList.remove("bst-thought-expanded");
+      }
+      applyExpandableToggleVisibility(toggle, state.hidden);
+      toggle.setAttribute("aria-expanded", state.ariaExpanded);
+      toggle.textContent = state.label;
+    });
+  };
+  const syncTextShortOverflowIn = (host: ParentNode | null | undefined): void => {
+    if (!host) return;
+    host.querySelectorAll<HTMLElement>('[data-bst-text-short-container="1"]').forEach(container => {
+      const key = String(container.getAttribute("data-bst-text-short-key") ?? "").trim();
+      const textNode = container.querySelector<HTMLElement>(".bst-text-short-value-text");
+      const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-text-short"]');
+      if (!textNode || !toggle) return;
+      const state = resolveTextShortToggleState({
+        scrollHeight: textNode.scrollHeight,
+        clientHeight: textNode.clientHeight,
+        scrollWidth: textNode.scrollWidth,
+        clientWidth: textNode.clientWidth,
+      }, expandedTextShortKeys.has(key));
+      if (!state.overflowing) {
+        if (key) expandedTextShortKeys.delete(key);
+        container.classList.remove("bst-text-short-expanded");
+      }
+      applyExpandableToggleVisibility(toggle, state.hidden);
+      toggle.setAttribute("aria-expanded", state.ariaExpanded);
+      toggle.textContent = state.label;
+    });
+  };
+  document.querySelectorAll<HTMLElement>(`.${ROOT_CLASS}, .bst-scene-root`).forEach(host => {
+    syncThoughtOverflowIn(host);
+    syncTextShortOverflowIn(host);
+  });
+}
+
+function scheduleDeferredOverflowResync(): void {
+  if (deferredOverflowResyncScheduled || typeof window === "undefined") return;
+  deferredOverflowResyncScheduled = true;
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      deferredOverflowResyncScheduled = false;
+      syncRenderedExpandableOverflowState();
+    });
+  });
+}
+
+function bindOverflowResyncEvents(): void {
+  if (overflowResyncBound || typeof window === "undefined") return;
+  const schedule = (): void => {
+    if (overflowResyncScheduled) return;
+    overflowResyncScheduled = true;
+    window.requestAnimationFrame(() => {
+      overflowResyncScheduled = false;
+      syncRenderedExpandableOverflowState();
+    });
+  };
+  window.addEventListener("resize", schedule);
+  window.addEventListener("orientationchange", schedule);
+  overflowResyncBound = true;
+}
 
 export const SETTINGS_SUBDRAWER_STYLE_CONTRACT = {
   chevronIcon: "\\f13a",
@@ -519,11 +1277,40 @@ function pushUniqueCharacterName(target: string[], seen: Set<string>, raw: unkno
   target.push(name);
 }
 
-function collectCharacterNamesFromTrackerData(data: TrackerData): string[] {
+export function collectCharacterNamesFromTrackerData(data: TrackerData): string[];
+export function collectCharacterNamesFromTrackerData(context: STContext | null, data: TrackerData): string[];
+export function collectCharacterNamesFromTrackerData(
+  contextOrData: STContext | null | TrackerData,
+  maybeData?: TrackerData,
+): string[] {
+  const context = maybeData ? (contextOrData as STContext | null) : null;
+  const data = maybeData ?? (contextOrData as TrackerData);
   const names: string[] = [];
   const seen = new Set<string>();
-  for (const name of data.activeCharacters ?? []) {
+  const preferredNames = resolveTrackerSceneOwners(context, data);
+  const explicitActiveCharacters = Array.isArray(data.activeCharacters) ? data.activeCharacters : [];
+  const hasExplicitUserOwner = explicitActiveCharacters.some(name => normalizeName(name) === normalizeName(USER_TRACKER_KEY));
+  const fallbackNames = preferredNames.length
+    ? preferredNames
+    : (data.entityOwnerMap
+      ? Object.keys(data.entityOwnerMap)
+      : (data.activeCharacters ?? []));
+  for (const name of fallbackNames) {
     pushUniqueCharacterName(names, seen, name);
+  }
+  if (data.entityOwnerMap) {
+    for (const name of Object.keys(data.entityOwnerMap)) {
+      pushUniqueCharacterName(names, seen, name);
+    }
+  }
+  if (hasExplicitUserOwner) {
+    pushUniqueCharacterName(names, seen, USER_TRACKER_KEY);
+  }
+
+  const hasExplicitEntityIdentity = preferredNames.length > 0
+    || (data.entityOwnerMap != null && Object.keys(data.entityOwnerMap).length > 0);
+  if (hasExplicitEntityIdentity) {
+    return names;
   }
 
   const builtInStatMaps: unknown[] = [
@@ -807,8 +1594,16 @@ function normalizeMoodSource(raw: unknown): MoodSource {
   return raw === "st_expressions" ? "st_expressions" : "bst_images";
 }
 
-export function getResolvedMoodSource(settings: BetterSimTrackerSettings, characterName: string, characterAvatar?: string): MoodSource {
+export function getResolvedMoodSource(
+  settings: BetterSimTrackerSettings,
+  characterName: string,
+  characterAvatar?: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
+): MoodSource {
   const fallback = normalizeMoodSource(settings.moodSource);
+  if (!shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)) {
+    return fallback;
+  }
   const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
   if (!Object.keys(entry).length) return fallback;
   const override = normalizeMoodSource(entry.moodSource);
@@ -816,7 +1611,15 @@ export function getResolvedMoodSource(settings: BetterSimTrackerSettings, charac
   return fallback;
 }
 
-function getResolvedCardColor(settings: BetterSimTrackerSettings, characterName: string, characterAvatar?: string): string | null {
+function getResolvedCardColor(
+  settings: BetterSimTrackerSettings,
+  characterName: string,
+  characterAvatar?: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
+): string | null {
+  if (!shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)) {
+    return null;
+  }
   const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
   if (!entry || typeof entry !== "object") return null;
   return normalizeHexColor((entry as Record<string, unknown>).cardColor);
@@ -824,6 +1627,14 @@ function getResolvedCardColor(settings: BetterSimTrackerSettings, characterName:
 
 function thoughtKey(messageIndex: number, characterName: string): string {
   return `${messageIndex}:${normalizeName(characterName)}`;
+}
+
+export function resolveOwnerUiKey(
+  ownerName: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id"> | null,
+): string {
+  const entityId = String(registryEntry?.id ?? "").trim();
+  return entityId || normalizeName(ownerName);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -1105,8 +1916,12 @@ function getResolvedStExpressionImageOptions(
   settings: BetterSimTrackerSettings,
   characterName: string,
   characterAvatar?: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
 ): StExpressionImageOptions {
   const globalOptions = getGlobalStExpressionImageOptions(settings);
+  if (!shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)) {
+    return globalOptions;
+  }
   const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
   const override = entry?.stExpressionImageOptions;
   if (!override || typeof override !== "object") return globalOptions;
@@ -1193,8 +2008,11 @@ function getMappedExpressionLabel(
   characterName: string,
   moodLabel: MoodLabel,
   characterAvatar?: string,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
 ): string {
-  const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
+  const entry = shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)
+    ? resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar })
+    : {};
   const rawCharacterMap = entry?.moodExpressionMap as Record<string, unknown> | undefined;
   const readMappedValue = (map: Record<string, unknown> | undefined): string => {
     if (!map) return "";
@@ -1220,11 +2038,14 @@ function getMoodImageUrl(
   characterName: string,
   moodRaw: string,
   characterAvatar: string | undefined,
+  registryEntry?: Pick<TrackerEntityRegistryEntry, "id" | "kind"> | null,
   onRerender?: () => void,
 ): string | null {
-  const entry = resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar });
+  const entry = shouldUseConfiguredOwnerDefaults(null, characterName, registryEntry?.id ?? null, registryEntry?.kind ?? null)
+    ? resolveCharacterDefaultsEntry(settings, { name: characterName, avatar: characterAvatar })
+    : {};
   const normalizedMood = (normalizeMoodLabel(moodRaw) ?? "Neutral") as MoodLabel;
-  const source = getResolvedMoodSource(settings, characterName, characterAvatar);
+  const source = getResolvedMoodSource(settings, characterName, characterAvatar, registryEntry);
 
   if (source === "bst_images") {
     const moodImages = entry?.moodImages as Record<string, string> | undefined;
@@ -1232,7 +2053,7 @@ function getMoodImageUrl(
     return typeof url === "string" && url.trim() ? url.trim() : null;
   }
 
-  const expression = getMappedExpressionLabel(settings, characterName, normalizedMood, characterAvatar);
+  const expression = getMappedExpressionLabel(settings, characterName, normalizedMood, characterAvatar, registryEntry);
   const cachedUrl = getCachedExpressionSpriteUrl(characterName, expression);
   if (cachedUrl) return cachedUrl;
   if (isExpressionCacheStale(characterName)) {
@@ -1622,6 +2443,14 @@ export function ensureStyles(): void {
   align-items: center;
   transform: translateY(1px);
 }
+.bst-archived-icon {
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.8;
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(1px);
+}
 .bst-head {
   display: flex;
   align-items: center;
@@ -1770,6 +2599,67 @@ export function ensureStyles(): void {
   word-break: break-word;
   overflow: visible;
   text-overflow: clip;
+}
+.bst-text-short-value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--bst-stat-color, var(--bst-accent)) 45%, rgba(255,255,255,0.18) 55%);
+  background: color-mix(in srgb, var(--bst-stat-color, var(--bst-accent)) 10%, rgba(10, 15, 24, 0.82) 90%);
+  color: #f5f9ff;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.bst-text-short-value-text {
+  display: -webkit-box;
+  width: 100%;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bst-text-short-value.bst-text-short-expanded .bst-text-short-value-text {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.bst-expand-toggle {
+  margin-top: 8px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  appearance: none;
+  -webkit-appearance: none;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  border: 1px solid rgba(255,255,255,0.3) !important;
+  border-radius: 999px !important;
+  background: rgba(10, 15, 24, 0.72) !important;
+  color: #ffffff !important;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.bst-expand-toggle:hover {
+  border-color: rgba(255,255,255,0.5);
+  background: rgba(18, 25, 36, 0.8);
+}
+.bst-expand-toggle:active {
+  transform: translateY(1px);
+}
+.bst-expand-toggle:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.88);
+  outline-offset: 1px;
 }
 .bst-track {
   background: rgba(255,255,255,0.14);
@@ -1928,20 +2818,6 @@ export function ensureStyles(): void {
   -webkit-line-clamp: unset;
   overflow: visible;
 }
-.bst-thought-toggle {
-  margin-top: 8px;
-  border: 1px solid rgba(255,255,255,0.3);
-  border-radius: 999px;
-  background: rgba(10, 15, 24, 0.72);
-  color: #ffffff;
-  font-size: 11px;
-  line-height: 1;
-  padding: 4px 8px;
-  cursor: pointer;
-}
-.bst-thought-toggle:hover {
-  border-color: rgba(255,255,255,0.5);
-}
 @media (max-width: 560px) {
   .bst-mood-wrap {
     width: 100%;
@@ -1986,9 +2862,13 @@ export function ensureStyles(): void {
 }
 .bst-thought-text {
   display: -webkit-box;
+  width: 100%;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .bst-empty {
   margin-top: 8px;
@@ -2002,6 +2882,9 @@ export function ensureStyles(): void {
 .bst-root-collapsed .bst-body {
   display: none;
 }
+.bst-card-collapsed .bst-body {
+  display: none;
+}
 .bst-collapsed-summary {
   display: none;
   margin-top: 6px;
@@ -2010,7 +2893,8 @@ export function ensureStyles(): void {
   align-items: center;
   gap: 8px;
 }
-.bst-root-collapsed .bst-collapsed-summary {
+.bst-root-collapsed .bst-collapsed-summary,
+.bst-card-collapsed .bst-collapsed-summary {
   display: flex;
 }
 .bst-collapsed-mood {
@@ -4192,15 +5076,27 @@ export function renderTracker(
   isUserMessageIndex?: (messageIndex: number) => boolean,
   resolveDisplayName?: (characterName: string) => string,
   resolveCharacterAvatar?: (characterName: string) => string | null,
+  resolveOwnerRenderIdentity?: (characterName: string) => OwnerRenderIdentity | null,
   isTrackerEnabled?: (characterName: string) => boolean,
   isOwnerStatEnabled?: (characterName: string, statId: string) => boolean,
-  onOpenGraph?: (characterName: string) => void,
+  resolveLifecycleRegistryState?: (characterName: string, messageIndex: number) => CardLifecycleRegistryState | null,
+  resolveLifecycleRegistryStateByEntityId?: (entityId: string, messageIndex: number) => CardLifecycleRegistryState | null,
+  resolveRegistryOwnersForMessage?: (messageIndex: number) => string[],
+  resolveRegistryEntriesForMessage?: (messageIndex: number) => TrackerEntityRegistryEntry[],
+  resolveRegistryEntryForMessage?: (ownerName: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
+  resolveRegistryEntryByEntityIdForMessage?: (entityId: string, messageIndex: number) => TrackerEntityRegistryEntry | null,
+  onOpenGraph?: (target: TrackerGraphTarget) => void,
   onRetrackMessage?: (messageIndex: number) => void,
   onSendSummaryMessage?: (messageIndex: number) => void,
   onCancelExtraction?: () => void,
   onEditStats?: (payload: EditStatsPayload) => void,
   resolveEntryData?: (messageIndex: number) => TrackerData | null,
   onRequestRerender?: () => void,
+  onSyncEntityRegistry?: (payload: {
+    messageIndex: number;
+    targets: TrackerRegistrySyncTarget[];
+    getLifecycleState: (target: TrackerRegistrySyncTarget) => CardLifecycleState;
+  }) => void,
   onRecoverTracker?: (messageIndex: number) => void,
 ): void {
   ensureStyles();
@@ -4234,6 +5130,83 @@ export function renderTracker(
   );
   const isNumericGlobalScope = (key: string): boolean =>
     Boolean(numericGlobalScopeById.get(String(key ?? "").trim().toLowerCase()));
+  const resolveLookupNamesForOwnerInData = (
+    data: TrackerData | null | undefined,
+    ownerName: string,
+    messageIndex: number,
+  ): string[] => {
+    const names: string[] = [];
+    const seen = new Set<string>();
+    const push = (raw: unknown): void => {
+      const value = String(raw ?? "").trim();
+      const key = value.toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      names.push(value);
+    };
+    push(ownerName);
+    const resolvedRegistryEntry = resolveRegistryEntryForOwnerInMessageData({
+      ownerName,
+      messageIndex,
+      data,
+      resolveRegistryEntryForMessage,
+      resolveRegistryEntryByEntityIdForMessage,
+    });
+    const targetEntityId = resolveTrackerDataEntityOwnerSnapshot(data, ownerName)?.entityId
+      ?? resolvedRegistryEntry?.id
+      ?? null;
+    const registryEntryForEntityId = targetEntityId
+      ? resolveRegistryEntryByEntityIdForMessage?.(targetEntityId, messageIndex) ?? null
+      : null;
+    if (targetEntityId && data?.entityOwnerMap) {
+      for (const [snapshotOwner, snapshot] of Object.entries(data.entityOwnerMap)) {
+        if (snapshot?.entityId !== targetEntityId) continue;
+        push(snapshotOwner);
+        push(snapshot.ownerName);
+        push(snapshot.canonicalName);
+        for (const alias of snapshot.aliases ?? []) push(alias);
+      }
+    }
+    for (const lookupName of resolveRegistryLookupNamesForOwner(
+      ownerName,
+      registryEntryForEntityId ?? resolvedRegistryEntry,
+    )) {
+      push(lookupName);
+    }
+    return names;
+  };
+  const resolveLookupNamesForOwner = (
+    ownerName: string,
+    messageIndex: number,
+  ): string[] => resolveLookupNamesForOwnerInData(null, ownerName, messageIndex);
+  const resolvePreviousNonNumericValue = (
+    data: TrackerData,
+    def: UiNonNumericStatDefinition,
+    ownerName: string,
+    messageIndex: number,
+  ): CustomNonNumericValue | undefined => {
+    const byOwner = data.customNonNumericStatistics?.[def.id];
+    if (!byOwner) return undefined;
+    const lookupNames = def.globalScope ? [GLOBAL_TRACKER_KEY] : resolveLookupNamesForOwnerInData(data, ownerName, messageIndex);
+    for (const lookupName of lookupNames) {
+      const value = byOwner[lookupName];
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  };
+  const resolvePreviousBuiltInTextValue = (
+    data: TrackerData,
+    stat: "mood" | "lastThought",
+    ownerName: string,
+    messageIndex: number,
+  ): string | undefined => {
+    const lookupNames = resolveLookupNamesForOwnerInData(data, ownerName, messageIndex);
+    const source = stat === "mood" ? data.statistics.mood : data.statistics.lastThought;
+    for (const lookupName of lookupNames) {
+      if (source?.[lookupName] !== undefined) return String(source[lookupName] ?? "");
+    }
+    return undefined;
+  };
   const findPreviousDataWithNumericStat = (
     messageIndex: number,
     key: string,
@@ -4242,9 +5215,12 @@ export function renderTracker(
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      const value = getNumericRawValue(candidate.data, key, name, isNumericGlobalScope(key));
-      if (value === undefined || Number.isNaN(value)) continue;
-      return { data: candidate.data, value };
+      const lookupNames = resolveLookupNamesForOwnerInData(candidate.data, name, messageIndex);
+      for (const lookupName of lookupNames) {
+        const value = getNumericRawValue(candidate.data, key, lookupName, isNumericGlobalScope(key));
+        if (value === undefined || Number.isNaN(value)) continue;
+        return { data: candidate.data, value };
+      }
     }
     return null;
   };
@@ -4256,7 +5232,11 @@ export function renderTracker(
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      if (hasNonNumericValue(candidate.data, def, name)) return candidate.data;
+      const candidateData = candidate.data;
+      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
+      for (const lookupName of lookupNames) {
+        if (hasNonNumericValue(candidateData, def, lookupName)) return candidateData;
+      }
     }
     return null;
   };
@@ -4264,7 +5244,9 @@ export function renderTracker(
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      if (candidate.data.statistics.mood?.[name] !== undefined) return candidate.data;
+      const candidateData = candidate.data;
+      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
+      if (lookupNames.some(lookupName => candidateData.statistics.mood?.[lookupName] !== undefined)) return candidateData;
     }
     return null;
   };
@@ -4272,38 +5254,16 @@ export function renderTracker(
     for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
       const candidate = sortedEntries[i];
       if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      if (candidate.data.statistics.lastThought?.[name] !== undefined) return candidate.data;
+      const candidateData = candidate.data;
+      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
+      if (lookupNames.some(lookupName => candidateData.statistics.lastThought?.[lookupName] !== undefined)) return candidateData;
     }
     return null;
   };
-  const cloneTrackerDataForEdit = (data: TrackerData): TrackerData => {
-    const cloneCustomNumeric: TrackerData["customStatistics"] = {};
-    for (const [statId, byOwner] of Object.entries(data.customStatistics ?? {})) {
-      cloneCustomNumeric[statId] = { ...(byOwner ?? {}) };
-    }
-    const cloneCustomNonNumeric: TrackerData["customNonNumericStatistics"] = {};
-    for (const [statId, byOwner] of Object.entries(data.customNonNumericStatistics ?? {})) {
-      const next: Record<string, CustomNonNumericValue> = {};
-      for (const [owner, value] of Object.entries(byOwner ?? {})) {
-        next[owner] = Array.isArray(value) ? [...value] : value;
-      }
-      cloneCustomNonNumeric[statId] = next;
-    }
-    return {
-      timestamp: data.timestamp,
-      activeCharacters: [...(data.activeCharacters ?? [])],
-      statistics: {
-        affection: { ...(data.statistics.affection ?? {}) },
-        trust: { ...(data.statistics.trust ?? {}) },
-        desire: { ...(data.statistics.desire ?? {}) },
-        connection: { ...(data.statistics.connection ?? {}) },
-        mood: { ...(data.statistics.mood ?? {}) },
-        lastThought: { ...(data.statistics.lastThought ?? {}) },
-      },
-      customStatistics: cloneCustomNumeric,
-      customNonNumericStatistics: cloneCustomNonNumeric,
-    };
-  };
+  const lifecycleSnapshots: CardLifecycleSnapshot[] = buildLifecycleHistorySnapshotsFromTrackerEntries(
+    null,
+    sortedEntries.filter(item => item.data),
+  );
   const buildEffectiveEditModalData = (
     messageIndex: number,
     owner: string,
@@ -4342,10 +5302,8 @@ export function renderTracker(
       if (isNonNumericExplicitlyCleared(out, def.id, owner, def.globalScope)) continue;
       const prev = findPreviousDataWithNonNumericStat(messageIndex, def, owner);
       if (!prev) continue;
-      const prevByOwner = prev.customNonNumericStatistics?.[def.id];
-      if (!prevByOwner) continue;
       const sourceOwner = def.globalScope ? GLOBAL_TRACKER_KEY : owner;
-      const prevValue = prevByOwner[sourceOwner];
+      const prevValue = resolvePreviousNonNumericValue(prev, def, owner, messageIndex);
       if (prevValue === undefined) continue;
       const customNonNumeric = out.customNonNumericStatistics ?? {};
       const byOwner = customNonNumeric[def.id] ?? {};
@@ -4357,14 +5315,16 @@ export function renderTracker(
     if (!isGlobalOwner) {
       if (settings.trackMood && out.statistics.mood?.[owner] === undefined && !isTextStatExplicitlyCleared(out, "mood", owner)) {
         const prevMood = findPreviousDataWithMood(messageIndex, owner);
-        if (prevMood?.statistics.mood?.[owner] !== undefined) {
-          out.statistics.mood[owner] = prevMood.statistics.mood[owner];
+        const prevMoodValue = prevMood ? resolvePreviousBuiltInTextValue(prevMood, "mood", owner, messageIndex) : undefined;
+        if (prevMoodValue !== undefined) {
+          out.statistics.mood[owner] = prevMoodValue;
         }
       }
       if (settings.trackLastThought && out.statistics.lastThought?.[owner] === undefined && !isTextStatExplicitlyCleared(out, "lastThought", owner)) {
         const prevThought = findPreviousDataWithLastThought(messageIndex, owner);
-        if (prevThought?.statistics.lastThought?.[owner] !== undefined) {
-          out.statistics.lastThought[owner] = prevThought.statistics.lastThought[owner];
+        const prevThoughtValue = prevThought ? resolvePreviousBuiltInTextValue(prevThought, "lastThought", owner, messageIndex) : undefined;
+        if (prevThoughtValue !== undefined) {
+          out.statistics.lastThought[owner] = prevThoughtValue;
         }
       }
     }
@@ -4460,7 +5420,30 @@ export function renderTracker(
               container.classList.toggle("bst-thought-expanded", !expanded);
             }
             thoughtToggle.setAttribute("aria-expanded", String(!expanded));
-            thoughtToggle.textContent = expanded ? "More thought" : "Less thought";
+            thoughtToggle.textContent = expanded ? "More" : "Less";
+          }
+          return;
+        }
+        const textShortToggle = target?.closest('[data-bst-action="toggle-text-short"]') as HTMLElement | null;
+        if (textShortToggle) {
+          const key = String(textShortToggle.getAttribute("data-bst-text-short-key") ?? "").trim();
+          if (!key) return;
+          const expanded = expandedTextShortKeys.has(key);
+          if (expanded) {
+            expandedTextShortKeys.delete(key);
+          } else {
+            expandedTextShortKeys.add(key);
+          }
+          root.dataset.bstRenderSignature = "";
+          if (onRequestRerender) {
+            onRequestRerender();
+          } else {
+            const container = root.querySelector(`[data-bst-text-short-container="1"][data-bst-text-short-key="${CSS.escape(key)}"]`) as HTMLElement | null;
+            if (container) {
+              container.classList.toggle("bst-text-short-expanded", !expanded);
+            }
+            textShortToggle.setAttribute("aria-expanded", String(!expanded));
+            textShortToggle.textContent = expanded ? "More" : "Less";
           }
           return;
         }
@@ -4480,8 +5463,9 @@ export function renderTracker(
         const button = target?.closest('[data-bst-action="graph"]') as HTMLElement | null;
         if (button) {
           const name = String(button.getAttribute("data-character") ?? "").trim();
+          const entityId = String(button.getAttribute("data-entity-id") ?? "").trim();
           if (!name) return;
-          onOpenGraph?.(name);
+          onOpenGraph?.({ ownerName: name, entityId: entityId || null });
           return;
         }
         const edit = target?.closest('[data-bst-action="edit-stats"]') as HTMLElement | null;
@@ -4561,11 +5545,38 @@ export function renderTracker(
               collapsedTrackerMessages.delete(idx);
             }
           }
+          root.querySelectorAll<HTMLElement>(".bst-card[data-bst-card-key]").forEach(card => {
+            const cardKey = String(card.dataset.bstCardKey ?? "").trim();
+            const isActive = card.dataset.bstCardActive === "true";
+            applyTrackerCardCollapsed({
+              cardKey,
+              isActive,
+              nextCollapsed,
+              collapsedActiveCardKeys,
+              expandedInactiveCardKeys,
+            });
+          });
           collapse.setAttribute("aria-expanded", String(!nextCollapsed));
           collapse.setAttribute("title", nextCollapsed ? "Expand cards" : "Collapse cards");
           collapse.innerHTML = nextCollapsed
             ? `<span class="bst-root-action-icon" aria-hidden="true">&#9656;</span><span class="bst-root-action-label">Expand cards</span>`
             : `<span class="bst-root-action-icon" aria-hidden="true">&#9662;</span><span class="bst-root-action-label">Collapse cards</span>`;
+          root.dataset.bstRenderSignature = "";
+          onRequestRerender?.();
+          return;
+        }
+        const cardCollapse = target?.closest('[data-bst-action="toggle-card-collapse"]') as HTMLElement | null;
+        if (cardCollapse) {
+          const cardKey = String(cardCollapse.getAttribute("data-bst-card-key") ?? "").trim();
+          const isActive = cardCollapse.getAttribute("data-bst-card-active") === "true";
+          const nextCollapsed = cardCollapse.getAttribute("aria-expanded") !== "false";
+          applyTrackerCardCollapsed({
+            cardKey,
+            isActive,
+            nextCollapsed,
+            collapsedActiveCardKeys,
+            expandedInactiveCardKeys,
+          });
           root.dataset.bstRenderSignature = "";
           onRequestRerender?.();
           return;
@@ -4630,13 +5641,27 @@ export function renderTracker(
           return;
         }
         const arrayToggle = target?.closest('[data-bst-action="toggle-array-values"]') as HTMLElement | null;
-        if (!arrayToggle) return;
-        const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
+        if (arrayToggle) {
+          const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
+          if (!key) return;
+          if (expandedArrayValueKeys.has(key)) {
+            expandedArrayValueKeys.delete(key);
+          } else {
+            expandedArrayValueKeys.add(key);
+          }
+          root.dataset.bstRenderSignature = "";
+          sceneRoot.dataset.bstRenderSignature = "";
+          onRequestRerender?.();
+          return;
+        }
+        const textShortToggle = target?.closest('[data-bst-action="toggle-text-short"]') as HTMLElement | null;
+        if (!textShortToggle) return;
+        const key = String(textShortToggle.getAttribute("data-bst-text-short-key") ?? "").trim();
         if (!key) return;
-        if (expandedArrayValueKeys.has(key)) {
-          expandedArrayValueKeys.delete(key);
+        if (expandedTextShortKeys.has(key)) {
+          expandedTextShortKeys.delete(key);
         } else {
-          expandedArrayValueKeys.add(key);
+          expandedTextShortKeys.add(key);
         }
         root.dataset.bstRenderSignature = "";
         sceneRoot.dataset.bstRenderSignature = "";
@@ -4678,31 +5703,19 @@ export function renderTracker(
       root.dataset.bstRenderPhase = "extracting";
       root.dataset.bstRenderSignature = "";
       root.innerHTML = "";
-      const total = Math.max(1, uiState.total);
-      const done = Math.max(0, Math.min(total, uiState.done));
-      const ratio = Math.max(0, Math.min(1, done / total));
-      const percent = Math.round(ratio * 100);
-      const left = `stage ${Math.min(done + 1, total)}/${total}`;
-      let title = uiState.stepLabel ?? "Preparing tracker context";
-      let subtitle = "Collecting recent messages and active characters.";
-      if (done === 1) {
-        title = uiState.stepLabel ?? "Requesting relationship analysis";
-        subtitle = "Sending extraction prompt to backend/profile.";
-      } else if (done >= 2) {
-        title = uiState.stepLabel ?? "Parsing and applying tracker update";
-        subtitle = "Validating AI delta output and updating relationship state.";
-      }
-      if (uiState.stepLabel && uiState.stepLabel !== title) {
-        subtitle = uiState.stepLabel;
-      }
+      const done = Math.max(0, Math.floor(Number(uiState.done) || 0));
+      const progress = resolveExtractionProgressDisplayWithLabel(uiState.done, uiState.total, uiState.stepLabel);
+      const copy = resolveExtractionLoadingCopy(done, uiState.stepLabel);
+      const title = copy.title;
+      const subtitle = copy.subtitle;
       const loadingBox = document.createElement("div");
       loadingBox.className = "bst-loading";
       loadingBox.innerHTML = `
         <div class="bst-loading-row">
           <span>${title}</span>
-          <span>${left} (${percent}%)</span>
+          <span>${progress.stageText}${progress.stageText === "preparing" ? "" : ` (${progress.percent}%)`}</span>
         </div>
-        <div class="bst-loading-track"><div class="bst-loading-fill" style="width:${Math.round(ratio * 100)}%"></div></div>
+        <div class="bst-loading-track"><div class="bst-loading-fill" style="width:${Math.round(progress.ratio * 100)}%"></div></div>
         <div class="bst-loading-sub">${subtitle}</div>
         <div class="bst-loading-actions">
           <button class="bst-btn bst-btn-danger bst-loading-stop" data-bst-action="cancel-extraction">Stop</button>
@@ -4763,7 +5776,10 @@ export function renderTracker(
     const summaryBusy = Boolean(showSummaryAction && summaryBusyMessageIndices?.has(entry.messageIndex));
     const userMessageEntry = Boolean(isUserMessageIndex?.(entry.messageIndex));
     const collapsed = isMessageCollapsed(entry.messageIndex);
-    const activeSet = new Set(data.activeCharacters.map(normalizeName));
+    const resolvedSceneOwners = resolveTrackerSceneOwners(null, data);
+    const currentLifecycleOwners = resolveCurrentLifecycleOwnersForTrackerData(data);
+    const resolvedActiveEntityIds = resolveTrackerActiveEntityIds(null, data);
+    const activeSet = new Set(currentLifecycleOwners.map(normalizeName));
     const allNumericDefs = getNumericStatDefinitions(settings);
     const cardNumericDefs = allNumericDefs.filter(def => def.showOnCard);
     const allNonNumericDefs = getNonNumericStatDefinitions(settings);
@@ -4772,53 +5788,100 @@ export function renderTracker(
     const ownerCardNonNumericDefs = cardNonNumericDefs.filter(
       def => !(settings.sceneCardEnabled && def.globalScope),
     );
-  const getEffectiveNumericRawValue = (key: string, name: string): number | undefined => {
-      const current = getNumericRawValue(data, key, name, isNumericGlobalScope(key));
+  const getEffectiveNumericRawValue = (
+      key: string,
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): number | undefined => {
+      const current = resolveCurrentNumericRawValue(data, key, name, {
+        globalScope: isNumericGlobalScope(key),
+        registryEntry,
+      });
       if (current !== undefined && !Number.isNaN(current)) return current;
-      if (isNumericExplicitlyCleared(data, key, name, isNumericGlobalScope(key))) return undefined;
+      if (resolveCurrentNumericRawValue(data, key, name, {
+        globalScope: isNumericGlobalScope(key),
+        registryEntry,
+      }) === undefined && resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+        .some(lookupName => isNumericExplicitlyCleared(data, key, lookupName, isNumericGlobalScope(key)))) return undefined;
       const previous = findPreviousDataWithNumericStat(entry.messageIndex, key, name);
       if (previous) return previous.value;
       return undefined;
     };
-    const hasEffectiveNumericValue = (key: string, name: string): boolean =>
-      getEffectiveNumericRawValue(key, name) !== undefined;
-    const hasEffectiveNonNumericValue = (def: UiNonNumericStatDefinition, name: string): boolean =>
-      hasNonNumericValue(data, def, name)
-        || (!isNonNumericExplicitlyCleared(data, def.id, name, def.globalScope)
+    const hasEffectiveNumericValue = (
+      key: string,
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): boolean =>
+      getEffectiveNumericRawValue(key, name, registryEntry) !== undefined;
+    const hasEffectiveNonNumericValue = (
+      def: UiNonNumericStatDefinition,
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): boolean =>
+      hasCurrentNonNumericValue(data, def, name, registryEntry)
+        || (!resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+          .some(lookupName => isNonNumericExplicitlyCleared(data, def.id, lookupName, def.globalScope))
           && Boolean(findPreviousDataWithNonNumericStat(entry.messageIndex, def, name)));
     const resolveEffectiveNonNumericValue = (
       def: UiNonNumericStatDefinition,
       name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
     ): string | boolean | string[] | null => {
-      if (hasNonNumericValue(data, def, name)) return resolveNonNumericValue(data, def, name);
-      if (isNonNumericExplicitlyCleared(data, def.id, name, def.globalScope)) {
+      const current = resolveCurrentNonNumericRawValue(data, def.id, name, {
+        globalScope: def.globalScope,
+        registryEntry,
+      });
+      if (current !== undefined) return current;
+      if (resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+        .some(lookupName => isNonNumericExplicitlyCleared(data, def.id, lookupName, def.globalScope))) {
         return def.kind === "array" ? [] : null;
       }
       const previous = findPreviousDataWithNonNumericStat(entry.messageIndex, def, name);
-      if (previous) return resolveNonNumericValue(previous, def, name);
-      return resolveNonNumericValue(data, def, name);
+      if (previous) {
+        const previousValue = resolvePreviousNonNumericValue(previous, def, name, entry.messageIndex);
+        if (previousValue !== undefined) return previousValue;
+      }
+      if (shouldSuppressAliasNonNumericDefaultFallback(registryEntry, def.globalScope)) {
+        return null;
+      }
+      return current ?? resolveNonNumericValue(data, def, name);
     };
-    const getEffectiveMoodText = (name: string): string => {
+    const getEffectiveMoodText = (
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): string => {
       if (!isBuiltInTextStatVisibleForOwner(settings, name, "mood", isOwnerStatEnabled)) return "";
-      if (data.statistics.mood?.[name] !== undefined) return String(data.statistics.mood?.[name] ?? "");
-      if (isTextStatExplicitlyCleared(data, "mood", name)) return "";
+      const current = resolveCurrentBuiltInTextValue(data, "mood", name, registryEntry);
+      if (current !== undefined) return current;
+      if (resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+        .some(lookupName => isTextStatExplicitlyCleared(data, "mood", lookupName))) return "";
       const previous = findPreviousDataWithMood(entry.messageIndex, name);
-      if (previous?.statistics.mood?.[name] !== undefined) return String(previous.statistics.mood?.[name] ?? "");
+      const previousValue = previous ? resolvePreviousBuiltInTextValue(previous, "mood", name, entry.messageIndex) : undefined;
+      if (previousValue !== undefined) return previousValue;
       return "";
     };
-    const getEffectiveLastThoughtText = (name: string): string => {
+    const getEffectiveLastThoughtText = (
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): string => {
       if (!isBuiltInTextStatVisibleForOwner(settings, name, "lastThought", isOwnerStatEnabled)) return "";
-      if (data.statistics.lastThought?.[name] !== undefined) return String(data.statistics.lastThought?.[name] ?? "");
-      if (isTextStatExplicitlyCleared(data, "lastThought", name)) return "";
+      const current = resolveCurrentBuiltInTextValue(data, "lastThought", name, registryEntry);
+      if (current !== undefined) return current;
+      if (resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
+        .some(lookupName => isTextStatExplicitlyCleared(data, "lastThought", lookupName))) return "";
       const previous = findPreviousDataWithLastThought(entry.messageIndex, name);
-      if (previous?.statistics.lastThought?.[name] !== undefined) return String(previous.statistics.lastThought?.[name] ?? "");
+      const previousValue = previous ? resolvePreviousBuiltInTextValue(previous, "lastThought", name, entry.messageIndex) : undefined;
+      if (previousValue !== undefined) return previousValue;
       return "";
     };
-    const hasAnyStatFor = (name: string): boolean =>
-      cardNumericDefs.some(def => hasEffectiveNumericValue(def.key, name)) ||
-      ownerCardNonNumericDefs.some(def => hasEffectiveNonNumericValue(def, name)) ||
-      getEffectiveMoodText(name) !== "" ||
-      getEffectiveLastThoughtText(name) !== "";
+    const hasAnyStatFor = (
+      name: string,
+      registryEntry?: Pick<TrackerEntityRegistryEntry, "ownerName" | "canonicalName" | "aliases" | "kind"> | null,
+    ): boolean =>
+      cardNumericDefs.some(def => hasEffectiveNumericValue(def.key, name, registryEntry)) ||
+      ownerCardNonNumericDefs.some(def => hasEffectiveNonNumericValue(def, name, registryEntry)) ||
+      getEffectiveMoodText(name, registryEntry) !== "" ||
+      getEffectiveLastThoughtText(name, registryEntry) !== "";
     const forceAllInGroup = isGroupChat;
     const dataCharacterNames = collectCharacterNamesFromTrackerData(data);
     const mergedCharacters: string[] = [];
@@ -4832,36 +5895,143 @@ export function renderTracker(
     for (const name of dataCharacterNames) {
       pushUniqueCharacterName(mergedCharacters, mergedSeen, name);
     }
-    const displayPool =
-      forceAllInGroup || settings.showInactive
-        ? (mergedCharacters.length > 0
-          ? mergedCharacters
-          : dataCharacterNames.length > 0
-            ? dataCharacterNames
-            : data.activeCharacters)
-        : (data.activeCharacters.length > 0
-          ? data.activeCharacters
-          : dataCharacterNames);
-    const scopedDisplayPool = userMessageEntry
-      ? displayPool.filter(name => normalizeName(name) === normalizeName(USER_TRACKER_KEY))
-      : displayPool.filter(name => normalizeName(name) !== normalizeName(USER_TRACKER_KEY));
-    const displayOrder = new Map(scopedDisplayPool.map((name, index) => [normalizeName(name), index]));
+    const registryEntriesForMessage = resolveRegistryEntriesForMessage?.(entry.messageIndex) ?? [];
+    const activeEntityIdSet = new Set(resolvedActiveEntityIds);
+    const registryOwnersForMessage = registryEntriesForMessage.length > 0
+      ? resolveRegistryOwnersFromEntries(registryEntriesForMessage)
+      : (resolveRegistryOwnersForMessage?.(entry.messageIndex) ?? []);
+    const mergedWithRegistryOwners = registryEntriesForMessage.length > 0
+      ? mergeRegistryEntitiesIntoTargets({
+        targets: mergedCharacters,
+        registryEntries: registryEntriesForMessage,
+        resolveRegistryEntry: ownerName => resolveRegistryEntryForMessage?.(ownerName, entry.messageIndex) ?? null,
+      })
+      : mergeRegistryOwnersIntoTargets(
+        mergedCharacters,
+        registryOwnersForMessage,
+      );
+    const mergedWithRegistryTargets = registryEntriesForMessage.length > 0
+      ? mergeRegistryRenderTargets({
+        targets: mergedCharacters,
+        registryEntries: registryEntriesForMessage,
+        resolveRegistryEntry: ownerName => resolveRegistryEntryForMessage?.(ownerName, entry.messageIndex) ?? null,
+      })
+      : mergedWithRegistryOwners.map(name =>
+        buildUiRenderTarget(
+          name,
+          resolveRegistryEntryForOwnerInMessageData({
+            ownerName: name,
+            messageIndex: entry.messageIndex,
+            data,
+            resolveRegistryEntryForMessage,
+            resolveRegistryEntryByEntityIdForMessage,
+          }),
+        )).filter((target): target is UiRenderTarget => Boolean(target));
     const includeAllTargets = forceAllInGroup || settings.showInactive;
+    const displayPoolTargets = selectDisplayPoolTargetsWithRegistry({
+      entityTrackingMode: settings.entityTrackingMode,
+      includeAllTargets,
+      activeCharacters: resolvedSceneOwners,
+      dataCharacterNames,
+      mergedWithRegistryTargets,
+      resolveTarget: name => buildUiRenderTarget(name, resolveRegistryEntryForOwnerInMessageData({
+        ownerName: name,
+        messageIndex: entry.messageIndex,
+        data,
+        resolveRegistryEntryForMessage,
+        resolveRegistryEntryByEntityIdForMessage,
+      })),
+      shouldKeepTarget: target => shouldKeepOwnerInRenderTargetPool({
+        ownerName: target.ownerName,
+        hasAnyStat: hasAnyStatFor(target.ownerName, target.registryEntry),
+        isActive: target.registryEntry?.id
+          ? activeEntityIdSet.has(target.registryEntry.id)
+          : activeSet.has(normalizeName(target.ownerName)),
+      }),
+    });
+    const isRenderedUserOwner = (name: string): boolean => isUserOwnerToken(name, resolveDisplayName);
+    const modeFilteredDisplayPoolTargets = filterRenderTargetsForTrackingMode({
+      entityTrackingMode: settings.entityTrackingMode,
+      targets: displayPoolTargets,
+    });
+    const scopedDisplayPoolTargets = userMessageEntry
+      ? modeFilteredDisplayPoolTargets.filter(target => isRenderedUserOwner(target.ownerName))
+      : modeFilteredDisplayPoolTargets.filter(target => !isRenderedUserOwner(target.ownerName));
+    const displayOrder = new Map(scopedDisplayPoolTargets.map((target, index) => [target.uiKey, index]));
     const targetSource = includeAllTargets
-      ? scopedDisplayPool
-      : scopedDisplayPool.filter(name => hasAnyStatFor(name) || activeSet.has(normalizeName(name)));
-    const targets = Array.from(new Set(targetSource.filter(name => isTrackerEnabled?.(name) !== false)))
-      .sort((a, b) => {
-        const aActive = activeSet.has(normalizeName(a));
-        const bActive = activeSet.has(normalizeName(b));
-        if (aActive !== bActive) return aActive ? -1 : 1;
-        const aOrder = displayOrder.get(normalizeName(a)) ?? Number.MAX_SAFE_INTEGER;
-        const bOrder = displayOrder.get(normalizeName(b)) ?? Number.MAX_SAFE_INTEGER;
-        if (aOrder !== bOrder) return aOrder - bOrder;
-        return a.localeCompare(b);
+      ? scopedDisplayPoolTargets
+      : scopedDisplayPoolTargets.filter(target => shouldKeepOwnerInRenderTargetPool({
+        ownerName: target.ownerName,
+        hasAnyStat: hasAnyStatFor(target.ownerName, target.registryEntry),
+        isActive: target.registryEntry?.id
+          ? activeEntityIdSet.has(target.registryEntry.id)
+          : activeSet.has(normalizeName(target.ownerName)),
+      }));
+    const uniqueTargets: UiRenderTarget[] = [];
+    const uniqueTargetKeys = new Set<string>();
+    for (const target of targetSource) {
+      if (isTrackerEnabled?.(target.ownerName) === false) continue;
+      if (uniqueTargetKeys.has(target.uiKey)) continue;
+      uniqueTargetKeys.add(target.uiKey);
+      uniqueTargets.push(target);
+    }
+    const getLifecycleState = (target: UiRenderTarget) => resolveCardLifecycleState({
+      ownerName: target.ownerName,
+      entityId: target.registryEntry?.id ?? null,
+      currentMessageIndex: entry.messageIndex,
+      currentActiveCharacters: currentLifecycleOwners,
+      currentActiveEntityIds: resolvedActiveEntityIds,
+      history: lifecycleSnapshots,
+      autoArchiveInactiveCards: settings.autoArchiveInactiveCards,
+      archiveInactiveAfterTurns: settings.archiveInactiveAfterTurns,
+        registryState: resolveLifecycleRegistryStateForOwnerInMessageData({
+          ownerName: target.ownerName,
+          messageIndex: entry.messageIndex,
+          data,
+          resolveLifecycleRegistryState,
+          resolveLifecycleRegistryStateByEntityId,
+        }),
+      });
+      const targets = filterArchivedRenderTargets(
+        filterTechnicalSourceRenderTargets(
+          filterShadowedAliasRenderTargets(uniqueTargets),
+          resolveOwnerRenderIdentity,
+        ),
+        getLifecycleState,
+      )
+        .sort((a, b) => {
+        const rank = (state: "active" | "inactive" | "archived"): number =>
+          state === "active" ? 0 : state === "inactive" ? 1 : 2;
+        const aRank = rank(getLifecycleState(a));
+        const bRank = rank(getLifecycleState(b));
+        if (aRank !== bRank) return aRank - bRank;
+        const aOrder = displayOrder.get(a.uiKey) ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = displayOrder.get(b.uiKey) ?? Number.MAX_SAFE_INTEGER;
+          if (aOrder !== bOrder) return aOrder - bOrder;
+          return a.ownerName.localeCompare(b.ownerName);
+        });
+      onSyncEntityRegistry?.({
+        messageIndex: entry.messageIndex,
+        targets: uniqueTargets.map(target => ({
+          ownerName: target.ownerName,
+          registryEntry: target.registryEntry,
+        })),
+        getLifecycleState: target => getLifecycleState(
+          buildUiRenderTarget(
+            target.ownerName,
+            target.registryEntry
+              ?? resolveRegistryEntryForOwnerInMessageData({
+                ownerName: target.ownerName,
+                messageIndex: entry.messageIndex,
+                data,
+                resolveRegistryEntryForMessage,
+                resolveRegistryEntryByEntityIdForMessage,
+              }),
+          ) ?? { ownerName: target.ownerName, uiKey: normalizeName(target.ownerName), registryEntry: null },
+        ),
       });
 
-    const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isNew: boolean; cardColor: string }> = [];
+      const cardHtmlByName: Array<{ name: string; displayName: string; ownerClass: string; html: string; isActive: boolean; isCollapsed: boolean; cardKey: string; isNew: boolean; cardColor: string }> = [];
     const signatureParts: string[] = [
       `msg:${entry.messageIndex}`,
       `collapsed:${collapsed ? "1" : "0"}`,
@@ -4871,19 +6041,32 @@ export function renderTracker(
       `summarybusy:${summaryBusy ? "1" : "0"}`,
       `collapseDefault:${settings.collapseCardsByDefault ? "1" : "0"}`,
       `inactive:${settings.showInactive ? "1" : "0"}`,
+      `archive:${settings.autoArchiveInactiveCards ? "1" : "0"}`,
+      `archiveafter:${settings.archiveInactiveAfterTurns}`,
       `thought:${settings.showLastThought ? "1" : "0"}`,
       `inactivelabel:${settings.inactiveLabel}`,
       `scale:${settings.fontSize}|${settings.cardOpacity}`
     ];
 
-    for (const name of targets) {
-      const isActive = activeSet.has(normalizeName(name));
+    for (const target of targets) {
+      const name = target.ownerName;
+      const lifecycleState = getLifecycleState(target);
+      const isActive = lifecycleState === "active";
       if (!isActive && !settings.showInactive) continue;
       const displayName = resolveDisplayName?.(name)
         ?? (name === USER_TRACKER_KEY ? "User" : name);
-      const isUserCard = name === USER_TRACKER_KEY;
+      const registryEntry = target.registryEntry;
+      const ownerUiKey = target.uiKey;
+      const isUserCard = isRenderedUserOwner(name);
       const moodLookupName = isUserCard ? displayName : name;
       const characterAvatar = resolveCharacterAvatar?.(name) ?? undefined;
+      const cardKey = `${entry.messageIndex}:${ownerUiKey}`;
+      const cardCollapsed = resolveTrackerCardCollapsed({
+        cardKey,
+        isActive,
+        collapsedActiveCardKeys,
+        expandedInactiveCardKeys,
+      });
       const baseEnabledNumeric = getNumericStatsForCharacter(data, name, settings);
       const baseEnabledNonNumeric = ownerCardNonNumericDefs.filter(def => (isUserCard ? def.trackUser : def.trackCharacters));
       const ownerStatEnabled = (statId: string): boolean => isOwnerStatEnabled?.(name, statId) !== false;
@@ -4899,24 +6082,27 @@ export function renderTracker(
         settings.characterCardStatOrder ?? [],
         def => String(def.id).trim().toLowerCase(),
       );
-      const moodText = getEffectiveMoodText(name);
+      const moodText = getEffectiveMoodText(name, registryEntry);
       const previousMoodData = findPreviousDataWithMood(entry.messageIndex, name);
-      const prevMood = previousMoodData?.statistics.mood?.[name] !== undefined
-        ? String(previousMoodData.statistics.mood?.[name])
-        : moodText;
+      const prevMoodValue = previousMoodData
+        ? resolvePreviousBuiltInTextValue(previousMoodData, "mood", name, entry.messageIndex)
+        : undefined;
+      const prevMood = prevMoodValue !== undefined ? prevMoodValue : moodText;
       const moodTrend = prevMood === moodText ? "stable" : "shifted";
       const canEdit = isUserCard
         ? (latestTrackedUserMessageIndex != null && entry.messageIndex === latestTrackedUserMessageIndex)
         : (latestTrackedAiMessageIndex != null && entry.messageIndex === latestTrackedAiMessageIndex);
-      const moodSource = moodText ? getResolvedMoodSource(settings, moodLookupName, characterAvatar) : "bst_images";
+      const moodSource = moodText ? getResolvedMoodSource(settings, moodLookupName, characterAvatar, registryEntry) : "bst_images";
       const stExpressionImageOptions = moodSource === "st_expressions"
-        ? getResolvedStExpressionImageOptions(settings, moodLookupName, characterAvatar)
+        ? getResolvedStExpressionImageOptions(settings, moodLookupName, characterAvatar, registryEntry)
         : null;
-      const moodImage = moodText ? getMoodImageUrl(settings, moodLookupName, moodText, characterAvatar, onRequestRerender) : null;
+      const moodImage = moodText
+        ? getMoodImageUrl(settings, moodLookupName, moodText, characterAvatar, registryEntry, onRequestRerender)
+        : null;
       const lastThoughtText = settings.showLastThought
-        ? getEffectiveLastThoughtText(name)
+        ? getEffectiveLastThoughtText(name, registryEntry)
         : "";
-      const thoughtUiKey = thoughtKey(entry.messageIndex, name);
+      const thoughtUiKey = thoughtKey(entry.messageIndex, ownerUiKey);
       const stExpressionImageStyle = (() => {
         if (!stExpressionImageOptions) return "";
         const panX = computeZoomPanOffset(stExpressionImageOptions.positionX, stExpressionImageOptions.zoom);
@@ -4924,28 +6110,28 @@ export function renderTracker(
         return ` style="object-position:${stExpressionImageOptions.positionX.toFixed(2)}% ${stExpressionImageOptions.positionY.toFixed(2)}% !important;transform:translate(${panX.toFixed(2)}%, ${panY.toFixed(2)}%) scale(${stExpressionImageOptions.zoom.toFixed(2)}) !important;transform-origin:center center !important;"`;
       })();
       const collapsedSummary = enabledNumeric.map(def => {
-        const value = toPercent(getEffectiveNumericRawValue(def.key, name) ?? def.defaultValue);
+        const value = toPercent(getEffectiveNumericRawValue(def.key, name, registryEntry) ?? def.defaultValue);
         return `<span>${def.short} ${value}%</span>`;
       }).join("");
       const collapsedNonNumeric = enabledNonNumeric.map(def => {
-        const value = resolveEffectiveNonNumericValue(def, name);
+        const value = resolveEffectiveNonNumericValue(def, name, registryEntry);
         if (value == null) return "";
         const text = formatNonNumericForDisplay(def, value);
         return `<span>${escapeHtml(shortLabelFrom(def.label))} ${escapeHtml(text)}</span>`;
       }).filter(Boolean).join("");
       const showCollapsedMood = moodText !== "";
       const cardColor = (isUserCard ? normalizeHexColor(settings.userCardColor) : null)
-        ?? getResolvedCardColor(settings, moodLookupName, characterAvatar)
+        ?? getResolvedCardColor(settings, moodLookupName, characterAvatar, registryEntry)
         ?? palette[name]
         ?? getStableAutoCardColor(name);
-      const cardKey = `${entry.messageIndex}:${normalizeName(name)}`;
       const isNew = !renderedCardKeys.has(cardKey);
       renderedCardKeys.add(cardKey);
       const cardHtml = `
         <div class="bst-head">
           <div class="bst-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</div>
           <div class="bst-actions">
-            ${!isUserCard ? `<button class="bst-mini-btn" data-bst-action="graph" data-character="${name}" title="Open relationship graph"><span aria-hidden="true">&#128200;</span> <span class="bst-graph-label">Graph</span></button>` : ""}
+            <button class="bst-mini-btn bst-mini-btn-icon" data-bst-action="toggle-card-collapse" data-bst-card-key="${escapeHtml(cardKey)}" data-bst-card-active="${isActive ? "true" : "false"}" title="${cardCollapsed ? `Expand ${escapeHtml(displayName)}` : `Collapse ${escapeHtml(displayName)}`}" aria-expanded="${cardCollapsed ? "false" : "true"}"><span aria-hidden="true">${cardCollapsed ? "&#9656;" : "&#9662;"}</span></button>
+            ${!isUserCard ? `<button class="bst-mini-btn" data-bst-action="graph" data-character="${name}" data-entity-id="${escapeHtml(registryEntry?.id ?? "")}" title="Open relationship graph"><span aria-hidden="true">&#128200;</span> <span class="bst-graph-label">Graph</span></button>` : ""}
             ${canEdit ? `<button class="bst-mini-btn bst-mini-btn-icon" data-bst-action="edit-stats" data-bst-edit-message="${entry.messageIndex}" data-bst-edit-character="${escapeHtml(name)}" title="Edit last tracker stats for ${escapeHtml(displayName)}" aria-label="Edit last tracker stats for ${escapeHtml(displayName)}"><span aria-hidden="true">&#9998;</span></button>` : ""}
             ${!isUserCard ? `<div class="bst-state" title="${isActive ? "Active" : settings.inactiveLabel}">${isActive ? "Active" : `${settings.inactiveLabel} <span class="fa-solid fa-ghost bst-inactive-icon" aria-hidden="true"></span>`}</div>` : ""}
           </div>
@@ -4956,12 +6142,15 @@ export function renderTracker(
           ${collapsedNonNumeric || ""}
           ${showCollapsedMood ? `<span class="bst-collapsed-mood" title="${moodText}">${escapeHtml(resolveMoodSymbol(moodText, settings.moodSymbolMap))}</span>` : ""}
         </div>` : ""}
-        <div class="bst-body">
+        <div class="bst-body"${cardCollapsed ? ` style="display:none"` : ""}>
         ${enabledNumeric.map(({ key, label, color, defaultValue }) => {
           const defDefault = defaultValue ?? 50;
-          const currentValueRaw = getNumericRawValue(data, key, name, isNumericGlobalScope(key));
+          const currentValueRaw = resolveCurrentNumericRawValue(data, key, name, {
+            globalScope: isNumericGlobalScope(key),
+            registryEntry,
+          });
           const hasCurrentValue = currentValueRaw !== undefined && !Number.isNaN(currentValueRaw);
-          const effectiveValueRaw = getEffectiveNumericRawValue(key, name);
+          const effectiveValueRaw = getEffectiveNumericRawValue(key, name, registryEntry);
           const value = toPercent(effectiveValueRaw ?? defDefault);
           const previousForStat = findPreviousDataWithNumericStat(entry.messageIndex, key, name);
           const hasPrevValue = Boolean(previousForStat);
@@ -4978,11 +6167,12 @@ export function renderTracker(
           `;
         }).join("")}
         ${enabledNonNumeric.map(def => {
-          const resolved = resolveEffectiveNonNumericValue(def, name);
+          if (!hasEffectiveNonNumericValue(def, name, registryEntry)) return "";
+          const resolved = resolveEffectiveNonNumericValue(def, name, registryEntry);
           const color = def.color || "#9bd5ff";
           if (def.kind === "array") {
             const items = Array.isArray(resolved) ? resolved : normalizeNonNumericArrayItems(resolved, def.textMaxLength);
-            const arrayKey = `arr:${entry.messageIndex}:${normalizeName(name)}:${def.id}`;
+            const arrayKey = `arr:${entry.messageIndex}:${ownerUiKey}:${def.id}`;
             const expanded = expandedArrayValueKeys.has(arrayKey);
             const hasOverflow = items.length > 4;
             const visibleItems = hasOverflow && !expanded ? items.slice(0, 4) : items;
@@ -5015,6 +6205,23 @@ export function renderTracker(
               </div>
             `;
           }
+          if (def.kind === "text_short") {
+            const displayValue = resolved == null ? "not set" : formatNonNumericForDisplay(def, resolved);
+            const textShortKey = `txt:${entry.messageIndex}:${ownerUiKey}:${def.id}`;
+            return `
+              <div class="bst-row bst-row-non-numeric">
+                <div class="bst-label">
+                  <span>${escapeHtml(def.label)}</span>
+                </div>
+                ${renderTextShortMarkup({
+                  text: displayValue,
+                  key: textShortKey,
+                  color,
+                  expanded: expandedTextShortKeys.has(textShortKey),
+                })}
+              </div>
+            `;
+          }
           const displayValue = resolved == null ? "not set" : formatNonNumericForDisplay(def, resolved);
           return `
             <div class="bst-row bst-row-non-numeric">
@@ -5043,14 +6250,14 @@ export function renderTracker(
         </div>
       `;
       const ownerClass = `bst-owner-${toOwnerClassSuffix(displayName)}`;
-      cardHtmlByName.push({ name, displayName, ownerClass, html: cardHtml, isActive, isNew, cardColor });
+      cardHtmlByName.push({ name, displayName, ownerClass, html: cardHtml, isActive, isCollapsed: cardCollapsed, cardKey, isNew, cardColor });
       const nonNumericSignature = enabledNonNumeric.map(def => {
-        const value = resolveEffectiveNonNumericValue(def, name);
+        const value = resolveEffectiveNonNumericValue(def, name, registryEntry);
         if (value == null) return `${def.id}:not_set`;
         if (Array.isArray(value)) return `${def.id}:[${value.join("|")}]`;
         return `${def.id}:${typeof value === "boolean" ? String(value) : value}`;
       }).join("|");
-      signatureParts.push(`card:${name}:${isActive ? "1" : "0"}:${moodText}:${moodImage ?? ""}:${lastThoughtText}:${nonNumericSignature}:${cardColor}:${cardHtml}`);
+      signatureParts.push(`card:${ownerUiKey}:${name}:${isActive ? "1" : "0"}:${moodText}:${moodImage ?? ""}:${lastThoughtText}:${nonNumericSignature}:${cardColor}:${cardHtml}`);
     }
 
     const hasSceneCard = settings.sceneCardEnabled && sceneCardDefs.length > 0;
@@ -5167,6 +6374,23 @@ export function renderTracker(
                   </div>
                 `;
               }
+              if (def.kind === "text_short") {
+                const displayValueRaw = resolved == null ? "Not set" : formatNonNumericForDisplay(def, resolved);
+                const sceneTextShortKey = `txtscene:${entry.messageIndex}:${def.id}`;
+                return `
+                  <div class="bst-row bst-row-non-numeric">
+                    <div class="bst-label">
+                      ${showLabel ? `<span>${escapeHtml(statLabel)}</span>` : ""}
+                    </div>
+                    ${renderTextShortMarkup({
+                      text: displayValueRaw,
+                      key: sceneTextShortKey,
+                      color,
+                      expanded: expandedTextShortKeys.has(sceneTextShortKey),
+                    })}
+                  </div>
+                `;
+              }
               if (def.kind === "date_time") {
                 const dateFormat =
                   display?.dateTimeDateFormat === "dmy" ||
@@ -5250,6 +6474,23 @@ export function renderTracker(
                       ? `<button type="button" class="bst-array-toggle" data-bst-action="toggle-array-values" data-bst-array-key="${escapeHtml(sceneArrayKey)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Show less" : `+${items.length - arrayLimit} more`}</button>`
                       : ""}
                   </div>
+                </div>
+              `;
+            }
+            if (def.kind === "text_short") {
+              const displayValueRaw = resolved == null ? "Not set" : formatNonNumericForDisplay(def, resolved);
+              const sceneTextShortKey = `txtscene:${entry.messageIndex}:${def.id}`;
+              return `
+                <div class="bst-row bst-row-non-numeric">
+                  <div class="bst-label">
+                    ${showLabel ? `<span>${escapeHtml(statLabel)}</span>` : ""}
+                  </div>
+                  ${renderTextShortMarkup({
+                    text: displayValueRaw,
+                    key: sceneTextShortKey,
+                    color,
+                    expanded: expandedTextShortKeys.has(sceneTextShortKey),
+                  })}
                 </div>
               `;
             }
@@ -5341,9 +6582,11 @@ export function renderTracker(
     const appendOwnerCards = (): void => {
       for (const item of cardHtmlByName) {
         const card = document.createElement("div");
-        card.className = `bst-card ${item.ownerClass}${item.isActive ? "" : " bst-card-inactive"}${item.isNew ? " bst-card-new" : ""}`;
+        card.className = `bst-card ${item.ownerClass}${item.isActive ? "" : " bst-card-inactive"}${item.isNew ? " bst-card-new" : ""}${item.isCollapsed ? " bst-card-collapsed" : ""}`;
         card.dataset.bstOwner = item.displayName;
         card.dataset.bstOwnerClass = item.ownerClass;
+        card.dataset.bstCardKey = item.cardKey;
+        card.dataset.bstCardActive = item.isActive ? "true" : "false";
         card.style.setProperty("--bst-card-local", item.cardColor);
         const palette = buildActionPalette(item.cardColor);
         card.style.setProperty("--bst-action-bg", palette.bg);
@@ -5355,6 +6598,50 @@ export function renderTracker(
         card.innerHTML = item.html;
         root.appendChild(card);
       }
+    };
+    const syncThoughtOverflowIn = (host: ParentNode | null | undefined): void => {
+      if (!host) return;
+      host.querySelectorAll<HTMLElement>('[data-bst-thought-container="1"]').forEach(container => {
+        const key = String(container.getAttribute("data-bst-thought-key") ?? "").trim();
+        const textNode = container.querySelector<HTMLElement>(".bst-thought-text, .bst-mood-bubble-text");
+        const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-thought"]');
+        if (!textNode || !toggle) return;
+        const state = resolveThoughtToggleState({
+          scrollHeight: textNode.scrollHeight,
+          clientHeight: textNode.clientHeight,
+          scrollWidth: textNode.scrollWidth,
+          clientWidth: textNode.clientWidth,
+        }, expandedThoughtKeys.has(key));
+        if (!state.overflowing) {
+          if (key) expandedThoughtKeys.delete(key);
+          container.classList.remove("bst-thought-expanded");
+        }
+        toggle.hidden = state.hidden;
+        toggle.setAttribute("aria-expanded", state.ariaExpanded);
+        toggle.textContent = state.label;
+      });
+    };
+    const syncTextShortOverflowIn = (host: ParentNode | null | undefined): void => {
+      if (!host) return;
+      host.querySelectorAll<HTMLElement>('[data-bst-text-short-container="1"]').forEach(container => {
+        const key = String(container.getAttribute("data-bst-text-short-key") ?? "").trim();
+        const textNode = container.querySelector<HTMLElement>(".bst-text-short-value-text");
+        const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-text-short"]');
+        if (!textNode || !toggle) return;
+        const state = resolveTextShortToggleState({
+          scrollHeight: textNode.scrollHeight,
+          clientHeight: textNode.clientHeight,
+          scrollWidth: textNode.scrollWidth,
+          clientWidth: textNode.clientWidth,
+        }, expandedTextShortKeys.has(key));
+        if (!state.overflowing) {
+          if (key) expandedTextShortKeys.delete(key);
+          container.classList.remove("bst-text-short-expanded");
+        }
+        toggle.hidden = state.hidden;
+        toggle.setAttribute("aria-expanded", state.ariaExpanded);
+        toggle.textContent = state.label;
+      });
     };
     if (sceneRoot) {
       const sceneSignature = `sceneRoot:${sceneCardVisible ? "1" : "0"}:${sceneCollapsed ? "1" : "0"}:${sceneCardHtml}`;
@@ -5371,6 +6658,10 @@ export function renderTracker(
       root.appendChild(inlineSceneHost);
       appendSceneCard(inlineSceneHost);
       appendOwnerCards();
+      syncThoughtOverflowIn(inlineSceneHost);
+      syncThoughtOverflowIn(root);
+      syncTextShortOverflowIn(inlineSceneHost);
+      syncTextShortOverflowIn(root);
     } else {
       appendOwnerCards();
       if (sceneCardVisible && !sceneRoot) {
@@ -5378,8 +6669,16 @@ export function renderTracker(
         inlineSceneHost.className = "bst-inline-scene-host";
         root.appendChild(inlineSceneHost);
         appendSceneCard(inlineSceneHost);
+        syncThoughtOverflowIn(inlineSceneHost);
+        syncTextShortOverflowIn(inlineSceneHost);
       }
+      syncThoughtOverflowIn(root);
+      syncTextShortOverflowIn(root);
     }
+    syncThoughtOverflowIn(sceneRoot);
+    syncTextShortOverflowIn(sceneRoot);
+    bindOverflowResyncEvents();
+    scheduleDeferredOverflowResync();
   }
 }
 

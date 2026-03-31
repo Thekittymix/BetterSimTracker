@@ -1,6 +1,15 @@
 import { DEFAULT_INJECTION_PROMPT_TEMPLATE } from "./prompts";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
+import { shouldUseConfiguredOwnerDefaults } from "./entitySeedPolicy";
+import {
+  resolveTrackerDataEntityOwnerSnapshot,
+  resolveTrackerDataLookupValue,
+  resolveTrackerEntityIdsForOwners,
+  resolveTrackerMessageOwners,
+  resolveTrackerSceneOwners,
+} from "./entityRegistry";
+import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
 import { buildMergedPromptMacroData } from "./runtimeState";
 import {
   behaviorGuidanceLines,
@@ -8,7 +17,9 @@ import {
   customStatTracksScope,
   renderNonNumericValue,
   resolveScopedCustomNonNumericValue,
+  resolveScopedCustomNonNumericValueForOwners,
   resolveScopedCustomNumericValue,
+  resolveScopedCustomNumericValueForOwners,
 } from "./promptInjectionHelpers";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "./types";
 
@@ -99,6 +110,8 @@ function isOwnerStatEnabled(
   settings: BetterSimTrackerSettings,
   ownerName: string,
   statId: string,
+  explicitEntityId?: string | null,
+  explicitEntityKind?: string | null,
 ): boolean {
   const id = String(statId ?? "").trim().toLowerCase();
   if (!id) return true;
@@ -121,6 +134,10 @@ function isOwnerStatEnabled(
     return statEnabledRaw[id] !== false;
   }
 
+  if (!shouldUseConfiguredOwnerDefaults(context, ownerName, explicitEntityId, explicitEntityKind)) {
+    return true;
+  }
+
   const contextCharacters = Array.isArray(context.characters) ? context.characters : [];
   const contextCharacterId = Number(context.characterId);
   const inGroup = Boolean(String(context.groupId ?? "").trim());
@@ -131,9 +148,11 @@ function isOwnerStatEnabled(
     && normalizeOwnerName(String(contextCharacters[contextCharacterId]?.name ?? "")) === normalizeOwnerName(ownerName)
     ? contextCharacters[contextCharacterId]
     : null;
-  const matchedCharacter = matchedFromId ?? contextCharacters.find(character =>
-    normalizeOwnerName(String(character?.name ?? "")) === normalizeOwnerName(ownerName),
-  );
+  const matchedCharacter = matchedFromId
+    ?? resolveCharacterFromContext(context, ownerName, resolveEntityTrackingMode(settings))
+    ?? contextCharacters.find(character =>
+      normalizeOwnerName(String(character?.name ?? "")) === normalizeOwnerName(ownerName),
+    );
   const defaults = resolveCharacterDefaultsEntry(settings, {
     name: ownerName,
     avatar: String(matchedCharacter?.avatar ?? "").trim() || null,
@@ -146,6 +165,8 @@ function isOwnerStatEnabled(
 }
 
 function resolveInjectionTargetOwner(context: STContext, data: TrackerData): string | null {
+  const messageOwners = resolveTrackerMessageOwners(context, data);
+  const sceneOwners = resolveTrackerSceneOwners(context, data);
   const userName = String(context.name1 ?? "").trim();
   const userAliases = new Set(
     [userName, USER_TRACKER_KEY, "user"]
@@ -153,6 +174,13 @@ function resolveInjectionTargetOwner(context: STContext, data: TrackerData): str
       .filter(Boolean),
   );
   const candidates: string[] = [];
+
+  for (const owner of messageOwners) {
+    if (owner) candidates.push(owner);
+  }
+  if (sceneOwners.length === 1) {
+    candidates.push(String(sceneOwners[0] ?? "").trim());
+  }
 
   const characterId = Number(context.characterId);
   if (Number.isFinite(characterId) && characterId >= 0 && Array.isArray(context.characters) && context.characters[characterId]) {
@@ -174,10 +202,6 @@ function resolveInjectionTargetOwner(context: STContext, data: TrackerData): str
     }
   }
 
-  if (data.activeCharacters.length === 1) {
-    candidates.push(String(data.activeCharacters[0] ?? "").trim());
-  }
-
   let hasUserCandidate = false;
   for (const candidate of candidates) {
     const normalized = normalizeOwnerName(candidate);
@@ -192,6 +216,16 @@ function resolveInjectionTargetOwner(context: STContext, data: TrackerData): str
 
   if (hasUserCandidate) return USER_TRACKER_KEY;
   return null;
+}
+
+function resolvePromptOwnerExplicitEntityIds(
+  context: STContext,
+  data: TrackerData,
+  ownerName: string,
+): string[] {
+  const snapshotEntityId = String(resolveTrackerDataEntityOwnerSnapshot(data, ownerName)?.entityId ?? "").trim();
+  if (snapshotEntityId) return [snapshotEntityId];
+  return resolveTrackerEntityIdsForOwners(context, [ownerName]);
 }
 
 
@@ -261,7 +295,7 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
   const buildWithCustom = (customStatCount: number, verbosity: InjectionVerbosityMode): string => {
     const enabledCustom = allEnabledCustom.slice(0, customStatCount);
     const allowUserInjection = Boolean(settings.includeUserTrackerInInjection && settings.enableUserTracking);
-    const names = [...data.activeCharacters];
+    const names = [...resolveTrackerSceneOwners(context, data)];
     if (targetOwner && targetOwner !== USER_TRACKER_KEY && !names.includes(targetOwner)) {
       names.push(targetOwner);
     }
@@ -273,6 +307,9 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
         return targetOwner ? name === targetOwner : true;
       });
     const filteredScopedNames = scopedNames.filter(name => !isReservedSystemOwnerName(name));
+    const explicitEntityIdsByOwner = new Map(
+      filteredScopedNames.map(name => [name, resolvePromptOwnerExplicitEntityIds(context, data, name)] as const),
+    );
     if (allowUserInjection) {
       const hasUserMood = settings.userTrackMood && data.statistics.mood?.[USER_TRACKER_KEY] !== undefined;
       const hasUserLastThought = settings.userTrackLastThought && String(data.statistics.lastThought?.[USER_TRACKER_KEY] ?? "").trim().length > 0;
@@ -295,7 +332,7 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
         const isUser = name === USER_TRACKER_KEY;
         if (isUser && !customStatTracksScope(stat, "user")) return false;
         if (!isUser && !customStatTracksScope(stat, "character")) return false;
-        if (!isOwnerStatEnabled(context, settings, name, stat.id)) return false;
+        if (!isOwnerStatEnabled(context, settings, name, stat.id, explicitEntityIdsByOwner.get(name)?.[0] ?? null)) return false;
         return true;
       });
     });
@@ -344,12 +381,21 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
     const lines = filteredScopedNames.map(name => {
       const isUser = name === USER_TRACKER_KEY;
       const displayName = isUser ? (String(context.name1 ?? "").trim() || "User") : name;
+      const explicitEntityIds = explicitEntityIdsByOwner.get(name) ?? resolvePromptOwnerExplicitEntityIds(context, data, name);
+      const explicitEntityId = explicitEntityIds[0] ?? null;
       const parts: string[] = [];
       const ownerMatch = Boolean(targetOwnerKey) && normalizeOwnerName(name) === targetOwnerKey;
       for (const stat of enabledBuiltIns) {
         if (isUser) continue;
-        if (!isOwnerStatEnabled(context, settings, name, stat.key)) continue;
-        const rawValue = data.statistics[stat.key]?.[name];
+        if (!isOwnerStatEnabled(context, settings, name, stat.key, explicitEntityId)) continue;
+        const rawValue = resolveTrackerDataLookupValue({
+          context,
+          data,
+          byOwner: data.statistics[stat.key],
+          byEntityId: data.statisticsByEntityId?.[stat.key],
+          ownerName: name,
+          explicitEntityIds,
+        });
         const value = numeric(rawValue);
         if (value == null) continue;
         parts.push(`${stat.label}=${value}`);
@@ -357,25 +403,38 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
       for (const stat of enabledOwnerCustomNumeric) {
         if (stat.privateToOwner && !ownerMatch) continue;
         if (!customStatTracksScope(stat, isUser ? "user" : "character")) continue;
-        if (!isOwnerStatEnabled(context, settings, name, stat.id)) continue;
-        const value = numeric(resolveScopedCustomNumericValue(data, stat.id, name, Boolean(stat.globalScope)));
+        if (!isOwnerStatEnabled(context, settings, name, stat.id, explicitEntityId)) continue;
+        const value = numeric(resolveScopedCustomNumericValue(data, stat.id, name, Boolean(stat.globalScope), {
+          context,
+          explicitEntityIds,
+        }));
         if (value == null) continue;
         parts.push(`${stat.id}=${value}`);
       }
       for (const stat of enabledOwnerCustomNonNumeric) {
         if (stat.privateToOwner && !ownerMatch) continue;
         if (!customStatTracksScope(stat, isUser ? "user" : "character")) continue;
-        if (!isOwnerStatEnabled(context, settings, name, stat.id)) continue;
-        const value = renderNonNumericValue(resolveScopedCustomNonNumericValue(data, stat.id, name, Boolean(stat.globalScope)));
+        if (!isOwnerStatEnabled(context, settings, name, stat.id, explicitEntityId)) continue;
+        const value = renderNonNumericValue(resolveScopedCustomNonNumericValue(data, stat.id, name, Boolean(stat.globalScope), {
+          context,
+          explicitEntityIds,
+        }));
         if (value != null) {
           parts.push(`${stat.id}=${value}`);
         }
       }
       if ((isUser && settings.userTrackMood) || (!isUser && includeMood)) {
-        if (!isOwnerStatEnabled(context, settings, name, "mood")) {
+        if (!isOwnerStatEnabled(context, settings, name, "mood", explicitEntityId)) {
           // skip
         } else {
-          const rawMood = data.statistics.mood?.[name];
+          const rawMood = resolveTrackerDataLookupValue({
+            context,
+            data,
+            byOwner: data.statistics.mood,
+            byEntityId: data.statisticsByEntityId?.mood,
+            ownerName: name,
+            explicitEntityIds,
+          });
           const mood = String(rawMood ?? "").trim();
           if (mood) {
             parts.push(`mood=${mood}`);
@@ -385,9 +444,16 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
       const includeThoughtForLine =
         ((isUser && settings.userTrackLastThought) || (!isUser && settings.trackLastThought)) &&
         (!settings.lastThoughtPrivate || ownerMatch) &&
-        isOwnerStatEnabled(context, settings, name, "lastThought");
+        isOwnerStatEnabled(context, settings, name, "lastThought", explicitEntityId);
       if (includeThoughtForLine) {
-        const thought = renderNonNumericValue(data.statistics.lastThought?.[name]);
+        const thought = renderNonNumericValue(resolveTrackerDataLookupValue({
+          context,
+          data,
+          byOwner: data.statistics.lastThought,
+          byEntityId: data.statisticsByEntityId?.lastThought,
+          ownerName: name,
+          explicitEntityIds,
+        }));
         if (thought != null) {
           parts.push(`lastThought=${thought}`);
         }
@@ -642,4 +708,5 @@ export function getLastInjectedPromptDebug(): Record<string, unknown> | null {
 export const __testables = {
   buildPrompt,
   isOwnerStatEnabled,
+  resolveInjectionTargetOwner,
 };

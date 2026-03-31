@@ -1,0 +1,793 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
+
+import {
+  buildDisplayPoolWithRegistry,
+  selectDisplayPoolTargetsWithRegistry,
+  collectCharacterNamesFromTrackerData,
+  filterRenderTargetsForTrackingMode,
+  filterShadowedAliasRenderTargets,
+  filterArchivedOwnersFromTargets,
+  filterTechnicalSourceOwnersFromTargets,
+  isUserOwnerToken,
+  mergeRegistryEntitiesIntoTargets,
+  mergeRegistryRenderTargets,
+  mergeRegistryOwnersIntoTargets,
+  applyTrackerCardCollapsed,
+  resolveRegistryLookupNamesForOwner,
+  resolveRegistryEntryForOwnerInMessageData,
+  resolveLifecycleRegistryStateForOwnerInMessageData,
+  resolveRegistryOwnersFromEntries,
+  resolveCurrentLifecycleOwners,
+  resolveCurrentLifecycleOwnersForTrackerData,
+  resolveTrackerCardCollapsed,
+  resolveOwnerUiKey,
+  shouldKeepOwnerInRenderTargetPool,
+  type OwnerRenderIdentity,
+} from "../src/ui";
+
+test("filterTechnicalSourceOwnersFromTargets hides a source-card owner when one of its aliases is rendered", () => {
+  const identities = new Map<string, OwnerRenderIdentity>([
+    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", { sourceKey: "camp.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", isAlias: false, isSource: true }],
+    ["Ashley", { sourceKey: "camp.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", isAlias: true, isSource: false }],
+    ["Billie", { sourceKey: "billie.png|Billie", isAlias: false, isSource: true }],
+  ]);
+
+  const filtered = filterTechnicalSourceOwnersFromTargets(
+    ["Ashley", "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "Billie"],
+    ownerName => identities.get(ownerName) ?? null,
+  );
+
+  assert.deepEqual(filtered, ["Ashley", "Billie"]);
+});
+
+test("filterTechnicalSourceOwnersFromTargets keeps source-card owner when no alias from that source is rendered", () => {
+  const identities = new Map<string, OwnerRenderIdentity>([
+    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", { sourceKey: "camp.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", isAlias: false, isSource: true }],
+    ["Billie", { sourceKey: "billie.png|Billie", isAlias: false, isSource: true }],
+  ]);
+
+  const filtered = filterTechnicalSourceOwnersFromTargets(
+    ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "Billie"],
+    ownerName => identities.get(ownerName) ?? null,
+  );
+
+  assert.deepEqual(filtered, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "Billie"]);
+});
+
+test("filterArchivedOwnersFromTargets removes archived owners from the render target list", () => {
+  const filtered = filterArchivedOwnersFromTargets(
+    ["Ashley", "Blake", "Garret"],
+    ownerName => ownerName === "Ashley" ? "archived" : "inactive",
+  );
+
+  assert.deepEqual(filtered, ["Blake", "Garret"]);
+});
+
+test("mergeRegistryOwnersIntoTargets backfills registry owners without duplicating existing names", () => {
+  const merged = mergeRegistryOwnersIntoTargets(
+    ["Ashley", "Blake"],
+    ["Blake", "Garret", "Raleigh"],
+  );
+
+  assert.deepEqual(merged, ["Ashley", "Blake", "Garret", "Raleigh"]);
+});
+
+test("mergeRegistryEntitiesIntoTargets deduplicates entity-backed targets by registry id, not just owner spelling", () => {
+  const registryEntries = [
+    { id: "ent-ashley", ownerName: "Ashley" },
+    { id: "ent-blake", ownerName: "Blake" },
+  ] as never[];
+  const merged = mergeRegistryEntitiesIntoTargets({
+    targets: ["Ash", "Blake"],
+    registryEntries,
+    resolveRegistryEntry: ownerName => {
+      if (ownerName === "Ash") return { id: "ent-ashley", ownerName: "Ashley" } as never;
+      if (ownerName === "Blake") return { id: "ent-blake", ownerName: "Blake" } as never;
+      return null;
+    },
+  });
+
+  assert.deepEqual(merged, ["Ash", "Blake"]);
+});
+
+test("mergeRegistryRenderTargets preserves same-name entries when entity ids differ", () => {
+  const merged = mergeRegistryRenderTargets({
+    targets: ["Ashley"],
+    registryEntries: [
+      { id: "ent-ashley-card", ownerName: "Ashley" } as never,
+      { id: "bst_narrative:ashley-shadow", ownerName: "Ashley" } as never,
+    ],
+    resolveRegistryEntry: ownerName =>
+      ownerName === "Ashley"
+        ? ({ id: "ent-ashley-card", ownerName: "Ashley" } as never)
+        : null,
+  });
+
+  assert.deepEqual(
+    merged.map(target => ({ ownerName: target.ownerName, uiKey: target.uiKey })),
+    [
+      { ownerName: "Ashley", uiKey: "ent-ashley-card" },
+      { ownerName: "Ashley", uiKey: "bst_narrative:ashley-shadow" },
+    ],
+  );
+});
+
+test("filterShadowedAliasRenderTargets drops generic owner duplicates when a source-backed alias for the same owner exists", () => {
+  const filtered = filterShadowedAliasRenderTargets([
+    {
+      ownerName: "Blake",
+      uiKey: "bst_owner:blake.png|blake",
+      registryEntry: {
+        id: "bst_owner:blake.png|blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceName: "Blake",
+        sourceAvatar: "blake.png",
+        sourceKey: "blake.png|blake",
+        kind: "owner",
+        introducedAtMessageIndex: 1,
+        lastSeenMessageIndex: 2,
+        lastActiveMessageIndex: 1,
+        lifecycleState: "inactive",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+    {
+      ownerName: "Blake",
+      uiKey: "bst_mc_alias:camp.png|camp:blake",
+      registryEntry: {
+        id: "bst_mc_alias:camp.png|camp:blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        sourceAvatar: "camp.png",
+        sourceKey: "camp.png|camp",
+        kind: "multi_character_alias",
+        introducedAtMessageIndex: 1,
+        lastSeenMessageIndex: 2,
+        lastActiveMessageIndex: 1,
+        lifecycleState: "inactive",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+    {
+      ownerName: "Chloe",
+      uiKey: "bst_owner:chloe.png|chloe",
+      registryEntry: {
+        id: "bst_owner:chloe.png|chloe",
+        ownerName: "Chloe",
+        canonicalName: "Chloe",
+        aliases: [],
+        sourceName: "Chloe",
+        sourceAvatar: "chloe.png",
+        sourceKey: "chloe.png|chloe",
+        kind: "owner",
+        introducedAtMessageIndex: 1,
+        lastSeenMessageIndex: 2,
+        lastActiveMessageIndex: 2,
+        lifecycleState: "active",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+  ]);
+
+  assert.deepEqual(
+    filtered.map(target => `${target.registryEntry?.kind}:${target.ownerName}`),
+    ["multi_character_alias:Blake", "owner:Chloe"],
+  );
+});
+
+test("collectCharacterNamesFromTrackerData prefers resolver scene owners and entity owner map over stale activeCharacters", () => {
+  const names = collectCharacterNamesFromTrackerData(
+    {
+      chat: [],
+      chatMetadata: {
+        bstEntityRegistry: {
+          entities: {
+            "ent-blake": {
+              id: "ent-blake",
+              ownerName: "Blake",
+              canonicalName: "Blake",
+              aliases: ["Blackout Blake"],
+              kind: "multi_character_alias",
+              sourceKey: "camp",
+              lifecycle: "active",
+              createdAtMessageIndex: 0,
+              lastSeenMessageIndex: 2,
+              lastActiveMessageIndex: 2,
+            },
+          },
+          byOwner: {
+            Blake: "ent-blake",
+          },
+          bySource: {},
+        },
+      },
+    } as never,
+    {
+      activeCharacters: ["Garret", "Raleigh"],
+      entityResolution: buildEntityResolution({
+        source: "model",
+        sceneOwners: ["Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-blake"],
+        messageEntityIds: ["ent-blake"],
+      }),
+      entityOwnerMap: {
+        Blake: {
+          entityId: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blackout Blake"],
+          kind: "multi_character_alias",
+          sourceKey: "camp",
+        },
+      },
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {},
+      timestamp: 1,
+    },
+  );
+
+  assert.deepEqual(names, ["Blake"]);
+});
+
+test("collectCharacterNamesFromTrackerData ignores raw stat owner keys once explicit resolver/entity identity exists", () => {
+  const names = collectCharacterNamesFromTrackerData(
+    {
+      chat: [],
+      chatMetadata: {
+        bstEntityRegistry: {
+          entities: {
+            "ent-blake": {
+              id: "ent-blake",
+              ownerName: "Blake",
+              canonicalName: "Blake",
+              aliases: ["Blackout Blake"],
+              kind: "multi_character_alias",
+              sourceKey: "camp",
+              lifecycle: "active",
+              createdAtMessageIndex: 0,
+              lastSeenMessageIndex: 2,
+              lastActiveMessageIndex: 2,
+            },
+          },
+          byOwner: {
+            Blake: "ent-blake",
+          },
+          bySource: {},
+        },
+      },
+    } as never,
+    {
+      activeCharacters: ["Garret"],
+      entityResolution: buildEntityResolution({
+        source: "model",
+        sceneOwners: ["Blake"],
+        messageOwners: ["Blake"],
+        sceneEntityIds: ["ent-blake"],
+        messageEntityIds: ["ent-blake"],
+      }),
+      entityOwnerMap: {
+        Blake: {
+          entityId: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blackout Blake"],
+          kind: "multi_character_alias",
+          sourceKey: "camp",
+        },
+      },
+      statistics: {
+        affection: { Garret: 50, Raleigh: 50 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      customStatistics: {},
+      customNonNumericStatistics: {
+        pose: {
+          Ashley: "near the door",
+        },
+      },
+      timestamp: 1,
+    },
+  );
+
+  assert.deepEqual(names, ["Blake"]);
+});
+
+test("collectCharacterNamesFromTrackerData preserves the explicit user owner alongside fallback scene continuity", () => {
+  const names = collectCharacterNamesFromTrackerData({
+    timestamp: 1,
+    activeCharacters: ["__bst_user__"],
+    entityResolution: buildEntityResolution({
+      source: "fallback",
+      sceneOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+      messageOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
+    }),
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { __bst_user__: "Serious" },
+      lastThought: { __bst_user__: "Ashley is giving me the clearest read here." },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: { __bst_user__: ["t-shirt", "jeans"] },
+      pose: { __bst_user__: "watching Ashley closely" },
+    },
+  } as never);
+
+  assert.deepEqual(names, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "__bst_user__"]);
+});
+
+test("collectCharacterNamesFromTrackerData can materialize resolver scene owners from entity ids plus owner map without context", () => {
+  const names = collectCharacterNamesFromTrackerData({
+    activeCharacters: ["Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: [],
+      messageOwners: [],
+      sceneEntityIds: ["ent-blake"],
+      messageEntityIds: ["ent-blake"],
+    }),
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["Blackout Blake"],
+        kind: "multi_character_alias",
+        sourceKey: "camp",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+    timestamp: 1,
+  } as never);
+
+  assert.deepEqual(names, ["Blake"]);
+});
+
+test("resolveRegistryOwnersFromEntries preserves introduction order and deduplicates names", () => {
+  const owners = resolveRegistryOwnersFromEntries([
+    { id: "a", ownerName: "Ashley" } as never,
+    { id: "b", ownerName: "Blake" } as never,
+    { id: "c", ownerName: "Ashley" } as never,
+    { id: "d", ownerName: "Raleigh" } as never,
+  ]);
+
+  assert.deepEqual(owners, ["Ashley", "Blake", "Raleigh"]);
+});
+
+test("resolveRegistryLookupNamesForOwner includes entity aliases without falling back to source-card owner", () => {
+  const names = resolveRegistryLookupNamesForOwner(
+    "Ashley",
+    {
+      ownerName: "Ashley",
+      canonicalName: "Ashley",
+      aliases: ["Ash", "Ashley"],
+      kind: "multi_character_alias",
+    } as never,
+  );
+
+  assert.deepEqual(names, ["Ashley", "Ash"]);
+});
+
+test("resolveRegistryEntryForOwnerInMessageData prefers tracker data entity ids over stale owner-name registry matches", () => {
+  const resolved = resolveRegistryEntryForOwnerInMessageData({
+    ownerName: "Ash",
+    messageIndex: 2,
+    data: {
+      activeCharacters: ["Ash"],
+      entityOwnerMap: {
+        Ash: {
+          entityId: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceKey: "camp",
+          kind: "multi_character_alias",
+        },
+      },
+    } as never,
+    resolveRegistryEntryForMessage: ownerName =>
+      ownerName === "Ash"
+        ? ({ id: "ent-stale", ownerName: "Ash", canonicalName: "Ash", aliases: [], kind: "multi_character_alias" } as never)
+        : null,
+    resolveRegistryEntryByEntityIdForMessage: entityId =>
+      entityId === "ent-ashley"
+        ? ({ id: "ent-ashley", ownerName: "Ashley", canonicalName: "Ashley", aliases: ["Ash"], kind: "multi_character_alias" } as never)
+        : null,
+  });
+
+  assert.equal(resolved?.id, "ent-ashley");
+  assert.equal(resolved?.ownerName, "Ashley");
+});
+
+test("resolveLifecycleRegistryStateForOwnerInMessageData prefers tracker data entity ids over stale owner-name lifecycle matches", () => {
+  const resolved = resolveLifecycleRegistryStateForOwnerInMessageData({
+    ownerName: "Ash",
+    messageIndex: 2,
+    data: {
+      activeCharacters: ["Ash"],
+      entityOwnerMap: {
+        Ash: {
+          entityId: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceKey: "camp",
+          kind: "multi_character_alias",
+        },
+      },
+    } as never,
+    resolveLifecycleRegistryState: ownerName =>
+      ownerName === "Ash"
+        ? ({ lifecycleState: "inactive", lastActiveMessageIndex: 1, introducedAtMessageIndex: 0 } as never)
+        : null,
+    resolveLifecycleRegistryStateByEntityId: entityId =>
+      entityId === "ent-ashley"
+        ? ({ lifecycleState: "active", lastActiveMessageIndex: 2, introducedAtMessageIndex: 0 } as never)
+        : null,
+  });
+
+  assert.equal(resolved?.lifecycleState, "active");
+  assert.equal(resolved?.lastActiveMessageIndex, 2);
+});
+
+test("resolveRegistryEntryForOwnerInMessageData resolves entityOwnerMap aliases before stale owner-name registry matches", () => {
+  const resolved = resolveRegistryEntryForOwnerInMessageData({
+    ownerName: "Ashley",
+    messageIndex: 2,
+    data: {
+      activeCharacters: ["Ashley"],
+      entityOwnerMap: {
+        "Ashley Shadow": {
+          entityId: "bst_narrative:ashley-shadow",
+          ownerName: "Ashley Shadow",
+          canonicalName: "Ashley Shadow",
+          aliases: ["Ashley"],
+          sourceKey: "narrative:bst_narrative:ashley-shadow",
+          kind: "narrative-entity",
+        },
+      },
+    } as never,
+    resolveRegistryEntryForMessage: ownerName =>
+      ownerName === "Ashley"
+        ? ({ id: "ent-stale", ownerName: "Ashley", canonicalName: "Ashley", aliases: [], kind: "multi_character_alias" } as never)
+        : null,
+    resolveRegistryEntryByEntityIdForMessage: entityId =>
+      entityId === "bst_narrative:ashley-shadow"
+        ? ({ id: "bst_narrative:ashley-shadow", ownerName: "Ashley Shadow", canonicalName: "Ashley Shadow", aliases: ["Ashley"], kind: "narrative-entity" } as never)
+        : null,
+  });
+
+  assert.equal(resolved?.id, "bst_narrative:ashley-shadow");
+  assert.equal(resolved?.ownerName, "Ashley Shadow");
+});
+
+test("resolveLifecycleRegistryStateForOwnerInMessageData resolves entityOwnerMap aliases before stale owner-name lifecycle matches", () => {
+  const resolved = resolveLifecycleRegistryStateForOwnerInMessageData({
+    ownerName: "Ashley",
+    messageIndex: 2,
+    data: {
+      activeCharacters: ["Ashley"],
+      entityOwnerMap: {
+        "Ashley Shadow": {
+          entityId: "bst_narrative:ashley-shadow",
+          ownerName: "Ashley Shadow",
+          canonicalName: "Ashley Shadow",
+          aliases: ["Ashley"],
+          sourceKey: "narrative:bst_narrative:ashley-shadow",
+          kind: "narrative-entity",
+        },
+      },
+    } as never,
+    resolveLifecycleRegistryState: ownerName =>
+      ownerName === "Ashley"
+        ? ({ lifecycleState: "inactive", lastActiveMessageIndex: 1, introducedAtMessageIndex: 0 } as never)
+        : null,
+    resolveLifecycleRegistryStateByEntityId: entityId =>
+      entityId === "bst_narrative:ashley-shadow"
+        ? ({ lifecycleState: "active", lastActiveMessageIndex: 2, introducedAtMessageIndex: 0 } as never)
+        : null,
+  });
+
+  assert.equal(resolved?.lifecycleState, "active");
+  assert.equal(resolved?.lastActiveMessageIndex, 2);
+});
+
+test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
+  const displayPool = buildDisplayPoolWithRegistry({
+    entityTrackingMode: "dynamic_characters",
+    includeAllTargets: false,
+    activeCharacters: ["Ashley"],
+    dataCharacterNames: ["Ashley"],
+    mergedWithRegistryOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+  });
+
+  assert.deepEqual(displayPool, ["Ashley", "Blake", "Garret", "Raleigh"]);
+});
+
+test("buildDisplayPoolWithRegistry keeps standard mode focused on current active/data owners", () => {
+  const displayPool = buildDisplayPoolWithRegistry({
+    entityTrackingMode: "standard",
+    includeAllTargets: false,
+    activeCharacters: ["Ashley"],
+    dataCharacterNames: ["Ashley"],
+    mergedWithRegistryOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+  });
+
+  assert.deepEqual(displayPool, ["Ashley"]);
+});
+
+test("selectDisplayPoolTargetsWithRegistry keeps scene-only group participants when includeAllTargets is enabled", () => {
+  const targets = selectDisplayPoolTargetsWithRegistry({
+    entityTrackingMode: "dynamic_characters",
+    includeAllTargets: true,
+    activeCharacters: ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"],
+    dataCharacterNames: ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"],
+    mergedWithRegistryTargets: [
+      { ownerName: "Raleigh", uiKey: "ent-raleigh", registryEntry: { id: "ent-raleigh", ownerName: "Raleigh" } as never },
+      { ownerName: "Blake", uiKey: "ent-blake", registryEntry: { id: "ent-blake", ownerName: "Blake" } as never },
+      { ownerName: "Garret", uiKey: "ent-garret", registryEntry: { id: "ent-garret", ownerName: "Garret" } as never },
+      { ownerName: "Ashley", uiKey: "ent-ashley", registryEntry: { id: "ent-ashley", ownerName: "Ashley" } as never },
+      { ownerName: "Chloe", uiKey: "ent-chloe", registryEntry: { id: "ent-chloe", ownerName: "Chloe" } as never },
+    ],
+    resolveTarget: () => null,
+    shouldKeepTarget: target => target.ownerName !== "Chloe",
+  });
+
+  assert.deepEqual(targets.map(target => target.ownerName), ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"]);
+});
+
+test("selectDisplayPoolTargetsWithRegistry still filters scene-only registry targets when includeAllTargets is disabled", () => {
+  const targets = selectDisplayPoolTargetsWithRegistry({
+    entityTrackingMode: "dynamic_characters",
+    includeAllTargets: false,
+    activeCharacters: ["Raleigh", "Blake", "Garret"],
+    dataCharacterNames: ["Raleigh", "Blake", "Garret", "Chloe"],
+    mergedWithRegistryTargets: [
+      { ownerName: "Raleigh", uiKey: "ent-raleigh", registryEntry: { id: "ent-raleigh", ownerName: "Raleigh" } as never },
+      { ownerName: "Blake", uiKey: "ent-blake", registryEntry: { id: "ent-blake", ownerName: "Blake" } as never },
+      { ownerName: "Garret", uiKey: "ent-garret", registryEntry: { id: "ent-garret", ownerName: "Garret" } as never },
+      { ownerName: "Chloe", uiKey: "ent-chloe", registryEntry: { id: "ent-chloe", ownerName: "Chloe" } as never },
+    ],
+    resolveTarget: () => null,
+    shouldKeepTarget: target => target.ownerName !== "Chloe",
+  });
+
+  assert.deepEqual(targets.map(target => target.ownerName), ["Raleigh", "Blake", "Garret"]);
+});
+
+test("filterRenderTargetsForTrackingMode hides narrative entities in standard mode but keeps source-backed aliases", () => {
+  const filtered = filterRenderTargetsForTrackingMode({
+    entityTrackingMode: "standard",
+    targets: [
+      {
+        ownerName: "Blake",
+        uiKey: "ent-blake",
+        registryEntry: {
+          id: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["Blake"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [],
+        } as never,
+      },
+      {
+        ownerName: "Spirit",
+        uiKey: "bst_narrative:spirit",
+        registryEntry: {
+          id: "bst_narrative:spirit",
+          ownerName: "Spirit",
+          canonicalName: "Spirit",
+          aliases: ["spirit in the woods"],
+          sourceName: "Spirit",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:spirit",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+          lifecycleEvents: [],
+        } as never,
+      },
+    ],
+  });
+
+  assert.deepEqual(filtered.map(target => target.ownerName), ["Blake"]);
+});
+
+test("isUserOwnerToken recognizes both the internal user key and legacy visible user labels", () => {
+  const resolveDisplayName = (ownerName: string): string =>
+    ownerName === "__bst_user__" ? "User" : ownerName;
+
+  assert.equal(isUserOwnerToken("__bst_user__", resolveDisplayName), true);
+  assert.equal(isUserOwnerToken("User", resolveDisplayName), true);
+  assert.equal(isUserOwnerToken("Blake", resolveDisplayName), false);
+});
+
+test("shouldKeepOwnerInRenderTargetPool requires real state evidence, not registry presence alone", () => {
+  assert.equal(
+    shouldKeepOwnerInRenderTargetPool({
+      ownerName: "Blake",
+      hasAnyStat: false,
+      isActive: false,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldKeepOwnerInRenderTargetPool({
+      ownerName: "Raleigh",
+      hasAnyStat: false,
+      isActive: false,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldKeepOwnerInRenderTargetPool({
+      ownerName: "Ashley",
+      hasAnyStat: true,
+      isActive: false,
+    }),
+    true,
+  );
+
+  assert.equal(
+    shouldKeepOwnerInRenderTargetPool({
+      ownerName: "Garret",
+      hasAnyStat: false,
+      isActive: true,
+    }),
+    true,
+  );
+});
+
+test("resolveOwnerUiKey prefers stable registry entity ids over raw owner names", () => {
+  assert.equal(
+    resolveOwnerUiKey("Ashley", { id: "bst_mc_alias:camp:ashley" }),
+    "bst_mc_alias:camp:ashley",
+  );
+
+  assert.equal(
+    resolveOwnerUiKey("Ashley", null),
+    "ashley",
+  );
+});
+
+test("resolveTrackerCardCollapsed defaults active cards open and inactive cards collapsed", () => {
+  assert.equal(
+    resolveTrackerCardCollapsed({
+      cardKey: "m:ashley",
+      isActive: true,
+      collapsedActiveCardKeys: new Set(),
+      expandedInactiveCardKeys: new Set(),
+    }),
+    false,
+  );
+
+  assert.equal(
+    resolveTrackerCardCollapsed({
+      cardKey: "m:blake",
+      isActive: false,
+      collapsedActiveCardKeys: new Set(),
+      expandedInactiveCardKeys: new Set(),
+    }),
+    true,
+  );
+});
+
+test("resolveCurrentLifecycleOwners includes message-only user owner without duplicating scene owners", () => {
+  assert.deepEqual(
+    resolveCurrentLifecycleOwners({
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["__bst_user__", "Blake"],
+    }),
+    ["Ashley", "Blake", "Garret", "Raleigh", "__bst_user__"],
+  );
+});
+
+test("resolveCurrentLifecycleOwnersForTrackerData preserves explicit empty active sets instead of falling back to scene owners", () => {
+  assert.deepEqual(
+    resolveCurrentLifecycleOwnersForTrackerData({
+      timestamp: 1,
+      activeCharacters: [],
+      entityResolution: buildEntityResolution({
+        sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+        messageOwners: [],
+        source: "model",
+      }),
+      statistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+    }),
+    [],
+  );
+});
+
+test("applyTrackerCardCollapsed overrides per-card UI state by stable card key", () => {
+  const collapsedActive = new Set<string>();
+  const expandedInactive = new Set<string>();
+
+  applyTrackerCardCollapsed({
+    cardKey: "m:ashley",
+    isActive: true,
+    nextCollapsed: true,
+    collapsedActiveCardKeys: collapsedActive,
+    expandedInactiveCardKeys: expandedInactive,
+  });
+  applyTrackerCardCollapsed({
+    cardKey: "m:blake",
+    isActive: false,
+    nextCollapsed: false,
+    collapsedActiveCardKeys: collapsedActive,
+    expandedInactiveCardKeys: expandedInactive,
+  });
+
+  assert.equal(
+    resolveTrackerCardCollapsed({
+      cardKey: "m:ashley",
+      isActive: true,
+      collapsedActiveCardKeys: collapsedActive,
+      expandedInactiveCardKeys: expandedInactive,
+    }),
+    true,
+  );
+  assert.equal(
+    resolveTrackerCardCollapsed({
+      cardKey: "m:blake",
+      isActive: false,
+      collapsedActiveCardKeys: collapsedActive,
+      expandedInactiveCardKeys: expandedInactive,
+    }),
+    false,
+  );
+});

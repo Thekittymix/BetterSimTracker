@@ -3,6 +3,7 @@ import { getAllNumericStatDefinitions } from "./statRegistry";
 import { normalizeDateTimeValue, toDateTimeInputValue } from "./dateTime";
 import { MAX_CUSTOM_ARRAY_ITEMS, normalizeNonNumericArrayItems, resolveEnumOption } from "./customStatRuntime";
 import type { BetterSimTrackerSettings, TrackerData } from "./types";
+import { resolveTrackerDataLookupValue, resolveTrackerSceneEntityIds, resolveTrackerSceneOwners } from "./entityRegistry";
 import {
   EDIT_STATS_BACKDROP_CLASS,
   EDIT_STATS_DIALOG_CLASS,
@@ -17,6 +18,8 @@ import {
   normalizeMoodLabel,
   normalizeNonNumericTextValue,
 } from "./ui";
+
+const BUILT_IN_NUMERIC_STAT_KEYS = new Set(["affection", "trust", "desire", "connection"]);
 
 export type EditStatsPayload = {
   messageIndex: number;
@@ -40,17 +43,94 @@ function uniqueOwnerKeys(primary: string, displayName: string): string[] {
   return out;
 }
 
+function normalizeEditOwnerToken(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function normalizeEditEntityId(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function resolveEditOwnerEntityIds(
+  data: TrackerData,
+  ownerKeys: string[],
+): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (value: unknown): void => {
+    const entityId = normalizeEditEntityId(value);
+    if (!entityId || seen.has(entityId)) return;
+    seen.add(entityId);
+    out.push(entityId);
+  };
+
+  if (data.entityOwnerMap && typeof data.entityOwnerMap === "object") {
+    for (const ownerKey of ownerKeys) {
+      const direct = data.entityOwnerMap[ownerKey];
+      if (direct?.entityId) push(direct.entityId);
+    }
+    for (const snapshot of Object.values(data.entityOwnerMap)) {
+      if (!snapshot?.entityId) continue;
+      const candidateKeys = uniqueOwnerKeys(snapshot.ownerName, snapshot.canonicalName);
+      for (const alias of snapshot.aliases ?? []) {
+        candidateKeys.push(...uniqueOwnerKeys(alias, alias));
+      }
+      if (candidateKeys.some(candidate => ownerKeys.includes(candidate))) {
+        push(snapshot.entityId);
+      }
+    }
+  }
+
+  return out;
+}
+
+function resolveEditIsCurrentlyActive(
+  data: TrackerData,
+  character: string,
+  ownerKeys: string[],
+): boolean {
+  const sceneOwners = resolveTrackerSceneOwners(null, data).map(normalizeEditOwnerToken).filter(Boolean);
+  const sceneEntityIds = resolveTrackerSceneEntityIds(null, data).map(normalizeEditEntityId).filter(Boolean);
+  if (sceneOwners.length || sceneEntityIds.length) {
+    if (sceneOwners.length && ownerKeys.some(ownerKey => sceneOwners.includes(normalizeEditOwnerToken(ownerKey)))) {
+      return true;
+    }
+    const ownerEntityIds = resolveEditOwnerEntityIds(data, ownerKeys);
+    if (ownerEntityIds.length && sceneEntityIds.length && ownerEntityIds.some(entityId => sceneEntityIds.includes(entityId))) {
+      return true;
+    }
+    return false;
+  }
+
+  const activeCharacters = Array.isArray(data.activeCharacters)
+    ? data.activeCharacters.map(normalizeEditOwnerToken).filter(Boolean)
+    : [];
+  return activeCharacters.includes(normalizeEditOwnerToken(character));
+}
+
 function resolveEditNumericRawValue(
   data: TrackerData,
   statId: string,
   ownerKeys: string[],
   globalScope = false,
 ): number | undefined {
-  const byOwner = data.customStatistics?.[statId];
+  const isBuiltIn = BUILT_IN_NUMERIC_STAT_KEYS.has(String(statId ?? "").trim().toLowerCase());
+  const byOwner = isBuiltIn
+    ? data.statistics[statId as "affection" | "trust" | "desire" | "connection"]
+    : data.customStatistics?.[statId];
   if (!byOwner) return undefined;
   if (globalScope) {
     const globalRaw = byOwner[GLOBAL_TRACKER_KEY];
     if (globalRaw !== undefined) return Number(globalRaw);
+  }
+  const byEntityId = isBuiltIn
+    ? data.statisticsByEntityId?.[statId as "affection" | "trust" | "desire" | "connection"]
+    : data.customStatisticsByEntityId?.[statId];
+  if (byEntityId) {
+    for (const entityId of resolveEditOwnerEntityIds(data, ownerKeys)) {
+      const entityRaw = byEntityId[entityId];
+      if (entityRaw !== undefined) return Number(entityRaw);
+    }
   }
   for (const ownerKey of ownerKeys) {
     const ownerRaw = byOwner[ownerKey];
@@ -71,9 +151,56 @@ function resolveEditNonNumericRawValue(
     const globalRaw = byOwner[GLOBAL_TRACKER_KEY];
     if (globalRaw !== undefined) return globalRaw;
   }
+  const byEntityId = data.customNonNumericStatisticsByEntityId?.[statId];
+  if (byEntityId) {
+    for (const entityId of resolveEditOwnerEntityIds(data, ownerKeys)) {
+      const entityRaw = byEntityId[entityId];
+      if (entityRaw !== undefined) return entityRaw;
+    }
+  }
   for (const ownerKey of ownerKeys) {
     const ownerRaw = byOwner[ownerKey];
     if (ownerRaw !== undefined) return ownerRaw;
+  }
+  return undefined;
+}
+
+function resolveEditBuiltInTextValue(
+  data: TrackerData,
+  stat: "mood" | "lastThought",
+  ownerKeys: string[],
+): string | undefined {
+  const byOwner = data.statistics[stat];
+  if (!byOwner) return undefined;
+  const primaryOwner = ownerKeys[0] ?? "";
+  const ownerEntityIds = resolveEditOwnerEntityIds(data, ownerKeys);
+  if (ownerEntityIds.length) {
+    const ownerEntityMap = {
+      ...(data.entityOwnerMap ?? {}),
+      [primaryOwner]: data.entityOwnerMap?.[primaryOwner] ?? {
+        entityId: ownerEntityIds[0],
+        ownerName: primaryOwner,
+        canonicalName: primaryOwner,
+        aliases: ownerKeys.slice(1),
+        sourceKey: "",
+        kind: "multi_character_alias" as const,
+      },
+    };
+    const byEntityValue = resolveTrackerDataLookupValue({
+      context: null,
+      data: {
+        ...data,
+        entityOwnerMap: ownerEntityMap,
+      },
+      ownerName: primaryOwner,
+      byOwner,
+      byEntityId: data.statisticsByEntityId?.[stat],
+    });
+    if (typeof byEntityValue === "string") return byEntityValue;
+  }
+  for (const ownerKey of ownerKeys) {
+    const ownerRaw = byOwner[ownerKey];
+    if (typeof ownerRaw === "string") return ownerRaw;
   }
   return undefined;
 }
@@ -147,21 +274,16 @@ export function openEditStatsModal(input: {
     return isUserCharacter ? def.trackUser : def.trackCharacters;
   });
   const nonNumericDefById = new Map(nonNumericDefs.map(def => [def.id, def]));
-  const currentMood = input.data.statistics.mood?.[input.character];
-  const normalizedMood = currentMood ? normalizeMoodLabel(String(currentMood)) : null;
-  const currentThought = input.data.statistics.lastThought?.[input.character];
-  const isCurrentlyActive = !isUserCharacter
-    && Array.isArray(input.data.activeCharacters)
-    && input.data.activeCharacters.some(name => String(name ?? "").trim() === input.character);
   const ownerKeys = uniqueOwnerKeys(input.character, characterLabel);
+  const currentMood = resolveEditBuiltInTextValue(input.data, "mood", ownerKeys);
+  const normalizedMood = currentMood ? normalizeMoodLabel(String(currentMood)) : null;
+  const currentThought = resolveEditBuiltInTextValue(input.data, "lastThought", ownerKeys);
+  const isCurrentlyActive = !isUserCharacter && resolveEditIsCurrentlyActive(input.data, input.character, ownerKeys);
 
   const numericField = (def: { id: string; label: string; defaultValue: number }): string => {
-    const builtInId = String(def.id ?? "").trim().toLowerCase();
-    const isBuiltIn = builtInId === "affection" || builtInId === "trust" || builtInId === "desire" || builtInId === "connection";
-    const scope = customScopeById.get(builtInId);
-    const raw = isBuiltIn
-      ? Number(input.data.statistics[builtInId as "affection" | "trust" | "desire" | "connection"]?.[input.character])
-      : resolveEditNumericRawValue(input.data, def.id, ownerKeys, Boolean(scope?.globalScope));
+    const statId = String(def.id ?? "").trim().toLowerCase();
+    const scope = customScopeById.get(statId);
+    const raw = resolveEditNumericRawValue(input.data, def.id, ownerKeys, Boolean(scope?.globalScope));
     const value = raw !== undefined && Number.isFinite(raw) ? String(Math.round(raw)) : "";
     const placeholder = String(Math.round(def.defaultValue ?? 50));
     return `
@@ -576,7 +698,10 @@ export function openEditStatsModal(input: {
 }
 
 export const __testables = {
+  resolveEditBuiltInTextValue,
   resolveEditNumericRawValue,
   resolveEditNonNumericRawValue,
+  resolveEditIsCurrentlyActive,
+  resolveEditOwnerEntityIds,
   uniqueOwnerKeys,
 };

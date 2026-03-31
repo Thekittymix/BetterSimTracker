@@ -1,9 +1,10 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { USER_TRACKER_KEY } from "../src/constants";
 import { defaultSettings } from "../src/settings";
-import { getBstMacroDebugSnapshot, resetBstMacroStateForTests, syncBstMacros } from "../src/runtimeMacros";
+import { buildMacroPreviewCandidates, getBstMacroDebugSnapshot, resetBstMacroStateForTests, syncBstMacros } from "../src/runtimeMacros";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
 
 function makeContext(options?: { includeNewEngine?: boolean }) {
@@ -26,11 +27,12 @@ function makeContext(options?: { includeNewEngine?: boolean }) {
       registered.delete(name);
     },
     substituteParams(value: string) {
-      return String(value ?? "").replace(/\{\{([^{}]+)\}\}/g, (_, rawName) => {
+      const resolved = String(value ?? "").replace(/\{\{([^{}]+)\}\}/g, (_, rawName) => {
         const name = String(rawName ?? "").trim();
         const handler = registeredNewEngine.get(name) ?? registered.get(name);
         return typeof handler === "function" ? handler() : `{{${name}}}`;
       });
+      return resolved.replace(/\\([{}])/g, "$1");
     },
   } as STContext & { substituteParams: (value: string) => string; macros?: unknown };
 
@@ -158,6 +160,36 @@ function makeSettings(): BetterSimTrackerSettings {
         showInGraph: false,
         includeInInjection: false,
       },
+      {
+        id: "satisfaction",
+        kind: "numeric",
+        label: "Satisfaction",
+        defaultValue: 50,
+        maxDeltaPerTurn: 10,
+        track: true,
+        trackCharacters: false,
+        trackUser: true,
+        globalScope: false,
+        privateToOwner: true,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+      {
+        id: "threat_level",
+        kind: "enum_single",
+        label: "Threat Level",
+        defaultValue: "medium",
+        enumOptions: ["low", "medium", "high"],
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
     ],
   };
 }
@@ -275,6 +307,802 @@ test("syncBstMacros exposes compact bst_image_state using configured owner-scope
   assert.equal(block.includes("secret note"), false);
   assert.equal(block.includes("hidden pose"), false);
   assert.equal(block.includes("scene date/time"), false);
+});
+
+test("syncBstMacros uses enabled visible scene roster stats for bst_image_state when available", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+  tracker.activeCharacters = ["Seraphina"];
+  tracker.customNonNumericStatistics = {
+    ...tracker.customNonNumericStatistics,
+    characters_in_scene: {
+      __bst_global__: ["Ashley", "Blake", "Garret"],
+    },
+  };
+  const settings = makeSettings();
+  settings.customStats = [
+    ...settings.customStats,
+    {
+      id: "characters_in_scene",
+      kind: "array",
+      label: "Characters in Scene",
+      defaultValue: [],
+      textMaxLength: 80,
+      track: true,
+      trackCharacters: true,
+      trackUser: true,
+      globalScope: true,
+      privateToOwner: false,
+      showOnCard: true,
+      showInGraph: false,
+      includeInInjection: false,
+    },
+  ];
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: ["Seraphina", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
+  assert.match(block, /^Scene: Ashley, Blake, Garret/m);
+});
+
+test("syncBstMacros ignores disabled scene roster stats for bst_image_state and falls back to resolver scene owners", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+  tracker.activeCharacters = ["Blake"];
+  tracker.entityResolution = buildEntityResolution({
+    source: "model",
+    sceneOwners: ["Ashley", "Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: [],
+    messageEntityIds: [],
+  });
+  tracker.customNonNumericStatistics = {
+    ...tracker.customNonNumericStatistics,
+    characters_in_scene: {
+      __bst_global__: ["Ashley", "Blake", "Garret", "Raleigh"],
+    },
+  };
+  const settings = makeSettings();
+  settings.customStats = [
+    ...settings.customStats,
+    {
+      id: "characters_in_scene",
+      kind: "array",
+      label: "Characters in Scene",
+      defaultValue: [],
+      textMaxLength: 80,
+      track: false,
+      trackCharacters: true,
+      trackUser: true,
+      globalScope: true,
+      privateToOwner: false,
+      showOnCard: true,
+      showInGraph: false,
+      includeInInjection: false,
+    },
+  ];
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: ["Ashley", "Blake", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
+  assert.match(block, /^Scene: Ashley, Blake/m);
+  assert.doesNotMatch(block, /^Scene: Ashley, Blake, Garret, Raleigh/m);
+});
+
+test("syncBstMacros uses resolved scene owners for bst_image_state instead of request-only activeCharacters", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+  tracker.activeCharacters = ["Blake"];
+  tracker.entityResolution = buildEntityResolution({
+    source: "model",
+    sceneOwners: ["Ashley", "Blake"],
+    messageOwners: ["Blake"],
+    sceneEntityIds: [],
+    messageEntityIds: [],
+  });
+  tracker.customNonNumericStatistics = {
+    ...tracker.customNonNumericStatistics,
+    clothes: {
+      Ashley: ["worn hoodie"],
+      Blake: ["oversized baggy dark emo goth clothes"],
+      [USER_TRACKER_KEY]: ["hoodie"],
+    },
+    pose: {
+      Ashley: "fidgeting near the door",
+      Blake: "leaning against the filing cabinet",
+      [USER_TRACKER_KEY]: "standing nearby",
+    },
+    physicality: {
+      Ashley: "bushy brown braided pigtails, hazel eyes",
+      Blake: "black mullet, heavy charcoal eyeliner",
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Ashley", "Blake", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
+  assert.match(block, /^Scene: Ashley, Blake/m);
+  assert.match(block, /^Ashley: clothes=worn hoodie; pose=fidgeting near the door; physicality=bushy brown braided pigtails, hazel eyes/m);
+  assert.match(block, /^Blake: clothes=oversized baggy dark emo goth clothes; pose=leaning against the filing cabinet; physicality=black mullet, heavy charcoal eyeliner/m);
+});
+
+test("syncBstMacros resolves alias macro values through entityOwnerMap and byEntityId state", () => {
+  const { context, registeredNewEngine } = makeContext();
+  context.name2 = "Ash";
+  context.groupId = "group-1" as unknown as string;
+  context.characters = [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }] as unknown as STContext["characters"];
+  (context as STContext & { chatMetadata?: unknown }).chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "ent-ashley": {
+          id: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 1,
+          lastActiveMessageIndex: 1,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ash: "ent-ashley",
+        ashley: "ent-ashley",
+      },
+    },
+  };
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ash"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ash"],
+      messageOwners: ["Ash"],
+      sceneEntityIds: ["ent-ashley"],
+      messageEntityIds: ["ent-ashley"],
+    }),
+    entityOwnerMap: {
+      Ash: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    statisticsByEntityId: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: {
+      clothes: {},
+      pose: {},
+      physicality: {},
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn hoodie"],
+      },
+      pose: {
+        "ent-ashley": "fidgeting near the door",
+      },
+      physicality: {
+        "ent-ashley": "bushy brown braided pigtails, hazel eyes",
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Ash"],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "worn hoodie");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_ashley")?.(), "worn hoodie");
+  const block = registeredNewEngine.get("bst_image_state")?.() ?? "";
+  assert.match(block, /^Scene: Ash/m);
+  assert.match(block, /^Ashley: clothes=worn hoodie; pose=fidgeting near the door; physicality=bushy brown braided pigtails, hazel eyes/m);
+});
+
+test("syncBstMacros registers explicit mixed-scene macros for alias and narrative entities without source-card wrapper targets", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const settings = {
+    ...makeSettings(),
+    entityTrackingMode: "dynamic_characters" as const,
+  };
+  context.characterId = 0;
+  context.name2 = "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh";
+  context.characters = [
+    {
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      avatar: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png",
+    } as any,
+  ];
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_narrative:elias-mercer": {
+          id: "bst_narrative:elias-mercer",
+          ownerName: "Elias Mercer",
+          canonicalName: "Elias Mercer",
+          aliases: ["Mercer"],
+          sourceName: "Elias Mercer",
+          sourceAvatar: null,
+          sourceKey: "narrative:elias-mercer",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 12,
+          lastSeenMessageIndex: 22,
+          lastActiveMessageIndex: 22,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        "elias mercer": "bst_narrative:elias-mercer",
+        mercer: "bst_narrative:elias-mercer",
+      },
+    },
+  } as any;
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+      sceneEntityIds: [
+        "ent-ashley",
+        "ent-blake",
+        "ent-garret",
+        "ent-raleigh",
+        "bst_narrative:elias-mercer",
+      ],
+      messageEntityIds: [
+        "ent-ashley",
+        "ent-blake",
+        "ent-garret",
+        "ent-raleigh",
+        "bst_narrative:elias-mercer",
+      ],
+    }),
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "ent-garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Raleigh: {
+        entityId: "ent-raleigh",
+        ownerName: "Raleigh",
+        canonicalName: "Raleigh",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      "Elias Mercer": {
+        entityId: "bst_narrative:elias-mercer",
+        ownerName: "Elias Mercer",
+        canonicalName: "Elias Mercer",
+        aliases: ["Mercer"],
+        sourceKey: "narrative:elias-mercer",
+        kind: "narrative-entity",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    statisticsByEntityId: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: {
+      clothes: {},
+      pose: {},
+      physicality: {},
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn oversized hoodie"],
+        "ent-blake": ["oversized dark shirt"],
+        "ent-garret": ["leather jacket"],
+        "ent-raleigh": ["preppy shirt"],
+        "bst_narrative:elias-mercer": ["heavy work boots", "lantern"],
+      },
+      pose: {
+        "ent-ashley": "crumpled on the floor",
+        "ent-blake": "pinned against the fireplace",
+        "ent-garret": "slumped against the wall",
+        "ent-raleigh": "collapsed on hands and knees",
+        "bst_narrative:elias-mercer": "standing in the office doorway",
+      },
+      physicality: {
+        "ent-ashley": "messy brown pigtails",
+        "ent-blake": "heavy charcoal eyeliner",
+        "ent-garret": "scarred knuckles",
+        "ent-raleigh": "sweaty tangled hair",
+        "bst_narrative:elias-mercer": "holding pulsing lantern, deep-set eyes",
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Elias Mercer",
+    ],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_ashley")?.(), "worn oversized hoodie");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_blake")?.(), "oversized dark shirt");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_elias_mercer")?.(), "heavy work boots, lantern");
+  assert.equal(registeredNewEngine.has("bst_stat_char_clothes_camp_whispering_pines_ashley_blake_garret_raleigh"), false);
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "\\{\\{bst_stat_char_clothes\\}\\}");
+  assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "{{bst_stat_char_clothes}}");
+
+  const previewCandidates = buildMacroPreviewCandidates({
+    context,
+    settings,
+    data: tracker,
+    allCharacterNames: [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      "Elias Mercer",
+    ],
+  });
+  assert.deepEqual(
+    previewCandidates.map(candidate => candidate.name),
+    ["Ashley", "Blake", "Garret", "Raleigh", "Elias Mercer"],
+  );
+
+  const debug = getBstMacroDebugSnapshot();
+  assert.equal(debug?.["currentCharacterTarget"], null);
+});
+
+test("syncBstMacros resets bare character macros to a literal fallback when switching from single-target to mixed-target scope", () => {
+  const { context, registeredNewEngine } = makeContext();
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Seraphina", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => makeTracker(),
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "black sundress, sandals");
+
+  const settings = {
+    ...makeSettings(),
+    entityTrackingMode: "dynamic_characters" as const,
+  };
+  context.characterId = 0;
+  context.name2 = "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh";
+  context.characters = [
+    {
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      avatar: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png",
+    } as any,
+  ];
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+    }),
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "ent-garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Raleigh: {
+        entityId: "ent-raleigh",
+        ownerName: "Raleigh",
+        canonicalName: "Raleigh",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    statisticsByEntityId: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: { clothes: {}, pose: {}, physicality: {} },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn oversized hoodie"],
+        "ent-blake": ["oversized dark shirt"],
+        "ent-garret": ["leather jacket"],
+        "ent-raleigh": ["preppy shirt"],
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      USER_TRACKER_KEY,
+    ],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "\\{\\{bst_stat_char_clothes\\}\\}");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_ashley")?.(), "worn oversized hoodie");
+  assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "{{bst_stat_char_clothes}}");
+});
+
+test("syncBstMacros refreshes bare character macro when the mixed-scene current target changes from a member to none", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const settings = {
+    ...makeSettings(),
+    entityTrackingMode: "dynamic_characters" as const,
+  };
+
+  context.characters = [
+    { name: "Ashley", avatar: "Ashley.png" } as any,
+    { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png" } as any,
+  ];
+  context.characterId = 0;
+  context.name2 = "Ashley";
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+    }),
+    entityOwnerMap: {
+      Ashley: { entityId: "ent-ashley", ownerName: "Ashley", canonicalName: "Ashley", aliases: [], sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh", kind: "multi_character_alias" },
+      Blake: { entityId: "ent-blake", ownerName: "Blake", canonicalName: "Blake", aliases: [], sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh", kind: "multi_character_alias" },
+      Garret: { entityId: "ent-garret", ownerName: "Garret", canonicalName: "Garret", aliases: [], sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh", kind: "multi_character_alias" },
+      Raleigh: { entityId: "ent-raleigh", ownerName: "Raleigh", canonicalName: "Raleigh", aliases: [], sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh", kind: "multi_character_alias" },
+    },
+    statistics: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    statisticsByEntityId: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: { clothes: {}, pose: {}, physicality: {} },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn oversized hoodie"],
+        "ent-blake": ["oversized dark shirt"],
+        "ent-garret": ["leather jacket"],
+        "ent-raleigh": ["preppy shirt"],
+      },
+    },
+  };
+
+  const allCharacterNames = [
+    "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    "Ashley",
+    "Blake",
+    "Garret",
+    "Raleigh",
+    USER_TRACKER_KEY,
+  ];
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames,
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "worn oversized hoodie");
+  assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "worn oversized hoodie");
+
+  context.characterId = 1;
+  context.name2 = "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh";
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames,
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "\\{\\{bst_stat_char_clothes\\}\\}");
+  assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "{{bst_stat_char_clothes}}");
+});
+
+test("syncBstMacros does not register aggregate source-owner macros when entityOwnerMap already provides multi-character aliases", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const settings = {
+    ...makeSettings(),
+    entityTrackingMode: "dynamic_characters" as const,
+  };
+
+  context.characterId = 1;
+  context.name2 = "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh";
+  context.characters = [
+    { name: "Billie", avatar: "Billie.png" } as any,
+    { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png" } as any,
+  ];
+  (context as STContext & { chatMetadata?: unknown }).chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_owner:camp": {
+          id: "bst_owner:camp",
+          ownerName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          canonicalName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceKey: "camp whispering pines  ashley, blake, garret, & raleigh.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "owner",
+        },
+        "ent-ashley": {
+          id: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          sourceKey: "camp whispering pines  ashley, blake, garret, & raleigh.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+        },
+        "ent-blake": {
+          id: "ent-blake",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          sourceKey: "camp whispering pines  ashley, blake, garret, & raleigh.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+        },
+      },
+    },
+  };
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+    }),
+    entityOwnerMap: {
+      Ashley: { entityId: "ent-ashley", ownerName: "Ashley", canonicalName: "Ashley", aliases: ["Ashley"], sourceKey: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", kind: "multi_character_alias" },
+      Blake: { entityId: "ent-blake", ownerName: "Blake", canonicalName: "Blake", aliases: ["Blake"], sourceKey: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", kind: "multi_character_alias" },
+      Garret: { entityId: "ent-garret", ownerName: "Garret", canonicalName: "Garret", aliases: ["Garret"], sourceKey: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", kind: "multi_character_alias" },
+      Raleigh: { entityId: "ent-raleigh", ownerName: "Raleigh", canonicalName: "Raleigh", aliases: ["Raleigh"], sourceKey: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png|Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", kind: "multi_character_alias" },
+    },
+    statistics: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    statisticsByEntityId: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: { clothes: {} },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn oversized hoodie"],
+        "ent-blake": ["oversized dark shirt"],
+        "ent-garret": ["leather jacket"],
+        "ent-raleigh": ["preppy shirt"],
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      USER_TRACKER_KEY,
+    ],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.has("bst_stat_char_clothes_camp_whispering_pines_ashley_blake_garret_raleigh"), false);
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "\\{\\{bst_stat_char_clothes\\}\\}");
+  assert.equal(context.substituteParams("{{bst_stat_char_clothes}}"), "{{bst_stat_char_clothes}}");
+});
+
+test("syncBstMacros keeps character stat macros scoped to the current entity id instead of stale same-name registry aliases", () => {
+  const { context, registeredNewEngine } = makeContext();
+  context.name2 = "Blake";
+  context.characters = [{ name: "Blake", avatar: "blake-current.png" }] as unknown as STContext["characters"];
+  (context as STContext & { chatMetadata?: unknown }).chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "ent-blake-stale": {
+          id: "ent-blake-stale",
+          ownerName: "Blake",
+          canonicalName: "Blake",
+          aliases: ["B-stale"],
+          sourceName: "Old Blake",
+          sourceAvatar: "blake-stale.png",
+          sourceKey: "blake-stale.png|old blake",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "inactive",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        blake: "ent-blake-stale",
+        "b-stale": "ent-blake-stale",
+      },
+    },
+  };
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Blake"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Blake"],
+      messageOwners: ["Blake"],
+      sceneEntityIds: ["ent-blake-current"],
+      messageEntityIds: ["ent-blake-current"],
+    }),
+    entityOwnerMap: {
+      Blake: {
+        entityId: "ent-blake-current",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: ["B-current"],
+        sourceKey: "blake-current.png|blake current",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: {
+        "B-current": ["oversized black hoodie"],
+        "B-stale": ["old wrong jacket"],
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Blake"],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "oversized black hoodie");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_blake")?.(), "oversized black hoodie");
+  const debug = getBstMacroDebugSnapshot();
+  const currentCharacterTarget = debug?.["currentCharacterTarget"] as Record<string, unknown> | undefined;
+  assert.equal(currentCharacterTarget?.entityId, "ent-blake-current");
 });
 
 test("syncBstMacros falls back to legacy registration only when new engine is unavailable", () => {
@@ -446,4 +1274,89 @@ test("syncBstMacros does not fall back to global values for owner-scoped charact
   assert.equal(registered.get("bst_stat_char_clothes_seraphina")?.(), undefined);
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "");
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_seraphina")?.(), "");
+});
+
+test("syncBstMacros falls back to configured custom defaults when owner-scoped custom stats have no persisted value yet", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const tracker = makeTracker();
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Seraphina", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_user_satisfaction")?.(), "50");
+  assert.equal(registeredNewEngine.get("bst_stat_char_threat_level_seraphina")?.(), "medium");
+});
+
+test("syncBstMacros still exposes scope-specific macros when legacy track is false but scope flags remain enabled", () => {
+  const { context, registeredNewEngine } = makeContext();
+  const settings = makeSettings();
+  const satisfaction = settings.customStats.find(stat => stat.id === "satisfaction");
+  assert.ok(satisfaction);
+  satisfaction.track = false;
+  satisfaction.trackUser = true;
+
+  const tracker = makeTracker();
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: ["Seraphina", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_user_satisfaction")?.(), "50");
+});
+
+test("syncBstMacros deduplicates character macro targets by registry entity id", () => {
+  const { context } = makeContext();
+  context.characters = [{ name: "Ashley", avatar: "camp.png" } as any];
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "ent-ashley": {
+          id: "ent-ashley",
+          ownerName: "Ashley",
+          canonicalName: "Ashley",
+          aliases: ["Ash"],
+          sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+          sourceAvatar: "camp.png",
+          sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+          kind: "multi_character_alias",
+          introducedAtMessageIndex: 1,
+          lastSeenMessageIndex: 2,
+          lastActiveMessageIndex: 2,
+          lifecycleState: "active",
+          archivedAtMessageIndex: null,
+        },
+      },
+      ownerToEntityId: {
+        ashley: "ent-ashley",
+        ash: "ent-ashley",
+      },
+    },
+  } as any;
+  const tracker = makeTracker();
+  tracker.statistics.affection = { Ashley: 42 };
+  tracker.activeCharacters = ["Ashley"];
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Ash", "Ashley"],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  const debug = getBstMacroDebugSnapshot();
+  const characterTargets = Array.isArray(debug?.["characterTargets"]) ? debug?.["characterTargets"] as Array<Record<string, unknown>> : [];
+  assert.equal(characterTargets.length, 1);
+  assert.equal(characterTargets[0]?.ownerName, "Ashley");
+  assert.equal(characterTargets[0]?.entityId, "ent-ashley");
 });

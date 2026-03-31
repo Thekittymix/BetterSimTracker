@@ -2,7 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
-import { getNumericRawValue, orderOwnerCardStats, resolveNonNumericValue } from "../src/ui";
+import {
+  getNumericRawValue,
+  orderOwnerCardStats,
+  resolveCurrentBuiltInTextValue,
+  resolveCurrentNonNumericRawValue,
+  resolveCurrentNumericRawValue,
+  resolveNonNumericValue,
+  shouldSuppressAliasNonNumericDefaultFallback,
+} from "../src/ui";
 import type { TrackerData } from "../src/types";
 
 type TestNonNumericDef = {
@@ -105,6 +113,168 @@ test("owner-scoped non-numeric UI lookup does not fall back to global value", ()
   assert.deepEqual(resolveNonNumericValue(data, ownerDef as never, USER_TRACKER_KEY), ["t-shirt", "jeans"]);
   assert.deepEqual(resolveNonNumericValue(data, ownerDef as never, "Seraphina"), []);
   assert.equal(resolveNonNumericValue(data, globalDef as never, USER_TRACKER_KEY), "2026-03-10 12:00");
+});
+
+test("registry-aware current numeric lookup can read alias state stored under canonical owner", () => {
+  const data = makeTracker();
+  data.customStatistics = {
+    owner_score: {
+      Ashley: 61,
+    },
+  };
+
+  assert.equal(
+    resolveCurrentNumericRawValue(data, "owner_score", "Ash", {
+      globalScope: false,
+      registryEntry: {
+        ownerName: "Ash",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        kind: "multi_character_alias",
+      },
+    }),
+    61,
+  );
+});
+
+test("registry-aware current numeric lookup prefers by-entity shadow state", () => {
+  const data = makeTracker();
+  data.customStatistics = {
+    owner_score: {},
+  };
+  data.customStatisticsByEntityId = {
+    owner_score: {
+      "ent-ashley": 73,
+    },
+  };
+
+  assert.equal(
+    resolveCurrentNumericRawValue(data, "owner_score", "Ash", {
+      globalScope: false,
+      registryEntry: {
+        id: "ent-ashley",
+        ownerName: "Ash",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        kind: "multi_character_alias",
+      },
+    }),
+    73,
+  );
+});
+
+test("registry-aware current non-numeric lookup can read alias state stored under canonical owner", () => {
+  const data = makeTracker();
+  data.customNonNumericStatistics = {
+    clothes: {
+      Ashley: ["camp hoodie", "shorts"],
+    },
+  };
+
+  assert.deepEqual(
+    resolveCurrentNonNumericRawValue(data, "clothes", "Ash", {
+      globalScope: false,
+      registryEntry: {
+        ownerName: "Ash",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        kind: "multi_character_alias",
+      },
+    }),
+    ["camp hoodie", "shorts"],
+  );
+});
+
+test("registry-aware current non-numeric lookup prefers by-entity shadow state", () => {
+  const data = makeTracker();
+  data.customNonNumericStatistics = {
+    clothes: {},
+  };
+  data.customNonNumericStatisticsByEntityId = {
+    clothes: {
+      "ent-ashley": ["camp hoodie", "shorts"],
+    },
+  };
+
+  assert.deepEqual(
+    resolveCurrentNonNumericRawValue(data, "clothes", "Ash", {
+      globalScope: false,
+      registryEntry: {
+        id: "ent-ashley",
+        ownerName: "Ash",
+        canonicalName: "Ashley",
+        aliases: ["Ash"],
+        kind: "multi_character_alias",
+      },
+    }),
+    ["camp hoodie", "shorts"],
+  );
+});
+
+test("registry-aware current built-in text lookup can read alias mood stored under canonical owner", () => {
+  const data = makeTracker();
+  data.statistics.mood = {
+    Ashley: "Hopeful",
+  };
+
+  assert.equal(
+    resolveCurrentBuiltInTextValue(data, "mood", "Ash", {
+      ownerName: "Ash",
+      canonicalName: "Ashley",
+      aliases: ["Ash"],
+      kind: "multi_character_alias",
+    }),
+    "Hopeful",
+  );
+});
+
+test("registry-aware current built-in text lookup prefers by-entity shadow state", () => {
+  const data = makeTracker();
+  data.statistics.mood = {};
+  data.statisticsByEntityId = {
+    affection: {},
+    trust: {},
+    desire: {},
+    connection: {},
+    mood: {
+      "ent-ashley": "Hopeful",
+    },
+    lastThought: {},
+  };
+
+  assert.equal(
+    resolveCurrentBuiltInTextValue(data, "mood", "Ash", {
+      id: "ent-ashley",
+      ownerName: "Ash",
+      canonicalName: "Ashley",
+      aliases: ["Ash"],
+      kind: "multi_character_alias",
+    }),
+    "Hopeful",
+  );
+});
+
+test("alias non-numeric default fallback is suppressed for owner-scoped multi-character alias cards", () => {
+  assert.equal(
+    shouldSuppressAliasNonNumericDefaultFallback({
+      kind: "multi_character_alias",
+    }, false),
+    true,
+  );
+
+  assert.equal(
+    shouldSuppressAliasNonNumericDefaultFallback({
+      kind: "multi_character_alias",
+    }, true),
+    false,
+  );
+
+  assert.equal(
+    shouldSuppressAliasNonNumericDefaultFallback({
+      kind: "owner",
+    }, false),
+    false,
+  );
 });
 
 test("orderOwnerCardStats applies configured display order to user and character card stat lists", () => {

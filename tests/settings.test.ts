@@ -64,6 +64,8 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
       Happy: "(≧▽≦)",
       Neutral: "(-_-)",
     },
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 999,
     moodSymbolMinWidth: 8,
     moodSymbolMinHeight: 200,
     moodSymbolBoxRadius: 99,
@@ -118,6 +120,8 @@ test("sanitizeSettings normalizes custom stats, defaults, and scene card display
   });
 
   assert.equal(sanitized.sceneCardLayout, "rows");
+  assert.equal(sanitized.autoArchiveInactiveCards, true);
+  assert.equal(sanitized.archiveInactiveAfterTurns, 200);
   assert.equal(sanitized.moodSymbolMinWidth, 18);
   assert.equal(sanitized.moodSymbolMinHeight, 120);
   assert.equal(sanitized.moodSymbolBoxRadius, 48);
@@ -162,6 +166,19 @@ test("loadSettings keeps enabled true when context is partial but accepts explic
   const explicitLoaded = loadSettings(explicitContext);
   assert.equal(explicitLoaded.enabled, false);
   assert.equal(explicitLoaded.fontSize, 16);
+});
+
+test("sanitizeSettings normalizes dynamic character entity tracking mode", () => {
+  const sanitized = sanitizeSettings({
+    entityTrackingMode: "dynamic_characters",
+  });
+
+  assert.equal(sanitized.entityTrackingMode, "dynamic_characters");
+});
+
+test("sanitizeSettings migrates legacy experimental entity tracking modes to dynamic characters", () => {
+  assert.equal(sanitizeSettings({ entityTrackingMode: "multi_character" as never }).entityTrackingMode, "dynamic_characters");
+  assert.equal(sanitizeSettings({ entityTrackingMode: "dynamic_entities" as never }).entityTrackingMode, "dynamic_characters");
 });
 
 test("loadSettings accepts local enabled fallback only when context has no BST settings at all", () => {

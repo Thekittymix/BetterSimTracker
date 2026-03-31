@@ -5,12 +5,85 @@ import {
   setManualInactiveCharacter,
 } from "./activity";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
+import { resolveAutoBootstrapTarget } from "./bootstrapTargets";
+import {
+  isAliasResolvedOwner,
+  projectTrackerDataToMessageScopedOwners,
+  resolveCharacterIdentity,
+  resolveCharacterFromContext,
+  resolveEntityResolverCandidateOwners,
+  constrainFallbackOwnerScopesToPreviousUserScene,
+  constrainResolvedOwnerScopesToPreviousUserScene,
+  resolveExtractionOwnerScopes,
+  resolveEntityTrackingMode,
+  filterResolvedEntitiesToTrackedOwners,
+  resolveInitialExtractionOwners,
+  resolvePersistedSnapshotResolvedEntities,
+  resolvePersistedSnapshotActiveOwners,
+  resolvePersistedSnapshotEntityOwners,
+  resolveStableEntityIdForOwner,
+  resolveUserExtractionOwnerScopes,
+} from "./entityResolution";
+import {
+  buildMultiCharacterResolverPrompt,
+  constrainResolvedEntitiesToMessageFocus,
+  parseMultiCharacterResolverResponse,
+  resolveMessageEntityIdsFromResolvedEntities,
+  resolveMessageOwnersFromResolvedEntities,
+  resolveSceneEntityIdsFromResolvedEntities,
+  resolveSceneOwnersFromResolvedEntities,
+} from "./entityResolver";
+import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
+import {
+  buildActiveSeedDefaultsPolicy,
+  resolveSeededOwnerLookupValue,
+  shouldUseConfiguredOwnerDefaults,
+} from "./entitySeedPolicy";
+import {
+  buildEntitySourceKey,
+  getEntityRegistryEntryByOwnerName,
+  getEntityRegistryEntryForMessage,
+  getEntityRegistryEntryByEntityIdForMessage,
+  getEntityRegistryLifecycleStateForMessage,
+  getEntityRegistryLifecycleStateForEntityIdForMessage,
+  listEntityRegistryEntriesForMessage,
+  listEntityRegistryOwnersForMessage,
+  listTrackerDataLookupNamesForOwnerWithEntityFallback,
+  resolveEntityRegistryLookupValue,
+  resolveTrackerDataLookupValue,
+  resolveTrackerEntityIdsForOwners,
+  resolveTrackerSceneOwners,
+  syncEntityRegistryFromRender,
+} from "./entityRegistry";
+import { syncEntityRegistryFromTrackerData } from "./entityRegistrySync";
+import { hasTrackedValueForOwner, hasTrackedValueForSelection } from "./trackerDataPresence";
+import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot, syncEditedTrackerEntityState } from "./trackerEditState";
+import {
+  buildEntityScopedCustomNonNumericStatisticsBuckets,
+  buildEntityScopedCustomStatisticsBuckets,
+  buildEntityScopedStatisticsBuckets,
+  buildTargetToEntityMap,
+} from "./entityScopedBuckets";
+import { buildPersistedTrackerSnapshot } from "./persistedTrackerSnapshot";
+import {
+  buildFallbackSummaryProse as buildFallbackSummaryProseHelper,
+  buildSummaryTrackerStateLines as buildSummaryTrackerStateLinesHelper,
+  collectSummaryCharacters as collectSummaryCharactersHelper,
+} from "./trackerSummary";
 import type { Character } from "./types";
 import { extractStatisticsParallel } from "./extractor";
-import { resolveBaselineBeforeIndex, shouldBypassConfidenceControls } from "./extractorHelpers";
+import { buildProgressResolveActive } from "./extractorProgress";
+import {
+  buildNoActiveContinuityTrackerData,
+  overlayLatestOwnerScopedContinuity,
+  resolveBaselineBeforeIndex,
+  selectNoActiveContinuityTrackerEntry,
+  shouldBypassConfidenceControls,
+} from "./extractorHelpers";
 import { isTrackableAiMessage, isTrackableMessage, isTrackableUserMessage } from "./messageFilter";
 import { clearPromptInjection, getLastInjectedPrompt, getLastInjectedPromptDebug } from "./promptInjection";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
+import { enforceDebugStorageBudget, persistDebugStorageValue, trimDebugRecordForStorage, trimTraceLinesForStorage } from "./debugStorage";
 import {
   buildTrackerSummaryGenerationPrompt,
   buildTrackerSummaryLengthenPrompt,
@@ -20,7 +93,9 @@ import {
 import { upsertSettingsPanel } from "./settingsPanel";
 import { discoverConnectionProfiles, getActiveConnectionProfileId, getContext, getSettingsProvenance, loadSettings, logDebug, resolveConnectionProfileId, saveSettings } from "./settings";
 import {
+  clearTrackerDataForMessage,
   clearTrackerDataForCurrentChat,
+  getLatestTrackerDataWithIndexBefore,
   getRecentTrackerHistory,
   getRecentTrackerHistoryEntries,
   getTrackerDataFromMessage,
@@ -42,7 +117,8 @@ import type {
   DeltaDebugRecord,
   STContext,
   Statistics,
-  TrackerData
+  TrackerData,
+  TrackerGraphTarget,
 } from "./types";
 import {
   removeTrackerUI,
@@ -52,6 +128,7 @@ import {
 } from "./ui";
 import { getGraphPreferences } from "./graphPreferences";
 import { closeGraphModal, openGraphModal } from "./graphModal";
+import { buildStatSeries, selectGraphTimelineEntries } from "./graphTimeline";
 import { closeSettingsModal, openSettingsModal } from "./settingsModal";
 import { cancelActiveGenerations, generateJson } from "./generator";
 import { registerSlashCommands } from "./slashCommands";
@@ -65,13 +142,13 @@ import {
   normalizeNonNumericArrayItems,
 } from "./customStatRuntime";
 import {
+  hasCharacterOwnedTrackedValueForSelection,
   hasCharacterOwnedTrackedValueForCharacter,
   overlayLatestGlobalCustomStats,
-  overlayLatestOwnerScopedContinuity,
   selectLatestRelevantHistoryEntry,
 } from "./extractionBaselineHelpers";
 import { buildMergedPromptMacroData, resolveLatestStoredTrackerData } from "./runtimeState";
-import { getBstMacroDebugSnapshot, syncBstMacros } from "./runtimeMacros";
+import { buildMacroPreviewCandidates, getBstMacroDebugSnapshot, syncBstMacros } from "./runtimeMacros";
 import { createPromptRefreshController } from "./runtimePromptSync";
 import {
   countSummarySentences,
@@ -96,6 +173,7 @@ import {
 import { isManualExtractionReason } from "./extractorHelpers";
 import { buildCharacterCardsContext } from "./characterCardContext";
 import { computeManualPlaceholderMessageIndices } from "./renderQueueHelpers";
+import { resolveGroupReplayTarget } from "./userTurnReplayTarget";
 
 declare const __BST_VERSION__: string;
 
@@ -222,31 +300,8 @@ function bindInjectionSnapshotToLatestAiMessage(context: STContext): void {
   pendingGenerationInjectionSnapshot = null;
 }
 
-function collectSummaryCharacters(data: TrackerData): string[] {
-  const names = new Set<string>();
-  for (const name of data.activeCharacters ?? []) {
-    if (typeof name === "string" && name.trim()) names.add(name.trim());
-  }
-  const addKeys = (map: Record<string, unknown> | undefined): void => {
-    if (!map || typeof map !== "object") return;
-    for (const key of Object.keys(map)) {
-      const normalized = key.trim();
-      if (!normalized || normalized === GLOBAL_TRACKER_KEY) continue;
-      names.add(normalized);
-    }
-  };
-  addKeys(data.statistics.affection);
-  addKeys(data.statistics.trust);
-  addKeys(data.statistics.desire);
-  addKeys(data.statistics.connection);
-  addKeys(data.statistics.mood);
-  for (const statValues of Object.values(data.customStatistics ?? {})) {
-    addKeys(statValues as Record<string, unknown>);
-  }
-  for (const statValues of Object.values(data.customNonNumericStatistics ?? {})) {
-    addKeys(statValues as Record<string, unknown>);
-  }
-  return Array.from(names).sort((a, b) => a.localeCompare(b));
+function collectSummaryCharacters(context: STContext | null, data: TrackerData): string[] {
+  return collectSummaryCharactersHelper(context, data);
 }
 
 function describeLorebookPayload(payload: unknown): string {
@@ -355,67 +410,12 @@ function cacheLorebookActivatedEntries(context: STContext, payload: unknown): nu
 }
 
 function buildSummaryTrackerStateLines(
+  context: STContext | null,
   data: TrackerData,
   currentSettings: BetterSimTrackerSettings,
   userDisplayName = "User",
 ): string {
-  const customLabelMap = new Map<string, string>();
-  for (const stat of currentSettings.customStats ?? []) {
-    const id = String(stat.id ?? "").trim().toLowerCase();
-    if (!id) continue;
-    customLabelMap.set(id, String(stat.label ?? id).trim() || id);
-  }
-
-  const builtInStats: Array<{ key: "affection" | "trust" | "desire" | "connection"; label: string }> = [
-    { key: "affection", label: "affection" },
-    { key: "trust", label: "trust" },
-    { key: "desire", label: "desire" },
-    { key: "connection", label: "connection" },
-  ];
-
-  const lines = collectSummaryCharacters(data).map(name => {
-    const displayName = name === USER_TRACKER_KEY ? userDisplayName : name;
-    const parts: string[] = [];
-    const mood = String(data.statistics.mood?.[name] ?? "").trim().replace(/\s+/g, " ");
-    if (mood) {
-      parts.push(`mood=${mood}`);
-    }
-    const lastThought = String(data.statistics.lastThought?.[name] ?? "").trim().replace(/\s+/g, " ");
-    if (lastThought) {
-      parts.push(`lastThought="${lastThought.slice(0, 180)}"`);
-    }
-
-    for (const { key, label } of builtInStats) {
-      const raw = data.statistics[key]?.[name];
-      const value = Number(raw);
-      if (raw === undefined || Number.isNaN(value)) continue;
-      parts.push(`${label}=${Math.max(0, Math.min(100, Math.round(value)))}`);
-    }
-
-    for (const [statId, byCharacter] of Object.entries(data.customStatistics ?? {})) {
-      const raw = byCharacter?.[name];
-      const value = Number(raw);
-      if (raw === undefined || Number.isNaN(value)) continue;
-      const label = (customLabelMap.get(statId) ?? statId).replace(/\s+/g, "_").toLowerCase();
-      parts.push(`${label}=${Math.max(0, Math.min(100, Math.round(value)))}`);
-    }
-    for (const [statId, byCharacter] of Object.entries(data.customNonNumericStatistics ?? {})) {
-      const raw = byCharacter?.[name];
-      if (raw === undefined) continue;
-      const label = (customLabelMap.get(statId) ?? statId).replace(/\s+/g, "_").toLowerCase();
-      if (typeof raw === "boolean") {
-        parts.push(`${label}=${raw ? "true" : "false"}`);
-      } else {
-        const text = String(raw ?? "").trim().replace(/\s+/g, " ");
-        if (!text) continue;
-        parts.push(`${label}="${text.slice(0, 120)}"`);
-      }
-    }
-
-    return `- ${displayName}: ${parts.length ? parts.join(", ") : "no tracked values"}`;
-  });
-
-  return lines.length ? lines.join("\n") : "- no tracked values are available";
+  return buildSummaryTrackerStateLinesHelper(context, data, currentSettings, userDisplayName);
 }
 
 function buildRecentContextUpToMessageIndex(context: STContext, messageIndex: number, messageCount: number): string {
@@ -429,8 +429,13 @@ function buildRecentContextUpToMessageIndex(context: STContext, messageIndex: nu
       const speaker = message.is_user ? context.name1 ?? "User" : message.name ?? "Character";
       return `${speaker}: ${message.mes}`;
     })
-    .filter((line): line is string => Boolean(line))
-    .join("\n\n");
+      .filter((line): line is string => Boolean(line))
+      .join("\n\n");
+}
+
+function buildResolverContextUpToMessageIndex(context: STContext, messageIndex: number): string {
+  if (messageIndex <= 0) return "";
+  return buildRecentContextUpToMessageIndex(context, messageIndex - 1, 2);
 }
 
 function describeBand(value: number, low: string, medium: string, high: string): string {
@@ -439,62 +444,12 @@ function describeBand(value: number, low: string, medium: string, high: string):
   return high;
 }
 
-function buildFallbackSummaryProse(data: TrackerData, currentSettings: BetterSimTrackerSettings): string {
-  const names = collectSummaryCharacters(data);
-  if (!names.length) {
-    return "The current relationship state is quiet and there are no meaningful tracked shifts yet.";
-  }
-  const customLabelMap = new Map<string, string>();
-  for (const stat of currentSettings.customStats ?? []) {
-    const id = String(stat.id ?? "").trim().toLowerCase();
-    if (!id) continue;
-    customLabelMap.set(id, String(stat.label ?? id).trim() || id);
-  }
-
-  const sentences = names.map(name => {
-    const displayName = name === USER_TRACKER_KEY ? (currentSettings.enableUserTracking ? "User" : name) : name;
-    const affection = Number(data.statistics.affection?.[name] ?? currentSettings.defaultAffection);
-    const trust = Number(data.statistics.trust?.[name] ?? currentSettings.defaultTrust);
-    const desire = Number(data.statistics.desire?.[name] ?? currentSettings.defaultDesire);
-    const connection = Number(data.statistics.connection?.[name] ?? currentSettings.defaultConnection);
-    const mood = String(data.statistics.mood?.[name] ?? currentSettings.defaultMood).trim();
-
-    const warmth = describeBand(affection, "guarded warmth", "measured warmth", "clear warmth");
-    const safety = describeBand(trust, "careful trust", "steady trust", "strong trust");
-    const bond = describeBand(connection, "distant", "steady", "close");
-    const tension = describeBand(desire, "without notable romantic tension", "with mild romantic tension", "with noticeable romantic tension");
-
-    const customBits: string[] = [];
-    for (const [statId, byCharacter] of Object.entries(data.customStatistics ?? {})) {
-      const raw = Number(byCharacter?.[name]);
-      if (Number.isNaN(raw)) continue;
-      const label = customLabelMap.get(statId) ?? statId;
-      const tone = describeBand(raw, "low", "moderate", "high");
-      customBits.push(`${label} feels ${tone}`);
-      if (customBits.length >= 2) break;
-    }
-    if (customBits.length < 2) {
-      for (const [statId, byCharacter] of Object.entries(data.customNonNumericStatistics ?? {})) {
-        const raw = byCharacter?.[name];
-        if (raw === undefined) continue;
-        const label = customLabelMap.get(statId) ?? statId;
-        if (typeof raw === "boolean") {
-          customBits.push(`${label} is ${raw ? "active" : "inactive"}`);
-        } else {
-          const text = String(raw ?? "").trim().replace(/\s+/g, " ");
-          if (!text) continue;
-          customBits.push(`${label} is "${text.slice(0, 60)}"`);
-        }
-        if (customBits.length >= 2) break;
-      }
-    }
-
-    const customClause = customBits.length ? ` ${displayName}'s custom-state cues suggest ${customBits.join(" and ")}.` : "";
-    const moodClause = mood ? `${displayName} currently feels ${mood.toLowerCase()}. ` : "";
-    return `${moodClause}${displayName} shows ${warmth} toward the user, ${safety}, and a ${bond} overall bond, ${tension}.${customClause}`;
-  });
-
-  return sentences.join(" ");
+function buildFallbackSummaryProse(
+  context: STContext | null,
+  data: TrackerData,
+  currentSettings: BetterSimTrackerSettings,
+): string {
+  return buildFallbackSummaryProseHelper(context, data, currentSettings);
 }
 
 async function generateTrackerSummaryProse(input: {
@@ -506,7 +461,8 @@ async function generateTrackerSummaryProse(input: {
   const { context, settings, data, messageIndex } = input;
   const userDisplayName = context.name1 ?? "User";
   const normalizeSummaryName = (name: string): string => (name === USER_TRACKER_KEY ? userDisplayName : name);
-  const characters = collectSummaryCharacters(data).map(normalizeSummaryName);
+  const characters = collectSummaryCharacters(context, data).map(normalizeSummaryName);
+  const summaryActiveCharacters = resolveTrackerSceneOwners(context, data).map(normalizeSummaryName);
   const trackedDimensions: string[] = [];
   if (settings.trackAffection) trackedDimensions.push("warmth/care");
   if (settings.trackTrust) trackedDimensions.push("trust/safety");
@@ -522,10 +478,10 @@ async function generateTrackerSummaryProse(input: {
     trackedDimensions.push(`custom cues (${trackedCustomLabels.join(", ")})`);
   }
   const contextText = buildRecentContextUpToMessageIndex(context, messageIndex, settings.contextMessages);
-  const trackerStateLines = buildSummaryTrackerStateLines(data, settings, userDisplayName);
+  const trackerStateLines = buildSummaryTrackerStateLines(context, data, settings, userDisplayName);
   const prompt = buildTrackerSummaryGenerationPrompt({
     userName: userDisplayName,
-    activeCharacters: (data.activeCharacters ?? []).map(normalizeSummaryName),
+    activeCharacters: summaryActiveCharacters,
     characters,
     contextText,
     trackerStateLines,
@@ -657,9 +613,10 @@ function readTraceLines(context: STContext): string[] {
 function writeTraceLines(context: STContext, lines: string[]): void {
   try {
     const key = getTraceStorageKey(context);
+    const trimmedLines = trimTraceLinesForStorage(lines);
     traceCacheKey = key;
-    traceCacheLines = [...lines];
-    localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), lines }));
+    traceCacheLines = [...trimmedLines];
+    persistDebugStorageValue(localStorage, key, JSON.stringify({ savedAt: Date.now(), lines: trimmedLines }));
   } catch {
     // ignore
   }
@@ -782,9 +739,9 @@ function scheduleLateRenderPoll(context: STContext): void {
 function saveDebugRecord(context: STContext, record: DeltaDebugRecord | null): void {
   try {
     if (!record) return;
-    localStorage.setItem(getDebugScopeKey(context), JSON.stringify({
+    persistDebugStorageValue(localStorage, getDebugScopeKey(context), JSON.stringify({
       savedAt: Date.now(),
-      record
+      record: trimDebugRecordForStorage(record),
     }));
   } catch {
     // ignore
@@ -813,6 +770,7 @@ function clearDebugRecord(context: STContext): void {
     localStorage.removeItem(getTraceStorageKey(context));
     traceCacheKey = null;
     traceCacheLines = [];
+    enforceDebugStorageBudget(localStorage, getDebugScopeKey(context));
   } catch {
     // ignore
   }
@@ -859,41 +817,32 @@ function hasTrackableUserMessageBeforeIndex(context: STContext, index: number): 
   return false;
 }
 
-function hasTrackedValueForCharacter(
+function getMessageScopedTrackerData(
+  context: STContext,
+  messageIndex: number,
   data: TrackerData,
-  characterName: string,
   settingsInput: BetterSimTrackerSettings,
-): boolean {
-  if (settingsInput.trackAffection && data.statistics.affection[characterName] !== undefined) return true;
-  if (settingsInput.trackTrust && data.statistics.trust[characterName] !== undefined) return true;
-  if (settingsInput.trackDesire && data.statistics.desire[characterName] !== undefined) return true;
-  if (settingsInput.trackConnection && data.statistics.connection[characterName] !== undefined) return true;
-  if (settingsInput.trackMood && data.statistics.mood[characterName] !== undefined) return true;
-  if (settingsInput.trackLastThought && data.statistics.lastThought[characterName] !== undefined) return true;
-
-  const customDefs = Array.isArray(settingsInput.customStats) ? settingsInput.customStats : [];
-  for (const def of customDefs) {
-    if (!def.track) continue;
-    const statId = String(def.id ?? "").trim().toLowerCase();
-    if (!statId) continue;
-    const kind = def.kind ?? "numeric";
-    const globalScope = Boolean(def.globalScope);
-    if (kind === "numeric") {
-      if (globalScope && data.customStatistics?.[statId]?.[GLOBAL_TRACKER_KEY] !== undefined) return true;
-      if (data.customStatistics?.[statId]?.[characterName] !== undefined) return true;
-      continue;
-    }
-    if (globalScope && data.customNonNumericStatistics?.[statId]?.[GLOBAL_TRACKER_KEY] !== undefined) return true;
-    if (data.customNonNumericStatistics?.[statId]?.[characterName] !== undefined) return true;
-  }
-
-  return false;
+  options?: {
+    projectOwnerScopedCustomNonNumeric?: boolean;
+  },
+): TrackerData {
+  const message = messageIndex >= 0 && messageIndex < context.chat.length
+    ? context.chat[messageIndex]
+    : null;
+  return projectTrackerDataToMessageScopedOwners(
+    context,
+    data,
+    message,
+    settingsInput,
+    options,
+  );
 }
 
 function getLatestRelevantTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
   activeCharacters: string[],
+  activeEntityIds: string[],
   settingsInput: BetterSimTrackerSettings,
 ): { data: TrackerData; messageIndex: number } | null {
   if (beforeIndex <= 0 || context.chat.length === 0) return null;
@@ -901,9 +850,15 @@ function getLatestRelevantTrackerDataWithIndexBefore(
   for (let i = start; i >= 0; i -= 1) {
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
-    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(found, name, settingsInput));
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
+      projectOwnerScopedCustomNonNumeric: false,
+    });
+    const hasRelevantValue = hasTrackedValueForSelection(projected, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context);
     if (hasRelevantValue) {
-      return { data: found, messageIndex: i };
+      return { data: projected, messageIndex: i };
     }
   }
 
@@ -913,10 +868,16 @@ function getLatestRelevantTrackerDataWithIndexBefore(
   let best: { data: TrackerData; messageIndex: number } | null = null;
   for (const entry of historyEntries) {
     if (entry.messageIndex >= beforeIndex) continue;
-    const hasRelevantValue = activeCharacters.some(name => hasTrackedValueForCharacter(entry.data, name, settingsInput));
+    const projected = getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
+      projectOwnerScopedCustomNonNumeric: false,
+    });
+    const hasRelevantValue = hasTrackedValueForSelection(projected, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context);
     if (!hasRelevantValue) continue;
     if (!best || entry.messageIndex > best.messageIndex) {
-      best = { data: entry.data, messageIndex: entry.messageIndex };
+      best = { data: projected, messageIndex: entry.messageIndex };
     }
   }
   if (best) {
@@ -930,17 +891,28 @@ function getMergedRelevantTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
   activeCharacters: string[],
+  activeEntityIds: string[],
   settingsInput: BetterSimTrackerSettings,
 ): { data: TrackerData; messageIndex: number } | null {
   if (beforeIndex <= 0 || context.chat.length === 0) return null;
   const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length));
   const relevantEntries = historyEntries
     .filter(entry => entry.messageIndex < beforeIndex)
-    .filter(entry => activeCharacters.some(name => hasTrackedValueForCharacter(entry.data, name, settingsInput)))
+    .map(entry => ({
+      messageIndex: entry.messageIndex,
+      timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
+        projectOwnerScopedCustomNonNumeric: false,
+      }),
+    }))
+    .filter(entry => hasTrackedValueForSelection(entry.data, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context))
     .map(entry => ({
       data: entry.data,
       messageIndex: entry.messageIndex,
-      timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
+      timestamp: entry.timestamp,
     }));
 
   if (!relevantEntries.length) return null;
@@ -962,6 +934,7 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
   activeCharacters: string[],
+  activeEntityIds: string[],
   settingsInput: BetterSimTrackerSettings,
 ): { data: TrackerData; messageIndex: number } | null {
   if (beforeIndex <= 0 || context.chat.length === 0) return null;
@@ -969,25 +942,32 @@ function getLatestCharacterOwnedTrackerDataWithIndexBefore(
   for (let i = start; i >= 0; i -= 1) {
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
-    const hasRelevantValue = activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(found, name, settingsInput),
-    );
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
+      projectOwnerScopedCustomNonNumeric: false,
+    });
+    const hasRelevantValue = hasCharacterOwnedTrackedValueForSelection(projected, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context);
     if (hasRelevantValue) {
-      return { data: found, messageIndex: i };
+      return { data: projected, messageIndex: i };
     }
   }
 
   const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length));
   const latestEntry = selectLatestRelevantHistoryEntry(
     historyEntries.map(entry => ({
-      data: entry.data,
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
+        projectOwnerScopedCustomNonNumeric: false,
+      }),
       messageIndex: entry.messageIndex,
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
     })),
     beforeIndex,
-    data => activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(data, name, settingsInput),
-    ),
+    data => hasCharacterOwnedTrackedValueForSelection(data, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context),
   );
   if (!latestEntry) return null;
   return { data: latestEntry.data, messageIndex: latestEntry.messageIndex };
@@ -997,6 +977,7 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
   context: STContext,
   beforeIndex: number,
   activeCharacters: string[],
+  activeEntityIds: string[],
   settingsInput: BetterSimTrackerSettings,
 ): { data: TrackerData; messageIndex: number } | null {
   if (beforeIndex <= 0 || context.chat.length === 0) return null;
@@ -1005,25 +986,32 @@ function getLatestCharacterOwnedUserTrackerDataWithIndexBefore(
     if (!isTrackableUserMessage(context.chat[i])) continue;
     const found = getTrackerDataFromMessage(context.chat[i]);
     if (!found) continue;
-    const hasRelevantValue = activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(found, name, settingsInput),
-    );
+    const projected = getMessageScopedTrackerData(context, i, found, settingsInput, {
+      projectOwnerScopedCustomNonNumeric: false,
+    });
+    const hasRelevantValue = hasCharacterOwnedTrackedValueForSelection(projected, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context);
     if (hasRelevantValue) {
-      return { data: found, messageIndex: i };
+      return { data: projected, messageIndex: i };
     }
   }
 
   const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length));
   const latestEntry = selectLatestRelevantHistoryEntry(
     historyEntries.map(entry => ({
-      data: entry.data,
+      data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, settingsInput, {
+        projectOwnerScopedCustomNonNumeric: false,
+      }),
       messageIndex: entry.messageIndex,
       timestamp: Number(entry.data.timestamp ?? entry.timestamp ?? 0),
     })),
     beforeIndex,
-    data => activeCharacters.some(name =>
-      hasCharacterOwnedTrackedValueForCharacter(data, name, settingsInput),
-    ),
+    data => hasCharacterOwnedTrackedValueForSelection(data, {
+      ownerNames: activeCharacters,
+      entityIds: activeEntityIds,
+    }, settingsInput, context),
     messageIndex => isTrackableUserMessage(context.chat[messageIndex]),
   );
   if (!latestEntry) return null;
@@ -1057,7 +1045,8 @@ function hasUserTrackingEnabledForExtraction(input: BetterSimTrackerSettings): b
 }
 
 function isUserExtractionReason(reason: string): boolean {
-  return reason === "USER_MESSAGE_RENDERED" || reason === "USER_MESSAGE_EDITED";
+  return reason === "USER_MESSAGE_RENDERED"
+    || reason === "USER_MESSAGE_EDITED";
 }
 
 function findCharacterIndexByName(context: STContext, name: string): number | null {
@@ -1069,6 +1058,36 @@ function findCharacterIndexByName(context: STContext, name: string): number | nu
     if (candidate && candidate === target) return i;
   }
   return null;
+}
+
+function resolveReplaySceneCharacterIndicesFromLatestUserTracker(context: STContext): number[] | null {
+  const lastUserIndex = getLastUserMessageIndex(context);
+  if (lastUserIndex == null || lastUserIndex < 0 || lastUserIndex >= context.chat.length) {
+    return null;
+  }
+  const rawData = getTrackerDataFromMessage(context.chat[lastUserIndex]);
+  if (!rawData) return null;
+  const scopedData = settings
+    ? getMessageScopedTrackerData(context, lastUserIndex, rawData, settings, {
+        projectOwnerScopedCustomNonNumeric: false,
+      })
+    : rawData;
+  const hasExplicitSceneResolution = Array.isArray(scopedData.entityResolution?.resolvedEntities)
+    && scopedData.entityResolution.resolvedEntities.length > 0;
+  if (!hasExplicitSceneResolution) {
+    return null;
+  }
+  const sceneOwners = resolveTrackerSceneOwners(context, scopedData)
+    .filter(name => name !== USER_TRACKER_KEY);
+  const out: number[] = [];
+  const seen = new Set<number>();
+  for (const ownerName of sceneOwners) {
+    const characterIndex = findCharacterIndexByName(context, ownerName);
+    if (characterIndex == null || seen.has(characterIndex)) continue;
+    seen.add(characterIndex);
+    out.push(characterIndex);
+  }
+  return out;
 }
 
 type GroupDisabledSnapshot = {
@@ -1227,64 +1246,39 @@ function normalizeReplayGenerationIntent(
   // path when no member is activated. Force the last AI speaker as a safe target.
   if (context.groupId && type.toLowerCase() === "normal") {
     const group = (context.groups ?? []).find(item => String(item?.id ?? "").trim() === String(context.groupId ?? "").trim());
-    const disabled = buildGroupDisabledSnapshot(group?.disabled_members);
     const enabledIndices = getEnabledGroupCharacterIndices(context);
+    const resolvedSceneOwnerIndices = resolveReplaySceneCharacterIndicesFromLatestUserTracker(context);
     const hasForcedChar =
       typeof options.force_chid === "number" &&
       Number.isInteger(options.force_chid) &&
       Number(options.force_chid) >= 0;
     const currentForcedChar = hasForcedChar ? Number(options.force_chid) : null;
-    const hasEnabledForcedChar = currentForcedChar != null && enabledIndices.includes(currentForcedChar);
-    if (!hasEnabledForcedChar && enabledIndices.length) {
-      const lastAiIndex = getLastAiMessageIndex(context);
-      let selected: number | null = null;
-      if (lastAiIndex != null && lastAiIndex >= 0 && lastAiIndex < context.chat.length) {
-        const lastAiName = String(context.chat[lastAiIndex]?.name ?? "").trim();
-        const charIndex = findCharacterIndexByName(context, lastAiName);
-        if (charIndex != null && enabledIndices.includes(charIndex)) {
-          selected = charIndex;
-        }
-      }
-      if (selected == null) {
-        selected = enabledIndices[0] ?? null;
-      }
-      if (selected != null) {
-        options.force_chid = selected;
-        forcedGroupCharacterId = selected;
-      }
-    } else if (!hasEnabledForcedChar) {
-      let fallback: number | null = null;
-      const lastAiIndex = getLastAiMessageIndex(context);
-      if (lastAiIndex != null && lastAiIndex >= 0 && lastAiIndex < context.chat.length) {
-        const lastAiName = String(context.chat[lastAiIndex]?.name ?? "").trim();
-        fallback = findCharacterIndexByName(context, lastAiName);
-      }
-      if (fallback == null && typeof context.characterId === "number" && Number.isInteger(context.characterId) && context.characterId >= 0) {
-        fallback = Number(context.characterId);
-      }
-      if (fallback != null && !isCharacterDisabledBySnapshot(context, disabled, fallback)) {
-        options.force_chid = fallback;
-        forcedGroupCharacterId = fallback;
-      } else {
-        delete options.force_chid;
-      }
-    } else if (hasEnabledForcedChar) {
-      forcedGroupCharacterId = currentForcedChar;
+    let lastAiCharacterIndex: number | null = null;
+    const lastAiIndex = getLastAiMessageIndex(context);
+    if (lastAiIndex != null && lastAiIndex >= 0 && lastAiIndex < context.chat.length) {
+      const lastAiName = String(context.chat[lastAiIndex]?.name ?? "").trim();
+      lastAiCharacterIndex = findCharacterIndexByName(context, lastAiName);
     }
-
-    // If we still cannot resolve a concrete target, replaying normal generation in group mode
-    // may create a synthetic empty user message. Skip replay instead of producing ghost turns.
-    const hasConcreteTarget =
-      typeof options.force_chid === "number" &&
-      Number.isInteger(options.force_chid) &&
-      Number(options.force_chid) >= 0;
-    if (!hasConcreteTarget) {
-      skipReplay = true;
-      skipReason = "group_replay_no_resolved_target";
-    } else if (hasEnabledForcedChar) {
-      skipReplay = false;
-      skipReason = null;
+    const currentCharacterId =
+      typeof context.characterId === "number" && Number.isInteger(context.characterId) && context.characterId >= 0
+        ? Number(context.characterId)
+        : null;
+    const replayTarget = resolveGroupReplayTarget({
+      currentForcedChar,
+      enabledIndices,
+      resolvedSceneOwnerIndices,
+      lastAiCharacterIndex,
+      currentCharacterId,
+    });
+    if (replayTarget.forceChid != null) {
+      options.force_chid = replayTarget.forceChid;
+      forcedGroupCharacterId = replayTarget.forceChid;
+    } else {
+      delete options.force_chid;
+      forcedGroupCharacterId = null;
     }
+    skipReplay = replayTarget.skipReplay;
+    skipReason = replayTarget.skipReason;
   }
 
   return { type, options, dryRun: intent.dryRun, forcedAutomaticTrigger, forcedGroupCharacterId, skipReplay, skipReason };
@@ -1496,7 +1490,8 @@ function queueRender(): void {
       for (let i = 0; i < context.chat.length; i += 1) {
         const message = context.chat[i];
         if (!isTrackableMessage(message)) continue;
-        const data = getTrackerDataFromMessage(message);
+        const rawData = getTrackerDataFromMessage(message);
+        const data = rawData ? getMessageScopedTrackerData(context, i, rawData, settings) : null;
         if (!data) continue;
         entries.push({ messageIndex: i, data, recovery: null });
         const hadRecovery = trackerRecoveryByMessage.has(i);
@@ -1593,7 +1588,9 @@ function queueRender(): void {
         }
       }
       if (!liveContext?.characters?.length) return null;
-      let character = liveContext.characters.find(item => String(item?.name ?? "").trim().toLowerCase() === normalized);
+      let character = settings
+        ? findCharacterByOwner(liveContext, settings, characterName)
+        : liveContext.characters.find(item => String(item?.name ?? "").trim().toLowerCase() === normalized);
       if (!character && normalized === USER_TRACKER_KEY.toLowerCase()) {
         const userName = String(liveContext.name1 ?? "").trim().toLowerCase();
         if (userName) {
@@ -1604,20 +1601,51 @@ function queueRender(): void {
       return avatar || null;
     }, characterName => {
       const liveContext = getSafeContext();
+      if (!settings) return null;
+      const mode = resolveEntityTrackingMode(settings);
+      const resolved = resolveCharacterIdentity(liveContext, characterName, mode);
+      if (!resolved) return null;
+      const sourceKey = buildEntitySourceKey(resolved.sourceName, resolved.sourceAvatar);
+      return {
+        sourceKey,
+        isAlias: resolved.matchedBy === "alias",
+        isSource: resolved.matchedBy === "source",
+      };
+    }, characterName => {
+      const liveContext = getSafeContext();
       return isTrackerEnabledForOwner(liveContext, settings!, characterName);
     }, (characterName, statId) => {
       const liveContext = getSafeContext();
       return isOwnerStatEnabled(liveContext, settings!, characterName, statId);
-    }, characterName => {
+    }, (characterName, messageIndex) => {
+        const liveContext = getSafeContext();
+        return getEntityRegistryLifecycleStateForMessage(liveContext, characterName, messageIndex);
+      }, (entityId, messageIndex) => {
+        const liveContext = getSafeContext();
+        return getEntityRegistryLifecycleStateForEntityIdForMessage(liveContext, entityId, messageIndex);
+      }, messageIndex => {
+        const liveContext = getSafeContext();
+        return listEntityRegistryOwnersForMessage(liveContext, messageIndex);
+    }, messageIndex => {
+        const liveContext = getSafeContext();
+        return listEntityRegistryEntriesForMessage(liveContext, messageIndex);
+    }, (characterName, messageIndex) => {
+        const liveContext = getSafeContext();
+        return getEntityRegistryEntryForMessage(liveContext, characterName, messageIndex);
+    }, (entityId, messageIndex) => {
+        const liveContext = getSafeContext();
+        return getEntityRegistryEntryByEntityIdForMessage(liveContext, entityId, messageIndex);
+    }, target => {
       const context = getSafeContext();
       if (!context || !settings) return;
       const history = getRecentTrackerHistory(context, 120);
       if (history.length === 0 && latestData) {
         history.push(latestData);
       }
-      const graphSummary = summarizeGraphSeries(history, characterName);
+      const graphSummary = summarizeGraphSeries(context, history, target);
       pushTrace("graph.open", {
-        character: characterName,
+        character: target.ownerName,
+        entityId: target.entityId ?? null,
         historySnapshots: history.length,
         snapshots: graphSummary.snapshots,
         fromTs: graphSummary.fromTs,
@@ -1626,7 +1654,7 @@ function queueRender(): void {
         series: graphSummary.series
       });
       openGraphModal({
-        character: characterName,
+        target,
         history,
         accentColor: settings.accentColor,
         settings,
@@ -1652,6 +1680,16 @@ function queueRender(): void {
       return getTrackerDataFromMessage(liveContext.chat[messageIndex]);
     }, () => {
       queueRender();
+    }, payload => {
+      const liveContext = getSafeContext();
+      if (!liveContext || !settings) return;
+      syncEntityRegistryFromRender({
+        context: liveContext,
+        mode: resolveEntityTrackingMode(settings),
+        messageIndex: payload.messageIndex,
+        targets: payload.targets,
+        getLifecycleStateByTarget: payload.getLifecycleState,
+      });
     }, messageIndex => {
       clearTrackerRecovery(messageIndex);
       void runExtraction("manual_refresh", messageIndex);
@@ -1914,10 +1952,21 @@ function setTrackerRecovery(
 }
 
 function findCharacterByName(context: STContext | null, name: string): Character | null {
-  const normalized = String(name ?? "").trim().toLowerCase();
+  return findCharacterByOwner(context, { entityTrackingMode: "standard" }, name);
+}
+
+function findCharacterByOwner(
+  context: STContext | null,
+  settingsInput: Pick<BetterSimTrackerSettings, "entityTrackingMode">,
+  name: string,
+): Character | null {
+  const normalized = String(name ?? "").trim();
   if (!normalized) return null;
+  const resolved = resolveCharacterFromContext(context, normalized, resolveEntityTrackingMode(settingsInput));
+  if (resolved) return resolved;
+  const key = normalized.toLowerCase();
   const characters = context?.characters ?? [];
-  return characters.find(character => String(character?.name ?? "").trim().toLowerCase() === normalized) ?? null;
+  return characters.find(character => String(character?.name ?? "").trim().toLowerCase() === key) ?? null;
 }
 
 function parseDefaultNumber(raw: unknown): number | null {
@@ -1956,6 +2005,7 @@ function getConfiguredCharacterDefaults(
   context: STContext | null,
   settingsInput: BetterSimTrackerSettings,
   name: string,
+  allowOwnerDefaults = true,
 ): {
   trackerEnabled?: boolean;
   statEnabled?: Record<string, boolean>;
@@ -1968,6 +2018,9 @@ function getConfiguredCharacterDefaults(
   customStatDefaults?: Record<string, number>;
   customNonNumericStatDefaults?: Record<string, string | boolean | string[]>;
 } {
+  if (!allowOwnerDefaults && name !== USER_TRACKER_KEY) {
+    return {};
+  }
   if (name === USER_TRACKER_KEY) {
     const identity = resolveUserDefaultsIdentity(context);
     const defaultsFromSettings = resolveCharacterDefaultsEntry(settingsInput, identity);
@@ -2053,7 +2106,7 @@ function getConfiguredCharacterDefaults(
     };
   }
 
-  const character = findCharacterByName(context, name);
+  const character = findCharacterByOwner(context, settingsInput, name);
   const extFromCharacter = character?.extensions as Record<string, unknown> | undefined;
   const extFromData = character?.data?.extensions as Record<string, unknown> | undefined;
   const own = ((extFromCharacter?.bettersimtracker ?? extFromData?.bettersimtracker) as Record<string, unknown> | undefined);
@@ -2146,7 +2199,12 @@ function isTrackerEnabledForOwner(
   settingsInput: BetterSimTrackerSettings,
   name: string,
 ): boolean {
-  return getConfiguredCharacterDefaults(context, settingsInput, name).trackerEnabled !== false;
+  return getConfiguredCharacterDefaults(
+    context,
+    settingsInput,
+    name,
+    shouldUseConfiguredOwnerDefaults(context, name),
+  ).trackerEnabled !== false;
 }
 
 function isOwnerStatEnabled(
@@ -2157,13 +2215,19 @@ function isOwnerStatEnabled(
 ): boolean {
   const id = String(statId ?? "").trim().toLowerCase();
   if (!id) return true;
-  const configured = getConfiguredCharacterDefaults(context, settingsInput, ownerName);
+  const configured = getConfiguredCharacterDefaults(
+    context,
+    settingsInput,
+    ownerName,
+    shouldUseConfiguredOwnerDefaults(context, ownerName),
+  );
   return configured.statEnabled?.[id] !== false;
 }
 
 function buildSeededStatisticsForActiveCharacters(
   base: Statistics | null,
   activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): Statistics {
@@ -2175,25 +2239,32 @@ function buildSeededStatisticsForActiveCharacters(
     mood: { ...(base?.mood ?? {}) },
     lastThought: { ...(base?.lastThought ?? {}) },
   };
+  const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
 
-  for (const name of activeCharacters) {
-    const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
-    if (seeded.affection[name] === undefined) {
+  for (const [index, name] of activeCharacters.entries()) {
+    const entityId = activeEntityIds?.[index] ?? null;
+    const configured = getConfiguredCharacterDefaults(
+      context,
+      settingsInput,
+      name,
+      allowOwnerDefaults.get(name) !== false,
+    );
+    if (resolveSeededOwnerLookupValue(context, seeded.affection, name, entityId) === undefined) {
       seeded.affection[name] = configured.affection ?? settingsInput.defaultAffection;
     }
-    if (seeded.trust[name] === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.trust, name, entityId) === undefined) {
       seeded.trust[name] = configured.trust ?? settingsInput.defaultTrust;
     }
-    if (seeded.desire[name] === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.desire, name, entityId) === undefined) {
       seeded.desire[name] = configured.desire ?? settingsInput.defaultDesire;
     }
-    if (seeded.connection[name] === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.connection, name, entityId) === undefined) {
       seeded.connection[name] = configured.connection ?? settingsInput.defaultConnection;
     }
-    if (seeded.mood[name] === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.mood, name, entityId) === undefined) {
       seeded.mood[name] = configured.mood ?? settingsInput.defaultMood;
     }
-    if (seeded.lastThought[name] === undefined) {
+    if (resolveSeededOwnerLookupValue(context, seeded.lastThought, name, entityId) === undefined) {
       seeded.lastThought[name] = configured.lastThought ?? "";
     }
   }
@@ -2204,6 +2275,7 @@ function buildSeededStatisticsForActiveCharacters(
 function buildSeededCustomStatisticsForActiveCharacters(
   base: CustomStatistics | null | undefined,
   activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): CustomStatistics {
@@ -2213,15 +2285,22 @@ function buildSeededCustomStatisticsForActiveCharacters(
   }
 
   const customDefs = Array.isArray(settingsInput.customStats) ? settingsInput.customStats : [];
+  const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
   for (const def of customDefs) {
     if (!def.track) continue;
     if ((def.kind ?? "numeric") !== "numeric") continue;
     const statId = String(def.id ?? "").trim().toLowerCase();
     if (!statId) continue;
     if (!seeded[statId]) seeded[statId] = {};
-    for (const name of activeCharacters) {
-      if (seeded[statId][name] !== undefined) continue;
-      const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
+    for (const [index, name] of activeCharacters.entries()) {
+      const entityId = activeEntityIds?.[index] ?? null;
+      if (resolveSeededOwnerLookupValue(context, seeded[statId], name, entityId) !== undefined) continue;
+      const configured = getConfiguredCharacterDefaults(
+        context,
+        settingsInput,
+        name,
+        allowOwnerDefaults.get(name) !== false,
+      );
       const configuredValue = configured.customStatDefaults?.[statId];
       const fallback = Number(def.defaultValue);
       seeded[statId][name] = configuredValue ?? (Number.isNaN(fallback) ? 50 : fallback);
@@ -2234,6 +2313,7 @@ function buildSeededCustomStatisticsForActiveCharacters(
 function buildSeededCustomNonNumericStatisticsForActiveCharacters(
   base: CustomNonNumericStatistics | null | undefined,
   activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): CustomNonNumericStatistics {
@@ -2243,6 +2323,7 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
   }
 
   const customDefs = Array.isArray(settingsInput.customStats) ? settingsInput.customStats : [];
+  const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
   for (const def of customDefs) {
     if (!def.track) continue;
     const kind = def.kind ?? "numeric";
@@ -2263,18 +2344,30 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
         preserveExplicitEmptyArray: true,
       }) ?? (kind === "boolean" ? false : kind === "array" ? [] : "");
     };
-    for (const name of activeCharacters) {
-      if (seeded[statId][name] !== undefined) {
-        seeded[statId][name] = normalizeValue(seeded[statId][name]);
+    for (const [index, name] of activeCharacters.entries()) {
+      const entityId = activeEntityIds?.[index] ?? null;
+      const existingValue = resolveSeededOwnerLookupValue(context, seeded[statId], name, entityId);
+      if (existingValue !== undefined) {
+        seeded[statId][name] = normalizeValue(existingValue);
         continue;
       }
-      const configured = getConfiguredCharacterDefaults(context, settingsInput, name);
+      const shouldForceUnknownForAliasOwner =
+        !def.globalScope &&
+        isAliasResolvedOwner(context, name, settingsInput);
+      const configured = getConfiguredCharacterDefaults(
+        context,
+        settingsInput,
+        name,
+        allowOwnerDefaults.get(name) !== false,
+      );
       const configuredValue = configured.customNonNumericStatDefaults?.[statId];
-      if (configuredValue !== undefined) {
+      if (!shouldForceUnknownForAliasOwner && configuredValue !== undefined) {
         seeded[statId][name] = normalizeValue(configuredValue);
         continue;
       }
-      seeded[statId][name] = normalizeValue(undefined);
+      seeded[statId][name] = shouldForceUnknownForAliasOwner
+        ? (kind === "boolean" ? false : kind === "array" ? [] : "")
+        : normalizeValue(undefined);
     }
   }
 
@@ -2284,29 +2377,57 @@ function buildSeededCustomNonNumericStatisticsForActiveCharacters(
 function seedHistoryForActiveCharacters(
   history: TrackerData[],
   activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
   settingsInput: BetterSimTrackerSettings,
   context: STContext | null,
 ): TrackerData[] {
-  return history.map(entry => ({
-    ...entry,
-    statistics: buildSeededStatisticsForActiveCharacters(entry.statistics, activeCharacters, settingsInput, context),
-    customStatistics: buildSeededCustomStatisticsForActiveCharacters(
+  const targetToEntity = buildTargetToEntityMap(
+    context,
+    activeCharacters,
+    activeEntityIds,
+    resolveEntityTrackingMode(settingsInput),
+  );
+  return history.map(entry => {
+    const statistics = buildSeededStatisticsForActiveCharacters(
+      entry.statistics,
+      activeCharacters,
+      activeEntityIds,
+      settingsInput,
+      context,
+    );
+    const customStatistics = buildSeededCustomStatisticsForActiveCharacters(
       entry.customStatistics,
       activeCharacters,
+      activeEntityIds,
       settingsInput,
       context,
-    ),
-    customNonNumericStatistics: buildSeededCustomNonNumericStatisticsForActiveCharacters(
+    );
+    const customNonNumericStatistics = buildSeededCustomNonNumericStatisticsForActiveCharacters(
       entry.customNonNumericStatistics,
       activeCharacters,
+      activeEntityIds,
       settingsInput,
       context,
-    ),
-  }));
+    );
+    return {
+      ...entry,
+      statistics,
+      statisticsByEntityId: buildEntityScopedStatisticsBuckets(statistics, targetToEntity),
+      customStatistics,
+      customStatisticsByEntityId: buildEntityScopedCustomStatisticsBuckets(customStatistics, targetToEntity),
+      customNonNumericStatistics,
+      customNonNumericStatisticsByEntityId: buildEntityScopedCustomNonNumericStatisticsBuckets(customNonNumericStatistics, targetToEntity),
+    };
+  });
 }
 
-function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettings): TrackerData {
+function buildBaselineData(
+  activeCharacters: string[],
+  activeEntityIds: string[] | null | undefined,
+  s: BetterSimTrackerSettings,
+): TrackerData {
   const context = getSafeContext();
+  const allowOwnerDefaults = buildActiveSeedDefaultsPolicy(context, activeCharacters, activeEntityIds);
 
   const pickNumber = (raw: unknown, fallback: number): number => {
     const n = Number(raw);
@@ -2363,7 +2484,13 @@ function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettin
     customNonNumeric: Record<string, string | boolean | string[]>;
   } => {
     const contextual = inferFromContext(name);
-    const defaults = getConfiguredCharacterDefaults(context, s, name);
+    const defaults = getConfiguredCharacterDefaults(
+      context,
+      s,
+      name,
+      allowOwnerDefaults.get(name) !== false,
+    );
+    const isAliasOwner = isAliasResolvedOwner(context, name, s);
     const customDefaults: Record<string, number> = {};
     const customNonNumericDefaults: Record<string, string | boolean | string[]> = {};
     for (const def of s.customStats ?? []) {
@@ -2376,11 +2503,19 @@ function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettin
         const fallback = Number(def.defaultValue);
         customDefaults[statId] = pickNumber(configuredCustom, Number.isNaN(fallback) ? 50 : fallback);
       } else if (kind === "boolean") {
+        if (isAliasOwner && !def.globalScope) {
+          customNonNumericDefaults[statId] = false;
+          continue;
+        }
         const configuredCustom = defaults.customNonNumericStatDefaults?.[statId];
         customNonNumericDefaults[statId] = typeof configuredCustom === "boolean"
           ? configuredCustom
           : (typeof def.defaultValue === "boolean" ? def.defaultValue : false);
       } else if (kind === "array") {
+        if (isAliasOwner && !def.globalScope) {
+          customNonNumericDefaults[statId] = [];
+          continue;
+        }
         const maxLength = Math.max(20, Math.min(200, Math.round(Number(def.textMaxLength) || 120)));
         const configuredCustom = defaults.customNonNumericStatDefaults?.[statId];
         const configuredItems = Array.isArray(configuredCustom)
@@ -2396,6 +2531,10 @@ function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettin
           def.defaultValue,
         );
       } else {
+        if (isAliasOwner && !def.globalScope) {
+          customNonNumericDefaults[statId] = "";
+          continue;
+        }
         const configuredCustom = defaults.customNonNumericStatDefaults?.[statId];
         const text = typeof configuredCustom === "string"
           ? configuredCustom.trim()
@@ -2460,31 +2599,42 @@ function buildBaselineData(activeCharacters: string[], s: BetterSimTrackerSettin
     }
   }
 
+  const targetToEntity = buildTargetToEntityMap(
+    context,
+    activeCharacters,
+    activeEntityIds,
+    resolveEntityTrackingMode(s),
+  );
+  const statistics: Statistics = {
+    affection: s.trackAffection
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.affection ?? s.defaultAffection]))
+      : {},
+    trust: s.trackTrust
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.trust ?? s.defaultTrust]))
+      : {},
+    desire: s.trackDesire
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.desire ?? s.defaultDesire]))
+      : {},
+    connection: s.trackConnection
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.connection ?? s.defaultConnection]))
+      : {},
+    mood: s.trackMood
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.mood ?? s.defaultMood]))
+      : {},
+    lastThought: s.trackLastThought
+      ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.lastThought ?? ""]))
+      : {}
+  };
+
   return {
     timestamp: Date.now(),
     activeCharacters,
-    statistics: {
-      affection: s.trackAffection
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.affection ?? s.defaultAffection]))
-        : {},
-      trust: s.trackTrust
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.trust ?? s.defaultTrust]))
-        : {},
-      desire: s.trackDesire
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.desire ?? s.defaultDesire]))
-        : {},
-      connection: s.trackConnection
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.connection ?? s.defaultConnection]))
-        : {},
-      mood: s.trackMood
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.mood ?? s.defaultMood]))
-        : {},
-      lastThought: s.trackLastThought
-        ? Object.fromEntries(activeCharacters.map(name => [name, baselinePerCharacter.get(name)?.lastThought ?? ""]))
-        : {}
-    },
+    statistics,
+    statisticsByEntityId: buildEntityScopedStatisticsBuckets(statistics, targetToEntity),
     customStatistics,
+    customStatisticsByEntityId: buildEntityScopedCustomStatisticsBuckets(customStatistics, targetToEntity),
     customNonNumericStatistics,
+    customNonNumericStatisticsByEntityId: buildEntityScopedCustomNonNumericStatisticsBuckets(customNonNumericStatistics, targetToEntity),
   };
 }
 
@@ -2914,7 +3064,8 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
     }
   }
 
-  const next: TrackerData = {
+  const next: TrackerData = buildEditedTrackerDataSnapshot({
+    current,
     timestamp: Date.now(),
     activeCharacters: Array.isArray(current.activeCharacters) ? [...current.activeCharacters] : [],
     statistics: stats,
@@ -2923,31 +3074,35 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
     clearedStatistics: Object.keys(clearedStatistics).length ? clearedStatistics : undefined,
     clearedCustomStatistics: Object.keys(clearedCustom).length ? clearedCustom : undefined,
     clearedCustomNonNumericStatistics: Object.keys(clearedCustomNonNumeric).length ? clearedCustomNonNumeric : undefined,
-  };
+  });
 
   if (payload.active !== undefined && character !== USER_TRACKER_KEY) {
-    const activeSet = new Set(
-      next.activeCharacters
-        .map(name => String(name ?? "").trim())
-        .filter(Boolean),
-    );
-    if (payload.active) {
-      activeSet.add(character);
-    } else {
-      activeSet.delete(character);
-    }
-    next.activeCharacters = Array.from(activeSet);
+    const updated = applyEditedTrackerActiveState(next, character, payload.active);
+    next.activeCharacters = updated.activeCharacters;
+    next.entityResolution = updated.entityResolution;
     setManualInactiveCharacter(context, character, !payload.active);
   }
 
+  const entitySynced = syncEditedTrackerEntityState(next, character);
+  next.statisticsByEntityId = entitySynced.statisticsByEntityId;
+  next.customStatisticsByEntityId = entitySynced.customStatisticsByEntityId;
+  next.customNonNumericStatisticsByEntityId = entitySynced.customNonNumericStatisticsByEntityId;
+
   writeTrackerDataToMessage(context, next, messageIndex);
+  syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex,
+    data: next,
+    settings: settings!,
+    allKnownCharacters: allCharacterNames.filter(name => isTrackerEnabledForOwner(context, settings!, name)),
+  });
   context.saveChatDebounced?.();
   void context.saveChat?.();
   pushTrace("tracker.edit", { messageIndex, character, active: payload.active ?? null });
   refreshFromStoredData();
 }
 
-function summarizeGraphSeries(history: TrackerData[], characterName: string): {
+function summarizeGraphSeries(context: STContext, history: TrackerData[], target: TrackerGraphTarget): {
   snapshots: number;
   fromTs: number | null;
   toTs: number | null;
@@ -2957,34 +3112,24 @@ function summarizeGraphSeries(history: TrackerData[], characterName: string): {
   customSeries: Record<string, number[]>;
 } {
   const allNumericDefs = settings ? getAllNumericStatDefinitions(settings) : [];
-  const numericStatIds = new Set<string>(allNumericDefs.map(def => def.id));
+  const customNumericGlobalScopeById = new Map<string, boolean>(
+    (settings?.customStats ?? [])
+      .filter(def => (def.kind ?? "numeric") === "numeric")
+      .map(def => [String(def.id ?? "").trim(), Boolean(def.globalScope)] as const),
+  );
   const builtInKeys = new Set(["affection", "trust", "desire", "connection"]);
-  const sorted = [...history]
-    .filter(item => Number.isFinite(item.timestamp))
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .filter(item =>
-      Array.from(numericStatIds).some(statId =>
-        builtInKeys.has(statId)
-          ? (item.statistics[statId as "affection" | "trust" | "desire" | "connection"]?.[characterName] !== undefined)
-          : (item.customStatistics?.[statId]?.[characterName] !== undefined),
-      ) ||
-      item.statistics.mood?.[characterName] !== undefined ||
-      item.statistics.lastThought?.[characterName] !== undefined,
+  const numericDefs = allNumericDefs.map(def => ({
+    key: def.id,
+    defaultValue: def.defaultValue,
+    globalScope: def.builtIn ? false : Boolean(customNumericGlobalScopeById.get(def.id)),
+  }));
+  const sorted = selectGraphTimelineEntries(history, target, numericDefs);
+  const build = (key: string, defaultValue = 50, globalScope = false): number[] => {
+    return buildStatSeries(
+      sorted,
+      target,
+      { key, defaultValue, globalScope },
     );
-  const build = (key: string, defaultValue = 50): number[] => {
-    let carry = Math.max(0, Math.min(100, Math.round(defaultValue)));
-    return sorted.map(item => {
-      const raw = builtInKeys.has(key)
-        ? item.statistics[key as "affection" | "trust" | "desire" | "connection"]?.[characterName]
-        : item.customStatistics?.[key]?.[characterName];
-      if (raw !== undefined) {
-        const value = Number(raw);
-        if (!Number.isNaN(value)) {
-          carry = Math.max(0, Math.min(100, value));
-        }
-      }
-      return carry;
-    });
   };
   const affection = build("affection");
   const trust = build("trust");
@@ -2995,7 +3140,7 @@ function summarizeGraphSeries(history: TrackerData[], characterName: string): {
   const customSeries: Record<string, number[]> = {};
   const customLatest: Record<string, number> = {};
   for (const def of customDefs) {
-    const seriesValues = build(def.id, def.defaultValue);
+    const seriesValues = build(def.id, def.defaultValue, Boolean(customNumericGlobalScopeById.get(def.id)));
     customSeries[def.id] = seriesValues;
     customLatest[def.id] = seriesValues.length ? seriesValues[seriesValues.length - 1] : Math.max(0, Math.min(100, Math.round(def.defaultValue)));
   }
@@ -3057,7 +3202,7 @@ async function sendTrackerSummaryToChat(messageIndex: number): Promise<void> {
         messageIndex,
         error: errorMessage,
       });
-      summaryBody = buildFallbackSummaryProse(data, settings);
+      summaryBody = buildFallbackSummaryProse(context, data, settings);
     }
 
     const normalizedBody = normalizeSummaryProse(summaryBody) || "The current relationship state remains steady with no major shifts to report.";
@@ -3068,7 +3213,7 @@ async function sendTrackerSummaryToChat(messageIndex: number): Promise<void> {
     pushTrace("summary.sent", {
       messageIndex,
       activeCharacters: data.activeCharacters.length,
-      charCount: collectSummaryCharacters(data).length,
+      charCount: collectSummaryCharacters(context, data).length,
       textChars: summaryText.length,
       delivery,
       aiProfileId,
@@ -3140,18 +3285,19 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     return;
   }
   const lastMessage = context.chat[lastIndex];
-  const hadTrackerAtStart = Boolean(getTrackerDataFromMessage(lastMessage));
+  const existingTrackerData = getTrackerDataFromMessage(lastMessage);
+  const hadTrackerAtStart = Boolean(existingTrackerData);
   clearTrackerRecovery(lastIndex);
   const isManualRefreshReason = reason === "manual_refresh" || reason === "manual_refresh_retry";
   const isBootstrapContinueReason = reason === BOOTSTRAP_CONTINUE_REASON;
   const forceRetrack =
     isManualRefreshReason ||
     isBootstrapContinueReason ||
-    reason === "SWIPE_GENERATION_ENDED" ||
-    reason === "USER_MESSAGE_RENDERED" ||
-    reason === "USER_MESSAGE_EDITED" ||
-    (reason === "MESSAGE_EDITED" && typeof targetMessageIndex === "number");
-  if (!forceRetrack && getTrackerDataFromMessage(lastMessage)) {
+      reason === "SWIPE_GENERATION_ENDED" ||
+      reason === "USER_MESSAGE_RENDERED" ||
+      reason === "USER_MESSAGE_EDITED" ||
+      (reason === "MESSAGE_EDITED" && typeof targetMessageIndex === "number");
+  if (!forceRetrack && existingTrackerData) {
     pushTrace("extract.skip", { reason: "tracker_already_present", trigger: reason, messageIndex: lastIndex });
     clearGeneratingUiIfStale("tracker_already_present");
     return;
@@ -3159,6 +3305,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
 
   isExtracting = true;
   const runId = ++runSequence;
+  let retryScheduled = false;
   activeExtractionRunId = runId;
   cancelledExtractionRuns.delete(runId);
   pushTrace("extract.start", {
@@ -3167,13 +3314,23 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     targetMessageIndex: targetMessageIndex ?? null,
     resolvedMessageIndex: lastIndex
   });
-  setTrackerUi(context, { phase: "extracting", done: 0, total: 1, messageIndex: lastIndex, stepLabel: "Preparing context" });
+  setTrackerUi(context, {
+    phase: "extracting",
+    done: 0,
+    total: 0,
+    messageIndex: lastIndex,
+    stepLabel: buildProgressResolveActive(
+      resolveEntityTrackingMode(activeSettings),
+    ),
+  });
   queueRender();
 
   try {
-    const activity = resolveActiveCharacterAnalysis(context, activeSettings);
+    const activity = resolveActiveCharacterAnalysis(context, activeSettings, {
+      targetMessageIndex: lastIndex,
+    });
     lastActivityAnalysis = activity;
-    allCharacterNames = activity.allCharacterNames.filter(name =>
+    allCharacterNames = getAllTrackedCharacterNames(context, activeSettings).filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
     if (activeSettings.enableUserTracking && !allCharacterNames.includes(USER_TRACKER_KEY)) {
@@ -3181,19 +3338,277 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         allCharacterNames = [...allCharacterNames, USER_TRACKER_KEY];
       }
     }
-    const activeCharacters = (userExtraction ? [USER_TRACKER_KEY] : activity.activeCharacters).filter(name =>
+    const previousMessage = !userExtraction && lastIndex > 0
+      ? context.chat[lastIndex - 1]
+      : null;
+    const previousMessageTrackerData = previousMessage
+      ? getTrackerDataFromMessage(previousMessage)
+      : null;
+    let resolvedOwnerScopes:
+      | {
+          sceneActiveCharacters: string[];
+          requestCharacters: string[];
+          source: "model" | "fallback";
+        }
+      | null = null;
+    let resolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> | null = null;
+    if (resolveEntityTrackingMode(activeSettings) !== "standard" && lastMessage && !lastMessage.is_system) {
+      const candidateOwners = resolveEntityResolverCandidateOwners(
+        context,
+        allCharacterNames.filter(name => name !== USER_TRACKER_KEY),
+        lastMessage,
+        activeSettings,
+        { previousTrackerData: previousMessageTrackerData },
+      );
+      if (candidateOwners.length) {
+        try {
+          const candidateEntities = candidateOwners.map((ownerName, index) => {
+            const registryEntry = getEntityRegistryEntryForMessage(context, ownerName, lastIndex)
+              ?? getEntityRegistryEntryByOwnerName(context, ownerName);
+            return {
+              entityRef: `ent${index + 1}`,
+              ownerName,
+              kind: registryEntry?.kind === "narrative-entity"
+                ? "narrative-entity" as const
+                : "st-character" as const,
+              entityId: registryEntry?.id
+                || resolveStableEntityIdForOwner(context, ownerName, resolveEntityTrackingMode(activeSettings))
+                || null,
+              aliases: (() => {
+                const aliases = Array.from(new Set(
+                  [ownerName, ...(registryEntry?.aliases ?? [])]
+                    .map(value => String(value ?? "").trim())
+                    .filter(Boolean),
+                ));
+                return aliases;
+              })(),
+            };
+          });
+          const resolverContextText = buildResolverContextUpToMessageIndex(context, lastIndex);
+          const resolverPrompt = buildMultiCharacterResolverPrompt({
+            candidateEntities,
+            contextText: resolverContextText,
+            message: lastMessage,
+            allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
+          });
+          const resolverResponse = await generateJson(resolverPrompt, activeSettings);
+          const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
+          const constrainedResolvedEntities = parsedResolver
+            ? constrainResolvedEntitiesToMessageFocus(parsedResolver.resolvedEntities, candidateEntities, lastMessage)
+            : [];
+          const materializedResolution = parsedResolver
+            ? materializeNarrativeEntityCreations({
+                context,
+                settings: activeSettings,
+                candidateEntities,
+                resolvedEntities: constrainedResolvedEntities,
+                createdEntities: parsedResolver.createdEntities,
+                unresolvedMentions: parsedResolver.unresolvedMentions,
+              })
+            : null;
+          const finalResolvedEntities = materializedResolution?.resolvedEntities ?? constrainedResolvedEntities;
+          const parsedSceneOwners = parsedResolver
+            ? resolveSceneOwnersFromResolvedEntities(finalResolvedEntities)
+            : [];
+          const parsedMessageOwners = parsedResolver
+            ? resolveMessageOwnersFromResolvedEntities(finalResolvedEntities)
+            : [];
+          const parsedSceneEntityIds = parsedResolver
+            ? resolveSceneEntityIdsFromResolvedEntities(finalResolvedEntities)
+            : [];
+          const parsedMessageEntityIds = parsedResolver
+            ? resolveMessageEntityIdsFromResolvedEntities(finalResolvedEntities)
+            : [];
+          if (parsedResolver) {
+            resolvedOwnerScopes = {
+              sceneActiveCharacters: parsedSceneOwners,
+              requestCharacters: parsedMessageOwners.length
+                ? parsedMessageOwners
+                : parsedSceneOwners,
+              source: "model",
+            };
+            const nextResolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
+              resolvedEntities: finalResolvedEntities.map(entity => ({
+                ...entity,
+                aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+                created: Boolean(entity.created),
+              })),
+              source: "model",
+            };
+            if (materializedResolution?.unresolvedMentions.length) {
+              nextResolvedEntityResolution.unresolvedMentions = [...materializedResolution.unresolvedMentions];
+            }
+            resolvedEntityResolution = nextResolvedEntityResolution;
+            pushTrace("entity.resolve", {
+              source: "model",
+              sceneActiveCharacters: resolvedOwnerScopes.sceneActiveCharacters,
+              requestCharacters: resolvedOwnerScopes.requestCharacters,
+              sceneEntityIds: parsedSceneEntityIds,
+              messageEntityIds: parsedMessageEntityIds.length
+                ? parsedMessageEntityIds
+                : parsedSceneEntityIds,
+              createdEntities: finalResolvedEntities.filter(entity => entity.kind === "narrative-entity" && entity.created).map(entity => entity.name),
+            });
+          }
+        } catch (error) {
+          pushTrace("entity.resolve", {
+            source: "model_error",
+            error: error instanceof Error ? error.message : String(error ?? "unknown"),
+          });
+        }
+      }
+    }
+    const fallbackInitialActiveCharacters = resolveInitialExtractionOwners({
+          context,
+          userExtraction,
+          forceRetrack,
+          preferExistingOwnersOnRetrack: reason !== "SWIPE_GENERATION_ENDED",
+          detectedActiveCharacters: activity.activeCharacters,
+          existingTrackerData,
+          existingActiveCharacters: existingTrackerData?.activeCharacters ?? null,
+        }).filter(name =>
+          isTrackerEnabledForOwner(context, activeSettings, name),
+        );
+    const initialActiveCharacters = !userExtraction && resolvedOwnerScopes?.sceneActiveCharacters.length
+      ? resolvedOwnerScopes.sceneActiveCharacters
+      : fallbackInitialActiveCharacters;
+    const baseOwnerScopes = userExtraction
+      ? resolveUserExtractionOwnerScopes({
+          context,
+          detectedActiveCharacters: activity.activeCharacters,
+          message: lastMessage,
+          settings: activeSettings,
+          resolvedSceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters ?? null,
+          previousTrackerData: previousMessageTrackerData,
+        })
+      : (resolvedOwnerScopes ?? {
+          ...resolveExtractionOwnerScopes(context, initialActiveCharacters, lastMessage, activeSettings),
+          source: "fallback" as const,
+        });
+    const constrainedResolvedOwnerScopes = resolvedOwnerScopes
+      ? constrainResolvedOwnerScopesToPreviousUserScene({
+          userExtraction,
+          settings: activeSettings,
+          previousMessage,
+          previousTrackerData: previousMessageTrackerData,
+          resolvedSceneActiveCharacters: resolvedOwnerScopes.sceneActiveCharacters,
+          resolvedRequestCharacters: resolvedOwnerScopes.requestCharacters,
+        })
+      : null;
+    if (constrainedResolvedOwnerScopes && resolvedOwnerScopes && resolvedEntityResolution) {
+      resolvedOwnerScopes = {
+        ...resolvedOwnerScopes,
+        sceneActiveCharacters: constrainedResolvedOwnerScopes.sceneActiveCharacters,
+        requestCharacters: constrainedResolvedOwnerScopes.requestCharacters,
+      };
+      const constrainedSceneEntityIds = new Set(
+        resolveTrackerEntityIdsForOwners(context, constrainedResolvedOwnerScopes.sceneActiveCharacters),
+      );
+      const constrainedMessageEntityIds = new Set(
+        resolveTrackerEntityIdsForOwners(context, constrainedResolvedOwnerScopes.requestCharacters),
+      );
+      resolvedEntityResolution = {
+        ...resolvedEntityResolution,
+        resolvedEntities: (resolvedEntityResolution.resolvedEntities ?? [])
+          .map(entity => ({
+            ...entity,
+            inScene: constrainedSceneEntityIds.has(entity.entityId),
+            inMessage: constrainedMessageEntityIds.has(entity.entityId),
+            aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+          }))
+          .filter(entity => entity.inScene || entity.inMessage),
+      };
+    }
+    const constrainedFallbackOwnerScopes = !resolvedOwnerScopes
+      ? constrainFallbackOwnerScopesToPreviousUserScene({
+          userExtraction,
+          settings: activeSettings,
+          previousMessage,
+          previousTrackerData: previousMessageTrackerData,
+          fallbackSceneActiveCharacters: baseOwnerScopes.sceneActiveCharacters,
+          fallbackRequestCharacters: baseOwnerScopes.requestCharacters,
+        })
+      : null;
+    const ownerScopes = constrainedFallbackOwnerScopes
+      ? {
+          ...constrainedFallbackOwnerScopes,
+          source: "fallback" as const,
+        }
+      : baseOwnerScopes;
+    const sceneActiveCharacters = ownerScopes.sceneActiveCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name),
     );
+    const requestCharacters = ownerScopes.requestCharacters.filter(name =>
+      isTrackerEnabledForOwner(context, activeSettings, name),
+    );
+    const sceneActiveEntityIds = resolvedEntityResolution?.resolvedEntities?.length
+      ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
+      : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
+    const requestEntityIds = resolvedEntityResolution?.resolvedEntities?.length
+      ? resolveMessageEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
+      : resolveTrackerEntityIdsForOwners(context, requestCharacters);
+    const activeCharacters = [...requestCharacters];
+    const activeEntityIds = [...requestEntityIds];
     pushTrace("activity.resolve", {
       allCharacterNames,
       activeCharacters,
+      requestCharacters,
+      sceneActiveCharacters,
+      activeEntityIds,
+      requestEntityIds,
+      sceneActiveEntityIds,
+      entityResolverUsed: Boolean(resolvedOwnerScopes),
       lookback: activity.lookback,
       autoDetectActive: settings.autoDetectActive,
       reasons: activity.reasons
     });
     if (!activeCharacters.length) {
       pushTrace("extract.skip", { reason: "no_active_characters", runId });
-      if (!hadTrackerAtStart) {
+      const priorContinuityCandidates = getRecentTrackerHistoryEntries(
+        context,
+        Math.max(120, lastIndex + 8),
+      )
+        .filter(entry => entry.messageIndex < lastIndex)
+        .map(entry => ({ data: entry.data, messageIndex: entry.messageIndex }));
+      const priorContinuityEntry = selectNoActiveContinuityTrackerEntry({
+        context,
+        entries: priorContinuityCandidates,
+        userExtraction,
+      }) ?? getLatestTrackerDataWithIndexBefore(context, lastIndex);
+      const continuitySnapshot = buildNoActiveContinuityTrackerData({
+        previousTrackerData: priorContinuityEntry?.data ?? null,
+        latestSceneTrackerData: previousMessageTrackerData,
+        source: resolvedEntityResolution?.source ?? priorContinuityEntry?.data?.entityResolution?.source ?? "fallback",
+      });
+      if (continuitySnapshot) {
+        clearTrackerRecovery(lastIndex);
+        latestData = continuitySnapshot;
+        latestDataMessageIndex = lastIndex;
+        writeTrackerDataToMessage(context, continuitySnapshot, lastIndex);
+        syncEntityRegistryFromTrackerData({
+          context,
+          messageIndex: lastIndex,
+          data: continuitySnapshot,
+          settings: activeSettings,
+          allKnownCharacters: allCharacterNames.filter(name => isTrackerEnabledForOwner(context, activeSettings, name)),
+        });
+        refreshPromptMacroData(context);
+        queuePromptSync(context);
+        queueRender();
+        context.saveChatDebounced?.();
+        await context.saveChat?.();
+      } else if (hadTrackerAtStart) {
+        clearTrackerDataForMessage(context, lastIndex);
+        const resolved = resolveLatestStoredTrackerData(context, lastIndex);
+        latestData = resolved.data;
+        latestDataMessageIndex = resolved.messageIndex;
+        refreshPromptMacroData(context);
+        queuePromptSync(context);
+        queueRender();
+        context.saveChatDebounced?.();
+        await context.saveChat?.();
+      }
+      if (!continuitySnapshot && !hadTrackerAtStart) {
         setTrackerRecovery(lastIndex, {
           kind: "error",
           title: "Tracker generation skipped",
@@ -3253,17 +3668,20 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         )
       : (getLatestCharacterOwnedTrackerDataWithIndexBefore(
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         ) ?? getLatestRelevantTrackerDataWithIndexBefore(
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         ));
     const previousGlobalEntry = userExtraction
@@ -3271,12 +3689,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         )
       : getLatestRelevantTrackerDataWithIndexBefore(
           context,
           baselineBeforeIndex,
           activeCharacters,
+          activeEntityIds,
           runScopedSettings,
         );
     let previous = previousEntry?.data ?? null;
@@ -3288,12 +3708,10 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           context,
           baselineBeforeIndex,
           [USER_TRACKER_KEY],
+          [],
           userScopedBaselineSettings,
         )
       : null;
-    if (!userExtraction && previous && latestUserScopedEntry?.data) {
-      previous = overlayLatestOwnerScopedContinuity(previous, latestUserScopedEntry.data, [USER_TRACKER_KEY]);
-    }
     lastExtractionBaselineDebugMeta = {
       reason,
       userExtraction,
@@ -3307,8 +3725,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     };
     pushTrace("extract.baseline.source", lastExtractionBaselineDebugMeta);
     if (!previous) {
-      previous = buildBaselineData(activeCharacters, runScopedSettings);
+      previous = buildBaselineData(activeCharacters, activeEntityIds, runScopedSettings);
       pushTrace("extract.baseline", { runId, forMessageIndex: lastIndex, activeCharacters: activeCharacters.length });
+    }
+    if (!userExtraction && latestUserScopedEntry?.data) {
+      previous = overlayLatestOwnerScopedContinuity(previous, latestUserScopedEntry.data, [USER_TRACKER_KEY]);
     }
     const hasPriorUserMessage = hasTrackableUserMessageBeforeIndex(context, lastIndex);
     const isGreetingAiBootstrap = Boolean(
@@ -3339,8 +3760,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         timestamp: Date.now(),
         activeCharacters,
         statistics: previous.statistics,
+        statisticsByEntityId: previous.statisticsByEntityId,
         customStatistics: previous.customStatistics,
+        customStatisticsByEntityId: previous.customStatisticsByEntityId,
         customNonNumericStatistics: previous.customNonNumericStatistics,
+        customNonNumericStatisticsByEntityId: previous.customNonNumericStatisticsByEntityId,
       };
       latestDataMessageIndex = lastIndex;
       refreshPromptMacroData(context);
@@ -3363,9 +3787,20 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     }
 
     const userName = context.name1 ?? "User";
-    const preferredCharacterName = !userExtraction
-      ? String(lastMessage?.name ?? "").trim() || undefined
-      : undefined;
+    const preferredCharacterName = (() => {
+      if (!userExtraction) {
+        return String(lastMessage?.name ?? "").trim() || undefined;
+      }
+      const preferredActive = activeCharacters.find(name =>
+        typeof name === "string" &&
+        name.trim() &&
+        name !== USER_TRACKER_KEY &&
+        name !== GLOBAL_TRACKER_KEY,
+      );
+      if (preferredActive?.trim()) return preferredActive.trim();
+      const currentCharacterName = String(context.name2 ?? "").trim();
+      return currentCharacterName || undefined;
+    })();
     if (activeSettings.includeLorebookInExtraction && userExtraction) {
       if (activeSettings.useInternalLorebookScanFallback) {
         await refreshLorebookEntriesFromWorldInfoScan(context, runId, reason);
@@ -3373,9 +3808,18 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         pushTrace("lorebook.scan.skip", { runId, reason, detail: "internal_fallback_disabled" });
       }
     }
-    let contextText = buildRecentContext(context, settings.contextMessages);
+    let contextText = buildRecentContext(context, settings.contextMessages, lastIndex);
     if (activeSettings.includeCharacterCardsInPrompt) {
-      contextText = `${contextText}${buildCharacterCardsContext(context, activeCharacters)}`.trim();
+      const sceneEntityIdsForCardContext = resolvedEntityResolution?.resolvedEntities?.length
+        ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
+        : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
+      contextText = `${contextText}${buildCharacterCardsContext(
+        context,
+        activeCharacters,
+        sceneEntityIdsForCardContext,
+        resolveEntityTrackingMode(runScopedSettings),
+        preferredCharacterName,
+      )}`.trim();
     }
     if (activeSettings.includeLorebookInExtraction) {
       contextText = `${contextText}${buildLorebookExtractionContext(context, activeSettings.lorebookExtractionMaxChars)}`.trim();
@@ -3383,28 +3827,38 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const previousSeededStatistics = buildSeededStatisticsForActiveCharacters(
       previous?.statistics ?? null,
       activeCharacters,
+      activeEntityIds,
       runScopedSettings,
       context,
     );
     const previousSeededCustomStatistics = buildSeededCustomStatisticsForActiveCharacters(
       previous?.customStatistics ?? null,
       activeCharacters,
+      activeEntityIds,
       runScopedSettings,
       context,
     );
     const previousSeededCustomNonNumericStatistics = buildSeededCustomNonNumericStatisticsForActiveCharacters(
       previous?.customNonNumericStatistics ?? null,
       activeCharacters,
+      activeEntityIds,
       runScopedSettings,
       context,
     );
     const rawHistoryEntries = getRecentTrackerHistoryEntries(context, 6);
-    const boundedHistoryEntries = rawHistoryEntries.filter(entry => entry.messageIndex < baselineBeforeIndex);
+    const boundedHistoryEntries = rawHistoryEntries
+      .filter(entry => entry.messageIndex < baselineBeforeIndex)
+      .map(entry => ({
+        ...entry,
+        data: getMessageScopedTrackerData(context, entry.messageIndex, entry.data, runScopedSettings, {
+          projectOwnerScopedCustomNonNumeric: false,
+        }),
+      }));
     const relevantHistory = boundedHistoryEntries
       .filter(entry => activeCharacters.some(name => (
         userExtraction
-          ? hasTrackedValueForCharacter(entry.data, name, runScopedSettings)
-          : hasCharacterOwnedTrackedValueForCharacter(entry.data, name, runScopedSettings)
+          ? hasTrackedValueForOwner(entry.data, name, runScopedSettings, context)
+          : hasCharacterOwnedTrackedValueForCharacter(entry.data, name, runScopedSettings, context)
       )))
       .map(entry => entry.data);
     if (relevantHistory.length !== rawHistoryEntries.length) {
@@ -3419,6 +3873,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const seededHistory = seedHistoryForActiveCharacters(
       relevantHistory,
       activeCharacters,
+      activeEntityIds,
       runScopedSettings,
       context,
     );
@@ -3468,11 +3923,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     }
 
     const extractedResult = await extractStatisticsParallel({
+      context,
       settings: extractionSettings,
       userName,
       activeCharacters,
+      entityResolution: resolvedEntityResolution,
       preferredCharacterName,
       contextText,
+      previousTrackerData: previousEntry?.data ?? null,
       previousStatistics: previousSeededStatistics,
       previousCustomStatistics: previousSeededCustomStatistics,
       previousCustomStatisticsRaw: previousEntry?.data?.customStatistics ?? null,
@@ -3517,35 +3975,75 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       extractedCustomNonNumeric,
       previous?.customNonNumericStatistics ?? null,
     );
+    const globalNumericStatIds = new Set(
+      (activeSettings.customStats ?? [])
+        .filter(def => (def.kind ?? "numeric") === "numeric" && Boolean(def.globalScope))
+        .map(def => String(def.id ?? "").trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const globalNonNumericStatIds = new Set(
+      (activeSettings.customStats ?? [])
+        .filter(def => (def.kind ?? "numeric") !== "numeric" && Boolean(def.globalScope))
+        .map(def => String(def.id ?? "").trim().toLowerCase())
+        .filter(Boolean),
+    );
     if (userExtraction) {
-      const globalNumericStatIds = new Set(
-        (activeSettings.customStats ?? [])
-          .filter(def => (def.kind ?? "numeric") === "numeric" && Boolean(def.globalScope))
-          .map(def => String(def.id ?? "").trim().toLowerCase())
-          .filter(Boolean),
-      );
-      const globalNonNumericStatIds = new Set(
-        (activeSettings.customStats ?? [])
-          .filter(def => (def.kind ?? "numeric") !== "numeric" && Boolean(def.globalScope))
-          .map(def => String(def.id ?? "").trim().toLowerCase())
-          .filter(Boolean),
-      );
       merged = filterStatisticsToCharacters(merged, [USER_TRACKER_KEY]);
       mergedCustom = filterCustomStatisticsToCharacters(mergedCustom, [USER_TRACKER_KEY], globalNumericStatIds);
       mergedCustomNonNumeric = filterCustomNonNumericStatisticsToCharacters(mergedCustomNonNumeric, [USER_TRACKER_KEY], globalNonNumericStatIds);
     }
 
-    latestData = {
-      timestamp: Date.now(),
-      activeCharacters,
+    const persistedSceneActiveCharacters = resolvePersistedSnapshotActiveOwners({
+      sceneActiveCharacters,
+      requestCharacters: activeCharacters,
+      userExtraction,
+    }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const persistedResolvedEntities = resolvePersistedSnapshotResolvedEntities({
+      context,
+      sceneActiveCharacters,
+      requestCharacters: activeCharacters,
+      resolvedEntities: resolvedEntityResolution?.resolvedEntities ?? [],
+      userExtraction,
+      entityTrackingMode: resolveEntityTrackingMode(activeSettings),
+    });
+    const persistedResolvedEntityOwners = resolvePersistedSnapshotEntityOwners({
+      sceneActiveCharacters,
+    }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const filteredPersistedResolvedEntities = filterResolvedEntitiesToTrackedOwners({
+      context,
+      trackedOwners: persistedResolvedEntityOwners,
+      resolvedEntities: persistedResolvedEntities,
+    });
+    const persistedExplicitTargetToEntity = userExtraction
+      ? { [USER_TRACKER_KEY]: resolveStableEntityIdForOwner(context, USER_TRACKER_KEY, resolveEntityTrackingMode(activeSettings)) }
+      : undefined;
+
+    latestData = buildPersistedTrackerSnapshot({
+      context,
+      activeCharacters: persistedSceneActiveCharacters,
+      activeEntityIds,
+      explicitTargetToEntity: persistedExplicitTargetToEntity,
+      entityTrackingMode: resolveEntityTrackingMode(activeSettings),
+      resolvedEntities: filteredPersistedResolvedEntities,
+      source: resolvedEntityResolution?.source ?? ownerScopes.source,
+      unresolvedMentions: resolvedEntityResolution?.unresolvedMentions,
       statistics: merged,
       customStatistics: mergedCustom,
       customNonNumericStatistics: mergedCustomNonNumeric,
-    };
+      globalCustomStatisticIds: globalNumericStatIds,
+      globalCustomNonNumericStatisticIds: globalNonNumericStatIds,
+    });
     latestDataMessageIndex = lastIndex;
     refreshPromptMacroData(context);
 
     writeTrackerDataToMessage(context, latestData, lastIndex);
+    syncEntityRegistryFromTrackerData({
+      context,
+      messageIndex: lastIndex,
+      data: latestData,
+      settings: activeSettings,
+      allKnownCharacters: allCharacterNames.filter(name => isTrackerEnabledForOwner(context, activeSettings, name)),
+    });
     clearTrackerRecovery(lastIndex);
     context.saveChatDebounced?.();
     await context.saveChat?.();
@@ -3574,7 +4072,6 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       return;
     }
     const message = getErrorMessage(error);
-    let retryScheduled = false;
     const isEmptyOutputError = /(?:^|\s)(?:Generator|Active runtime request) returned empty output/i.test(message);
     const isRetryableApiFailure = /(api request failed|failed to fetch|network\s+error|timeout|http\s+5\d\d|status\s*code\s*5\d\d)/i.test(message);
     const shouldRetryFailure = isEmptyOutputError || isRetryableApiFailure;
@@ -3622,7 +4119,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     isExtracting = false;
     setTrackerUi(context, { phase: "idle", done: 0, total: 0, messageIndex: latestDataMessageIndex, stepLabel: null });
     queueRender();
-    if (userExtraction) {
+    if (userExtraction && !retryScheduled) {
       finalizeUserTurnGateReplay(reason);
     }
   }
@@ -3634,7 +4131,7 @@ function refreshFromStoredData(): void {
   const activeSettings = settings;
   readPersistedTrackerRecoveries(context);
 
-  allCharacterNames = getAllTrackedCharacterNames(context).filter(name =>
+  allCharacterNames = getAllTrackedCharacterNames(context, activeSettings).filter(name =>
     isTrackerEnabledForOwner(context, activeSettings, name),
   );
   if (activeSettings.enableUserTracking && !allCharacterNames.includes(USER_TRACKER_KEY)) {
@@ -3661,49 +4158,44 @@ function refreshFromStoredData(): void {
   } else if (latestData && lastTrackableIndex == null) {
     scheduleRefresh(300);
   }
-  const latestTrackableHasTracker = Boolean(
-    lastTrackableIndex != null &&
-    lastTrackableIndex >= 0 &&
-    lastTrackableIndex < context.chat.length &&
-    getTrackerDataFromMessage(context.chat[lastTrackableIndex]),
-  );
-  const shouldBootstrapAiExtraction = Boolean(
-    settings.enabled &&
-    !isExtracting &&
-    !chatGenerationInFlight &&
-    !pendingLateRenderExtraction &&
-    lastTrackableIndex != null &&
-    lastTrackableIndex >= 0 &&
-    lastTrackableIndex < context.chat.length &&
-    isTrackableAiMessage(context.chat[lastTrackableIndex]) &&
-    !latestTrackableHasTracker &&
-    (latestDataMessageIndex == null || latestDataMessageIndex < lastTrackableIndex),
-  );
-  const hasPriorUserForBootstrap = lastTrackableIndex != null
-    ? hasTrackableUserMessageBeforeIndex(context, lastTrackableIndex)
-    : false;
-  const skipGreetingBootstrap = Boolean(
-    shouldBootstrapAiExtraction &&
-    settings.generateOnGreetingMessages === false &&
-    !hasPriorUserForBootstrap,
-  );
-  if (skipGreetingBootstrap && lastTrackableIndex != null) {
+  const bootstrapDecision = resolveAutoBootstrapTarget({
+    enabled: settings.enabled,
+    isExtracting,
+    chatGenerationInFlight,
+    pendingLateRenderExtraction,
+    latestTrackableIndex: lastTrackableIndex,
+    latestDataMessageIndex,
+    generateOnGreetingMessages: settings.generateOnGreetingMessages,
+    chatLength: context.chat.length,
+    isTrackableAiAt: index => (
+      index >= 0 &&
+      index < context.chat.length &&
+      isTrackableAiMessage(context.chat[index])
+    ),
+    hasTrackerAt: index => (
+      index >= 0 &&
+      index < context.chat.length &&
+      Boolean(getTrackerDataFromMessage(context.chat[index]))
+    ),
+    hasPriorTrackableUserAt: index => hasTrackableUserMessageBeforeIndex(context, index),
+  });
+  if (bootstrapDecision.skippedGreetingBootstrap && lastTrackableIndex != null) {
     pushTrace("extract.bootstrap.skip", {
       reason: "greeting_generation_disabled",
       targetMessageIndex: lastTrackableIndex,
     });
   }
-  if (shouldBootstrapAiExtraction && !skipGreetingBootstrap && lastTrackableIndex != null) {
-    const bootstrapKey = `${getDebugScopeKey(context)}|ai:${lastTrackableIndex}`;
+  if (bootstrapDecision.targetMessageIndex != null) {
+    const bootstrapKey = `${getDebugScopeKey(context)}|ai:${bootstrapDecision.targetMessageIndex}`;
     if (autoBootstrapExtractionKey !== bootstrapKey) {
       autoBootstrapExtractionKey = bootstrapKey;
       pushTrace("extract.bootstrap.schedule", {
-        reason: "missing_tracker_on_latest_ai",
-        targetMessageIndex: lastTrackableIndex,
+        reason: bootstrapDecision.reason,
+        targetMessageIndex: bootstrapDecision.targetMessageIndex,
       });
-      scheduleExtraction("AUTO_BOOTSTRAP_MISSING_TRACKER", lastTrackableIndex, 140);
+      scheduleExtraction("AUTO_BOOTSTRAP_MISSING_TRACKER", bootstrapDecision.targetMessageIndex, 140);
     }
-  } else if (latestTrackableHasTracker) {
+  } else {
     autoBootstrapExtractionKey = null;
   }
   if (trackerUiState.phase === "idle") {
@@ -4199,44 +4691,14 @@ function registerEvents(context: STContext): void {
 function openSettings(): void {
   if (!settings) return;
   const context = getSafeContext();
-  const chatCharacterNameSet = new Set<string>();
-  for (const message of context?.chat ?? []) {
-    if (!isTrackableAiMessage(message)) continue;
-    const name = String(message?.name ?? "").trim();
-    if (!name) continue;
-    if (name === USER_TRACKER_KEY || name === GLOBAL_TRACKER_KEY) continue;
-    chatCharacterNameSet.add(name.toLowerCase());
-  }
-  const previewCharacterCandidates: Array<{ name: string; avatar?: string | null }> = [];
-  const seenPreviewKeys = new Set<string>();
-  const addPreviewCandidate = (name: string, avatar: string | null, fallbackIndex?: number): void => {
-    const normalizedName = String(name ?? "").trim();
-    if (!normalizedName) return;
-    const normalizedAvatar = String(avatar ?? "").trim() || null;
-    const key = normalizedAvatar
-      ? `avatar:${normalizedAvatar}`
-      : `name:${normalizedName.toLowerCase()}:${fallbackIndex ?? 0}`;
-    if (seenPreviewKeys.has(key)) return;
-    seenPreviewKeys.add(key);
-    previewCharacterCandidates.push({ name: normalizedName, avatar: normalizedAvatar });
-  };
-  for (const [index, character] of (context?.characters ?? []).entries()) {
-    const name = String(character?.name ?? "").trim();
-    if (!name) continue;
-    const lowerName = name.toLowerCase();
-    if (!chatCharacterNameSet.has(lowerName)) continue;
-    addPreviewCandidate(name, String(character?.avatar ?? "").trim() || null, index);
-  }
-  const fallbackName = String(context?.name2 ?? "").trim();
-  if (fallbackName && chatCharacterNameSet.has(fallbackName.toLowerCase())) {
-    addPreviewCandidate(fallbackName, null, (context?.characters ?? []).length + 1);
-  }
-  for (const lowerName of chatCharacterNameSet) {
-    const match = (context?.characters ?? []).find(character => String(character?.name ?? "").trim().toLowerCase() === lowerName);
-    const resolvedName = String(match?.name ?? "").trim() || lowerName;
-    const avatar = String(match?.avatar ?? "").trim() || null;
-    addPreviewCandidate(resolvedName, avatar, (context?.characters ?? []).length + 2);
-  }
+  const previewCharacterCandidates = context && settings
+    ? buildMacroPreviewCandidates({
+      context,
+      settings,
+      data: latestPromptMacroData,
+      allCharacterNames: allCharacterNames.filter(name => name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY),
+    })
+    : [];
   openSettingsModal({
     settings,
     profileOptions: context ? discoverConnectionProfiles(context) : [],
@@ -4479,3 +4941,4 @@ if (document.readyState === "loading") {
 } else {
   void init();
 }
+

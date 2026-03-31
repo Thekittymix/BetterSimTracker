@@ -324,6 +324,7 @@ export function openSettingsModal(input: {
         <div class="bst-help-line bst-toggle-help">Controls when BST runs, how robust extraction should be, and how much it is allowed to smooth stat changes.</div>
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="autoGenerateTracker" type="checkbox">Auto-Generate Tracker</label>
+          <label>Entity Tracking Mode <select data-k="entityTrackingMode"><option value="standard">Standard</option><option value="dynamic_characters">Dynamic Characters (Experimental)</option></select></label>
           <label class="bst-check"><input data-k="sequentialExtraction" type="checkbox">Sequential Extraction (per stat)</label>
           <label class="bst-check"><input data-k="enableSequentialStatGroups" type="checkbox">Enable Sequential Stat Groups</label>
           <label class="bst-check"><input data-k="strictJsonRepair" type="checkbox">Strict JSON Repair</label>
@@ -331,6 +332,12 @@ export function openSettingsModal(input: {
           <label class="bst-check" data-bst-row="regenerateOnMessageEdit"><input data-k="regenerateOnMessageEdit" type="checkbox">Regenerate Tracker After Message Edit</label>
           <label class="bst-check" data-bst-row="generateOnGreetingMessages"><input data-k="generateOnGreetingMessages" type="checkbox">Generate Tracker on Greetings</label>
         </div>
+        <div class="bst-section-divider" data-bst-row="multiCharacterLifecycleDivider">Dynamic Character Lifecycle</div>
+        <div class="bst-help-line bst-toggle-help" data-bst-row="multiCharacterLifecycleHelp">Controls when dynamic character cards stop rendering in the main tracker UI after leaving the scene. Archived entities remain in chat lifecycle metadata for later reactivation.</div>
+        <div class="bst-check-grid" data-bst-row="multiCharacterLifecycleToggles">
+          <label class="bst-check"><input data-k="autoArchiveInactiveCards" type="checkbox">Auto-Archive Inactive</label>
+        </div>
+        <label data-bst-row="archiveInactiveAfterTurns">Archive After Turns <input data-k="archiveInactiveAfterTurns" type="number" min="1" max="200"></label>
         <div class="bst-section-divider">Advanced Extraction Tuning</div>
         <label>Context Messages <input data-k="contextMessages" type="number" min="1" max="40"></label>
         <label data-bst-row="maxConcurrentCalls">Max Concurrent Requests <input data-k="maxConcurrentCalls" type="number" min="1" max="8"></label>
@@ -849,9 +856,9 @@ export function openSettingsModal(input: {
           </button>
         </div>
         <div style="margin-top:8px;font-size:12px;opacity:.9;">Latest Extraction Debug Record</div>
-        <div class="bst-debug-box">${input.debugRecord ? JSON.stringify(input.debugRecord, null, 2) : "No debug record yet."}</div>
+        <div class="bst-debug-box" data-bst-row="latestDebugRecordBox">${input.debugRecord ? JSON.stringify(input.debugRecord, null, 2) : "No debug record yet."}</div>
         <div style="margin-top:8px;font-size:12px;opacity:.9;">Latest Injected Prompt Block</div>
-        <div class="bst-debug-box">${input.injectedPrompt?.trim() ? input.injectedPrompt : "No injected prompt currently active."}</div>
+        <div class="bst-debug-box" data-bst-row="latestInjectedPromptBox">${input.injectedPrompt?.trim() ? input.injectedPrompt : "No injected prompt currently active."}</div>
       </div>
     </div>
     <div class="bst-settings-footer bst-surface-footer bst-surface-footer-end">
@@ -1214,10 +1221,13 @@ export function openSettingsModal(input: {
   set("injectSummarizationNote", String(input.settings.injectSummarizationNote));
   set("autoDetectActive", String(input.settings.autoDetectActive));
   set("autoGenerateTracker", String(input.settings.autoGenerateTracker));
+  set("entityTrackingMode", input.settings.entityTrackingMode);
   set("regenerateOnMessageEdit", String(input.settings.regenerateOnMessageEdit));
   set("generateOnGreetingMessages", String(input.settings.generateOnGreetingMessages));
   set("activityLookback", String(input.settings.activityLookback));
   set("showInactive", String(input.settings.showInactive));
+  set("autoArchiveInactiveCards", String(input.settings.autoArchiveInactiveCards));
+  set("archiveInactiveAfterTurns", String(input.settings.archiveInactiveAfterTurns));
   set("inactiveLabel", input.settings.inactiveLabel);
   set("showLastThought", String(input.settings.showLastThought));
   set("sceneCardEnabled", String(input.settings.sceneCardEnabled));
@@ -2092,25 +2102,26 @@ export function openSettingsModal(input: {
       const allowsSceneMacro = quickEnabled && Boolean(stat.globalScope);
       const allowsUserMacro = quickEnabled && !Boolean(stat.globalScope) && Boolean(stat.trackUser ?? stat.track);
       const allowsCharMacro = quickEnabled && !Boolean(stat.globalScope) && Boolean(stat.trackCharacters ?? stat.track);
-      const currentCharacterMacro = macroSegment && allowsCharMacro
+      const previewTargets = (input.previewCharacterCandidates ?? [])
+        .map(candidate => ({
+          name: String(candidate?.name ?? "").trim(),
+          avatar: String(candidate?.avatar ?? "").trim(),
+        }))
+        .filter(item => {
+          if (!item.name) return false;
+          const normalized = item.name.toLowerCase();
+          return normalized !== USER_TRACKER_KEY.toLowerCase() && normalized !== GLOBAL_TRACKER_KEY.toLowerCase() && normalized !== "user";
+        });
+      const currentCharacterMacro = macroSegment && allowsCharMacro && previewTargets.length <= 1
         ? `{{bst_stat_char_${macroSegment}}}`
         : null;
       const characterMacroExamples = (() => {
         if (!macroSegment || !allowsCharMacro) return [] as string[];
-        const preview = (input.previewCharacterCandidates ?? [])
-          .map(candidate => ({
-            name: String(candidate?.name ?? "").trim(),
-            avatar: String(candidate?.avatar ?? "").trim(),
-          }))
-          .filter(item => {
-            if (!item.name) return false;
-            const normalized = item.name.toLowerCase();
-            return normalized !== USER_TRACKER_KEY.toLowerCase() && normalized !== GLOBAL_TRACKER_KEY.toLowerCase() && normalized !== "user";
-          });
+        const preview = previewTargets;
         const counts = new Map<string, number>();
         const examples: string[] = [];
         for (const item of preview) {
-          if (examples.length >= 4) break;
+          if (examples.length >= 6) break;
           const avatarStem = item.avatar
             ? item.avatar.split(/[\\/]/).filter(Boolean).pop()?.replace(/\.[a-z0-9]+$/i, "") ?? ""
             : "";
@@ -2169,7 +2180,9 @@ export function openSettingsModal(input: {
               ${escapeHtml(defaultMeta)}
             </div>
             ${description ? `<div class="bst-custom-stat-meta">${escapeHtml(description)}</div>` : ""}
-            ${macroScopes.length || allowsCharMacro ? `<div class="bst-custom-stat-meta">Macros: ${macroScopes.map(item => `<code>${escapeHtml(item)}</code>`).join(" ")}${(allowsCharMacro && !characterMacroExamples.length) ? ` <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>` : ""}${allowsCharMacro ? ` <span class="bst-inline-hint">Current chat character uses <code>{{bst_stat_char_${escapeHtml(macroSegment)}}}</code>; explicit target uses <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>.</span>` : ""}</div>` : ""}
+            ${macroScopes.length || allowsCharMacro ? `<div class="bst-custom-stat-meta">Macros: ${macroScopes.map(item => `<code>${escapeHtml(item)}</code>`).join(" ")}${(allowsCharMacro && !characterMacroExamples.length) ? ` <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>` : ""}${allowsCharMacro ? (currentCharacterMacro
+              ? ` <span class="bst-inline-hint">Current chat character uses <code>{{bst_stat_char_${escapeHtml(macroSegment)}}}</code>; explicit target uses <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>.</span>`
+              : ` <span class="bst-inline-hint">When multiple character targets exist in the current chat, use explicit target macros like <code>{{bst_stat_char_${escapeHtml(macroSegment)}_&lt;character_slug&gt;}}</code>.</span>`) : ""}</div>` : ""}
             <div class="bst-custom-stat-flags">
               ${flags.map(flag => `<span class="bst-custom-stat-flag">${escapeHtml(flag)}</span>`).join("")}
             </div>
@@ -4214,10 +4227,15 @@ export function openSettingsModal(input: {
       injectSummarizationNote: readBool("injectSummarizationNote", input.settings.injectSummarizationNote),
       autoDetectActive: readBool("autoDetectActive", input.settings.autoDetectActive),
       autoGenerateTracker: readBool("autoGenerateTracker", input.settings.autoGenerateTracker),
+      entityTrackingMode: read("entityTrackingMode") === "dynamic_characters"
+        ? "dynamic_characters"
+        : "standard",
       regenerateOnMessageEdit: readBool("regenerateOnMessageEdit", input.settings.regenerateOnMessageEdit),
       generateOnGreetingMessages: readBool("generateOnGreetingMessages", input.settings.generateOnGreetingMessages),
       activityLookback: readNumber("activityLookback", input.settings.activityLookback, 1, 25),
       showInactive: readBool("showInactive", input.settings.showInactive),
+      autoArchiveInactiveCards: readBool("autoArchiveInactiveCards", input.settings.autoArchiveInactiveCards),
+      archiveInactiveAfterTurns: readNumber("archiveInactiveAfterTurns", input.settings.archiveInactiveAfterTurns, 1, 200),
       inactiveLabel: read("inactiveLabel") || input.settings.inactiveLabel,
       showLastThought: readBool("showLastThought", input.settings.showLastThought),
       sceneCardEnabled: readBool("sceneCardEnabled", input.settings.sceneCardEnabled),
@@ -4303,7 +4321,11 @@ export function openSettingsModal(input: {
     const lookbackRow = modal.querySelector('[data-bst-row="activityLookback"]') as HTMLElement | null;
     const regenerateOnMessageEditRow = modal.querySelector('[data-bst-row="regenerateOnMessageEdit"]') as HTMLElement | null;
     const generateOnGreetingMessagesRow = modal.querySelector('[data-bst-row="generateOnGreetingMessages"]') as HTMLElement | null;
+    const multiCharacterLifecycleDivider = modal.querySelector('[data-bst-row="multiCharacterLifecycleDivider"]') as HTMLElement | null;
+    const multiCharacterLifecycleHelp = modal.querySelector('[data-bst-row="multiCharacterLifecycleHelp"]') as HTMLElement | null;
+    const multiCharacterLifecycleToggles = modal.querySelector('[data-bst-row="multiCharacterLifecycleToggles"]') as HTMLElement | null;
     const inactiveLabelRow = modal.querySelector('[data-bst-row="inactiveLabel"]') as HTMLElement | null;
+    const archiveAfterTurnsRow = modal.querySelector('[data-bst-row="archiveInactiveAfterTurns"]') as HTMLElement | null;
     const sceneCardDrawer = modal.querySelector('[data-bst-row="sceneCardDrawer"]') as HTMLElement | null;
     const sceneCardPositionRow = modal.querySelector('[data-bst-row="sceneCardPosition"]') as HTMLElement | null;
     const sceneCardLayoutRow = modal.querySelector('[data-bst-row="sceneCardLayout"]') as HTMLElement | null;
@@ -4364,10 +4386,25 @@ export function openSettingsModal(input: {
     if (generateOnGreetingMessagesRow) {
       generateOnGreetingMessagesRow.style.display = current.autoGenerateTracker ? "" : "none";
     }
+    const showMultiCharacterLifecycle = current.entityTrackingMode === "dynamic_characters";
+    if (multiCharacterLifecycleDivider) {
+      multiCharacterLifecycleDivider.style.display = showMultiCharacterLifecycle ? "block" : "none";
+    }
+    if (multiCharacterLifecycleHelp) {
+      multiCharacterLifecycleHelp.style.display = showMultiCharacterLifecycle ? "block" : "none";
+    }
+    if (multiCharacterLifecycleToggles) {
+      multiCharacterLifecycleToggles.style.display = showMultiCharacterLifecycle ? "grid" : "none";
+    }
     if (inactiveLabelRow) {
       inactiveLabelRow.style.display = current.showInactive ? "flex" : "none";
       inactiveLabelRow.style.flexDirection = "column";
       inactiveLabelRow.style.gap = "4px";
+    }
+    if (archiveAfterTurnsRow) {
+      archiveAfterTurnsRow.style.display = showMultiCharacterLifecycle && current.autoArchiveInactiveCards ? "flex" : "none";
+      archiveAfterTurnsRow.style.flexDirection = "column";
+      archiveAfterTurnsRow.style.gap = "4px";
     }
     if (sceneCardDrawer) {
       sceneCardDrawer.style.display = "block";
@@ -4594,6 +4631,8 @@ export function openSettingsModal(input: {
     stExpressionImagePositionX: "Global horizontal crop position for ST expression mood images.",
     stExpressionImagePositionY: "Global vertical crop position for ST expression mood images.",
     showInactive: "Show tracker cards for inactive/off-screen characters.",
+    autoArchiveInactiveCards: "Hide long-idle inactive cards from the main tracker view by moving them into an archived state.",
+    archiveInactiveAfterTurns: "Number of chat turns an inactive card can stay visible before becoming archived.",
     inactiveLabel: "Text label shown on cards for inactive characters.",
     showLastThought: "Show extracted last thought text inside tracker cards.",
     sceneCardEnabled: "Render a dedicated Scene card from global custom stats.",
@@ -4676,6 +4715,10 @@ export function openSettingsModal(input: {
   modal.querySelector('[data-action="clear-diagnostics"]')?.addEventListener("click", () => {
     persistLive();
     input.onClearDiagnostics?.();
+    const debugRecordBox = modal.querySelector('[data-bst-row="latestDebugRecordBox"]') as HTMLElement | null;
+    if (debugRecordBox) {
+      debugRecordBox.textContent = "No debug record yet.";
+    }
   });
   const promptDefaults: Partial<Record<keyof BetterSimTrackerSettings, string>> = {
     promptTemplateUnified: DEFAULT_UNIFIED_PROMPT_INSTRUCTION,
