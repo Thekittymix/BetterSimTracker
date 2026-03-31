@@ -718,7 +718,7 @@ test("syncBstMacros registers explicit mixed-scene macros for alias and narrativ
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_blake")?.(), "oversized dark shirt");
   assert.equal(registeredNewEngine.get("bst_stat_char_clothes_elias_mercer")?.(), "heavy work boots, lantern");
   assert.equal(registeredNewEngine.has("bst_stat_char_clothes_camp_whispering_pines_ashley_blake_garret_raleigh"), false);
-  assert.equal(registeredNewEngine.has("bst_stat_char_clothes"), false);
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "{{bst_stat_char_clothes}}");
 
   const previewCandidates = buildMacroPreviewCandidates({
     context,
@@ -740,6 +740,110 @@ test("syncBstMacros registers explicit mixed-scene macros for alias and narrativ
 
   const debug = getBstMacroDebugSnapshot();
   assert.equal(debug?.["currentCharacterTarget"], null);
+});
+
+test("syncBstMacros resets bare character macros to a literal fallback when switching from single-target to mixed-target scope", () => {
+  const { context, registeredNewEngine } = makeContext();
+
+  syncBstMacros({
+    context,
+    settings: makeSettings(),
+    allCharacterNames: ["Seraphina", USER_TRACKER_KEY],
+    getLatestPromptMacroData: () => makeTracker(),
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "black sundress, sandals");
+
+  const settings = {
+    ...makeSettings(),
+    entityTrackingMode: "dynamic_characters" as const,
+  };
+  context.characterId = 0;
+  context.name2 = "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh";
+  context.characters = [
+    {
+      name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      avatar: "Camp Whispering Pines  Ashley, Blake, Garret, & Raleigh.png",
+    } as any,
+  ];
+
+  const tracker: TrackerData = {
+    timestamp: 1,
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      sceneEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+      messageEntityIds: ["ent-ashley", "ent-blake", "ent-garret", "ent-raleigh"],
+    }),
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "ent-garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Raleigh: {
+        entityId: "ent-raleigh",
+        ownerName: "Raleigh",
+        canonicalName: "Raleigh",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    statisticsByEntityId: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: { clothes: {}, pose: {}, physicality: {} },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "ent-ashley": ["worn oversized hoodie"],
+        "ent-blake": ["oversized dark shirt"],
+        "ent-garret": ["leather jacket"],
+        "ent-raleigh": ["preppy shirt"],
+      },
+    },
+  };
+
+  syncBstMacros({
+    context,
+    settings,
+    allCharacterNames: [
+      "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+      "Ashley",
+      "Blake",
+      "Garret",
+      "Raleigh",
+      USER_TRACKER_KEY,
+    ],
+    getLatestPromptMacroData: () => tracker,
+    getLastInjectedPrompt: () => "",
+  });
+
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes")?.(), "{{bst_stat_char_clothes}}");
+  assert.equal(registeredNewEngine.get("bst_stat_char_clothes_ashley")?.(), "worn oversized hoodie");
 });
 
 test("syncBstMacros keeps character stat macros scoped to the current entity id instead of stale same-name registry aliases", () => {

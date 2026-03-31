@@ -350,6 +350,10 @@ function formatMacroValue(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+function buildLiteralMacroEcho(name: string): string {
+  return `{{${String(name ?? "").trim()}}}`;
+}
+
 function buildImageMacroStatDefs(settings: BetterSimTrackerSettings): ImageMacroStatDef[] {
   return (settings.customStats ?? [])
     .map(def => ({ ...def, id: String(def.id ?? "").trim() }))
@@ -788,10 +792,11 @@ export function syncBstMacros(input: {
       );
     }
     if (allowsCharacter) {
+      const bareCharacterMacroName = `bst_stat_char_${segment}`;
       if (currentCharacterTarget) {
         registerBstMacro(
           context,
-          `bst_stat_char_${segment}`,
+          bareCharacterMacroName,
           `BetterSimTracker stat macro for "${statId}" (current chat character).`,
           () => resolveMacroStatValue(
             context,
@@ -802,6 +807,13 @@ export function syncBstMacros(input: {
             currentCharacterTarget.ownerName,
             currentCharacterTarget.entityId ? [currentCharacterTarget.entityId] : undefined,
           ),
+        );
+      } else if (characterTargets.length > 1) {
+        registerBstMacro(
+          context,
+          bareCharacterMacroName,
+          `BetterSimTracker literal fallback for "${statId}" when multiple character targets require explicit macros.`,
+          () => buildLiteralMacroEcho(bareCharacterMacroName),
         );
       }
       for (const target of characterTargets) {
