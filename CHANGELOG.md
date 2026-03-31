@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0-dev3] - 2026-03-31
+### Changed
+- Clarified the `Dynamic Characters` card-color control so it now shows the real active color, removes the redundant text input, and makes the automatic-color action explicit.
+
 ## [2.5.0-dev2] - 2026-03-31
 ### Changed
 - Restyled the `Dynamic Characters` manager to reuse the existing BST modal, row, and color-input UI patterns instead of a bespoke dialog layout.

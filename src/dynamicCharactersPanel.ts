@@ -15,6 +15,7 @@ import {
   EDIT_STATS_MODAL_CLASS,
   ensureStyles,
   escapeHtml,
+  getStableAutoCardColor,
   normalizeHexColor,
 } from "./ui";
 
@@ -116,6 +117,14 @@ function colorInputValue(cardColor: string | null): string {
   return normalizeHexColor(cardColor) ?? "#66ccff";
 }
 
+function resolveDisplayedCardColor(item: DynamicCharactersManagerItem): string {
+  return normalizeHexColor(item.cardColor) ?? normalizeHexColor(getStableAutoCardColor(item.ownerName)) ?? "#66ccff";
+}
+
+function colorModeLabel(item: DynamicCharactersManagerItem): string {
+  return item.cardColor ? "Manual override" : "Using automatic BST color";
+}
+
 export function listManageableDynamicCharacters(
   context: STContext | null,
   settings: BetterSimTrackerSettings | null,
@@ -174,12 +183,12 @@ export function renderDynamicCharactersDialogMarkup(items: DynamicCharactersMana
             <label class="bst-dynamic-color-field">
               <span>Card Color</span>
               <div class="bst-color-inputs">
-                <input type="color" value="${escapeHtml(colorInputValue(item.cardColor))}" data-bst-dynamic-action="color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color picker for ${escapeHtml(item.ownerName)}">
-                <input type="text" value="${escapeHtml(item.cardColor ?? "")}" placeholder="#66ccff" data-bst-dynamic-action="color-text" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color hex value for ${escapeHtml(item.ownerName)}">
+                <input type="color" value="${escapeHtml(resolveDisplayedCardColor(item))}" data-bst-dynamic-action="color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color picker for ${escapeHtml(item.ownerName)}">
               </div>
+              <span class="bst-custom-stat-meta">${escapeHtml(colorModeLabel(item))}</span>
             </label>
             <div class="bst-dynamic-item-action-row">
-              <button type="button" class="bst-btn bst-btn-soft" data-bst-dynamic-action="auto-color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">Auto</button>
+              <button type="button" class="bst-btn bst-btn-soft" data-bst-dynamic-action="auto-color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" ${item.cardColor ? "" : "disabled"}>${item.cardColor ? "Use Auto Color" : "Using Auto Color"}</button>
               <button type="button" class="bst-btn ${item.lifecycleState === "archived" ? "bst-btn-soft" : "bst-btn-danger"}" data-bst-dynamic-action="${item.lifecycleState === "archived" ? "restore" : "archive"}" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">${item.lifecycleState === "archived" ? "Restore" : "Archive"}</button>
             </div>
           </div>
@@ -259,7 +268,7 @@ export function initDynamicCharactersPanel(input: {
       const entityId = String(target.getAttribute("data-bst-dynamic-entity") ?? "").trim();
       if (!liveContext || !entityId) return;
       const action = String(target.getAttribute("data-bst-dynamic-action") ?? "").trim();
-      if (action === "color" || action === "color-text") {
+      if (action === "color") {
         if (setEntityRegistryCardColor(liveContext, entityId, target.value)) {
           input.onStateChanged();
           renderDialog();

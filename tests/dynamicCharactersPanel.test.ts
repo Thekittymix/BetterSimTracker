@@ -204,6 +204,28 @@ test("renderDynamicCharactersDialogMarkup reuses BST modal and color input patte
   assert.match(markup, /bst-custom-stat-flag/);
   assert.match(markup, /bst-color-inputs/);
   assert.match(markup, /Card Color/);
+  assert.match(markup, /Manual override/);
+  assert.match(markup, /Use Auto Color/);
   assert.doesNotMatch(markup, /bst-dynamic-color-preview/);
+  assert.doesNotMatch(markup, /color-text/);
   assert.doesNotMatch(markup, />Close</);
+});
+
+test("renderDynamicCharactersDialogMarkup shows auto color state clearly without a text input", () => {
+  const markup = renderDynamicCharactersDialogMarkup([
+    {
+      entityId: "bst_mc_alias:camp:blake",
+      ownerName: "Blake",
+      lifecycleState: "active",
+      cardColor: null,
+      kind: "multi_character_alias",
+      introducedAtMessageIndex: 0,
+      lastSeenMessageIndex: 3,
+    },
+  ]);
+
+  assert.match(markup, /Using automatic BST color/);
+  assert.match(markup, /Using Auto Color/);
+  assert.match(markup, /disabled/);
+  assert.doesNotMatch(markup, /type="text"/);
 });
