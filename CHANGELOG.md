@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0-dev7] - 2026-04-02
+### Changed
+- Refined the `Dynamic Characters` manager into a denser, clearer per-character row layout with simpler card-color controls and grouped actions.
+
+### Fixed
+- Fixed dynamic character archiving so manual archive state now survives later syncs and reloads instead of flipping back to active.
+
 ## [2.5.0-dev6] - 2026-04-02
 ### Changed
 - Compactified the `Dynamic Characters` manager into denser per-character rows with inline color controls and action buttons instead of oversized nested panels.

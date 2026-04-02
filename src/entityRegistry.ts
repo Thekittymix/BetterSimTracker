@@ -175,6 +175,10 @@ function resolveDerivedLifecycleMetadata(entry: TrackerEntityRegistryEntry): {
   };
 }
 
+function hasManualArchivedOverride(entry: TrackerEntityRegistryEntry): boolean {
+  return entry.manualLifecycleOverride === "archived";
+}
+
 function resolveLastActiveMessageIndexAtMessage(
   entry: TrackerEntityRegistryEntry,
   messageIndex: number,
@@ -239,6 +243,9 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
       const archivedAtMessageIndex = entry.archivedAtMessageIndex == null
         ? null
         : (Number.isFinite(Number(entry.archivedAtMessageIndex)) ? Number(entry.archivedAtMessageIndex) : null);
+      const manualLifecycleOverride = isLifecycleState(entry.manualLifecycleOverride)
+        ? entry.manualLifecycleOverride
+        : null;
       const cardColor = normalizeHexColor(entry.cardColor);
       const lifecycleEvents = sanitizeLifecycleEvents(entry.lifecycleEvents, lifecycleState, introducedAtMessageIndex);
       if (!id || !ownerName || !canonicalName || !sourceName || !sourceKey) continue;
@@ -256,6 +263,7 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
         lastActiveMessageIndex,
         lifecycleState,
         archivedAtMessageIndex,
+        manualLifecycleOverride: manualLifecycleOverride ?? undefined,
         cardColor: cardColor ?? undefined,
         lifecycleEvents,
       };
@@ -331,6 +339,7 @@ function ensureEntry(
     lastActiveMessageIndex: null,
     lifecycleState: "inactive",
     archivedAtMessageIndex: null,
+    manualLifecycleOverride: null,
     lifecycleEvents: [{ messageIndex, state: "inactive" }],
   };
   registry.entities[entityId] = entry;
@@ -425,45 +434,47 @@ export function syncEntityRegistryFromRender(input: {
       entry.aliases = aliases;
       changed = true;
     }
-    const derived = resolveDerivedLifecycleMetadata(entry);
-    if (entry.introducedAtMessageIndex !== derived.introducedAtMessageIndex) {
-      entry.introducedAtMessageIndex = derived.introducedAtMessageIndex;
-      changed = true;
-    }
-    if (entry.lastSeenMessageIndex !== derived.lastSeenMessageIndex) {
-      entry.lastSeenMessageIndex = derived.lastSeenMessageIndex;
-      changed = true;
-    }
-    if (entry.lastActiveMessageIndex !== derived.lastActiveMessageIndex) {
-      entry.lastActiveMessageIndex = derived.lastActiveMessageIndex;
-      changed = true;
-    }
-    if (entry.lifecycleState !== derived.lifecycleState) {
-      entry.lifecycleState = derived.lifecycleState;
-      changed = true;
-    }
-    if (entry.archivedAtMessageIndex !== derived.archivedAtMessageIndex) {
-      entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
-      changed = true;
-    }
-    if (upsertLifecycleEvent(entry, input.messageIndex, lifecycleState)) {
-      const nextDerived = resolveDerivedLifecycleMetadata(entry);
-      if (entry.introducedAtMessageIndex !== nextDerived.introducedAtMessageIndex) {
-        entry.introducedAtMessageIndex = nextDerived.introducedAtMessageIndex;
+    if (!hasManualArchivedOverride(entry)) {
+      const derived = resolveDerivedLifecycleMetadata(entry);
+      if (entry.introducedAtMessageIndex !== derived.introducedAtMessageIndex) {
+        entry.introducedAtMessageIndex = derived.introducedAtMessageIndex;
+        changed = true;
       }
-      if (entry.lastSeenMessageIndex !== nextDerived.lastSeenMessageIndex) {
-        entry.lastSeenMessageIndex = nextDerived.lastSeenMessageIndex;
+      if (entry.lastSeenMessageIndex !== derived.lastSeenMessageIndex) {
+        entry.lastSeenMessageIndex = derived.lastSeenMessageIndex;
+        changed = true;
       }
-      if (entry.lastActiveMessageIndex !== nextDerived.lastActiveMessageIndex) {
-        entry.lastActiveMessageIndex = nextDerived.lastActiveMessageIndex;
+      if (entry.lastActiveMessageIndex !== derived.lastActiveMessageIndex) {
+        entry.lastActiveMessageIndex = derived.lastActiveMessageIndex;
+        changed = true;
       }
-      if (entry.lifecycleState !== nextDerived.lifecycleState) {
-        entry.lifecycleState = nextDerived.lifecycleState;
+      if (entry.lifecycleState !== derived.lifecycleState) {
+        entry.lifecycleState = derived.lifecycleState;
+        changed = true;
       }
-      if (entry.archivedAtMessageIndex !== nextDerived.archivedAtMessageIndex) {
-        entry.archivedAtMessageIndex = nextDerived.archivedAtMessageIndex;
+      if (entry.archivedAtMessageIndex !== derived.archivedAtMessageIndex) {
+        entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
+        changed = true;
       }
-      changed = true;
+      if (upsertLifecycleEvent(entry, input.messageIndex, lifecycleState)) {
+        const nextDerived = resolveDerivedLifecycleMetadata(entry);
+        if (entry.introducedAtMessageIndex !== nextDerived.introducedAtMessageIndex) {
+          entry.introducedAtMessageIndex = nextDerived.introducedAtMessageIndex;
+        }
+        if (entry.lastSeenMessageIndex !== nextDerived.lastSeenMessageIndex) {
+          entry.lastSeenMessageIndex = nextDerived.lastSeenMessageIndex;
+        }
+        if (entry.lastActiveMessageIndex !== nextDerived.lastActiveMessageIndex) {
+          entry.lastActiveMessageIndex = nextDerived.lastActiveMessageIndex;
+        }
+        if (entry.lifecycleState !== nextDerived.lifecycleState) {
+          entry.lifecycleState = nextDerived.lifecycleState;
+        }
+        if (entry.archivedAtMessageIndex !== nextDerived.archivedAtMessageIndex) {
+          entry.archivedAtMessageIndex = nextDerived.archivedAtMessageIndex;
+        }
+        changed = true;
+      }
     }
     registry.ownerToEntityId[normalizeKey(ownerName)] = entry.id;
     registry.ownerToEntityId[normalizeKey(entry.canonicalName)] = entry.id;
@@ -518,6 +529,7 @@ export function syncNarrativeEntityRegistryFromResolvedEntities(input: {
       lastActiveMessageIndex: null,
       lifecycleState: "inactive",
       archivedAtMessageIndex: null,
+      manualLifecycleOverride: null,
       lifecycleEvents: [{ messageIndex: input.messageIndex, state: "inactive" }],
     };
     if (!existing) {
@@ -552,30 +564,32 @@ export function syncNarrativeEntityRegistryFromResolvedEntities(input: {
       entry.aliases = aliases;
       changed = true;
     }
-    const lifecycleState = input.getLifecycleState(ownerName, entityId);
-    if (upsertLifecycleEvent(entry, input.messageIndex, lifecycleState)) {
-      changed = true;
-    }
-    const derived = resolveDerivedLifecycleMetadata(entry);
-    if (entry.introducedAtMessageIndex !== derived.introducedAtMessageIndex) {
-      entry.introducedAtMessageIndex = derived.introducedAtMessageIndex;
-      changed = true;
-    }
-    if (entry.lastSeenMessageIndex !== derived.lastSeenMessageIndex) {
-      entry.lastSeenMessageIndex = derived.lastSeenMessageIndex;
-      changed = true;
-    }
-    if (entry.lastActiveMessageIndex !== derived.lastActiveMessageIndex) {
-      entry.lastActiveMessageIndex = derived.lastActiveMessageIndex;
-      changed = true;
-    }
-    if (entry.lifecycleState !== derived.lifecycleState) {
-      entry.lifecycleState = derived.lifecycleState;
-      changed = true;
-    }
-    if (entry.archivedAtMessageIndex !== derived.archivedAtMessageIndex) {
-      entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
-      changed = true;
+    if (!hasManualArchivedOverride(entry)) {
+      const lifecycleState = input.getLifecycleState(ownerName, entityId);
+      if (upsertLifecycleEvent(entry, input.messageIndex, lifecycleState)) {
+        changed = true;
+      }
+      const derived = resolveDerivedLifecycleMetadata(entry);
+      if (entry.introducedAtMessageIndex !== derived.introducedAtMessageIndex) {
+        entry.introducedAtMessageIndex = derived.introducedAtMessageIndex;
+        changed = true;
+      }
+      if (entry.lastSeenMessageIndex !== derived.lastSeenMessageIndex) {
+        entry.lastSeenMessageIndex = derived.lastSeenMessageIndex;
+        changed = true;
+      }
+      if (entry.lastActiveMessageIndex !== derived.lastActiveMessageIndex) {
+        entry.lastActiveMessageIndex = derived.lastActiveMessageIndex;
+        changed = true;
+      }
+      if (entry.lifecycleState !== derived.lifecycleState) {
+        entry.lifecycleState = derived.lifecycleState;
+        changed = true;
+      }
+      if (entry.archivedAtMessageIndex !== derived.archivedAtMessageIndex) {
+        entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
+        changed = true;
+      }
     }
     registry.ownerToEntityId[normalizeKey(ownerName)] = entityId;
     registry.ownerToEntityId[normalizeKey(entry.canonicalName)] = entityId;
@@ -607,6 +621,15 @@ export function setEntityRegistryLifecycleOverride(
   if (!entry) return false;
 
   let changed = false;
+  const nextManualOverride = lifecycleState === "archived" ? "archived" : null;
+  if ((entry.manualLifecycleOverride ?? null) !== nextManualOverride) {
+    if (nextManualOverride) {
+      entry.manualLifecycleOverride = nextManualOverride;
+    } else {
+      delete entry.manualLifecycleOverride;
+    }
+    changed = true;
+  }
   if (upsertLifecycleEvent(entry, messageIndex, lifecycleState)) {
     changed = true;
   }

@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildEntityResolution } from "./helpers/entityResolution";
 
-import { syncEntityRegistryFromRender, readEntityRegistry } from "../src/entityRegistry";
+import {
+  getEntityRegistryLifecycleStateForEntityIdForMessage,
+  listEntityRegistryOwnersForMessage,
+  readEntityRegistry,
+  setEntityRegistryLifecycleOverride,
+  syncEntityRegistryFromRender,
+} from "../src/entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "../src/entityRegistrySync";
 import { writeTrackerDataToMessage } from "../src/storage";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
@@ -454,6 +460,67 @@ test("syncEntityRegistryFromTrackerData archives inactive aliases on no-active c
   const registry = readEntityRegistry(context);
   assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "archived");
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "archived");
+});
+
+test("syncEntityRegistryFromTrackerData preserves a manual archive override across later syncs for the same message", () => {
+  const context = makeContext();
+  const settings = makeSettings();
+
+  writeTrackerDataToMessage(context, makeTrackerData(["Ashley", "Blake"]), 0);
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 0,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const current = {
+    ...makeTrackerData(["Ashley", "Blake"]),
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Ashley", "Blake"],
+      messageOwners: ["Ashley"],
+      sceneEntityIds: [
+        "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley",
+        "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+      ],
+      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:ashley"],
+      source: "model" as const,
+    }),
+  } satisfies TrackerData;
+  writeTrackerDataToMessage(context, current, 1);
+  syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  const registryBeforeArchive = readEntityRegistry(context);
+  const ashleyId = registryBeforeArchive.ownerToEntityId.ashley;
+  assert.ok(ashleyId);
+  assert.equal(setEntityRegistryLifecycleOverride(context, ashleyId, 1, "archived"), true);
+  assert.deepEqual(listEntityRegistryOwnersForMessage(context, 1), ["Blake"]);
+  assert.equal(
+    getEntityRegistryLifecycleStateForEntityIdForMessage(context, ashleyId, 1)?.lifecycleState,
+    "archived",
+  );
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, false);
+  assert.deepEqual(listEntityRegistryOwnersForMessage(context, 1), ["Blake"]);
+  assert.equal(
+    getEntityRegistryLifecycleStateForEntityIdForMessage(context, ashleyId, 1)?.lifecycleState,
+    "archived",
+  );
 });
 
 test("syncEntityRegistryFromTrackerData keeps scene entities active on user turns when scene continuity is stored", () => {
