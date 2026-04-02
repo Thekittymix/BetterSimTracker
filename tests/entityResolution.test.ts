@@ -222,6 +222,78 @@ test("resolveEntityResolverCandidateOwners strips a technical multi-character so
   assert.deepEqual(resolved, ["Ashley", "Blake", "Garret", "Raleigh", "Billie"]);
 });
 
+test("resolveEntityResolverCandidateOwners drops a generic source owner when same-source narrative entities are already active", () => {
+  const context = {
+    chatMetadata: {
+      bstEntityRegistry: {
+        entities: {
+          "bst_owner:your-family": {
+            id: "bst_owner:your-family",
+            ownerName: "Your Family",
+            canonicalName: "Your Family",
+            aliases: [],
+            kind: "owner",
+            sourceKey: "family.png|your family",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 4,
+            lastActiveMessageIndex: 4,
+            lifecycleState: "active",
+            lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+          },
+          "bst_narrative:candy": {
+            id: "bst_narrative:candy",
+            ownerName: "Candy",
+            canonicalName: "Candy",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "family.png|your family",
+            introducedAtMessageIndex: 2,
+            lastSeenMessageIndex: 4,
+            lastActiveMessageIndex: 4,
+            lifecycleState: "active",
+            lifecycleEvents: [{ messageIndex: 2, state: "active" }],
+          },
+          "bst_narrative:lisa": {
+            id: "bst_narrative:lisa",
+            ownerName: "Lisa",
+            canonicalName: "Lisa",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "family.png|your family",
+            introducedAtMessageIndex: 2,
+            lastSeenMessageIndex: 4,
+            lastActiveMessageIndex: 4,
+            lifecycleState: "active",
+            lifecycleEvents: [{ messageIndex: 2, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          "your family": "bst_owner:your-family",
+          candy: "bst_narrative:candy",
+          lisa: "bst_narrative:lisa",
+        },
+      },
+    },
+    chat: [
+      {
+        name: "User",
+        mes: "Candy and Lisa answer for the family.",
+        is_user: true,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const resolved = resolveEntityResolverCandidateOwners(
+    context,
+    ["Your Family", "Candy", "Lisa"],
+    context.chat[0],
+    { entityTrackingMode: "dynamic_characters" },
+  );
+
+  assert.deepEqual(resolved, ["Candy", "Lisa"]);
+});
+
 test("resolveExtractionOwnerScopes keeps scene-active aliases broader than request targets for focused multi-character replies", () => {
   const context = {
     characters: [
@@ -242,6 +314,76 @@ test("resolveExtractionOwnerScopes keeps scene-active aliases broader than reque
 
   assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
   assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
+});
+
+test("resolveExtractionOwnerScopes drops a shadowed source owner from scene and request scopes", () => {
+  const context = {
+    chatMetadata: {
+      bstEntityRegistry: {
+        entities: {
+          "bst_owner:your-family": {
+            id: "bst_owner:your-family",
+            ownerName: "Your Family",
+            canonicalName: "Your Family",
+            aliases: [],
+            kind: "owner",
+            sourceKey: "family.png|your family",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 5,
+            lastActiveMessageIndex: 5,
+            lifecycleState: "active",
+            lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+          },
+          "bst_narrative:candy": {
+            id: "bst_narrative:candy",
+            ownerName: "Candy",
+            canonicalName: "Candy",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "family.png|your family",
+            introducedAtMessageIndex: 2,
+            lastSeenMessageIndex: 5,
+            lastActiveMessageIndex: 5,
+            lifecycleState: "active",
+            lifecycleEvents: [{ messageIndex: 2, state: "active" }],
+          },
+          "bst_narrative:lisa": {
+            id: "bst_narrative:lisa",
+            ownerName: "Lisa",
+            canonicalName: "Lisa",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "family.png|your family",
+            introducedAtMessageIndex: 2,
+            lastSeenMessageIndex: 5,
+            lastActiveMessageIndex: 5,
+            lifecycleState: "active",
+            lifecycleEvents: [{ messageIndex: 2, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          "your family": "bst_owner:your-family",
+          candy: "bst_narrative:candy",
+          lisa: "bst_narrative:lisa",
+        },
+      },
+    },
+  } as any;
+
+  const resolved = resolveExtractionOwnerScopes(
+    context,
+    ["Your Family", "Candy", "Lisa"],
+    {
+      mes: "Candy looked at Lisa before answering.",
+      name: "Your Family",
+      is_user: false,
+      is_system: false,
+    } as any,
+    { entityTrackingMode: "dynamic_characters" },
+  );
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Candy", "Lisa"]);
+  assert.deepEqual(resolved.requestCharacters, ["Candy", "Lisa"]);
 });
 
 test("resolveExtractionOwnerScopes narrows scene-active aliases when a recent user turn explicitly sends the others away", () => {

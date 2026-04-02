@@ -14,6 +14,7 @@ import type {
 } from "./types";
 import { USER_TRACKER_KEY } from "./constants";
 import {
+  filterShadowedSourceOwners,
   getEntityRegistryEntryByOwnerName,
   readEntityRegistry,
   resolveTrackerEntityIdsForOwners,
@@ -489,10 +490,19 @@ export function resolveEntityResolverCandidateOwners(
   options: { previousTrackerData?: TrackerData | null } = {},
 ): string[] {
   const mode = resolveEntityTrackingMode(settings);
-  const normalizedOwners = uniqueStrings(ownerNames.map(normalizeToken));
+  const previousTrackerData = options.previousTrackerData ?? null;
+  const normalizedOwners = filterShadowedSourceOwners(
+    context,
+    previousTrackerData,
+    uniqueStrings(ownerNames.map(normalizeToken)),
+  );
   if (!isMultiCharacterEntityTrackingMode(mode)) return normalizedOwners;
   const previousSceneOwners = message && !message.is_system
-    ? resolveTrackerSceneOwners(null, options.previousTrackerData)
+    ? filterShadowedSourceOwners(
+        context,
+        previousTrackerData,
+        resolveTrackerSceneOwners(null, previousTrackerData),
+      )
     : [];
   const mentionedOwners = message && !message.is_system
     ? (() => {
@@ -524,7 +534,7 @@ export function resolveEntityResolverCandidateOwners(
     ? uniqueStrings([...previousSceneOwners, ...mentionedOwners])
     : resolveMessageScopedActiveCharacters(context, normalizedOwners, message, settings);
   if (!allowsNarrativeEntities(mode) || !context) {
-    return scopedOwners;
+    return filterShadowedSourceOwners(context, previousTrackerData, scopedOwners);
   }
 
   const registry = readEntityRegistry(context);
@@ -543,7 +553,11 @@ export function resolveEntityResolverCandidateOwners(
     .map(entry => normalizeToken(entry.ownerName))
     .filter(Boolean);
 
-  return uniqueStrings([...scopedOwners, ...narrativeRegistryOwners]);
+  return filterShadowedSourceOwners(
+    context,
+    previousTrackerData,
+    uniqueStrings([...scopedOwners, ...narrativeRegistryOwners]),
+  );
 }
 
 export function resolveMessageScopedParticipants(
@@ -651,9 +665,19 @@ export function resolveExtractionOwnerScopes(
     requestCharacters,
     message,
   );
-  return {
-    sceneActiveCharacters: narrowedSceneActiveCharacters,
+  const filteredSceneActiveCharacters = filterShadowedSourceOwners(
+    context,
+    null,
+    narrowedSceneActiveCharacters,
+  );
+  const filteredRequestCharacters = filterShadowedSourceOwners(
+    context,
+    null,
     requestCharacters,
+  );
+  return {
+    sceneActiveCharacters: filteredSceneActiveCharacters,
+    requestCharacters: filteredRequestCharacters,
   };
 }
 

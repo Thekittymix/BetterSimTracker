@@ -2,13 +2,17 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.1.2-dev1] - 2026-04-02
+## [2.5.1.2-dev3] - 2026-04-02
 ### Fixed
-- Fixed target filtering for multi-character source cards so the generic source-owner card is now hidden when same-source narrative child characters are already rendered for that message.
+- Fixed post-resolver owner scoping so same-source narrative child entities now shadow a generic source owner before resolver candidate selection and extraction owner scopes are finalized, preventing the generic source owner from leaking into active owners, prompt injection, or extraction targets.
 
 ## [2.5.1.2-dev2] - 2026-04-02
 ### Fixed
 - Fixed canonical multi-character owner resolution so a generic source owner is now removed from active owner/entity sets when same-source narrative child characters are present, preventing leaks into payload normalization, prompt injection, and downstream render state.
+
+## [2.5.1.2-dev1] - 2026-04-02
+### Fixed
+- Fixed target filtering for multi-character source cards so the generic source-owner card is now hidden when same-source narrative child characters are already rendered for that message.
 
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
