@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0-dev13] - 2026-04-02
+### Changed
+- Clarified extraction prompt scoping with an explicit target block and snapshot guidance, so the model is told more clearly who the current extraction target is and how to treat prior snapshots versus current state and recent messages.
+
 ## [2.5.0-dev9] - 2026-04-02
 ### Fixed
 - Fixed manual `Archive` in the `Dynamic Characters` manager so archived characters are hidden immediately instead of lingering until the normal auto-archive threshold.

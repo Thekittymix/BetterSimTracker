@@ -754,7 +754,13 @@ test("buildSequentialPrompt respects built-in tracking and source priority wordi
 
   assert.doesNotMatch(prompt, /affection=55/);
   assert.match(prompt, /<BST_CRUCIAL_BEHAVE_INSTRUCTION>/);
+  assert.match(prompt, /<BST_TARGET>/);
+  assert.match(prompt, /Primary target: Seraphina/);
+  assert.match(prompt, /Extract updates only for these target owners: Seraphina/);
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
+  assert.match(prompt, /<BST_SNAPSHOT_GUIDANCE>/);
+  assert.match(prompt, /CURRENT_STATE is the latest known tracked state before this extraction/);
+  assert.match(prompt, /Snapshot ordering: newest-0 is the most recent prior snapshot; newest-1 is older/);
   assert.match(prompt, /trust=42/);
   assert.match(prompt, /Use recent messages first; use lorebook only to disambiguate when context is unclear\./);
 });
@@ -788,6 +794,9 @@ test("buildSequentialPrompt resolves {{char}} inside included character card tex
   );
 
   assert.match(prompt, /<BST_RECENT_MESSAGES>/);
+  assert.match(prompt, /<BST_TARGET>/);
+  assert.match(prompt, /Primary target: Kuba/);
+  assert.match(prompt, /Extract updates only for these target owners: Kuba/);
   assert.match(prompt, /<BST_OTHER_CARD_CONTEXT>/);
   assert.match(prompt, /<BST_OTHER_CARD_CONTEXT>[\s\S]*Character Card - Blake/);
   assert.match(prompt, /Description: Blake studies the campfire in silence\./);
@@ -853,6 +862,9 @@ test("buildUnifiedPrompt only includes requested built-in stat families", () => 
   );
 
   assert.match(prompt, /Stat meanings:\n- trust:/);
+  assert.match(prompt, /<BST_TARGET>/);
+  assert.match(prompt, /Primary target: Seraphina/);
+  assert.match(prompt, /<BST_SNAPSHOT_GUIDANCE>/);
   assert.doesNotMatch(prompt, /- affection:/);
   assert.doesNotMatch(prompt, /- desire:/);
   assert.doesNotMatch(prompt, /- connection:/);
@@ -896,12 +908,15 @@ test("buildSequentialCustomNumericPrompt includes BST tagged extraction sections
 
   assert.match(prompt, /<BST_CRUCIAL_BEHAVE_INSTRUCTION>/);
   assert.match(prompt, /<BST_ENVELOPE>/);
+  assert.match(prompt, /<BST_TARGET>/);
   assert.match(prompt, /<BST_CURRENT_STATE>/);
+  assert.match(prompt, /<BST_SNAPSHOT_GUIDANCE>/);
   assert.match(prompt, /<BST_RECENT_SNAPSHOTS>/);
   assert.match(prompt, /<BST_CUSTOM_STAT_MEANING>/);
   assert.match(prompt, /<BST_TASK>/);
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
   assert.match(prompt, /- Meaning: General satisfaction\./);
+  assert.match(prompt, /Primary target: Seraphina/);
   assert.match(prompt, /Use the custom stat description to interpret what this stat actually measures\./);
   assert.match(prompt, /satisfaction=64/);
   assert.doesNotMatch(prompt, /Stat meanings:\n- affection:/);
@@ -1123,9 +1138,12 @@ test("buildSequentialCustomNonNumericPrompt includes scoped values and mode-awar
 
   assert.match(prompt, /scene_date_time="2026-03-06 20:05"/);
   assert.match(prompt, /<BST_CRUCIAL_BEHAVE_INSTRUCTION>/);
+  assert.match(prompt, /<BST_TARGET>/);
   assert.match(prompt, /<BST_CUSTOM_STAT_MEANING>/);
+  assert.match(prompt, /<BST_SNAPSHOT_GUIDANCE>/);
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
   assert.match(prompt, /- Meaning: Tracks current scene time\./);
+  assert.match(prompt, /Primary target: Seraphina/);
   assert.match(prompt, /structured datetime intent/);
   assert.match(prompt, /Use the custom stat description to interpret what this stat actually measures\./);
   assert.match(prompt, /use character cards and lorebook only to disambiguate when context is unclear\./);
@@ -1208,6 +1226,9 @@ test("buildUnifiedAllStatsPrompt custom-only mode omits built-in framing for gro
   });
 
   assert.match(prompt, /Update only the requested custom stats in this single response\./);
+  assert.match(prompt, /<BST_TARGET>/);
+  assert.match(prompt, /Primary target: Ashley/);
+  assert.match(prompt, /<BST_SNAPSHOT_GUIDANCE>/);
   assert.match(prompt, /<BST_CUSTOM_STAT_MEANINGS>/);
   assert.match(prompt, /- satisfaction \(Satisfaction, numeric, owner-scoped\): Tracks current satisfaction with the scene\./);
   assert.match(prompt, /- clothes \(Clothes, array, owner-scoped\): Tracks currently worn clothing items\./);
