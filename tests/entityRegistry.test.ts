@@ -30,6 +30,7 @@ import {
   resolveTrackerSceneOwners,
   resolveTrackerOwnersForEntityIds,
   resolveEntityRegistryLookupValue,
+  syncNarrativeEntityRegistryFromResolvedEntities,
   syncEntityRegistryFromRender,
 } from "../src/entityRegistry";
 import type { STContext, TrackerData } from "../src/types";
@@ -1749,6 +1750,32 @@ test("resolveTrackerSceneOwners and entity ids hide a generic source owner when 
   assert.deepEqual(resolveTrackerActiveOwners(null, data), ["Marylyn", "Lisa"]);
   assert.deepEqual(resolveTrackerSceneEntityIds(null, data), ["ent-marylyn", "ent-lisa"]);
   assert.deepEqual(resolveTrackerActiveEntityIds(null, data), ["ent-marylyn", "ent-lisa"]);
+});
+
+test("syncNarrativeEntityRegistryFromResolvedEntities preserves same-source lineage from resolved narrative entities", () => {
+  const context = makeContext();
+
+  syncNarrativeEntityRegistryFromResolvedEntities({
+    context,
+    messageIndex: 0,
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:marylyn",
+        kind: "narrative-entity",
+        name: "Marylyn",
+        avatar: null,
+        aliases: ["single mother"],
+        sourceKey: "your family.png|your family",
+        inScene: true,
+        inMessage: true,
+        created: true,
+      },
+    ],
+    getLifecycleState: () => "active",
+  });
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities["bst_narrative:marylyn"]?.sourceKey, "your family.png|your family");
 });
 
 test("getEntityRegistryEntryForMessage hides pre-introduction and archived entries outside their visible window", () => {

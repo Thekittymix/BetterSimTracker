@@ -122,6 +122,7 @@ export interface TrackerResolvedEntity {
   name: string;
   avatar?: string | null;
   aliases?: string[];
+  sourceKey?: string;
   inScene: boolean;
   inMessage: boolean;
   created?: boolean;

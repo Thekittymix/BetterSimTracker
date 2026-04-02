@@ -102,6 +102,7 @@ function normalizeResolvedEntities(raw: unknown): TrackerResolvedEntity[] {
       name,
       avatar: String(record.avatar ?? "").trim() || null,
       aliases: aliases?.length ? aliases : undefined,
+      ...(String(record.sourceKey ?? "").trim() ? { sourceKey: String(record.sourceKey ?? "").trim() } : {}),
       inScene: Boolean(record.inScene),
       inMessage: Boolean(record.inMessage),
       created: Boolean(record.created),

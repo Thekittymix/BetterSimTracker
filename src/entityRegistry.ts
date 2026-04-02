@@ -545,7 +545,8 @@ export function syncNarrativeEntityRegistryFromResolvedEntities(input: {
     const aliases = uniqueStrings(
       (entity.aliases ?? []).filter(alias => normalizeKey(alias) !== normalizeKey(ownerName)),
     );
-    const sourceKey = buildNarrativeEntitySourceKey(entityId, ownerName, ownerName);
+    const sourceKey = normalizeToken(entity.sourceKey)
+      || buildNarrativeEntitySourceKey(entityId, ownerName, ownerName);
     const existing = registry.entities[entityId];
     const entry: TrackerEntityRegistryEntry = existing ?? {
       id: entityId,
@@ -1180,6 +1181,7 @@ function resolveTrackerResolvedEntities(
       name,
       avatar: normalizeToken(entity.avatar) || null,
       aliases: uniqueStrings(entity.aliases ?? []),
+      ...(normalizeToken(entity.sourceKey) ? { sourceKey: normalizeToken(entity.sourceKey) } : {}),
       inScene: Boolean(entity.inScene),
       inMessage: Boolean(entity.inMessage),
       created: Boolean(entity.created),

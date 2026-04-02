@@ -201,6 +201,82 @@ test("materializeNarrativeEntityCreations reuses a Camp alias candidate instead 
   });
 });
 
+test("materializeNarrativeEntityCreations drops a solo generic source owner once multiple same-source child narratives are materialized", () => {
+  const result = materializeNarrativeEntityCreations({
+    context: {
+      ...makeContext(),
+      characters: [{ name: "Your Family", avatar: "your family.png" }],
+    },
+    settings: { entityTrackingMode: "dynamic_characters" },
+    candidateEntities: [
+      {
+        entityRef: "ent1",
+        ownerName: "Your Family",
+        entityId: "bst_owner:your family.png|your family",
+        kind: "st-character",
+        aliases: ["Your Family"],
+      },
+    ],
+    resolvedEntities: [
+      {
+        entityId: "bst_owner:your family.png|your family",
+        kind: "st-character",
+        name: "Your Family",
+        avatar: null,
+        aliases: ["Your Family"],
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
+    createdEntities: [
+      { name: "Marylyn", inScene: true, inMessage: true },
+      { name: "Lisa", inScene: true, inMessage: true },
+      { name: "Candy", inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["Marylyn", "Lisa", "Candy"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:marylyn",
+        kind: "narrative-entity",
+        name: "Marylyn",
+        avatar: null,
+        aliases: undefined,
+        sourceKey: "your family.png|your family",
+        inScene: true,
+        inMessage: true,
+        created: true,
+      },
+      {
+        entityId: "bst_narrative:lisa",
+        kind: "narrative-entity",
+        name: "Lisa",
+        avatar: null,
+        aliases: undefined,
+        sourceKey: "your family.png|your family",
+        inScene: true,
+        inMessage: true,
+        created: true,
+      },
+      {
+        entityId: "bst_narrative:candy",
+        kind: "narrative-entity",
+        name: "Candy",
+        avatar: null,
+        aliases: undefined,
+        sourceKey: "your family.png|your family",
+        inScene: true,
+        inMessage: true,
+        created: true,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
 test("materializeNarrativeEntityCreations reuses a uniquely close alias spelling before minting a new narrative entity", () => {
   const result = materializeNarrativeEntityCreations({
     context: makeContext(),

@@ -206,6 +206,7 @@ function mergeResolvedEntity(
     target.set(entity.entityId, {
       ...entity,
       aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+      ...(normalizeToken(entity.sourceKey) ? { sourceKey: normalizeToken(entity.sourceKey) } : {}),
       created: Boolean(entity.created),
     });
     return;
@@ -215,8 +216,45 @@ function mergeResolvedEntity(
   existing.created = Boolean(existing.created || entity.created);
   const mergedAliases = uniqueStrings([...(existing.aliases ?? []), ...(entity.aliases ?? [])]);
   existing.aliases = mergedAliases.length ? mergedAliases : undefined;
+  if (!existing.sourceKey && normalizeToken(entity.sourceKey)) {
+    existing.sourceKey = normalizeToken(entity.sourceKey);
+  }
   if (!existing.name && entity.name) existing.name = entity.name;
   if (!existing.avatar && entity.avatar) existing.avatar = entity.avatar;
+}
+
+function resolveSingleSourceOwnerCandidateKey(
+  candidateEntities: MultiCharacterResolverCandidate[],
+): string | null {
+  const sourceOwnerKeys = new Set<string>();
+  for (const candidate of candidateEntities) {
+    const entityId = normalizeToken(candidate.entityId);
+    if (!entityId.startsWith("bst_owner:")) continue;
+    const familyKey = resolveCandidateFamilyKey(candidate);
+    if (!familyKey.startsWith("source:")) continue;
+    sourceOwnerKeys.add(familyKey.slice("source:".length));
+  }
+  if (sourceOwnerKeys.size !== 1) return null;
+  return Array.from(sourceOwnerKeys)[0] ?? null;
+}
+
+function reconcileExpandedSourceOwnerEntities(
+  resolvedEntities: TrackerResolvedEntity[],
+  candidateEntities: MultiCharacterResolverCandidate[],
+): TrackerResolvedEntity[] {
+  const sourceOwnerKey = resolveSingleSourceOwnerCandidateKey(candidateEntities);
+  if (!sourceOwnerKey) return resolvedEntities;
+  if (candidateEntities.length !== 1) return resolvedEntities;
+
+  const sourceOwnerEntityId = `bst_owner:${sourceOwnerKey}`;
+  const childNarratives = resolvedEntities.filter(entity =>
+    entity.kind === "narrative-entity"
+    && normalizeToken(entity.sourceKey) === sourceOwnerKey
+    && (entity.inScene || entity.inMessage),
+  );
+  if (childNarratives.length < 2) return resolvedEntities;
+
+  return resolvedEntities.filter(entity => normalizeToken(entity.entityId) !== sourceOwnerEntityId);
 }
 
 function buildCandidateNameMaps(candidateEntities: MultiCharacterResolverCandidate[]): {
@@ -486,6 +524,7 @@ export function materializeNarrativeEntityCreations(input: {
 
   const candidateMaps = buildCandidateNameMaps(input.candidateEntities);
   const usedEntityIds = new Set<string>(resolvedMap.keys());
+  const singleSourceOwnerKey = resolveSingleSourceOwnerCandidateKey(input.candidateEntities);
 
   for (const proposal of input.createdEntities) {
     const name = normalizeToken(proposal.name);
@@ -519,6 +558,7 @@ export function materializeNarrativeEntityCreations(input: {
         name: registryMatch.ownerName,
         avatar: null,
         aliases: registryMatch.aliases?.length ? [...registryMatch.aliases] : undefined,
+        ...(singleSourceOwnerKey ? { sourceKey: singleSourceOwnerKey } : {}),
         inScene: Boolean(proposal.inScene),
         inMessage: Boolean(proposal.inMessage),
         created: false,
@@ -535,6 +575,7 @@ export function materializeNarrativeEntityCreations(input: {
       name,
       avatar: null,
       aliases: aliases.length ? aliases : undefined,
+      ...(singleSourceOwnerKey ? { sourceKey: singleSourceOwnerKey } : {}),
       inScene: Boolean(proposal.inScene),
       inMessage: Boolean(proposal.inMessage),
       created: true,
@@ -543,7 +584,7 @@ export function materializeNarrativeEntityCreations(input: {
   }
 
   return {
-    resolvedEntities: Array.from(resolvedMap.values()),
+    resolvedEntities: reconcileExpandedSourceOwnerEntities(Array.from(resolvedMap.values()), input.candidateEntities),
     unresolvedMentions,
   };
 }
