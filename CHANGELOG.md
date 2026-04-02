@@ -2,15 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.1-dev2] - 2026-04-02
-### Fixed
-- Fixed dynamic character lifecycle reconciliation so deleted or archived characters can reactivate correctly on later active scene messages and reappear in the `Dynamic Characters` manager with the right live status.
-- Fixed persisted scene snapshots so multi-character retracks now keep the full active scene owner set instead of dropping scene participants that were only out of immediate message focus.
-
-## [2.5.1-dev1] - 2026-04-02
+## [2.5.1.1] - 2026-04-02
 ### Fixed
 - Fixed prompt injection scoping for multi-character source-card chats so the hidden BST state now includes the full active scene instead of collapsing to a single character when the scene is still multi-entity.
-- Fixed dynamic character deletion/reactivation so a deleted character can be restored automatically when the same entity genuinely reappears in a later active scene.
+- Fixed dynamic character deletion/reactivation and lifecycle reconciliation so deleted or archived characters can reactivate correctly on later active scene messages and reappear in the `Dynamic Characters` manager with the right live status.
+- Fixed persisted scene snapshots so multi-character retracks now keep the full active scene owner set instead of dropping scene participants that were only out of immediate message focus.
 
 ## [2.5.1] - 2026-04-02
 ### Added
