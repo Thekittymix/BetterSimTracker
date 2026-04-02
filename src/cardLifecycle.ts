@@ -63,13 +63,21 @@ export function resolveCardLifecycleState(input: {
   const needle = normalizeName(input.ownerName);
   const entityNeedle = normalizeEntityId(input.entityId);
   if (!needle) return "inactive";
+  const registryState = input.registryState ?? null;
+  const registryArchivedAt = Number.isFinite(Number(registryState?.archivedAtMessageIndex))
+    ? Number(registryState?.archivedAtMessageIndex)
+    : null;
+  if (registryState?.lifecycleState === "archived"
+    && registryArchivedAt != null
+    && registryArchivedAt <= input.currentMessageIndex) {
+    return "archived";
+  }
   if (entityNeedle && (input.currentActiveEntityIds ?? []).some(id => normalizeEntityId(id) === entityNeedle)) {
     return "active";
   }
   if ((input.currentActiveCharacters ?? []).some(name => normalizeName(name) === needle)) {
     return "active";
   }
-  const registryState = input.registryState ?? null;
   if (!input.autoArchiveInactiveCards) return "inactive";
   const threshold = Math.max(1, Math.floor(input.archiveInactiveAfterTurns));
   const introducedAtMessageIndex = Number.isFinite(Number(registryState?.introducedAtMessageIndex))
@@ -96,14 +104,6 @@ export function resolveCardLifecycleState(input: {
     ? (clampedHistoricalLastActive != null ? Math.max(clampedHistoricalLastActive, clampedRegistryLastActive) : clampedRegistryLastActive)
     : clampedHistoricalLastActive;
   if (lastActiveMessageIndex == null) return "inactive";
-  const registryArchivedAt = Number.isFinite(Number(registryState?.archivedAtMessageIndex))
-    ? Number(registryState?.archivedAtMessageIndex)
-    : null;
-  if (registryState?.lifecycleState === "archived"
-    && registryArchivedAt != null
-    && registryArchivedAt <= input.currentMessageIndex) {
-    return "archived";
-  }
   return (input.currentMessageIndex - lastActiveMessageIndex) > threshold
     ? "archived"
     : "inactive";

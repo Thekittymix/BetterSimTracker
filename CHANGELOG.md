@@ -2,13 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.0-dev8] - 2026-04-02
-### Fixed
-- Fixed `Dynamic Characters` manager actions so manual archive and other direct manager changes now target the latest trackable chat message and are saved immediately for reload-safe persistence.
-
 ## [2.5.0-dev9] - 2026-04-02
 ### Fixed
 - Fixed manual `Archive` in the `Dynamic Characters` manager so archived characters are hidden immediately instead of lingering until the normal auto-archive threshold.
+
+## [2.5.0-dev10] - 2026-04-02
+### Fixed
+- Fixed manual `Archive` so it overrides same-message active-state projection too, preventing archived dynamic characters from staying visible as `Active` on the current chat card.
 
 ## [2.5.0-dev7] - 2026-04-02
 ### Changed
