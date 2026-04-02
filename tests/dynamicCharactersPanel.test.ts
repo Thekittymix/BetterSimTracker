@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { listManageableDynamicCharacters, renderDynamicCharactersDialogMarkup } from "../src/dynamicCharactersPanel";
+import {
+  listManageableDynamicCharacters,
+  renderDynamicCharactersDialogMarkup,
+  resolveDynamicCharactersManagerMessageIndex,
+} from "../src/dynamicCharactersPanel";
 import { syncEntityRegistryFromRender, setEntityRegistryCardColor, setEntityRegistryLifecycleOverride } from "../src/entityRegistry";
 import type { BetterSimTrackerSettings, STContext } from "../src/types";
 
@@ -17,6 +21,16 @@ function makeContext(): STContext {
       { name: "Billie", avatar: "billie.png" },
     ],
   };
+}
+
+function makeContextWithTrailingSystemMessage(): STContext {
+  const context = makeContext();
+  context.chat.push({
+    mes: "system note",
+    name: "System",
+    is_system: true,
+  } as never);
+  return context;
 }
 
 function makeSettings(mode: BetterSimTrackerSettings["entityTrackingMode"]): BetterSimTrackerSettings {
@@ -183,6 +197,11 @@ test("listManageableDynamicCharacters includes archived entries and card colors"
   const refreshed = listManageableDynamicCharacters(context, makeSettings("dynamic_characters"));
   assert.equal(refreshed[0]?.lifecycleState, "archived");
   assert.equal(refreshed[0]?.cardColor, "#abcdef");
+});
+
+test("resolveDynamicCharactersManagerMessageIndex skips trailing system messages", () => {
+  const context = makeContextWithTrailingSystemMessage();
+  assert.equal(resolveDynamicCharactersManagerMessageIndex(context), 1);
 });
 
 test("renderDynamicCharactersDialogMarkup reuses BST modal and color input patterns", () => {

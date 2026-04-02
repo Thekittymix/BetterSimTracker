@@ -166,8 +166,14 @@ function ensurePanelStyles(): void {
   document.head.appendChild(style);
 }
 
-function latestMessageIndex(context: STContext): number {
-  return Math.max(0, context.chat.length - 1);
+export function resolveDynamicCharactersManagerMessageIndex(context: STContext | null): number | null {
+  if (!context?.chat?.length) return null;
+  for (let index = context.chat.length - 1; index >= 0; index -= 1) {
+    const message = context.chat[index] as { is_system?: boolean } | null | undefined;
+    if (message?.is_system) continue;
+    return index;
+  }
+  return null;
 }
 
 function lifecycleRank(state: TrackerEntityLifecycleState): number {
@@ -204,7 +210,8 @@ export function listManageableDynamicCharacters(
 ): DynamicCharactersManagerItem[] {
   if (!context || !settings || settings.entityTrackingMode !== "dynamic_characters") return [];
   const registry = readEntityRegistry(context);
-  const messageIndex = latestMessageIndex(context);
+  const messageIndex = resolveDynamicCharactersManagerMessageIndex(context);
+  if (messageIndex == null) return [];
   return Object.values(registry.entities)
     .filter(entry => entry.kind !== "owner")
     .filter(entry => entry.introducedAtMessageIndex <= messageIndex)
@@ -229,6 +236,16 @@ export function listManageableDynamicCharacters(
       if (a.ownerName !== b.ownerName) return a.ownerName.localeCompare(b.ownerName);
       return a.entityId.localeCompare(b.entityId);
     });
+}
+
+async function persistManualRegistryMutation(context: STContext): Promise<void> {
+  context.saveMetadataDebounced?.();
+  context.saveChatDebounced?.();
+  try {
+    await context.saveChat?.();
+  } catch {
+    // Ignore save failures here; runtime UI already updated locally.
+  }
 }
 
 export function renderDynamicCharactersDialogMarkup(items: DynamicCharactersManagerItem[]): string {
@@ -317,7 +334,7 @@ export function initDynamicCharactersPanel(input: {
       </div>
     `;
 
-    dialog.addEventListener("click", event => {
+    dialog.addEventListener("click", async event => {
       const target = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-bst-dynamic-action]");
       const action = String(target?.getAttribute("data-bst-dynamic-action") ?? "").trim();
       if (!action) return;
@@ -328,7 +345,8 @@ export function initDynamicCharactersPanel(input: {
       const entityId = String(target?.getAttribute("data-bst-dynamic-entity") ?? "").trim();
       const liveContext = input.getContext();
       if (!liveContext || !entityId) return;
-      const messageIndex = latestMessageIndex(liveContext);
+      const messageIndex = resolveDynamicCharactersManagerMessageIndex(liveContext);
+      if (messageIndex == null) return;
       let changed = false;
       if (action === "archive") {
         changed = setEntityRegistryLifecycleOverride(liveContext, entityId, messageIndex, "archived");
@@ -345,12 +363,13 @@ export function initDynamicCharactersPanel(input: {
         changed = deleteEntityRegistryEntry(liveContext, entityId);
       }
       if (changed) {
+        await persistManualRegistryMutation(liveContext);
         input.onStateChanged();
         renderDialog();
       }
     });
 
-    dialog.addEventListener("change", event => {
+    dialog.addEventListener("change", async event => {
       const target = event.target as HTMLInputElement | null;
       if (!target) return;
       const liveContext = input.getContext();
@@ -359,6 +378,7 @@ export function initDynamicCharactersPanel(input: {
       const action = String(target.getAttribute("data-bst-dynamic-action") ?? "").trim();
       if (action === "color") {
         if (setEntityRegistryCardColor(liveContext, entityId, target.value)) {
+          await persistManualRegistryMutation(liveContext);
           input.onStateChanged();
           renderDialog();
         }
