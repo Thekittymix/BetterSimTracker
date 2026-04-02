@@ -2,10 +2,9 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.1.1-dev1] - 2026-04-02
+## [2.5.1.2] - 2026-04-02
 ### Fixed
 - Fixed extractor diagnostics so `scopeResolution` now uses the same entity-aware custom-stat lookup as real extraction, preventing debug dumps from showing stale owner-bucket values when the canonical tracker state already comes from entity-scoped data.
-
 ## [2.5.1.1] - 2026-04-02
 ### Fixed
 - Fixed prompt injection scoping for multi-character source-card chats so the hidden BST state now includes the full active scene instead of collapsing to a single character when the scene is still multi-entity.
