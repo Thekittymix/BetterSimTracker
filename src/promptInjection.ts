@@ -57,6 +57,19 @@ function normalizeOwnerName(value: string): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function uniqueStrings(values: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const value = String(raw ?? "").trim();
+    const key = normalizeOwnerName(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
 function isReservedSystemOwnerName(value: string): boolean {
   const normalized = normalizeOwnerName(value);
   if (!normalized) return true;
@@ -217,6 +230,30 @@ function resolveInjectionTargetOwner(context: STContext, data: TrackerData): str
   return null;
 }
 
+function resolveInjectionSceneOwners(context: STContext, settings: BetterSimTrackerSettings, data: TrackerData): string[] {
+  const sceneOwners = uniqueStrings(resolveTrackerSceneOwners(context, data));
+  const entityMapOwners = uniqueStrings(
+    Object.values(data.entityOwnerMap ?? {})
+      .map(snapshot => String(snapshot?.ownerName ?? "").trim())
+      .filter(Boolean)
+      .filter(name => name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY),
+  );
+  const sceneOwnerSet = new Set(sceneOwners.map(normalizeOwnerName));
+  const multiTracking = resolveEntityTrackingMode(settings) !== "standard";
+  if (!multiTracking) return sceneOwners;
+  if (sceneOwners.length > 1) return sceneOwners;
+  if (entityMapOwners.length > 1) {
+    return uniqueStrings([
+      ...sceneOwners,
+      ...entityMapOwners,
+    ]);
+  }
+  return uniqueStrings([
+    ...sceneOwners,
+    ...entityMapOwners,
+  ]);
+}
+
 function resolvePromptOwnerExplicitEntityIds(
   context: STContext,
   data: TrackerData,
@@ -294,12 +331,14 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
   const buildWithCustom = (customStatCount: number, verbosity: InjectionVerbosityMode): string => {
     const enabledCustom = allEnabledCustom.slice(0, customStatCount);
     const allowUserInjection = Boolean(settings.includeUserTrackerInInjection && settings.enableUserTracking);
-    const names = [...resolveTrackerSceneOwners(context, data)];
+    const names = [...resolveInjectionSceneOwners(context, settings, data)];
     if (targetOwner && targetOwner !== USER_TRACKER_KEY && !names.includes(targetOwner)) {
       names.push(targetOwner);
     }
     const inGroup = Boolean(String(context.groupId ?? "").trim());
-    const scopedNames = inGroup
+    const hasMultiSceneOwners = resolveEntityTrackingMode(settings) !== "standard"
+      && names.filter(name => name !== USER_TRACKER_KEY).length > 1;
+    const scopedNames = (inGroup || hasMultiSceneOwners)
       ? names.filter(name => allowUserInjection || name !== USER_TRACKER_KEY)
       : names.filter(name => {
         if (name === USER_TRACKER_KEY) return allowUserInjection;

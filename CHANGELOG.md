@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.1-dev1] - 2026-04-02
+### Fixed
+- Fixed prompt injection scoping for multi-character source-card chats so the hidden BST state now includes the full active scene instead of collapsing to a single character when the scene is still multi-entity.
+- Fixed dynamic character deletion/reactivation so a deleted character can be restored automatically when the same entity genuinely reappears in a later active scene.
+
 ## [2.5.1] - 2026-04-02
 ### Added
 - Added a `Dynamic Characters` manager under the chat options menu for the current chat.

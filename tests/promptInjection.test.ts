@@ -597,6 +597,89 @@ test("buildPrompt prefers resolved scene owners over request-only activeCharacte
   assert.match(prompt, /- Blake: mood=Hopeful/);
 });
 
+test("buildPrompt keeps full multi-character scene injection in non-group source-card chats when entity owner map shows multiple active owners", () => {
+  const settings = makeSettings({
+    entityTrackingMode: "dynamic_characters",
+    trackMood: true,
+    includeUserTrackerInInjection: true,
+    enableUserTracking: true,
+  });
+  const data = makeTracker({
+    activeCharacters: ["__bst_user__"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      sceneOwners: ["Raleigh"],
+      messageOwners: [],
+      sceneEntityIds: ["ent-raleigh"],
+      messageEntityIds: [],
+    }),
+    entityOwnerMap: {
+      Ashley: {
+        entityId: "ent-ashley",
+        ownerName: "Ashley",
+        canonicalName: "Ashley",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Blake: {
+        entityId: "ent-blake",
+        ownerName: "Blake",
+        canonicalName: "Blake",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Garret: {
+        entityId: "ent-garret",
+        ownerName: "Garret",
+        canonicalName: "Garret",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+      Raleigh: {
+        entityId: "ent-raleigh",
+        ownerName: "Raleigh",
+        canonicalName: "Raleigh",
+        aliases: [],
+        sourceKey: "camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
+        kind: "multi_character_alias",
+      },
+    },
+    statistics: {
+      affection: { Ashley: 45, Blake: 45, Garret: 45, Raleigh: 45 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {
+        Ashley: "Neutral",
+        Blake: "Neutral",
+        Garret: "Neutral",
+        Raleigh: "Serious",
+        __bst_user__: "Neutral",
+      },
+      lastThought: {
+        __bst_user__: "Where's Raleigh?",
+      },
+    },
+  });
+  const context = makeContext({
+    name1: "Kuba",
+    name2: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    groupId: "",
+    characterId: 0,
+    characters: [{ name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" }],
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, context);
+  assert.match(prompt, /- Ashley: mood=Neutral/);
+  assert.match(prompt, /- Blake: mood=Neutral/);
+  assert.match(prompt, /- Garret: mood=Neutral/);
+  assert.match(prompt, /- Raleigh: mood=Serious/);
+  assert.match(prompt, /- Kuba: mood=Neutral; lastThought="Where's Raleigh\?"/);
+});
+
 test("resolveInjectionTargetOwner prefers resolver message entity ids over source-card fallback names", () => {
   const data = makeTracker({
     activeCharacters: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],

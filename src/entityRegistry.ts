@@ -404,10 +404,22 @@ export function syncEntityRegistryFromRender(input: {
     const identity = existingRegistryEntry ? null : resolveCharacterIdentity(context, ownerName, input.mode);
     if (!existingRegistryEntry && !identity) continue;
     const entry = existingRegistryEntry ?? ensureEntry(registry, identity!, ownerName, input.messageIndex);
-    if (isDeletedAtMessage(entry, input.messageIndex)) continue;
     const lifecycleState = input.getLifecycleStateByTarget
       ? input.getLifecycleStateByTarget({ ownerName, registryEntry })
       : (input.getLifecycleState?.(ownerName) ?? "inactive");
+    if (isDeletedAtMessage(entry, input.messageIndex)) {
+      const deletedAtMessageIndex = resolveDeletedAtMessageIndex(entry);
+      const canReactivateDeletedEntry =
+        lifecycleState === "active"
+        && deletedAtMessageIndex != null
+        && input.messageIndex > deletedAtMessageIndex;
+      if (!canReactivateDeletedEntry) continue;
+      delete entry.deletedAtMessageIndex;
+      if (entry.manualLifecycleOverride === "archived") {
+        delete entry.manualLifecycleOverride;
+      }
+      changed = true;
+    }
     const aliases = registryEntry
       ? uniqueStrings(registryEntry.aliases ?? [])
       : identity?.matchedBy === "alias"

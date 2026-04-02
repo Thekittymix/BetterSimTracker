@@ -443,6 +443,42 @@ test("deleteEntityRegistryEntry tombstones the entity so it no longer resolves f
   assert.equal(getEntityRegistryLifecycleStateForEntityIdForMessage(context, ashleyId, 8)?.lifecycleState, "archived");
 });
 
+test("deleteEntityRegistryEntry allows later reactivation on a newer active message", () => {
+  const context = makeContext();
+  const raleighId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Raleigh",
+    matchedBy: "alias",
+  });
+
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 8,
+    owners: ["Raleigh"],
+    getLifecycleState: () => "active",
+  });
+
+  assert.equal(deleteEntityRegistryEntry(context, raleighId, 8), true);
+  assert.equal(getEntityRegistryEntryByEntityIdForMessage(context, raleighId, 8), null);
+
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 12,
+    owners: ["Raleigh"],
+    getLifecycleState: () => "active",
+  });
+
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[raleighId]?.deletedAtMessageIndex, undefined);
+  assert.equal(registry.entities[raleighId]?.manualLifecycleOverride, undefined);
+  assert.equal(getEntityRegistryEntryByEntityIdForMessage(context, raleighId, 12)?.ownerName, "Raleigh");
+  assert.equal(getEntityRegistryLifecycleStateForEntityIdForMessage(context, raleighId, 12)?.lifecycleState, "inactive");
+  assert.equal(getEntityRegistryLifecycleStateForEntityIdForMessage(context, raleighId, 12)?.lastActiveMessageIndex, 12);
+});
+
 test("entity registry resolves owner names to stable entity ids and back", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
