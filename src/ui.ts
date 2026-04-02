@@ -621,6 +621,22 @@ export type OwnerRenderIdentity = {
   isSource: boolean;
 };
 
+function resolveTargetSourceIdentity(
+  target: UiRenderTarget,
+  resolveOwnerRenderIdentity?: (ownerName: string) => OwnerRenderIdentity | null,
+): OwnerRenderIdentity | null {
+  const explicitSourceKey = String(target.registryEntry?.sourceKey ?? "").trim();
+  const explicitKind = target.registryEntry?.kind ?? null;
+  if (explicitSourceKey) {
+    return {
+      sourceKey: explicitSourceKey,
+      isAlias: explicitKind === "multi_character_alias" || explicitKind === "narrative-entity",
+      isSource: explicitKind === "owner",
+    };
+  }
+  return resolveOwnerRenderIdentity?.(target.ownerName) ?? null;
+}
+
 export type UiRenderTarget = {
   ownerName: string;
   uiKey: string;
@@ -856,21 +872,21 @@ export function resolveRegistryOwnersFromEntries(
   return owners;
 }
 
-function filterTechnicalSourceRenderTargets(
+export function filterTechnicalSourceRenderTargets(
   targets: UiRenderTarget[],
   resolveOwnerRenderIdentity?: (ownerName: string) => OwnerRenderIdentity | null,
 ): UiRenderTarget[] {
   if (!resolveOwnerRenderIdentity) return [...targets];
   const aliasSourceKeys = new Set<string>();
   for (const target of targets) {
-    const identity = resolveOwnerRenderIdentity(target.ownerName);
+    const identity = resolveTargetSourceIdentity(target, resolveOwnerRenderIdentity);
     if (identity?.isAlias) {
       aliasSourceKeys.add(identity.sourceKey);
     }
   }
   if (!aliasSourceKeys.size) return [...targets];
   return targets.filter(target => {
-    const identity = resolveOwnerRenderIdentity(target.ownerName);
+    const identity = resolveTargetSourceIdentity(target, resolveOwnerRenderIdentity);
     if (!identity?.isSource) return true;
     return !aliasSourceKeys.has(identity.sourceKey);
   });

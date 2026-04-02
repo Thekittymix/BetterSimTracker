@@ -6,6 +6,7 @@ import {
   buildDisplayPoolWithRegistry,
   selectDisplayPoolTargetsWithRegistry,
   collectCharacterNamesFromTrackerData,
+  filterTechnicalSourceRenderTargets,
   filterRenderTargetsForTrackingMode,
   filterShadowedAliasRenderTargets,
   filterArchivedOwnersFromTargets,
@@ -181,6 +182,81 @@ test("filterShadowedAliasRenderTargets drops generic owner duplicates when a sou
   assert.deepEqual(
     filtered.map(target => `${target.registryEntry?.kind}:${target.ownerName}`),
     ["multi_character_alias:Blake", "owner:Chloe"],
+  );
+});
+
+test("filterTechnicalSourceRenderTargets hides a source-card owner when same-source narrative entities are rendered", () => {
+  const targets = [
+    {
+      ownerName: "Your Family",
+      uiKey: "bst_owner:your family.png|your family",
+      registryEntry: {
+        id: "bst_owner:your family.png|your family",
+        ownerName: "Your Family",
+        canonicalName: "Your Family",
+        aliases: [],
+        sourceName: "Your Family",
+        sourceAvatar: "Your Family.png",
+        sourceKey: "your family.png|your family",
+        kind: "owner",
+        introducedAtMessageIndex: 0,
+        lastSeenMessageIndex: 0,
+        lastActiveMessageIndex: 0,
+        lifecycleState: "active",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+    {
+      ownerName: "Candy",
+      uiKey: "bst_narrative:candy",
+      registryEntry: {
+        id: "bst_narrative:candy",
+        ownerName: "Candy",
+        canonicalName: "Candy",
+        aliases: [],
+        sourceName: "Your Family",
+        sourceAvatar: "Your Family.png",
+        sourceKey: "your family.png|your family",
+        kind: "narrative-entity",
+        introducedAtMessageIndex: 0,
+        lastSeenMessageIndex: 0,
+        lastActiveMessageIndex: 0,
+        lifecycleState: "active",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+    {
+      ownerName: "Lisa",
+      uiKey: "bst_narrative:lisa",
+      registryEntry: {
+        id: "bst_narrative:lisa",
+        ownerName: "Lisa",
+        canonicalName: "Lisa",
+        aliases: [],
+        sourceName: "Your Family",
+        sourceAvatar: "Your Family.png",
+        sourceKey: "your family.png|your family",
+        kind: "narrative-entity",
+        introducedAtMessageIndex: 0,
+        lastSeenMessageIndex: 0,
+        lastActiveMessageIndex: 0,
+        lifecycleState: "active",
+        archivedAtMessageIndex: null,
+        lifecycleEvents: [],
+      } as never,
+    },
+  ];
+
+  const filtered = filterTechnicalSourceRenderTargets(
+    targets as never,
+    () => null,
+  );
+
+  assert.deepEqual(
+    filtered.map(target => `${target.registryEntry?.kind}:${target.ownerName}`),
+    ["narrative-entity:Candy", "narrative-entity:Lisa"],
   );
 });
 

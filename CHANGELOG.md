@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.1.2-dev1] - 2026-04-02
+### Fixed
+- Fixed target filtering for multi-character source cards so the generic source-owner card is now hidden when same-source narrative child characters are already rendered for that message.
+
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
 - Fixed extractor diagnostics so `scopeResolution` now uses the same entity-aware custom-stat lookup as real extraction, preventing debug dumps from showing stale owner-bucket values when the canonical tracker state already comes from entity-scoped data.
