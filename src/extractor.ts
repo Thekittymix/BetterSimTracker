@@ -117,7 +117,7 @@ function hasCoverageForAllRequestedBuiltInAndTextStats(
 
 type ScopeResolutionDebug = {
   globalScope: boolean;
-  resolvedFrom: "global" | "owner" | "legacy_fallback" | "global_fallback" | "none";
+  resolvedFrom: "global" | "owner" | "legacy_fallback" | "global_fallback" | "entity_lookup" | "none";
   value: unknown;
   ownerValue?: unknown;
   globalValue?: unknown;
@@ -125,7 +125,10 @@ type ScopeResolutionDebug = {
 };
 
 function resolveScopedDebugValue(
+  registryContext: STContext | null,
+  trackerData: TrackerData | null | undefined,
   byOwner: Record<string, unknown> | null | undefined,
+  byEntityId: Record<string, unknown> | null | undefined,
   ownerName: string,
   globalScope?: boolean,
 ): ScopeResolutionDebug {
@@ -133,32 +136,46 @@ function resolveScopedDebugValue(
   const globalValue = byOwner?.[GLOBAL_TRACKER_KEY];
   const legacyEntries = Object.entries(byOwner ?? {}).filter(([owner, value]) => owner !== GLOBAL_TRACKER_KEY && value !== undefined);
   const legacyFirst = legacyEntries.length ? legacyEntries[0] : null;
+  const resolvedValue = resolvePreviousCustomNonNumericValue(
+    registryContext,
+    byOwner,
+    trackerData,
+    byEntityId,
+    ownerName,
+    Boolean(globalScope),
+  );
 
   if (globalScope) {
-    if (globalValue !== undefined) {
-      return { globalScope: true, resolvedFrom: "global", value: globalValue, ownerValue, globalValue };
+    if (globalValue !== undefined && resolvedValue === globalValue) {
+      return { globalScope: true, resolvedFrom: "global", value: resolvedValue, ownerValue, globalValue };
     }
-    if (ownerValue !== undefined) {
-      return { globalScope: true, resolvedFrom: "owner", value: ownerValue, ownerValue, globalValue };
+    if (ownerValue !== undefined && resolvedValue === ownerValue) {
+      return { globalScope: true, resolvedFrom: "owner", value: resolvedValue, ownerValue, globalValue };
     }
-    if (legacyFirst) {
+    if (legacyFirst && resolvedValue === legacyFirst[1]) {
       return {
         globalScope: true,
         resolvedFrom: "legacy_fallback",
-        value: legacyFirst[1],
+        value: resolvedValue,
         ownerValue,
         globalValue,
         legacyFallbackOwner: legacyFirst[0],
       };
     }
+    if (resolvedValue !== undefined) {
+      return { globalScope: true, resolvedFrom: "entity_lookup", value: resolvedValue, ownerValue, globalValue };
+    }
     return { globalScope: true, resolvedFrom: "none", value: undefined, ownerValue, globalValue };
   }
 
-  if (ownerValue !== undefined) {
-    return { globalScope: false, resolvedFrom: "owner", value: ownerValue, ownerValue, globalValue };
+  if (ownerValue !== undefined && resolvedValue === ownerValue) {
+    return { globalScope: false, resolvedFrom: "owner", value: resolvedValue, ownerValue, globalValue };
   }
-  if (globalValue !== undefined) {
-    return { globalScope: false, resolvedFrom: "global_fallback", value: globalValue, ownerValue, globalValue };
+  if (globalValue !== undefined && resolvedValue === globalValue) {
+    return { globalScope: false, resolvedFrom: "global_fallback", value: resolvedValue, ownerValue, globalValue };
+  }
+  if (resolvedValue !== undefined) {
+    return { globalScope: false, resolvedFrom: "entity_lookup", value: resolvedValue, ownerValue, globalValue };
   }
   return { globalScope: false, resolvedFrom: "none", value: undefined, ownerValue, globalValue };
 }
@@ -868,9 +885,17 @@ export async function extractStatisticsParallel(input: {
     for (const statDef of customDefs) {
       const statId = statDef.id;
       const sourceByOwner = previousCustomNonNumericStatistics?.[statId] as Record<string, unknown> | undefined;
+      const sourceByEntityId = previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId] as Record<string, unknown> | undefined;
       const byOwner: Record<string, ScopeResolutionDebug> = {};
       for (const owner of active) {
-        byOwner[owner] = resolveScopedDebugValue(sourceByOwner, owner, Boolean(statDef.globalScope));
+        byOwner[owner] = resolveScopedDebugValue(
+          registryContext,
+          previousTrackerData,
+          sourceByOwner,
+          sourceByEntityId,
+          owner,
+          Boolean(statDef.globalScope),
+        );
       }
       currentByStat[statId] = byOwner;
     }
@@ -880,9 +905,17 @@ export async function extractStatisticsParallel(input: {
       for (const statDef of customDefs) {
         const statId = statDef.id;
         const sourceByOwner = entry.customNonNumericStatistics?.[statId] as Record<string, unknown> | undefined;
+        const sourceByEntityId = entry.customNonNumericStatisticsByEntityId?.[statId] as Record<string, unknown> | undefined;
         const byOwner: Record<string, ScopeResolutionDebug> = {};
         for (const owner of active) {
-          byOwner[owner] = resolveScopedDebugValue(sourceByOwner, owner, Boolean(statDef.globalScope));
+          byOwner[owner] = resolveScopedDebugValue(
+            registryContext,
+            entry,
+            sourceByOwner,
+            sourceByEntityId,
+            owner,
+            Boolean(statDef.globalScope),
+          );
         }
         byStat[statId] = byOwner;
       }

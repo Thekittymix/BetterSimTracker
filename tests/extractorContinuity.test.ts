@@ -237,3 +237,92 @@ test("extractStatisticsParallel seeds custom numeric defaults when only a stale 
   assert.equal(requestCount, 0);
   assert.equal(result.customStatistics.focus?.Ash, 50);
 });
+
+test("extractStatisticsParallel scopeResolution debug uses entity-aware custom non-numeric lookup instead of stale owner buckets", async () => {
+  const { extractStatisticsParallel } = loadExtractor();
+  let requestCount = 0;
+  const context = makeBaseContext(async () => {
+    requestCount += 1;
+    return {
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            characters: [
+              {
+                name: "Ash",
+                confidence: 1,
+                value: {
+                  clothes: ["oversized flannel shirt", "worn-out jeans", "tank top"],
+                },
+              },
+            ],
+          }),
+        },
+      }],
+    };
+  });
+
+  const previousTrackerData = makeTracker({
+    entityOwnerMap: {
+      Ash: {
+        entityId: "bst_narrative:ashley-current",
+        ownerName: "Ashley Summers",
+        canonicalName: "Ashley Summers",
+        aliases: ["Ash"],
+        sourceKey: "narrative:bst_narrative:ashley-current",
+        kind: "narrative-entity",
+      },
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: {
+        "bst_narrative:ashley-current": ["oversized flannel shirt", "worn-out jeans", "tank top"],
+      },
+    },
+  });
+
+  const result = await withSillyTavernContext(context, () => extractStatisticsParallel({
+    context,
+    settings: makeSettings({
+      customStats: [({
+        id: "clothes",
+        label: "Clothes",
+        kind: "array",
+        defaultValue: [],
+        textMaxLength: 80,
+        track: true,
+        includeInInjection: true,
+        showOnCard: true,
+        showInGraph: false,
+      } as unknown) as BetterSimTrackerSettings["customStats"][number]],
+    }),
+    userName: "User",
+    activeCharacters: ["Ash"],
+    contextText: "Ashley lingers near the doorway.",
+    previousTrackerData,
+    previousStatistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    previousCustomStatistics: {},
+    previousCustomStatisticsRaw: {},
+    previousCustomNonNumericStatistics: {
+      clothes: {
+        Ashley: ["worn hoodie", "hoodie pocket"],
+      },
+    },
+    hasPriorTrackerData: true,
+    history: [],
+  }));
+
+  assert.equal(requestCount, 1);
+  assert.deepEqual(result.debug?.meta?.scopeResolution?.current?.clothes?.Ash?.value, [
+    "oversized flannel shirt",
+    "worn-out jeans",
+    "tank top",
+  ]);
+  assert.equal(result.debug?.meta?.scopeResolution?.current?.clothes?.Ash?.resolvedFrom, "entity_lookup");
+});

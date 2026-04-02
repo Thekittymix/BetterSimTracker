@@ -506,7 +506,7 @@ export interface DeltaDebugRecord {
     scopeResolution?: {
       current?: Record<string, Record<string, {
         globalScope: boolean;
-        resolvedFrom: "global" | "owner" | "legacy_fallback" | "global_fallback" | "none";
+        resolvedFrom: "global" | "owner" | "legacy_fallback" | "global_fallback" | "entity_lookup" | "none";
         value: unknown;
         ownerValue?: unknown;
         globalValue?: unknown;
@@ -517,7 +517,7 @@ export interface DeltaDebugRecord {
         messageIndex: number;
         byStat: Record<string, Record<string, {
           globalScope: boolean;
-          resolvedFrom: "global" | "owner" | "legacy_fallback" | "global_fallback" | "none";
+          resolvedFrom: "global" | "owner" | "legacy_fallback" | "global_fallback" | "entity_lookup" | "none";
           value: unknown;
           ownerValue?: unknown;
           globalValue?: unknown;
