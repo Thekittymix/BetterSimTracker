@@ -846,6 +846,58 @@ export function resolveTrackerDataEntityOwnerSnapshot(
   return null;
 }
 
+function resolveOwnerSourceSnapshot(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  ownerName: string,
+): Pick<TrackerDataEntityOwner, "ownerName" | "sourceKey" | "kind"> | null {
+  const fromData = resolveTrackerDataEntityOwnerSnapshot(data, ownerName);
+  if (fromData?.sourceKey) {
+    return {
+      ownerName: fromData.ownerName,
+      sourceKey: fromData.sourceKey,
+      kind: fromData.kind,
+    };
+  }
+  const fromRegistry = getEntityRegistryEntryByOwnerName(context, ownerName);
+  if (fromRegistry?.sourceKey) {
+    return {
+      ownerName: fromRegistry.ownerName,
+      sourceKey: fromRegistry.sourceKey,
+      kind: fromRegistry.kind,
+    };
+  }
+  return null;
+}
+
+export function filterShadowedSourceOwners(
+  context: STContext | null,
+  data: TrackerData | null | undefined,
+  ownerNames: string[],
+): string[] {
+  const normalizedOwners = uniqueStrings((ownerNames ?? []).map(normalizeToken).filter(Boolean));
+  if (normalizedOwners.length <= 1) return normalizedOwners;
+
+  const aliasLikeSourceKeys = new Set<string>();
+  for (const ownerName of normalizedOwners) {
+    const snapshot = resolveOwnerSourceSnapshot(context, data, ownerName);
+    const sourceKey = normalizeToken(snapshot?.sourceKey);
+    if (!sourceKey) continue;
+    if (snapshot?.kind === "multi_character_alias" || snapshot?.kind === "narrative-entity") {
+      aliasLikeSourceKeys.add(sourceKey);
+    }
+  }
+  if (!aliasLikeSourceKeys.size) return normalizedOwners;
+
+  return normalizedOwners.filter(ownerName => {
+    const snapshot = resolveOwnerSourceSnapshot(context, data, ownerName);
+    const sourceKey = normalizeToken(snapshot?.sourceKey);
+    if (!sourceKey) return true;
+    if (snapshot?.kind !== "owner") return true;
+    return !aliasLikeSourceKeys.has(sourceKey);
+  });
+}
+
 function listTrackerDataEntityIdsForOwner(
   context: STContext | null,
   data: TrackerData | null | undefined,
@@ -1022,7 +1074,7 @@ function collectTrackerDataOwnerNames(
       push(name);
     }
   }
-  return names;
+  return filterShadowedSourceOwners(context, data, names);
 }
 
 export function buildTrackerDataEntityOwnerMap(
@@ -1178,7 +1230,7 @@ function resolveResolvedEntityNames(
     seen.add(ownerKey);
     out.push(ownerName);
   }
-  return out;
+  return filterShadowedSourceOwners(context, data, out);
 }
 
 function resolveResolvedEntityIds(
@@ -1204,7 +1256,11 @@ export function resolveTrackerSceneOwners(
   if (!data) return [];
   const resolvedNames = resolveResolvedEntityNames(context, data, entity => entity.inScene);
   if (resolvedNames.length) return resolvedNames;
-  return uniqueStrings(Array.isArray(data.activeCharacters) ? data.activeCharacters : []);
+  return filterShadowedSourceOwners(
+    context,
+    data,
+    uniqueStrings(Array.isArray(data.activeCharacters) ? data.activeCharacters : []),
+  );
 }
 
 export function resolveTrackerActiveOwners(
@@ -1212,9 +1268,11 @@ export function resolveTrackerActiveOwners(
   data: TrackerData | null | undefined,
 ): string[] {
   if (!data) return [];
-  const explicitActiveCharacters = Array.isArray(data.activeCharacters)
-    ? uniqueStrings(data.activeCharacters)
-    : [];
+  const explicitActiveCharacters = filterShadowedSourceOwners(
+    context,
+    data,
+    Array.isArray(data.activeCharacters) ? uniqueStrings(data.activeCharacters) : [],
+  );
   if (explicitActiveCharacters.includes(USER_TRACKER_KEY)) {
     return explicitActiveCharacters;
   }
@@ -1246,10 +1304,14 @@ export function resolveTrackerSceneEntityIds(
   data: TrackerData | null | undefined,
 ): string[] {
   if (!data) return [];
+  const sceneOwners = resolveTrackerSceneOwners(context, data);
+  const filteredIds = uniqueStrings(sceneOwners.flatMap(ownerName =>
+    listTrackerDataEntityIdsForOwner(context, data, ownerName),
+  ));
+  if (filteredIds.length) return filteredIds;
   const resolvedIds = resolveResolvedEntityIds(data, entity => entity.inScene);
   if (resolvedIds.length) return resolvedIds;
-  const activeCharacters = Array.isArray(data.activeCharacters) ? uniqueStrings(data.activeCharacters) : [];
-  return resolveTrackerEntityIdsForOwners(context, activeCharacters);
+  return resolveTrackerEntityIdsForOwners(context, sceneOwners);
 }
 
 export function resolveTrackerActiveEntityIds(
@@ -1257,9 +1319,11 @@ export function resolveTrackerActiveEntityIds(
   data: TrackerData | null | undefined,
 ): string[] {
   if (!data) return [];
-  const explicitActiveCharacters = Array.isArray(data.activeCharacters)
-    ? uniqueStrings(data.activeCharacters)
-    : [];
+  const explicitActiveCharacters = filterShadowedSourceOwners(
+    context,
+    data,
+    Array.isArray(data.activeCharacters) ? uniqueStrings(data.activeCharacters) : [],
+  );
   if (explicitActiveCharacters.includes(USER_TRACKER_KEY)) {
     return resolveTrackerEntityIdsForOwners(context, explicitActiveCharacters);
   }

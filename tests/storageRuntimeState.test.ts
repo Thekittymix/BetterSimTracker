@@ -991,6 +991,45 @@ test("resolveNormalizedTrackerActiveCharacters prefers resolver owners over expl
   );
 });
 
+test("resolveNormalizedTrackerActiveCharacters hides a generic source owner when same-source child entities are active", () => {
+  assert.deepEqual(
+    resolveNormalizedTrackerActiveCharacters(
+      {
+        activeCharacters: ["Your Family", "Marylyn", "Lisa"],
+        entityOwnerMap: {
+          "Your Family": {
+            entityId: "ent-family",
+            ownerName: "Your Family",
+            canonicalName: "Your Family",
+            aliases: [],
+            sourceKey: "your family.png|your family",
+            kind: "owner",
+          },
+          Marylyn: {
+            entityId: "ent-marylyn",
+            ownerName: "Marylyn",
+            canonicalName: "Marylyn",
+            aliases: [],
+            sourceKey: "your family.png|your family",
+            kind: "narrative-entity",
+          },
+          Lisa: {
+            entityId: "ent-lisa",
+            ownerName: "Lisa",
+            canonicalName: "Lisa",
+            aliases: [],
+            sourceKey: "your family.png|your family",
+            kind: "narrative-entity",
+          },
+        },
+      } as unknown as TrackerData,
+      ["Your Family", "Marylyn", "Lisa"],
+      ["Your Family", "Marylyn", "Lisa"],
+    ),
+    ["Marylyn", "Lisa"],
+  );
+});
+
 test("buildMergedPromptMacroData falls back to resolver message owners before scene owners when activeCharacters are missing", () => {
   const context = makeContext();
   const entry = {

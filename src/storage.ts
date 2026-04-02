@@ -18,7 +18,7 @@ import type {
   TrackerResolvedEntity,
 } from "./types";
 import { normalizeCustomNonNumericValue } from "./customStatRuntime";
-import { buildTrackerDataEntityOwnerMap, clearEntityRegistry } from "./entityRegistry";
+import { buildTrackerDataEntityOwnerMap, clearEntityRegistry, filterShadowedSourceOwners } from "./entityRegistry";
 const CHAT_STATE_KEY = `${EXTENSION_KEY}:chat`;
 
 function normalizeKey(value: unknown): string {
@@ -160,7 +160,7 @@ function resolveNamesFromResolvedEntitiesWithOwnerMap(
       || entityName,
     );
   }
-  return names;
+  return filterShadowedSourceOwners(null, { entityOwnerMap } as TrackerData, names);
 }
 
 export function getTrackerDataFromMessage(message: ChatMessage): TrackerData | null {
@@ -171,23 +171,36 @@ export function getTrackerDataFromMessage(message: ChatMessage): TrackerData | n
 }
 
 export function resolveNormalizedTrackerActiveCharacters(
-  data: { activeCharacters?: TrackerData["activeCharacters"] | null },
+  data: { activeCharacters?: TrackerData["activeCharacters"] | null; entityOwnerMap?: TrackerData["entityOwnerMap"] | null },
   resolvedSceneOwners: string[] = [],
   resolvedMessageOwners: string[] = [],
 ): string[] {
   const rawActiveCharacters = Array.isArray(data.activeCharacters)
     ? Array.from(new Set((data.activeCharacters ?? []).map(item => String(item ?? "").trim()).filter(Boolean)))
     : [];
+  const filteredRawActiveCharacters = filterShadowedSourceOwners(
+    null,
+    { entityOwnerMap: data.entityOwnerMap ?? undefined } as TrackerData,
+    rawActiveCharacters,
+  );
   if (rawActiveCharacters.includes(USER_TRACKER_KEY)) {
     return rawActiveCharacters;
   }
   if (resolvedMessageOwners.length) {
-    return [...resolvedMessageOwners];
+    return filterShadowedSourceOwners(
+      null,
+      { entityOwnerMap: data.entityOwnerMap ?? undefined } as TrackerData,
+      [...resolvedMessageOwners],
+    );
   }
   if (resolvedSceneOwners.length) {
-    return [...resolvedSceneOwners];
+    return filterShadowedSourceOwners(
+      null,
+      { entityOwnerMap: data.entityOwnerMap ?? undefined } as TrackerData,
+      [...resolvedSceneOwners],
+    );
   }
-  return rawActiveCharacters;
+  return filteredRawActiveCharacters;
 }
 
 function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
@@ -207,7 +220,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
     entity => entity.inMessage,
   );
   const normalizedActiveCharacters = resolveNormalizedTrackerActiveCharacters(
-    { activeCharacters: data.activeCharacters },
+    { activeCharacters: data.activeCharacters, entityOwnerMap: normalizedEntityOwnerMap },
     normalizedSceneOwners,
     normalizedMessageOwners,
   );
@@ -539,6 +552,7 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
       activeCharacters: Array.isArray(data.activeCharacters)
         ? Array.from(new Set(data.activeCharacters.map(owner => ownerToTarget[owner] || owner)))
         : data.activeCharacters,
+      entityOwnerMap: mergedEntityOwnerMap,
     },
     remappedSceneOwners,
     remappedMessageOwners,
@@ -1603,7 +1617,7 @@ export function mergeTrackerDataChronologically(entries: TrackerData[]): Tracker
     entity => entity.inMessage,
   );
   const normalizedFallbackActiveCharacters = resolveNormalizedTrackerActiveCharacters(
-    { activeCharacters: fallbackActiveCharacters },
+    { activeCharacters: fallbackActiveCharacters, entityOwnerMap: mergedEntityOwnerMap },
     hydratedSceneOwners,
     hydratedMessageOwners,
   );

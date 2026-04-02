@@ -1706,6 +1706,51 @@ test("listEntityRegistryEntriesForMessage returns visible entities in introducti
   assert.deepEqual(entries.map(entry => entry.kind), ["multi_character_alias", "multi_character_alias"]);
 });
 
+test("resolveTrackerSceneOwners and entity ids hide a generic source owner when same-source narrative children are active", () => {
+  const data = {
+    activeCharacters: ["Your Family", "Marylyn", "Lisa"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Your Family", "Marylyn", "Lisa"],
+      sceneEntityIds: ["ent-family", "ent-marylyn", "ent-lisa"],
+      source: "model",
+    }),
+    entityOwnerMap: {
+      "Your Family": {
+        entityId: "ent-family",
+        ownerName: "Your Family",
+        canonicalName: "Your Family",
+        aliases: [],
+        sourceKey: "your family.png|your family",
+        kind: "owner",
+      },
+      Marylyn: {
+        entityId: "ent-marylyn",
+        ownerName: "Marylyn",
+        canonicalName: "Marylyn",
+        aliases: [],
+        sourceKey: "your family.png|your family",
+        kind: "narrative-entity",
+      },
+      Lisa: {
+        entityId: "ent-lisa",
+        ownerName: "Lisa",
+        canonicalName: "Lisa",
+        aliases: [],
+        sourceKey: "your family.png|your family",
+        kind: "narrative-entity",
+      },
+    },
+    statistics: { affection: {}, trust: {}, desire: {}, connection: {}, mood: {}, lastThought: {} },
+    customStatistics: {},
+    customNonNumericStatistics: {},
+  } as unknown as TrackerData;
+
+  assert.deepEqual(resolveTrackerSceneOwners(null, data), ["Marylyn", "Lisa"]);
+  assert.deepEqual(resolveTrackerActiveOwners(null, data), ["Marylyn", "Lisa"]);
+  assert.deepEqual(resolveTrackerSceneEntityIds(null, data), ["ent-marylyn", "ent-lisa"]);
+  assert.deepEqual(resolveTrackerActiveEntityIds(null, data), ["ent-marylyn", "ent-lisa"]);
+});
+
 test("getEntityRegistryEntryForMessage hides pre-introduction and archived entries outside their visible window", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
