@@ -190,3 +190,50 @@ test("buildCharacterCardsContext separates target card context from other cards"
   assert.match(rendered, /Character Card - Blake/);
 });
 
+test("buildCharacterCardsContext keeps active character cards in non-target context when no preferred target card is supplied", () => {
+  const context = {
+    characterId: 0,
+    characters: [
+      { name: "Seraphina", avatar: "default_seraphina.png", description: "Seraphina description." },
+    ],
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "bst_owner:default_seraphina.png|seraphina": {
+            id: "bst_owner:default_seraphina.png|seraphina",
+            ownerName: "Seraphina",
+            canonicalName: "Seraphina",
+            aliases: [],
+            sourceName: "Seraphina",
+            sourceAvatar: "default_seraphina.png",
+            sourceKey: "default_seraphina.png|seraphina",
+            kind: "owner",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 2,
+            lastActiveMessageIndex: 2,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+            lifecycleEvents: [{ messageIndex: 0, state: "active" }],
+          },
+        },
+        ownerToEntityId: {
+          seraphina: "bst_owner:default_seraphina.png|seraphina",
+        },
+      },
+    },
+  } as any;
+
+  const rendered = buildCharacterCardsContext(
+    context,
+    ["Seraphina"],
+    [],
+    "standard",
+    undefined,
+  );
+
+  assert.doesNotMatch(rendered, /Target character card context/);
+  assert.match(rendered, /Other character cards \(non-target context only;/);
+  assert.match(rendered, /Character Card - Seraphina/);
+});
+

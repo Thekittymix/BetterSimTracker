@@ -9,7 +9,7 @@ export function createPromptRefreshController(input: {
   refreshFromStoredData: () => void;
   syncPromptInjectionFn?: typeof syncPromptInjection;
 }): {
-  queuePromptSync: (context: STContext) => void;
+  queuePromptSync: (context: STContext, options?: { force?: boolean }) => void;
   scheduleRefresh: (delay?: number) => void;
 } {
   let refreshTimer: number | null = null;
@@ -17,7 +17,7 @@ export function createPromptRefreshController(input: {
   const syncPromptInjectionFn = input.syncPromptInjectionFn ?? syncPromptInjection;
 
   return {
-    queuePromptSync(context: STContext): void {
+    queuePromptSync(context: STContext, options?: { force?: boolean }): void {
       const settings = input.getSettings();
       const latestData = input.getLatestData();
       const latestPromptMacroData = input.getLatestPromptMacroData();
@@ -49,7 +49,7 @@ export function createPromptRefreshController(input: {
         context.groupId ?? "",
         context.characterId ?? "",
       ].join("|");
-      if (signature === lastPromptSyncSignature) {
+      if (!options?.force && signature === lastPromptSyncSignature) {
         input.pushTrace("prompt.sync.skip", { reason: "signature_unchanged" });
         return;
       }

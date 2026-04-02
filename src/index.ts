@@ -134,6 +134,7 @@ import { cancelActiveGenerations, generateJson } from "./generator";
 import { registerSlashCommands } from "./slashCommands";
 import { initCharacterPanel } from "./characterPanel";
 import { initPersonaPanel } from "./personaPanel";
+import { initDynamicCharactersPanel } from "./dynamicCharactersPanel";
 import { extractLorebookEntriesFromPayload, readLorebookContext } from "./lorebook";
 import { normalizeDateTimeWithMode } from "./dateTime";
 import {
@@ -147,7 +148,7 @@ import {
   overlayLatestGlobalCustomStats,
   selectLatestRelevantHistoryEntry,
 } from "./extractionBaselineHelpers";
-import { buildMergedPromptMacroData, resolveLatestStoredTrackerData } from "./runtimeState";
+import { buildMergedPromptMacroData, resolveLatestStoredTrackerData, resolveLatestStoredTrackerDataBefore } from "./runtimeState";
 import { buildMacroPreviewCandidates, getBstMacroDebugSnapshot, syncBstMacros } from "./runtimeMacros";
 import { createPromptRefreshController } from "./runtimePromptSync";
 import {
@@ -212,6 +213,7 @@ let pendingLateRenderStartLastAiIndex: number | null = null;
 let lateRenderPollTimer: number | null = null;
 let autoBootstrapExtractionKey: string | null = null;
 let promptRefreshController: ReturnType<typeof createPromptRefreshController> | null = null;
+let dynamicCharactersPanelController: ReturnType<typeof initDynamicCharactersPanel> | null = null;
 const BOOTSTRAP_CONTINUE_REASON = "AUTO_BOOTSTRAP_MISSING_TRACKER_CONTINUE";
 let userTurnGateActive = false;
 let userTurnGateMessageIndex: number | null = null;
@@ -265,6 +267,22 @@ function getPreferredCharacterOwner(data: TrackerData): string | null {
 }
 
 function refreshPromptMacroData(context: STContext): void {
+  if (!latestData) {
+    latestPromptMacroData = null;
+    return;
+  }
+  if (swipeGenerationActive) {
+    const swipeTargetIndex = getLastAiMessageIndex(context);
+    if (swipeTargetIndex != null) {
+      const previous = resolveLatestStoredTrackerDataBefore(context, swipeTargetIndex);
+      if (previous.data) {
+        latestPromptMacroData = buildMergedPromptMacroData(context, previous.data, {
+          beforeMessageIndexExclusive: swipeTargetIndex,
+        });
+        return;
+      }
+    }
+  }
   latestPromptMacroData = buildMergedPromptMacroData(context, latestData);
 }
 
@@ -1697,8 +1715,8 @@ function queueRender(): void {
   });
 }
 
-function queuePromptSync(context: STContext): void {
-  promptRefreshController?.queuePromptSync(context);
+function queuePromptSync(context: STContext, options?: { force?: boolean }): void {
+  promptRefreshController?.queuePromptSync(context, options);
 }
 
 function scheduleRefresh(delay = 80): void {
@@ -3813,12 +3831,13 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       const sceneEntityIdsForCardContext = resolvedEntityResolution?.resolvedEntities?.length
         ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
         : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
+      const preferredCharacterNameForCardContext = userExtraction ? undefined : preferredCharacterName;
       contextText = `${contextText}${buildCharacterCardsContext(
         context,
         activeCharacters,
         sceneEntityIdsForCardContext,
         resolveEntityTrackingMode(runScopedSettings),
-        preferredCharacterName,
+        preferredCharacterNameForCardContext,
       )}`.trim();
     }
     if (activeSettings.includeLorebookInExtraction) {
@@ -4218,6 +4237,7 @@ function refreshFromStoredData(): void {
   });
   queuePromptSync(context);
   queueRender();
+  dynamicCharactersPanelController?.sync();
   upsertSettingsPanel({
     settings,
     onSave: patch => {
@@ -4291,7 +4311,7 @@ function registerEvents(context: STContext): void {
           setTrackerUi(context, { phase: "generating", done: 0, total: 0, messageIndex: targetIndex, stepLabel: "Generating AI response" });
           queueRender();
         }
-        queuePromptSync(context);
+        queuePromptSync(context, { force: type === "swipe" });
         return;
       }
       if (isExtracting) {
@@ -4302,7 +4322,7 @@ function registerEvents(context: STContext): void {
       pushTrace("event.generation_started", { targetIndex, type, startLastAiIndex: chatGenerationStartLastAiIndex });
       setTrackerUi(context, { phase: "generating", done: 0, total: 0, messageIndex: targetIndex, stepLabel: "Generating AI response" });
       queueRender();
-      queuePromptSync(context);
+      queuePromptSync(context, { force: type === "swipe" });
     });
   }
 
@@ -4930,6 +4950,12 @@ async function init(): Promise<void> {
     saveSettings: (ctx, next) => saveSettings(ctx, next),
     onSettingsUpdated: () => refreshFromStoredData(),
   });
+  dynamicCharactersPanelController = initDynamicCharactersPanel({
+    getContext: () => getSafeContext(),
+    getSettings: () => settings,
+    onStateChanged: () => refreshFromStoredData(),
+  });
+  dynamicCharactersPanelController.sync();
   exposeWindowApi();
   ensureSlashCommandsRegistered();
 }

@@ -355,6 +355,110 @@ test("buildPrompt does not render user owner line when includeUserTrackerInInjec
   assert.doesNotMatch(prompt, /- User:/);
 });
 
+test("buildPrompt includes explicit None placeholders for empty injected user non-numeric state", () => {
+  const settings = makeSettings({
+    includeUserTrackerInInjection: true,
+    enableUserTracking: true,
+    userTrackMood: true,
+    userTrackLastThought: true,
+    customStats: [
+      {
+        id: "clothes",
+        kind: "array",
+        label: "Clothes",
+        defaultValue: [],
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: false,
+        trackUser: true,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+  });
+  const data = makeTracker({
+    activeCharacters: ["Seraphina"],
+    customNonNumericStatistics: {
+      clothes: {
+        [USER_TRACKER_KEY]: [],
+      },
+    },
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, makeContext());
+  assert.match(prompt, /- User: clothes=None; mood=None; lastThought=None/);
+});
+
+test("buildPrompt includes explicit None placeholders for empty injected character non-numeric state", () => {
+  const settings = makeSettings({
+    trackMood: true,
+    trackLastThought: true,
+    customStats: [
+      {
+        id: "clothes",
+        kind: "array",
+        label: "Clothes",
+        defaultValue: [],
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+  });
+  const data = makeTracker({
+    activeCharacters: ["Seraphina"],
+    customNonNumericStatistics: {
+      clothes: {
+        Seraphina: [],
+      },
+    },
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, makeContext());
+  assert.match(prompt, /- Seraphina: clothes=None; mood=None; lastThought=None/);
+});
+
+test("buildPrompt omits non-numeric fields that are not in injection scope instead of emitting None", () => {
+  const settings = makeSettings({
+    trackMood: true,
+    trackLastThought: false,
+    customStats: [
+      {
+        id: "secret_note",
+        kind: "text_short",
+        label: "Secret Note",
+        defaultValue: "",
+        textMaxLength: 80,
+        track: true,
+        trackCharacters: true,
+        trackUser: false,
+        globalScope: false,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: false,
+      },
+    ],
+  });
+  const data = makeTracker({
+    activeCharacters: ["Seraphina"],
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, makeContext());
+  assert.match(prompt, /- Seraphina: mood=None/);
+  assert.doesNotMatch(prompt, /lastThought=None/);
+  assert.doesNotMatch(prompt, /secret_note=None/);
+});
+
 test("buildPrompt filters reserved system owner names and avoids fake fallback values", () => {
   const settings = makeSettings({
     trackAffection: true,

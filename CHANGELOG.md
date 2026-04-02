@@ -2,6 +2,76 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0-dev15] - 2026-04-02
+### Fixed
+- Fixed user-target extraction prompt scoping so active character cards no longer become `BST_TARGET_CARD_CONTEXT` during user extraction and stay in non-target card context instead.
+
+## [2.5.0-dev13] - 2026-04-02
+### Changed
+- Clarified extraction prompt scoping with an explicit target block and snapshot guidance, so the model is told more clearly who the current extraction target is and how to treat prior snapshots versus current state and recent messages.
+
+## [2.5.0-dev14] - 2026-04-02
+### Fixed
+- Fixed `Dynamic Characters` deletion so removing a dynamic character now hides it from the current chat and manager instead of letting it reappear from persisted message targets.
+- Fixed the `Dynamic Characters` chat option so it stays available in dynamic mode and shows an empty-state manager instead of disappearing when no dynamic characters are currently tracked.
+
+## [2.5.0-dev9] - 2026-04-02
+### Fixed
+- Fixed manual `Archive` in the `Dynamic Characters` manager so archived characters are hidden immediately instead of lingering until the normal auto-archive threshold.
+
+## [2.5.0-dev12] - 2026-04-02
+### Changed
+- Added explicit custom-stat meaning blocks to extraction prompts so custom stat descriptions are available in both sequential and unified extraction paths.
+
+### Fixed
+- Fixed sequential custom numeric protocol rendering so `{{statId}}` is resolved in the final prompt instead of leaking as a literal placeholder.
+
+## [2.5.0-dev11] - 2026-04-02
+### Changed
+- Hardened the inject/include contract so prompt injection now uses the previous AI snapshot during swipe flows instead of reusing tracker state from the currently swiped message variant.
+
+### Fixed
+- Fixed prompt injection to emit explicit `None` markers for empty non-numeric state that is still in scope, reducing model guesswork when values are intentionally blank.
+- Expanded automated coverage for inject/include source selection, prompt rendering, and forced swipe prompt refresh behavior.
+
+## [2.5.0-dev10] - 2026-04-02
+### Fixed
+- Fixed manual `Archive` so it overrides same-message active-state projection too, preventing archived dynamic characters from staying visible as `Active` on the current chat card.
+
+## [2.5.0-dev7] - 2026-04-02
+### Changed
+- Refined the `Dynamic Characters` manager into a denser, clearer per-character row layout with simpler card-color controls and grouped actions.
+
+### Fixed
+- Fixed dynamic character archiving so manual archive state now survives later syncs and reloads instead of flipping back to active.
+
+## [2.5.0-dev6] - 2026-04-02
+### Changed
+- Compactified the `Dynamic Characters` manager into denser per-character rows with inline color controls and action buttons instead of oversized nested panels.
+
+## [2.5.0-dev5] - 2026-04-02
+### Changed
+- Reworked the `Dynamic Characters` manager color/actions layout so `Auto Color` is a real toggle, the manual color picker only appears in manual mode, and destructive actions are grouped more clearly.
+
+## [2.5.0-dev4] - 2026-04-02
+### Changed
+- Refined the `Dynamic Characters` manager card-color controls with a BST-style `Auto Color` toggle, clearer automatic/manual color state, and a separate delete action.
+
+## [2.5.0-dev3] - 2026-03-31
+### Changed
+- Clarified the `Dynamic Characters` card-color control so it now shows the real active color, removes the redundant text input, and makes the automatic-color action explicit.
+
+## [2.5.0-dev2] - 2026-03-31
+### Changed
+- Restyled the `Dynamic Characters` manager to reuse the existing BST modal, row, and color-input UI patterns instead of a bespoke dialog layout.
+
+## [2.5.0-dev1] - 2026-03-31
+### Added
+- Added a `Dynamic Characters` manager under the chat options menu for the current chat.
+
+### Fixed
+- Dynamic character cards can now be archived, restored, and given a chat-scoped card color directly from the manager without duplicating tracker edit controls.
+
 ## [2.5.0] - 2026-03-31
 ### Added
 - Added `Dynamic Characters` mode for chats with multiple character participants.
