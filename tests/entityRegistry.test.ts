@@ -351,7 +351,7 @@ test("getEntityRegistryLifecycleStateForMessage resolves last active message fro
     getEntityRegistryLifecycleStateForMessage(context, "Ashley", 3),
     {
       lastActiveMessageIndex: 3,
-      lifecycleState: "inactive",
+      lifecycleState: "active",
       archivedAtMessageIndex: null,
       introducedAtMessageIndex: 3,
     },
@@ -360,7 +360,7 @@ test("getEntityRegistryLifecycleStateForMessage resolves last active message fro
     getEntityRegistryLifecycleStateForMessage(context, "Ashley", 10),
     {
       lastActiveMessageIndex: 8,
-      lifecycleState: "inactive",
+      lifecycleState: "active",
       archivedAtMessageIndex: null,
       introducedAtMessageIndex: 3,
     },
@@ -475,7 +475,7 @@ test("deleteEntityRegistryEntry allows later reactivation on a newer active mess
   assert.equal(registry.entities[raleighId]?.deletedAtMessageIndex, undefined);
   assert.equal(registry.entities[raleighId]?.manualLifecycleOverride, undefined);
   assert.equal(getEntityRegistryEntryByEntityIdForMessage(context, raleighId, 12)?.ownerName, "Raleigh");
-  assert.equal(getEntityRegistryLifecycleStateForEntityIdForMessage(context, raleighId, 12)?.lifecycleState, "inactive");
+  assert.equal(getEntityRegistryLifecycleStateForEntityIdForMessage(context, raleighId, 12)?.lifecycleState, "active");
   assert.equal(getEntityRegistryLifecycleStateForEntityIdForMessage(context, raleighId, 12)?.lastActiveMessageIndex, 12);
 });
 
@@ -910,7 +910,7 @@ test("entity registry reactivation restores archived aliases for later messages 
   assert.equal(archivedState?.archivedAtMessageIndex, 15);
 
   const restoredState = getEntityRegistryLifecycleStateForMessage(context, "Ashley", 22);
-  assert.equal(restoredState?.lifecycleState, "inactive");
+  assert.equal(restoredState?.lifecycleState, "active");
   assert.equal(restoredState?.archivedAtMessageIndex, null);
   assert.equal(restoredState?.lastActiveMessageIndex, 22);
 });
@@ -1784,7 +1784,7 @@ test("getEntityRegistryLifecycleStateForMessage clamps registry lifecycle to the
 
   assert.deepEqual(
     getEntityRegistryLifecycleStateForMessage(context, "Ashley", 8),
-    { lastActiveMessageIndex: 8, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
+    { lastActiveMessageIndex: 8, lifecycleState: "active", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
   );
   assert.deepEqual(
     getEntityRegistryLifecycleStateForMessage(context, "Blake", 8),
@@ -1828,7 +1828,7 @@ test("getEntityRegistryLifecycleStateForEntityIdForMessage clamps lifecycle with
 
   assert.deepEqual(
     getEntityRegistryLifecycleStateForEntityIdForMessage(context, ashleyId, 8),
-    { lastActiveMessageIndex: 8, lifecycleState: "inactive", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
+    { lastActiveMessageIndex: 8, lifecycleState: "active", archivedAtMessageIndex: null, introducedAtMessageIndex: 8 },
   );
   assert.deepEqual(
     getEntityRegistryLifecycleStateForEntityIdForMessage(context, blakeId, 15),

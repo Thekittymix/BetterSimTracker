@@ -218,6 +218,42 @@ test("listManageableDynamicCharacters hides deleted entries from the manager lis
   assert.deepEqual(refreshed.map(item => item.ownerName), ["Blake"]);
 });
 
+test("listManageableDynamicCharacters shows a deleted character again after a later active reappearance", () => {
+  const context = makeContext();
+  context.chat.push(
+    { mes: "follow-up", name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", is_user: false } as never,
+    { mes: "user follow-up", name: "User", is_user: true } as never,
+  );
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 1,
+    owners: ["Raleigh", "Blake"],
+    getLifecycleState: () => "active",
+  });
+  const items = listManageableDynamicCharacters(context, makeSettings("dynamic_characters"));
+  const raleigh = items.find(item => item.ownerName === "Raleigh");
+  assert.ok(raleigh);
+
+  assert.equal(deleteEntityRegistryEntry(context, raleigh.entityId, 1), true);
+  assert.deepEqual(
+    listManageableDynamicCharacters(context, makeSettings("dynamic_characters")).map(item => item.ownerName),
+    ["Blake"],
+  );
+
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 3,
+    owners: ["Raleigh", "Blake"],
+    getLifecycleState: () => "active",
+  });
+
+  const refreshed = listManageableDynamicCharacters(context, makeSettings("dynamic_characters"));
+  assert.deepEqual(refreshed.map(item => item.ownerName), ["Blake", "Raleigh"]);
+  assert.equal(refreshed.find(item => item.ownerName === "Raleigh")?.lifecycleState, "active");
+});
+
 test("resolveDynamicCharactersManagerMessageIndex skips trailing system messages", () => {
   const context = makeContextWithTrailingSystemMessage();
   assert.equal(resolveDynamicCharactersManagerMessageIndex(context), 1);

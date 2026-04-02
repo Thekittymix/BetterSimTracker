@@ -823,7 +823,7 @@ export function resolvePersistedSnapshotActiveOwners(input: {
   userExtraction: boolean;
 }): string[] {
   return resolvePersistedActiveOwners(
-    input.requestCharacters,
+    input.userExtraction ? input.requestCharacters : input.sceneActiveCharacters,
     { includeUserOwner: input.userExtraction },
   );
 }

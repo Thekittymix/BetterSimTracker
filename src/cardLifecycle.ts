@@ -67,15 +67,20 @@ export function resolveCardLifecycleState(input: {
   const registryArchivedAt = Number.isFinite(Number(registryState?.archivedAtMessageIndex))
     ? Number(registryState?.archivedAtMessageIndex)
     : null;
+  const isCurrentlyActiveByEntity = entityNeedle
+    && (input.currentActiveEntityIds ?? []).some(id => normalizeEntityId(id) === entityNeedle);
+  const isCurrentlyActiveByOwner = (input.currentActiveCharacters ?? []).some(name => normalizeName(name) === needle);
+  const isCurrentlyActive = Boolean(isCurrentlyActiveByEntity || isCurrentlyActiveByOwner);
   if (registryState?.lifecycleState === "archived"
     && registryArchivedAt != null
-    && registryArchivedAt <= input.currentMessageIndex) {
+    && registryArchivedAt <= input.currentMessageIndex
+    && (!isCurrentlyActive || registryArchivedAt === input.currentMessageIndex)) {
     return "archived";
   }
-  if (entityNeedle && (input.currentActiveEntityIds ?? []).some(id => normalizeEntityId(id) === entityNeedle)) {
+  if (isCurrentlyActiveByEntity) {
     return "active";
   }
-  if ((input.currentActiveCharacters ?? []).some(name => normalizeName(name) === needle)) {
+  if (isCurrentlyActiveByOwner) {
     return "active";
   }
   if (!input.autoArchiveInactiveCards) return "inactive";

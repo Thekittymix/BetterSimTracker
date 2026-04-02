@@ -218,9 +218,7 @@ export function listManageableDynamicCharacters(
     .filter(entry => entry.deletedAtMessageIndex == null || entry.deletedAtMessageIndex > messageIndex)
     .map(entry => {
       const lifecycle = getEntityRegistryLifecycleStateForEntityIdForMessage(context, entry.id, messageIndex);
-      const lifecycleState = lifecycle?.archivedAtMessageIndex != null
-        ? "archived"
-        : entry.lifecycleState;
+      const lifecycleState = lifecycle?.lifecycleState ?? entry.lifecycleState;
       return {
         entityId: entry.id,
         ownerName: entry.ownerName,

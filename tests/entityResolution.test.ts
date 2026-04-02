@@ -1077,7 +1077,7 @@ test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the us
       requestCharacters: [USER_TRACKER_KEY],
       userExtraction: false,
     }),
-    [],
+    ["Blake"],
   );
 
   assert.deepEqual(
@@ -1086,7 +1086,7 @@ test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the us
       requestCharacters: ["Blake"],
       userExtraction: false,
     }),
-    ["Blake"],
+    ["Ashley", "Blake", "Garret", "Raleigh"],
   );
 });
 

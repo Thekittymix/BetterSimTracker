@@ -126,6 +126,25 @@ test("card lifecycle manual archived registry state beats current active owner p
   }), "archived");
 });
 
+test("card lifecycle allows a later active message to reactivate an archived registry entry", () => {
+  assert.equal(resolveCardLifecycleState({
+    ownerName: "Raleigh",
+    entityId: "bst_mc_alias:test:raleigh",
+    currentMessageIndex: 12,
+    currentActiveCharacters: ["Raleigh", "Blake"],
+    currentActiveEntityIds: ["bst_mc_alias:test:raleigh"],
+    history: [],
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 8,
+    registryState: {
+      lastActiveMessageIndex: 8,
+      lifecycleState: "archived",
+      archivedAtMessageIndex: 8,
+      introducedAtMessageIndex: 0,
+    },
+  }), "active");
+});
+
 test("card lifecycle ignores pre-introduction active history for registry-backed aliases", () => {
   const history = [
     { messageIndex: 0, activeCharacters: ["Blake"] },

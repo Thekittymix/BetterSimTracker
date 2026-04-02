@@ -1503,7 +1503,9 @@ export function getEntityRegistryLifecycleStateForEntityIdForMessage(
   const lastActiveMessageIndex = resolveLastActiveMessageIndexAtMessage(entry, messageIndex);
   const lifecycleState: CardLifecycleRegistryState["lifecycleState"] = archivedAtMessageIndex != null
     ? "archived"
-    : "inactive";
+    : lifecycleAtMessage.state === "active"
+      ? "active"
+      : "inactive";
   return {
     lastActiveMessageIndex,
     lifecycleState,
