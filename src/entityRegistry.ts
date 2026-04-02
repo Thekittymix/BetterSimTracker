@@ -659,6 +659,25 @@ export function setEntityRegistryCardColor(
   return true;
 }
 
+export function deleteEntityRegistryEntry(
+  context: STContext | null,
+  entityId: string,
+): boolean {
+  if (!context) return false;
+  const normalizedEntityId = normalizeToken(entityId);
+  if (!normalizedEntityId) return false;
+  const registry = readRegistry(context);
+  if (!registry.entities[normalizedEntityId]) return false;
+  delete registry.entities[normalizedEntityId];
+  for (const [ownerKey, mappedEntityId] of Object.entries(registry.ownerToEntityId)) {
+    if (normalizeToken(mappedEntityId) === normalizedEntityId) {
+      delete registry.ownerToEntityId[ownerKey];
+    }
+  }
+  writeRegistry(context, registry);
+  return true;
+}
+
 export function getEntityRegistryEntryByOwnerName(
   context: STContext | null,
   ownerName: string,

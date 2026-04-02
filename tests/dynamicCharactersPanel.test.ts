@@ -203,9 +203,11 @@ test("renderDynamicCharactersDialogMarkup reuses BST modal and color input patte
   assert.match(markup, /bst-custom-stat-row/);
   assert.match(markup, /bst-custom-stat-flag/);
   assert.match(markup, /bst-color-inputs/);
+  assert.match(markup, /bst-custom-stat-toggle bst-custom-stat-toggle-compact/);
   assert.match(markup, /Card Color/);
   assert.match(markup, /Manual override/);
-  assert.match(markup, /Use Auto Color/);
+  assert.match(markup, /Auto Color/);
+  assert.match(markup, /Delete/);
   assert.doesNotMatch(markup, /bst-dynamic-color-preview/);
   assert.doesNotMatch(markup, /color-text/);
   assert.doesNotMatch(markup, />Close</);
@@ -225,7 +227,7 @@ test("renderDynamicCharactersDialogMarkup shows auto color state clearly without
   ]);
 
   assert.match(markup, /Using automatic BST color/);
-  assert.match(markup, /Using Auto Color/);
-  assert.match(markup, /disabled/);
+  assert.match(markup, /bst-custom-stat-toggle bst-custom-stat-toggle-compact bst-dynamic-auto-toggle is-on/);
+  assert.doesNotMatch(markup, /Use Auto Color/);
   assert.doesNotMatch(markup, /type="text"/);
 });

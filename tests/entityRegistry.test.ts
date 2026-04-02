@@ -18,6 +18,7 @@ import {
   listTrackerDataLookupNamesForEntityIds,
   listTrackerDataLookupNamesForOwnerWithEntityFallback,
   readEntityRegistry,
+  deleteEntityRegistryEntry,
   setEntityRegistryCardColor,
   setEntityRegistryLifecycleOverride,
   resolveTrackerActiveEntityIds,
@@ -416,6 +417,28 @@ test("setEntityRegistryCardColor stores normalized per-entity card color", () =>
   assert.equal(setEntityRegistryCardColor(context, ashleyId, null), true);
   registry = readEntityRegistry(context);
   assert.equal(registry.entities[ashleyId]?.cardColor, undefined);
+});
+
+test("deleteEntityRegistryEntry removes the entity and owner lookup mappings", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+  const ashleyId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Ashley",
+    matchedBy: "alias",
+  });
+
+  assert.equal(deleteEntityRegistryEntry(context, ashleyId), true);
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[ashleyId], undefined);
+  assert.equal(registry.ownerToEntityId.ashley, undefined);
 });
 
 test("entity registry resolves owner names to stable entity ids and back", () => {

@@ -1,4 +1,5 @@
 import {
+  deleteEntityRegistryEntry,
   getEntityRegistryLifecycleStateForEntityIdForMessage,
   readEntityRegistry,
   setEntityRegistryCardColor,
@@ -84,6 +85,13 @@ function ensurePanelStyles(): void {
   gap: 8px;
   justify-content: flex-end;
 }
+.bst-dynamic-auto-toggle {
+  justify-content: flex-start;
+}
+.bst-dynamic-color-field .bst-color-inputs input[type="color"]:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .bst-dynamic-empty {
   border: 1px dashed rgba(255,255,255,0.2);
   border-radius: 10px;
@@ -123,6 +131,10 @@ function resolveDisplayedCardColor(item: DynamicCharactersManagerItem): string {
 
 function colorModeLabel(item: DynamicCharactersManagerItem): string {
   return item.cardColor ? "Manual override" : "Using automatic BST color";
+}
+
+function resolveAutoToggleEnabled(item: DynamicCharactersManagerItem): boolean {
+  return !item.cardColor;
 }
 
 export function listManageableDynamicCharacters(
@@ -183,13 +195,17 @@ export function renderDynamicCharactersDialogMarkup(items: DynamicCharactersMana
             <label class="bst-dynamic-color-field">
               <span>Card Color</span>
               <div class="bst-color-inputs">
-                <input type="color" value="${escapeHtml(resolveDisplayedCardColor(item))}" data-bst-dynamic-action="color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color picker for ${escapeHtml(item.ownerName)}">
+                <input type="color" value="${escapeHtml(resolveDisplayedCardColor(item))}" data-bst-dynamic-action="color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color picker for ${escapeHtml(item.ownerName)}" ${resolveAutoToggleEnabled(item) ? "disabled" : ""}>
               </div>
               <span class="bst-custom-stat-meta">${escapeHtml(colorModeLabel(item))}</span>
             </label>
             <div class="bst-dynamic-item-action-row">
-              <button type="button" class="bst-btn bst-btn-soft" data-bst-dynamic-action="auto-color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" ${item.cardColor ? "" : "disabled"}>${item.cardColor ? "Use Auto Color" : "Using Auto Color"}</button>
+              <button type="button" class="bst-custom-stat-toggle bst-custom-stat-toggle-compact bst-dynamic-auto-toggle ${resolveAutoToggleEnabled(item) ? "is-on" : "is-off"}" data-bst-dynamic-action="toggle-auto-color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-pressed="${resolveAutoToggleEnabled(item) ? "true" : "false"}" title="${resolveAutoToggleEnabled(item) ? "Automatic BST color is enabled" : "Click to return to automatic BST color"}">
+                <span class="bst-custom-stat-toggle-pill" aria-hidden="true"></span>
+                <span class="bst-custom-stat-toggle-label">Auto Color</span>
+              </button>
               <button type="button" class="bst-btn ${item.lifecycleState === "archived" ? "bst-btn-soft" : "bst-btn-danger"}" data-bst-dynamic-action="${item.lifecycleState === "archived" ? "restore" : "archive"}" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">${item.lifecycleState === "archived" ? "Restore" : "Archive"}</button>
+              <button type="button" class="bst-btn bst-btn-danger" data-bst-dynamic-action="delete" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">Delete</button>
             </div>
           </div>
         </div>
@@ -252,8 +268,10 @@ export function initDynamicCharactersPanel(input: {
         changed = setEntityRegistryLifecycleOverride(liveContext, entityId, messageIndex, "archived");
       } else if (action === "restore") {
         changed = setEntityRegistryLifecycleOverride(liveContext, entityId, messageIndex, "inactive");
-      } else if (action === "auto-color") {
+      } else if (action === "toggle-auto-color") {
         changed = setEntityRegistryCardColor(liveContext, entityId, null);
+      } else if (action === "delete") {
+        changed = deleteEntityRegistryEntry(liveContext, entityId);
       }
       if (changed) {
         input.onStateChanged();
