@@ -3831,12 +3831,13 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       const sceneEntityIdsForCardContext = resolvedEntityResolution?.resolvedEntities?.length
         ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
         : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
+      const preferredCharacterNameForCardContext = userExtraction ? undefined : preferredCharacterName;
       contextText = `${contextText}${buildCharacterCardsContext(
         context,
         activeCharacters,
         sceneEntityIdsForCardContext,
         resolveEntityTrackingMode(runScopedSettings),
-        preferredCharacterName,
+        preferredCharacterNameForCardContext,
       )}`.trim();
     }
     if (activeSettings.includeLorebookInExtraction) {

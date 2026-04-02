@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0-dev15] - 2026-04-02
+### Fixed
+- Fixed user-target extraction prompt scoping so active character cards no longer become `BST_TARGET_CARD_CONTEXT` during user extraction and stay in non-target card context instead.
+
 ## [2.5.0-dev13] - 2026-04-02
 ### Changed
 - Clarified extraction prompt scoping with an explicit target block and snapshot guidance, so the model is told more clearly who the current extraction target is and how to treat prior snapshots versus current state and recent messages.
