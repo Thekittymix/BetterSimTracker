@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.0-dev6] - 2026-04-02
+### Changed
+- Compactified the `Dynamic Characters` manager into denser per-character rows with inline color controls and action buttons instead of oversized nested panels.
+
 ## [2.5.0-dev5] - 2026-04-02
 ### Changed
 - Reworked the `Dynamic Characters` manager color/actions layout so `Auto Color` is a real toggle, the manual color picker only appears in manual mode, and destructive actions are grouped more clearly.

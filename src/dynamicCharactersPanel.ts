@@ -52,10 +52,13 @@ function ensurePanelStyles(): void {
   gap: 10px;
 }
 .bst-dynamic-item.bst-custom-stat-row {
-  align-items: stretch;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
 }
 .bst-dynamic-item-main.bst-custom-stat-main {
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
 }
 .bst-dynamic-item-title-row {
   display: flex;
@@ -64,35 +67,36 @@ function ensurePanelStyles(): void {
   flex-wrap: wrap;
 }
 .bst-dynamic-item-actions.bst-custom-stat-actions {
-  min-width: min(320px, 100%);
-  display: grid;
-  gap: 8px;
-  align-content: flex-start;
-}
-.bst-dynamic-control-group,
-.bst-dynamic-action-group {
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 12px;
-  padding: 10px;
-  background: rgba(255,255,255,0.03);
-}
-.bst-dynamic-control-group {
-  min-width: min(280px, 100%);
-  display: grid;
-  gap: 8px;
-}
-.bst-dynamic-control-head {
+  min-width: 0;
+  margin-left: auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
 }
-.bst-dynamic-color-field {
-  display: grid;
-  gap: 4px;
+.bst-dynamic-color-inline {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.bst-dynamic-color-label {
   font-size: 12px;
-  color: rgba(241, 246, 255, 0.94);
+  font-weight: 700;
+  color: rgba(241, 246, 255, 0.92);
+}
+.bst-dynamic-auto-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.bst-dynamic-color-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .bst-dynamic-color-field .bst-color-inputs {
   margin-top: 0;
@@ -100,17 +104,10 @@ function ensurePanelStyles(): void {
 .bst-dynamic-color-field[hidden] {
   display: none !important;
 }
-.bst-dynamic-item-action-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: flex-end;
-}
-.bst-dynamic-action-group {
+.bst-dynamic-action-inline {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
   gap: 8px;
 }
 .bst-dynamic-auto-toggle {
@@ -118,10 +115,6 @@ function ensurePanelStyles(): void {
 }
 .bst-dynamic-delete-btn {
   min-width: 40px;
-}
-.bst-dynamic-color-field .bst-color-inputs input[type="color"]:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }
 .bst-dynamic-empty {
   border: 1px dashed rgba(255,255,255,0.2);
@@ -131,6 +124,20 @@ function ensurePanelStyles(): void {
   font-size: 12px;
   opacity: 0.82;
   background: rgba(6, 10, 18, 0.44);
+}
+@media (max-width: 760px) {
+  .bst-dynamic-item.bst-custom-stat-row {
+    align-items: stretch;
+  }
+  .bst-dynamic-item-actions.bst-custom-stat-actions {
+    margin-left: 0;
+    justify-content: space-between;
+  }
+  .bst-dynamic-color-inline,
+  .bst-dynamic-action-inline {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 `;
   document.head.appendChild(style);
@@ -158,10 +165,6 @@ function colorInputValue(cardColor: string | null): string {
 
 function resolveDisplayedCardColor(item: DynamicCharactersManagerItem): string {
   return normalizeHexColor(item.cardColor) ?? normalizeHexColor(getStableAutoCardColor(item.ownerName)) ?? "#66ccff";
-}
-
-function colorModeLabel(item: DynamicCharactersManagerItem): string {
-  return item.cardColor ? "Manual override" : "Using automatic BST color";
 }
 
 function resolveAutoColorEnabled(item: DynamicCharactersManagerItem): boolean {
@@ -223,24 +226,22 @@ export function renderDynamicCharactersDialogMarkup(items: DynamicCharactersMana
             <div class="bst-custom-stat-meta">First seen at message #${item.introducedAtMessageIndex} &middot; Last seen #${item.lastSeenMessageIndex}</div>
           </div>
           <div class="bst-dynamic-item-actions bst-custom-stat-actions">
-            <div class="bst-dynamic-control-group">
-              <div class="bst-dynamic-control-head">
-                <span>Card Color</span>
+            <div class="bst-dynamic-color-inline">
+              <span class="bst-dynamic-color-label">Card Color</span>
+              <div class="bst-dynamic-auto-inline">
                 <button type="button" class="bst-custom-stat-toggle bst-custom-stat-toggle-compact bst-dynamic-auto-toggle ${resolveAutoColorEnabled(item) ? "is-on" : "is-off"}" data-bst-dynamic-action="toggle-auto-color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-pressed="${resolveAutoColorEnabled(item) ? "true" : "false"}" title="${resolveAutoColorEnabled(item) ? "Using automatic BST color" : "Using manual card color override"}">
                   <span class="bst-custom-stat-toggle-pill" aria-hidden="true"></span>
-                  <span class="bst-custom-stat-toggle-label">Auto Color</span>
+                  <span class="bst-custom-stat-toggle-label">Auto</span>
                 </button>
-              </div>
-              <span class="bst-custom-stat-meta">${escapeHtml(colorModeLabel(item))}</span>
-              <label class="bst-dynamic-color-field" ${resolveAutoColorEnabled(item) ? "hidden" : ""}>
-                <span>Manual Color</span>
+                <label class="bst-dynamic-color-field" ${resolveAutoColorEnabled(item) ? "hidden" : ""}>
                 <div class="bst-color-inputs">
                   <input type="color" value="${escapeHtml(resolveDisplayedCardColor(item))}" data-bst-dynamic-action="color" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Card color picker for ${escapeHtml(item.ownerName)}">
                 </div>
-              </label>
+                </label>
+              </div>
             </div>
-            <div class="bst-dynamic-action-group">
-              <button type="button" class="bst-btn ${item.lifecycleState === "archived" ? "bst-btn-soft" : "bst-btn-soft"}" data-bst-dynamic-action="${item.lifecycleState === "archived" ? "restore" : "archive"}" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">${item.lifecycleState === "archived" ? "Restore" : "Archive"}</button>
+            <div class="bst-dynamic-action-inline">
+              <button type="button" class="bst-btn bst-btn-soft" data-bst-dynamic-action="${item.lifecycleState === "archived" ? "restore" : "archive"}" data-bst-dynamic-entity="${escapeHtml(item.entityId)}">${item.lifecycleState === "archived" ? "Restore" : "Archive"}</button>
               <button type="button" class="bst-btn bst-btn-danger bst-icon-btn bst-dynamic-delete-btn" data-bst-dynamic-action="delete" data-bst-dynamic-entity="${escapeHtml(item.entityId)}" aria-label="Delete dynamic character ${escapeHtml(item.ownerName)}" title="Delete dynamic character">
                 <i class="fa-solid fa-trash" aria-hidden="true"></i>
               </button>

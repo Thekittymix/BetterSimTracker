@@ -202,13 +202,12 @@ test("renderDynamicCharactersDialogMarkup reuses BST modal and color input patte
   assert.match(markup, /bst-close-btn/);
   assert.match(markup, /bst-custom-stat-row/);
   assert.match(markup, /bst-custom-stat-flag/);
-  assert.match(markup, /bst-dynamic-control-group/);
-  assert.match(markup, /bst-dynamic-action-group/);
+  assert.match(markup, /bst-dynamic-color-inline/);
+  assert.match(markup, /bst-dynamic-action-inline/);
   assert.match(markup, /bst-color-inputs/);
   assert.match(markup, /bst-custom-stat-toggle bst-custom-stat-toggle-compact/);
   assert.match(markup, /Card Color/);
-  assert.match(markup, /Manual override/);
-  assert.match(markup, /Auto Color/);
+  assert.match(markup, />Auto</);
   assert.match(markup, /fa-solid fa-trash/);
   assert.doesNotMatch(markup, /bst-dynamic-color-preview/);
   assert.doesNotMatch(markup, /color-text/);
@@ -228,7 +227,7 @@ test("renderDynamicCharactersDialogMarkup groups auto-color controls and hides m
     },
   ]);
 
-  assert.match(markup, /Using automatic BST color/);
+  assert.match(markup, /bst-dynamic-auto-inline/);
   assert.match(markup, /bst-custom-stat-toggle bst-custom-stat-toggle-compact bst-dynamic-auto-toggle is-on/);
   assert.match(markup, /<label class="bst-dynamic-color-field" hidden>/);
   assert.match(markup, /aria-label="Delete dynamic character Blake"/);
