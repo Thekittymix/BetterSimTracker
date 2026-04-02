@@ -6,6 +6,13 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed manual `Archive` in the `Dynamic Characters` manager so archived characters are hidden immediately instead of lingering until the normal auto-archive threshold.
 
+## [2.5.0-dev12] - 2026-04-02
+### Changed
+- Added explicit custom-stat meaning blocks to extraction prompts so custom stat descriptions are available in both sequential and unified extraction paths.
+
+### Fixed
+- Fixed sequential custom numeric protocol rendering so `{{statId}}` is resolved in the final prompt instead of leaking as a literal placeholder.
+
 ## [2.5.0-dev11] - 2026-04-02
 ### Changed
 - Hardened the inject/include contract so prompt injection now uses the previous AI snapshot during swipe flows instead of reusing tracker state from the currently swiped message variant.

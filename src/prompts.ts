@@ -234,6 +234,7 @@ export const DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS: Record<StatKey, string> = {
 export const DEFAULT_SEQUENTIAL_CUSTOM_NUMERIC_PROMPT_INSTRUCTION = [
   "- Propose incremental changes to {{statLabel}} from the recent messages.",
   "- Only update {{statId}} deltas. Ignore other stats.",
+  "- Use the custom stat description to interpret what this stat actually measures.",
   "- Keep updates conservative and realistic.",
   "- It is valid to return 0 or negative deltas if the interaction is neutral or negative.",
   "- Do not reuse the same delta for all characters unless strongly justified by context.",
@@ -244,6 +245,7 @@ export const DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION = [
   "- Determine the best current value for {{statLabel}} from recent messages.",
   "- Update only {{statId}} and ignore other stats.",
   "- Return one valid value per character using the exact schema for this stat kind.",
+  "- Use the custom stat description to interpret what this stat actually measures.",
   "- For array kind, apply item-level updates (add/remove/edit items) and avoid rewriting the entire list unless context clearly requires replacement.",
   "- Keep updates conservative and context-grounded.",
   "- Prefer recent messages first; use character cards only to disambiguate when needed.",
@@ -317,6 +319,41 @@ function splitPromptContextSections(contextText: string): {
     otherCardContext: [structuredOtherCardContext, legacyOtherCardContext].filter(Boolean).join("\n\n").trim(),
     lorebookContext,
   };
+}
+
+function renderCustomStatMeaningLine(stat: CustomStatDefinition): string {
+  const statId = String(stat.id ?? "").trim();
+  const statLabel = String(stat.label ?? "").trim() || statId;
+  const statDescription = String(stat.description ?? "").trim() || "No description provided.";
+  const statKind = stat.kind ?? "numeric";
+  const scope = stat.globalScope ? "global" : "owner-scoped";
+  return `- ${statId} (${statLabel}, ${statKind}, ${scope}): ${statDescription}`;
+}
+
+function renderSingleCustomStatMeaningBlock(input: {
+  statId: string;
+  statLabel: string;
+  statDescription?: string;
+  statKind?: CustomStatKind;
+  globalScope?: boolean;
+}): string {
+  const statId = input.statId.trim();
+  const statLabel = input.statLabel.trim() || statId;
+  const statDescription = String(input.statDescription ?? "").trim() || "No description provided.";
+  const statKind = input.statKind ?? "numeric";
+  const scope = input.globalScope ? "global" : "owner-scoped";
+  return [
+    `- ID: ${statId}`,
+    `- Label: ${statLabel}`,
+    `- Kind: ${statKind}`,
+    `- Scope: ${scope}`,
+    `- Meaning: ${statDescription}`,
+  ].join("\n");
+}
+
+function renderCustomStatMeaningsBlock(stats: CustomStatDefinition[]): string {
+  const lines = stats.map(renderCustomStatMeaningLine).filter(Boolean);
+  return lines.length ? lines.join("\n") : "- none";
 }
 
 function renderPromptContextSections(
@@ -915,6 +952,7 @@ export function buildUnifiedAllStatsPrompt(input: {
     buildRequestedBuiltInFlags(unifiedBuiltInStats),
     input.builtInTracking,
   );
+  const customStatMeanings = renderCustomStatMeaningsBlock(input.customStats);
   const currentLines = input.characters.map(name => {
     const chunks: string[] = [];
     const builtInChunk = renderBuiltInSnapshotChunk({
@@ -1086,6 +1124,7 @@ export function buildUnifiedAllStatsPrompt(input: {
     "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{customStatMeaningsBlock}}",
     "{{targetCardContextBlock}}",
     "{{otherCardContextBlock}}",
     "{{lorebookContextBlock}}",
@@ -1117,6 +1156,7 @@ export function buildUnifiedAllStatsPrompt(input: {
     recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    customStatMeaningsBlock: bstTagBlock("BST_CUSTOM_STAT_MEANINGS", "{{customStatMeanings}}"),
     targetCardContextBlock,
     otherCardContextBlock,
     lorebookContextBlock,
@@ -1132,6 +1172,7 @@ export function buildUnifiedAllStatsPrompt(input: {
     targetCardContext: contextSections.targetCardContext || "- none",
     otherCardContext: contextSections.otherCardContext || "- none",
     lorebookContext: contextSections.lorebookContext || "- none",
+    customStatMeanings,
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -1303,6 +1344,12 @@ export function buildSequentialCustomNumericPrompt(input: {
     contextText: input.contextText,
   });
   const safeMaxDelta = Math.max(1, Math.round(Number(input.maxDeltaPerTurn) || 15));
+  const customStatMeaning = renderSingleCustomStatMeaningBlock({
+    statId,
+    statLabel,
+    statDescription,
+    statKind: "numeric",
+  });
 
   const currentLines = input.characters.map(name => {
     const builtInChunk = renderBuiltInSnapshotChunk({
@@ -1356,12 +1403,22 @@ export function buildSequentialCustomNumericPrompt(input: {
     Boolean(input.includeLorebookInExtraction),
   );
 
-  const protocol = input.protocolTemplate?.trim() || NUMERIC_PROMPT_PROTOCOL(statId);
+  const protocol = input.protocolTemplate?.trim()
+    ? renderTemplate(input.protocolTemplate.trim(), {
+        statId,
+        statLabel,
+        statDescription,
+        statDefault: String(defaultValue),
+        maxDelta: String(safeMaxDelta),
+        characters: input.characters.join(", "),
+      })
+    : NUMERIC_PROMPT_PROTOCOL(statId);
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");
   const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const customStatMeaningBlock = bstTagBlock("BST_CUSTOM_STAT_MEANING", "{{customStatMeaning}}");
   const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
   const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
   const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
@@ -1375,6 +1432,7 @@ export function buildSequentialCustomNumericPrompt(input: {
     "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{customStatMeaningBlock}}",
     "{{targetCardContextBlock}}",
     "{{otherCardContextBlock}}",
     "{{lorebookContextBlock}}",
@@ -1389,6 +1447,7 @@ export function buildSequentialCustomNumericPrompt(input: {
     recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    customStatMeaningBlock,
     targetCardContextBlock,
     otherCardContextBlock,
     lorebookContextBlock,
@@ -1402,6 +1461,7 @@ export function buildSequentialCustomNumericPrompt(input: {
     targetCardContext: contextSections.targetCardContext || "- none",
     otherCardContext: contextSections.otherCardContext || "- none",
     lorebookContext: contextSections.lorebookContext || "- none",
+    customStatMeaning,
     currentLines,
     historyLines: historyLines || "- none",
     instruction,
@@ -1617,6 +1677,13 @@ export function buildSequentialCustomNonNumericPrompt(input: {
         : statKind === "date_time"
           ? (dateTimeMode === "structured" ? "datetime-structured=>YYYY-MM-DD HH:mm" : "datetime(YYYY-MM-DD HH:mm)")
           : `text<=${textMaxLen}`;
+  const customStatMeaning = renderSingleCustomStatMeaningBlock({
+    statId,
+    statLabel,
+    statDescription,
+    statKind,
+    globalScope: input.globalScope,
+  });
 
   const currentLines = input.characters.map(name => {
     const builtInChunk = renderBuiltInSnapshotChunk({
@@ -1714,6 +1781,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   const recentMessagesBlock = bstTagBlock("BST_RECENT_MESSAGES", "{{recentMessages}}");
   const currentStateBlock = bstTagBlock("BST_CURRENT_STATE", "{{currentLines}}");
   const recentSnapshotsBlock = bstTagBlock("BST_RECENT_SNAPSHOTS", "{{historyLines}}");
+  const customStatMeaningBlock = bstTagBlock("BST_CUSTOM_STAT_MEANING", "{{customStatMeaning}}");
   const targetCardContextBlock = bstTagBlock("BST_TARGET_CARD_CONTEXT", "{{targetCardContext}}");
   const otherCardContextBlock = bstTagBlock("BST_OTHER_CARD_CONTEXT", "{{otherCardContext}}");
   const lorebookContextBlock = bstTagBlock("BST_LOREBOOK_CONTEXT", "{{lorebookContext}}");
@@ -1726,6 +1794,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     "{{recentMessagesBlock}}",
     "{{currentStateBlock}}",
     "{{recentSnapshotsBlock}}",
+    "{{customStatMeaningBlock}}",
     "{{targetCardContextBlock}}",
     "{{otherCardContextBlock}}",
     "{{lorebookContextBlock}}",
@@ -1740,6 +1809,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     recentMessagesBlock,
     currentStateBlock,
     recentSnapshotsBlock,
+    customStatMeaningBlock,
     targetCardContextBlock,
     otherCardContextBlock,
     lorebookContextBlock,
@@ -1753,6 +1823,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     targetCardContext: contextSections.targetCardContext || "- none",
     otherCardContext: contextSections.otherCardContext || "- none",
     lorebookContext: contextSections.lorebookContext || "- none",
+    customStatMeaning,
     currentLines,
     historyLines: historyLines || "- none",
     instruction,

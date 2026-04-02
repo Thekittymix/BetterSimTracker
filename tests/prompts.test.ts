@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { USER_TRACKER_KEY } from "../src/constants";
 
 import {
+  DEFAULT_PROTOCOL_SEQUENTIAL_CUSTOM_NUMERIC,
   buildBuiltInSequentialPromptGenerationPrompt,
   buildCustomStatBehaviorGuidanceGenerationPrompt,
   buildSequentialCustomNumericPrompt,
@@ -299,6 +300,7 @@ test("buildUnifiedAllStatsPrompt includes custom numeric and non-numeric values"
         id: "satisfaction",
         kind: "numeric",
         label: "Satisfaction",
+        description: "Tracks overall relationship satisfaction in the current scene.",
         defaultValue: 50,
         track: true,
         trackCharacters: true,
@@ -313,6 +315,7 @@ test("buildUnifiedAllStatsPrompt includes custom numeric and non-numeric values"
         id: "clothes",
         kind: "array",
         label: "Clothes",
+        description: "Tracks currently worn clothing and accessories.",
         defaultValue: [],
         textMaxLength: 80,
         track: true,
@@ -351,7 +354,10 @@ test("buildUnifiedAllStatsPrompt includes custom numeric and non-numeric values"
   assert.match(prompt, /satisfaction=72/);
   assert.match(prompt, /clothes=\["black sundress","sandals"\]/);
   assert.match(prompt, /<BST_CRUCIAL_BEHAVE_INSTRUCTION>/);
+  assert.match(prompt, /<BST_CUSTOM_STAT_MEANINGS>/);
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
+  assert.match(prompt, /- satisfaction \(Satisfaction, numeric, owner-scoped\): Tracks overall relationship satisfaction in the current scene\./);
+  assert.match(prompt, /Tracks currently worn clothing and accessories\./);
   assert.match(prompt, /For custom numeric stats, use `delta\.<statId>`\./);
   assert.match(prompt, /For custom non-numeric stats, use `value\.<statId>`\./);
   assert.match(prompt, /Custom non-numeric stats to update \(clothes\):/);
@@ -365,6 +371,7 @@ test("buildUnifiedAllStatsPrompt does not leak global fallback into owner-scoped
         id: "clothes",
         kind: "array",
         label: "Clothes",
+        description: "Tracks currently worn clothing and accessories.",
         defaultValue: [],
         textMaxLength: 80,
         track: true,
@@ -499,6 +506,7 @@ test("buildUnifiedAllStatsPrompt resolves alias owner custom stats through regis
         id: "clothes",
         kind: "array",
         label: "Clothes",
+        description: "Tracks currently worn clothing and accessories.",
         defaultValue: [],
         textMaxLength: 80,
         track: true,
@@ -595,6 +603,7 @@ test("buildUnifiedAllStatsPrompt resolves current custom stats through tracker e
         id: "clothes",
         kind: "array",
         label: "Clothes",
+        description: "Tracks currently worn clothing and accessories.",
         defaultValue: [],
         textMaxLength: 80,
         track: true,
@@ -889,8 +898,11 @@ test("buildSequentialCustomNumericPrompt includes BST tagged extraction sections
   assert.match(prompt, /<BST_ENVELOPE>/);
   assert.match(prompt, /<BST_CURRENT_STATE>/);
   assert.match(prompt, /<BST_RECENT_SNAPSHOTS>/);
+  assert.match(prompt, /<BST_CUSTOM_STAT_MEANING>/);
   assert.match(prompt, /<BST_TASK>/);
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
+  assert.match(prompt, /- Meaning: General satisfaction\./);
+  assert.match(prompt, /Use the custom stat description to interpret what this stat actually measures\./);
   assert.match(prompt, /satisfaction=64/);
   assert.doesNotMatch(prompt, /Stat meanings:\n- affection:/);
   assert.doesNotMatch(prompt, /- trust:/);
@@ -925,6 +937,33 @@ test("buildSequentialCustomNumericPrompt preserves explicit zero defaults", () =
   });
 
   assert.match(prompt, /satisfaction=0/);
+});
+
+test("buildSequentialCustomNumericPrompt resolves {{statId}} inside custom protocol templates", () => {
+  const prompt = buildSequentialCustomNumericPrompt({
+    statId: "satisfaction",
+    statLabel: "Satisfaction",
+    statDescription: "General satisfaction.",
+    statDefault: 50,
+    maxDeltaPerTurn: 9,
+    userName: "User",
+    characters: ["Seraphina"],
+    contextText: "Recent lines",
+    current: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+    currentCustom: {},
+    history: [],
+    protocolTemplate: DEFAULT_PROTOCOL_SEQUENTIAL_CUSTOM_NUMERIC,
+  });
+
+  assert.match(prompt, /"satisfaction": 0/);
+  assert.doesNotMatch(prompt, /\{\{statId\}\}/);
 });
 
 test("buildSequentialCustomNumericPrompt keeps same-name custom numeric reads scoped to the current entity id", () => {
@@ -1084,8 +1123,11 @@ test("buildSequentialCustomNonNumericPrompt includes scoped values and mode-awar
 
   assert.match(prompt, /scene_date_time="2026-03-06 20:05"/);
   assert.match(prompt, /<BST_CRUCIAL_BEHAVE_INSTRUCTION>/);
+  assert.match(prompt, /<BST_CUSTOM_STAT_MEANING>/);
   assert.match(prompt, /<BST_OUTPUT_PROTOCOL>/);
+  assert.match(prompt, /- Meaning: Tracks current scene time\./);
   assert.match(prompt, /structured datetime intent/);
+  assert.match(prompt, /Use the custom stat description to interpret what this stat actually measures\./);
   assert.match(prompt, /use character cards and lorebook only to disambiguate when context is unclear\./);
 });
 
@@ -1127,6 +1169,7 @@ test("buildUnifiedAllStatsPrompt custom-only mode omits built-in framing for gro
         id: "satisfaction",
         label: "Satisfaction",
         kind: "numeric",
+        description: "Tracks current satisfaction with the scene.",
         defaultValue: 50,
         maxDeltaPerTurn: 9,
         scope: "character",
@@ -1135,6 +1178,7 @@ test("buildUnifiedAllStatsPrompt custom-only mode omits built-in framing for gro
         id: "clothes",
         label: "Clothes",
         kind: "array",
+        description: "Tracks currently worn clothing items.",
         defaultValue: [],
         textMaxLength: 80,
         scope: "character",
@@ -1164,6 +1208,9 @@ test("buildUnifiedAllStatsPrompt custom-only mode omits built-in framing for gro
   });
 
   assert.match(prompt, /Update only the requested custom stats in this single response\./);
+  assert.match(prompt, /<BST_CUSTOM_STAT_MEANINGS>/);
+  assert.match(prompt, /- satisfaction \(Satisfaction, numeric, owner-scoped\): Tracks current satisfaction with the scene\./);
+  assert.match(prompt, /- clothes \(Clothes, array, owner-scoped\): Tracks currently worn clothing items\./);
   assert.match(prompt, /Custom numeric delta stats to update \(satisfaction\):/);
   assert.match(prompt, /Custom non-numeric stats to update \(clothes\):/);
   assert.doesNotMatch(prompt, /Update built-in and custom stats in this single response\./);
