@@ -101,8 +101,7 @@ export function resolveCardLifecycleState(input: {
     : null;
   if (registryState?.lifecycleState === "archived"
     && registryArchivedAt != null
-    && registryArchivedAt <= input.currentMessageIndex
-    && (input.currentMessageIndex - lastActiveMessageIndex) > threshold) {
+    && registryArchivedAt <= input.currentMessageIndex) {
     return "archived";
   }
   return (input.currentMessageIndex - lastActiveMessageIndex) > threshold

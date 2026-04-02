@@ -90,6 +90,23 @@ test("card lifecycle can use registry last-active state when history is empty", 
   }), "archived");
 });
 
+test("card lifecycle honors a manual archived registry state immediately without waiting for auto-archive threshold", () => {
+  assert.equal(resolveCardLifecycleState({
+    ownerName: "Ashley",
+    currentMessageIndex: 11,
+    currentActiveCharacters: ["Blake"],
+    history: [],
+    autoArchiveInactiveCards: true,
+    archiveInactiveAfterTurns: 8,
+    registryState: {
+      lastActiveMessageIndex: 10,
+      lifecycleState: "archived",
+      archivedAtMessageIndex: 11,
+      introducedAtMessageIndex: 0,
+    },
+  }), "archived");
+});
+
 test("card lifecycle ignores pre-introduction active history for registry-backed aliases", () => {
   const history = [
     { messageIndex: 0, activeCharacters: ["Blake"] },
