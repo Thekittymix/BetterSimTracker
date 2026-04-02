@@ -6,6 +6,14 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed manual `Archive` in the `Dynamic Characters` manager so archived characters are hidden immediately instead of lingering until the normal auto-archive threshold.
 
+## [2.5.0-dev11] - 2026-04-02
+### Changed
+- Hardened the inject/include contract so prompt injection now uses the previous AI snapshot during swipe flows instead of reusing tracker state from the currently swiped message variant.
+
+### Fixed
+- Fixed prompt injection to emit explicit `None` markers for empty non-numeric state that is still in scope, reducing model guesswork when values are intentionally blank.
+- Expanded automated coverage for inject/include source selection, prompt rendering, and forced swipe prompt refresh behavior.
+
 ## [2.5.0-dev10] - 2026-04-02
 ### Fixed
 - Fixed manual `Archive` so it overrides same-message active-state projection too, preventing archived dynamic characters from staying visible as `Active` on the current chat card.

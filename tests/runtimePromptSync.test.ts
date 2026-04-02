@@ -53,6 +53,33 @@ test("queuePromptSync skips identical signatures and syncs on meaningful changes
   assert.equal(syncCalls[0].data?.timestamp, 2);
 });
 
+test("queuePromptSync force option bypasses unchanged signature for swipe-specific prompt refresh", async () => {
+  const syncCalls: Array<{ context: STContext; settings: BetterSimTrackerSettings; data: TrackerData | null }> = [];
+  const context: STContext = { chat: [], characterId: 1 };
+  const latestData = makeTracker(1);
+  const latestPromptMacroData = makeTracker(2);
+
+  const controller = createPromptRefreshController({
+    getSettings: () => ({ ...defaultSettings, enabled: true }),
+    getLatestData: () => latestData,
+    getLatestPromptMacroData: () => latestPromptMacroData,
+    pushTrace: () => undefined,
+    refreshFromStoredData: () => undefined,
+    syncPromptInjectionFn: async payload => {
+      syncCalls.push(payload);
+    },
+  });
+
+  controller.queuePromptSync(context);
+  controller.queuePromptSync(context, { force: true });
+
+  await Promise.resolve();
+
+  assert.equal(syncCalls.length, 2);
+  assert.equal(syncCalls[0].data?.timestamp, 2);
+  assert.equal(syncCalls[1].data?.timestamp, 2);
+});
+
 test("scheduleRefresh debounces timers and runs only the latest refresh", async () => {
   const realWindow = (globalThis as unknown as { window?: unknown }).window;
   const scheduled = new Map<number, () => void>();

@@ -10,7 +10,6 @@ import {
   resolveTrackerSceneOwners,
 } from "./entityRegistry";
 import { resolveCharacterFromContext, resolveEntityTrackingMode } from "./entityResolution";
-import { buildMergedPromptMacroData } from "./runtimeState";
 import {
   behaviorGuidanceLines,
   customStatTracksAnyScope,
@@ -311,6 +310,10 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
       filteredScopedNames.map(name => [name, resolvePromptOwnerExplicitEntityIds(context, data, name)] as const),
     );
     if (allowUserInjection) {
+      const hasUserInjectableField =
+        settings.userTrackMood ||
+        settings.userTrackLastThought ||
+        enabledCustom.some(stat => customStatTracksScope(stat, "user") && !Boolean(stat.globalScope));
       const hasUserMood = settings.userTrackMood && data.statistics.mood?.[USER_TRACKER_KEY] !== undefined;
       const hasUserLastThought = settings.userTrackLastThought && String(data.statistics.lastThought?.[USER_TRACKER_KEY] ?? "").trim().length > 0;
       const hasUserCustom = enabledCustom.some(stat =>
@@ -319,7 +322,7 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
           ? resolveScopedCustomNumericValue(data, stat.id, USER_TRACKER_KEY, Boolean(stat.globalScope)) !== undefined
           : resolveScopedCustomNonNumericValue(data, stat.id, USER_TRACKER_KEY, Boolean(stat.globalScope)) !== undefined)
       );
-      if ((hasUserMood || hasUserLastThought || hasUserCustom) && !filteredScopedNames.includes(USER_TRACKER_KEY)) {
+      if ((hasUserInjectableField || hasUserMood || hasUserLastThought || hasUserCustom) && !filteredScopedNames.includes(USER_TRACKER_KEY)) {
         filteredScopedNames.push(USER_TRACKER_KEY);
       }
     }
@@ -383,6 +386,7 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
       const displayName = isUser ? (String(context.name1 ?? "").trim() || "User") : name;
       const explicitEntityIds = explicitEntityIdsByOwner.get(name) ?? resolvePromptOwnerExplicitEntityIds(context, data, name);
       const explicitEntityId = explicitEntityIds[0] ?? null;
+      const noneToken = "None";
       const parts: string[] = [];
       const ownerMatch = Boolean(targetOwnerKey) && normalizeOwnerName(name) === targetOwnerKey;
       for (const stat of enabledBuiltIns) {
@@ -421,6 +425,8 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
         }));
         if (value != null) {
           parts.push(`${stat.id}=${value}`);
+        } else {
+          parts.push(`${stat.id}=${noneToken}`);
         }
       }
       if ((isUser && settings.userTrackMood) || (!isUser && includeMood)) {
@@ -438,6 +444,8 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
           const mood = String(rawMood ?? "").trim();
           if (mood) {
             parts.push(`mood=${mood}`);
+          } else {
+            parts.push("mood=None");
           }
         }
       }
@@ -456,6 +464,8 @@ function buildPrompt(data: TrackerData, settings: BetterSimTrackerSettings, cont
         }));
         if (thought != null) {
           parts.push(`lastThought=${thought}`);
+        } else {
+          parts.push("lastThought=None");
         }
       }
       if (!parts.length) return "";
@@ -679,13 +689,12 @@ export async function syncPromptInjection(input: {
     return;
   }
 
-  const mergedData = buildMergedPromptMacroData(context, data) ?? data;
-  const prompt = buildPrompt(mergedData, settings, context);
+  const prompt = buildPrompt(data, settings, context);
   lastInjectedPrompt = prompt;
   const ownerLines = extractOwnerLinesFromPrompt(prompt);
   lastInjectedPromptDebug = {
-    targetOwner: resolveInjectionTargetOwner(context, mergedData),
-    rawActiveCharacters: [...mergedData.activeCharacters],
+    targetOwner: resolveInjectionTargetOwner(context, data),
+    rawActiveCharacters: [...data.activeCharacters],
     ownerLines,
     reservedOwnerLineDetected: ownerLines.some(line => /silly\s*tavern\s*system|sillytavern\s*system|^\-\s*system\b/i.test(line)),
   };

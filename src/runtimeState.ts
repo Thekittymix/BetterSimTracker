@@ -1,6 +1,7 @@
 import {
   getChatStateLatestTrackerData,
   getLatestTrackerDataWithIndex,
+  getLatestTrackerDataWithIndexBefore,
   getLocalLatestTrackerData,
   getMetadataLatestTrackerData,
   getRecentTrackerHistoryEntries,
@@ -16,8 +17,11 @@ export type StoredTrackerSource = "message" | "chatState" | "metadata" | "local"
 export function buildMergedPromptMacroData(
   context: STContext,
   preferred: TrackerData | null,
+  options?: { beforeMessageIndexExclusive?: number | null },
 ): TrackerData | null {
-  const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length + 8));
+  const beforeMessageIndexExclusive = options?.beforeMessageIndexExclusive ?? null;
+  const historyEntries = getRecentTrackerHistoryEntries(context, Math.max(120, context.chat.length + 8))
+    .filter(entry => beforeMessageIndexExclusive == null || entry.messageIndex < beforeMessageIndexExclusive);
   const entries: Array<{
     data: TrackerData;
     timestamp: number;
@@ -79,26 +83,63 @@ export function resolveLatestStoredTrackerData(
   context: STContext,
   lastTrackableIndex: number | null,
 ): { source: StoredTrackerSource; data: TrackerData | null; messageIndex: number | null } {
+  return resolveLatestStoredTrackerDataInternal(context, {
+    preferredLastTrackableIndex: lastTrackableIndex,
+    beforeMessageIndexExclusive: null,
+  });
+}
+
+export function resolveLatestStoredTrackerDataBefore(
+  context: STContext,
+  beforeMessageIndexExclusive: number,
+): { source: StoredTrackerSource; data: TrackerData | null; messageIndex: number | null } {
+  return resolveLatestStoredTrackerDataInternal(context, {
+    preferredLastTrackableIndex: beforeMessageIndexExclusive - 1,
+    beforeMessageIndexExclusive,
+  });
+}
+
+function resolveLatestStoredTrackerDataInternal(
+  context: STContext,
+  input: {
+    preferredLastTrackableIndex: number | null;
+    beforeMessageIndexExclusive: number | null;
+  },
+): { source: StoredTrackerSource; data: TrackerData | null; messageIndex: number | null } {
+  const { preferredLastTrackableIndex, beforeMessageIndexExclusive } = input;
   const latestEntry = getLatestTrackerDataWithIndex(context);
   const chatStateEntry = getChatStateLatestTrackerData(context);
   const metadataEntry = getMetadataLatestTrackerData(context);
   const localEntry = getLocalLatestTrackerData(context);
 
+  const isEntryBeforeExclusive = (entry: { data: TrackerData; messageIndex: number } | null): boolean => {
+    if (!entry) return false;
+    if (beforeMessageIndexExclusive == null) return true;
+    return entry.messageIndex < beforeMessageIndexExclusive;
+  };
   const isEntrySafeForCurrentLastAi = (entry: { data: TrackerData; messageIndex: number } | null): boolean => {
     if (!entry) return false;
-    if (lastTrackableIndex == null) return false;
-    if (entry.messageIndex !== lastTrackableIndex) return false;
+    if (preferredLastTrackableIndex == null) return false;
+    if (entry.messageIndex !== preferredLastTrackableIndex) return false;
     if (entry.messageIndex < 0 || entry.messageIndex >= context.chat.length) return false;
+    if (!isEntryBeforeExclusive(entry)) return false;
     return isTrackableMessage(context.chat[entry.messageIndex]);
   };
   const isEntrySafeForAnyChatMessage = (entry: { data: TrackerData; messageIndex: number } | null): boolean => {
     if (!entry) return false;
     if (entry.messageIndex < 0 || entry.messageIndex >= context.chat.length) return false;
+    if (!isEntryBeforeExclusive(entry)) return false;
     return isTrackableMessage(context.chat[entry.messageIndex]);
   };
 
   if (isEntrySafeForAnyChatMessage(latestEntry)) {
     return { source: "message", data: latestEntry!.data, messageIndex: latestEntry!.messageIndex };
+  }
+  const latestBeforeEntry = beforeMessageIndexExclusive != null
+    ? getLatestTrackerDataWithIndexBefore(context, beforeMessageIndexExclusive)
+    : null;
+  if (isEntrySafeForAnyChatMessage(latestBeforeEntry)) {
+    return { source: "message", data: latestBeforeEntry!.data, messageIndex: latestBeforeEntry!.messageIndex };
   }
   if (isEntrySafeForCurrentLastAi(chatStateEntry)) {
     return { source: "chatState", data: chatStateEntry!.data, messageIndex: chatStateEntry!.messageIndex };

@@ -148,7 +148,7 @@ import {
   overlayLatestGlobalCustomStats,
   selectLatestRelevantHistoryEntry,
 } from "./extractionBaselineHelpers";
-import { buildMergedPromptMacroData, resolveLatestStoredTrackerData } from "./runtimeState";
+import { buildMergedPromptMacroData, resolveLatestStoredTrackerData, resolveLatestStoredTrackerDataBefore } from "./runtimeState";
 import { buildMacroPreviewCandidates, getBstMacroDebugSnapshot, syncBstMacros } from "./runtimeMacros";
 import { createPromptRefreshController } from "./runtimePromptSync";
 import {
@@ -267,6 +267,22 @@ function getPreferredCharacterOwner(data: TrackerData): string | null {
 }
 
 function refreshPromptMacroData(context: STContext): void {
+  if (!latestData) {
+    latestPromptMacroData = null;
+    return;
+  }
+  if (swipeGenerationActive) {
+    const swipeTargetIndex = getLastAiMessageIndex(context);
+    if (swipeTargetIndex != null) {
+      const previous = resolveLatestStoredTrackerDataBefore(context, swipeTargetIndex);
+      if (previous.data) {
+        latestPromptMacroData = buildMergedPromptMacroData(context, previous.data, {
+          beforeMessageIndexExclusive: swipeTargetIndex,
+        });
+        return;
+      }
+    }
+  }
   latestPromptMacroData = buildMergedPromptMacroData(context, latestData);
 }
 
@@ -1699,8 +1715,8 @@ function queueRender(): void {
   });
 }
 
-function queuePromptSync(context: STContext): void {
-  promptRefreshController?.queuePromptSync(context);
+function queuePromptSync(context: STContext, options?: { force?: boolean }): void {
+  promptRefreshController?.queuePromptSync(context, options);
 }
 
 function scheduleRefresh(delay = 80): void {
@@ -4294,7 +4310,7 @@ function registerEvents(context: STContext): void {
           setTrackerUi(context, { phase: "generating", done: 0, total: 0, messageIndex: targetIndex, stepLabel: "Generating AI response" });
           queueRender();
         }
-        queuePromptSync(context);
+        queuePromptSync(context, { force: type === "swipe" });
         return;
       }
       if (isExtracting) {
@@ -4305,7 +4321,7 @@ function registerEvents(context: STContext): void {
       pushTrace("event.generation_started", { targetIndex, type, startLastAiIndex: chatGenerationStartLastAiIndex });
       setTrackerUi(context, { phase: "generating", done: 0, total: 0, messageIndex: targetIndex, stepLabel: "Generating AI response" });
       queueRender();
-      queuePromptSync(context);
+      queuePromptSync(context, { force: type === "swipe" });
     });
   }
 

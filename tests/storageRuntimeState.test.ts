@@ -5,7 +5,7 @@ import { buildEntityResolution } from "./helpers/entityResolution";
 import { USER_TRACKER_KEY } from "../src/constants";
 import { EXTENSION_KEY } from "../src/constants";
 import { isTrackableMessage } from "../src/messageFilter";
-import { buildMergedPromptMacroData, resolveLatestStoredTrackerData } from "../src/runtimeState";
+import { buildMergedPromptMacroData, resolveLatestStoredTrackerData, resolveLatestStoredTrackerDataBefore } from "../src/runtimeState";
 import { resolveTrackerEntityIdsForOwners, syncEntityRegistryFromRender } from "../src/entityRegistry";
 import {
   clearTrackerDataForMessage,
@@ -1689,6 +1689,33 @@ test("resolveLatestStoredTrackerData prefers latest safe message snapshot", () =
   assert.deepEqual(resolved.data.customNonNumericStatistics, messageTracker.customNonNumericStatistics);
 });
 
+test("resolveLatestStoredTrackerDataBefore excludes the current swipe target message and returns the previous AI snapshot", () => {
+  const context = makeContext();
+  context.chat.push({ mes: "Latest swipe target", name: "Seraphina", is_user: false, is_system: false, extra: {} } as any);
+  const previousAi = makeTracker(1000, {
+    customNonNumericStatistics: {
+      clothes: {
+        Seraphina: ["worn hoodie"],
+      },
+    },
+  });
+  const currentSwipe = makeTracker(2000, {
+    customNonNumericStatistics: {
+      clothes: {
+        Seraphina: ["formal blazer"],
+      },
+    },
+  });
+
+  writeTrackerDataToMessage(context, previousAi, 2);
+  writeTrackerDataToMessage(context, currentSwipe, 3);
+
+  const resolved = resolveLatestStoredTrackerDataBefore(context, 3);
+  assert.equal(resolved.source, "message");
+  assert.equal(resolved.messageIndex, 2);
+  assert.deepEqual(resolved.data?.customNonNumericStatistics?.clothes?.Seraphina, ["worn hoodie"]);
+});
+
 test("resolveLatestStoredTrackerData prefers resolver-backed activeCharacters on input", () => {
   const context = makeContext();
   const messageTracker = makeTracker(2000, {
@@ -1721,6 +1748,31 @@ test("resolveLatestStoredTrackerData prefers resolver-backed activeCharacters on
       },
     ],
   }));
+});
+
+test("buildMergedPromptMacroData can exclude the current swipe target message from merged prompt state", () => {
+  const context = makeContext();
+  context.chat.push({ mes: "Latest swipe target", name: "Seraphina", is_user: false, is_system: false, extra: {} } as any);
+  const previousAi = makeTracker(1000, {
+    customNonNumericStatistics: {
+      clothes: {
+        Seraphina: ["worn hoodie"],
+      },
+    },
+  });
+  const currentSwipe = makeTracker(2000, {
+    customNonNumericStatistics: {
+      clothes: {
+        Seraphina: ["formal blazer"],
+      },
+    },
+  });
+
+  writeTrackerDataToMessage(context, previousAi, 2);
+  writeTrackerDataToMessage(context, currentSwipe, 3);
+
+  const merged = buildMergedPromptMacroData(context, previousAi, { beforeMessageIndexExclusive: 3 });
+  assert.deepEqual(merged?.customNonNumericStatistics?.clothes?.Seraphina, ["worn hoodie"]);
 });
 
 test("clearTrackerDataForMessage removes the current message tracker and rebuilds persisted latest state from earlier messages", () => {
