@@ -6,7 +6,7 @@ import {
   renderDynamicCharactersDialogMarkup,
   resolveDynamicCharactersManagerMessageIndex,
 } from "../src/dynamicCharactersPanel";
-import { syncEntityRegistryFromRender, setEntityRegistryCardColor, setEntityRegistryLifecycleOverride } from "../src/entityRegistry";
+import { deleteEntityRegistryEntry, syncEntityRegistryFromRender, setEntityRegistryCardColor, setEntityRegistryLifecycleOverride } from "../src/entityRegistry";
 import type { BetterSimTrackerSettings, STContext } from "../src/types";
 
 function makeContext(): STContext {
@@ -199,6 +199,25 @@ test("listManageableDynamicCharacters includes archived entries and card colors"
   assert.equal(refreshed[0]?.cardColor, "#abcdef");
 });
 
+test("listManageableDynamicCharacters hides deleted entries from the manager list", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 1,
+    owners: ["Ashley", "Blake"],
+    getLifecycleState: ownerName => ownerName === "Ashley" ? "active" : "inactive",
+  });
+  const items = listManageableDynamicCharacters(context, makeSettings("dynamic_characters"));
+  const ashley = items.find(item => item.ownerName === "Ashley");
+  assert.ok(ashley);
+
+  assert.equal(deleteEntityRegistryEntry(context, ashley.entityId, 1), true);
+
+  const refreshed = listManageableDynamicCharacters(context, makeSettings("dynamic_characters"));
+  assert.deepEqual(refreshed.map(item => item.ownerName), ["Blake"]);
+});
+
 test("resolveDynamicCharactersManagerMessageIndex skips trailing system messages", () => {
   const context = makeContextWithTrailingSystemMessage();
   assert.equal(resolveDynamicCharactersManagerMessageIndex(context), 1);
@@ -255,4 +274,11 @@ test("renderDynamicCharactersDialogMarkup groups auto-color controls and hides m
   assert.match(markup, /Seen #0 &middot; Last #3|Seen #0 · Last #3/);
   assert.doesNotMatch(markup, /type="text"/);
   assert.doesNotMatch(markup, /First seen at message/);
+});
+
+test("renderDynamicCharactersDialogMarkup keeps the dialog usable with an empty-state message", () => {
+  const markup = renderDynamicCharactersDialogMarkup([]);
+
+  assert.match(markup, /Dynamic Characters/);
+  assert.match(markup, /No dynamic characters are currently tracked in this chat\./);
 });

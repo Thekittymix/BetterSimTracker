@@ -158,6 +158,7 @@ export interface TrackerEntityRegistryEntry {
   lastActiveMessageIndex: number | null;
   lifecycleState: TrackerEntityLifecycleState;
   archivedAtMessageIndex: number | null;
+  deletedAtMessageIndex?: number | null;
   manualLifecycleOverride?: TrackerEntityLifecycleState | null;
   cardColor?: string;
   lifecycleEvents?: Array<{

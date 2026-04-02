@@ -419,7 +419,7 @@ test("setEntityRegistryCardColor stores normalized per-entity card color", () =>
   assert.equal(registry.entities[ashleyId]?.cardColor, undefined);
 });
 
-test("deleteEntityRegistryEntry removes the entity and owner lookup mappings", () => {
+test("deleteEntityRegistryEntry tombstones the entity so it no longer resolves for the current message window", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
     context,
@@ -435,10 +435,12 @@ test("deleteEntityRegistryEntry removes the entity and owner lookup mappings", (
     matchedBy: "alias",
   });
 
-  assert.equal(deleteEntityRegistryEntry(context, ashleyId), true);
+  assert.equal(deleteEntityRegistryEntry(context, ashleyId, 8), true);
   const registry = readEntityRegistry(context);
-  assert.equal(registry.entities[ashleyId], undefined);
-  assert.equal(registry.ownerToEntityId.ashley, undefined);
+  assert.equal(registry.entities[ashleyId]?.deletedAtMessageIndex, 8);
+  assert.equal(registry.entities[ashleyId]?.manualLifecycleOverride, "archived");
+  assert.equal(getEntityRegistryEntryByEntityIdForMessage(context, ashleyId, 8), null);
+  assert.equal(getEntityRegistryLifecycleStateForEntityIdForMessage(context, ashleyId, 8)?.lifecycleState, "archived");
 });
 
 test("entity registry resolves owner names to stable entity ids and back", () => {

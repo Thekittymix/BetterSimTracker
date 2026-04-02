@@ -179,6 +179,20 @@ function hasManualArchivedOverride(entry: TrackerEntityRegistryEntry): boolean {
   return entry.manualLifecycleOverride === "archived";
 }
 
+function resolveDeletedAtMessageIndex(entry: TrackerEntityRegistryEntry): number | null {
+  return entry.deletedAtMessageIndex == null
+    ? null
+    : (Number.isFinite(Number(entry.deletedAtMessageIndex)) ? Number(entry.deletedAtMessageIndex) : null);
+}
+
+function isDeletedAtMessage(
+  entry: TrackerEntityRegistryEntry,
+  messageIndex: number,
+): boolean {
+  const deletedAtMessageIndex = resolveDeletedAtMessageIndex(entry);
+  return deletedAtMessageIndex != null && deletedAtMessageIndex <= messageIndex;
+}
+
 function resolveLastActiveMessageIndexAtMessage(
   entry: TrackerEntityRegistryEntry,
   messageIndex: number,
@@ -243,6 +257,9 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
       const archivedAtMessageIndex = entry.archivedAtMessageIndex == null
         ? null
         : (Number.isFinite(Number(entry.archivedAtMessageIndex)) ? Number(entry.archivedAtMessageIndex) : null);
+      const deletedAtMessageIndex = entry.deletedAtMessageIndex == null
+        ? null
+        : (Number.isFinite(Number(entry.deletedAtMessageIndex)) ? Number(entry.deletedAtMessageIndex) : null);
       const manualLifecycleOverride = isLifecycleState(entry.manualLifecycleOverride)
         ? entry.manualLifecycleOverride
         : null;
@@ -263,6 +280,7 @@ function sanitizeRegistry(input: unknown): TrackerEntityRegistry {
         lastActiveMessageIndex,
         lifecycleState,
         archivedAtMessageIndex,
+        deletedAtMessageIndex: deletedAtMessageIndex ?? undefined,
         manualLifecycleOverride: manualLifecycleOverride ?? undefined,
         cardColor: cardColor ?? undefined,
         lifecycleEvents,
@@ -339,6 +357,7 @@ function ensureEntry(
     lastActiveMessageIndex: null,
     lifecycleState: "inactive",
     archivedAtMessageIndex: null,
+    deletedAtMessageIndex: null,
     manualLifecycleOverride: null,
     lifecycleEvents: [{ messageIndex, state: "inactive" }],
   };
@@ -385,6 +404,7 @@ export function syncEntityRegistryFromRender(input: {
     const identity = existingRegistryEntry ? null : resolveCharacterIdentity(context, ownerName, input.mode);
     if (!existingRegistryEntry && !identity) continue;
     const entry = existingRegistryEntry ?? ensureEntry(registry, identity!, ownerName, input.messageIndex);
+    if (isDeletedAtMessage(entry, input.messageIndex)) continue;
     const lifecycleState = input.getLifecycleStateByTarget
       ? input.getLifecycleStateByTarget({ ownerName, registryEntry })
       : (input.getLifecycleState?.(ownerName) ?? "inactive");
@@ -529,6 +549,7 @@ export function syncNarrativeEntityRegistryFromResolvedEntities(input: {
       lastActiveMessageIndex: null,
       lifecycleState: "inactive",
       archivedAtMessageIndex: null,
+      deletedAtMessageIndex: null,
       manualLifecycleOverride: null,
       lifecycleEvents: [{ messageIndex: input.messageIndex, state: "inactive" }],
     };
@@ -536,6 +557,7 @@ export function syncNarrativeEntityRegistryFromResolvedEntities(input: {
       registry.entities[entityId] = entry;
       changed = true;
     }
+    if (isDeletedAtMessage(entry, input.messageIndex)) continue;
     if (entry.ownerName !== ownerName) {
       entry.ownerName = ownerName;
       changed = true;
@@ -685,18 +707,51 @@ export function setEntityRegistryCardColor(
 export function deleteEntityRegistryEntry(
   context: STContext | null,
   entityId: string,
+  messageIndex?: number | null,
 ): boolean {
   if (!context) return false;
   const normalizedEntityId = normalizeToken(entityId);
   if (!normalizedEntityId) return false;
   const registry = readRegistry(context);
-  if (!registry.entities[normalizedEntityId]) return false;
-  delete registry.entities[normalizedEntityId];
-  for (const [ownerKey, mappedEntityId] of Object.entries(registry.ownerToEntityId)) {
-    if (normalizeToken(mappedEntityId) === normalizedEntityId) {
-      delete registry.ownerToEntityId[ownerKey];
-    }
+  const entry = registry.entities[normalizedEntityId];
+  if (!entry) return false;
+  const effectiveMessageIndex = Number.isFinite(Number(messageIndex))
+    ? Number(messageIndex)
+    : Math.max(0, context.chat.length - 1);
+  let changed = false;
+  if (resolveDeletedAtMessageIndex(entry) !== effectiveMessageIndex) {
+    entry.deletedAtMessageIndex = effectiveMessageIndex;
+    changed = true;
   }
+  if ((entry.manualLifecycleOverride ?? null) !== "archived") {
+    entry.manualLifecycleOverride = "archived";
+    changed = true;
+  }
+  if (upsertLifecycleEvent(entry, effectiveMessageIndex, "archived")) {
+    changed = true;
+  }
+  const derived = resolveDerivedLifecycleMetadata(entry);
+  if (entry.introducedAtMessageIndex !== derived.introducedAtMessageIndex) {
+    entry.introducedAtMessageIndex = derived.introducedAtMessageIndex;
+    changed = true;
+  }
+  if (entry.lastSeenMessageIndex !== derived.lastSeenMessageIndex) {
+    entry.lastSeenMessageIndex = derived.lastSeenMessageIndex;
+    changed = true;
+  }
+  if (entry.lastActiveMessageIndex !== derived.lastActiveMessageIndex) {
+    entry.lastActiveMessageIndex = derived.lastActiveMessageIndex;
+    changed = true;
+  }
+  if (entry.lifecycleState !== derived.lifecycleState) {
+    entry.lifecycleState = derived.lifecycleState;
+    changed = true;
+  }
+  if (entry.archivedAtMessageIndex !== derived.archivedAtMessageIndex) {
+    entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
+    changed = true;
+  }
+  if (!changed) return false;
   writeRegistry(context, registry);
   return true;
 }
@@ -1354,6 +1409,7 @@ export function getEntityRegistryEntryForMessage(
   const entry = getEntityRegistryEntryByOwnerName(context, ownerName);
   if (!entry) return null;
   if (entry.introducedAtMessageIndex > messageIndex) return null;
+  if (isDeletedAtMessage(entry, messageIndex)) return null;
   if (resolveLifecycleStateAtMessage(entry, messageIndex).state === "archived") return null;
   return entry;
 }
@@ -1369,6 +1425,7 @@ export function getEntityRegistryEntryByEntityIdForMessage(
   const entry = registry.entities[normalizedEntityId];
   if (!entry) return null;
   if (entry.introducedAtMessageIndex > messageIndex) return null;
+  if (isDeletedAtMessage(entry, messageIndex)) return null;
   if (resolveLifecycleStateAtMessage(entry, messageIndex).state === "archived") return null;
   return entry;
 }
@@ -1380,6 +1437,7 @@ export function listEntityRegistryEntriesForMessage(
   const registry = readRegistry(context);
   return Object.values(registry.entities)
     .filter(entry => entry.introducedAtMessageIndex <= messageIndex)
+    .filter(entry => !isDeletedAtMessage(entry, messageIndex))
     .filter(entry => resolveLifecycleStateAtMessage(entry, messageIndex).state !== "archived")
     .sort((a, b) => {
       if (a.introducedAtMessageIndex !== b.introducedAtMessageIndex) {
@@ -1418,6 +1476,14 @@ export function getEntityRegistryLifecycleStateForEntityIdForMessage(
   const entry = registry.entities[normalizedEntityId];
   if (!entry) return null;
   if (entry.introducedAtMessageIndex > messageIndex) return null;
+  if (isDeletedAtMessage(entry, messageIndex)) {
+    return {
+      lastActiveMessageIndex: resolveLastActiveMessageIndexAtMessage(entry, messageIndex),
+      lifecycleState: "archived",
+      archivedAtMessageIndex: resolveDeletedAtMessageIndex(entry),
+      introducedAtMessageIndex: entry.introducedAtMessageIndex,
+    };
+  }
   const lifecycleAtMessage = resolveLifecycleStateAtMessage(entry, messageIndex);
   const archivedAtMessageIndex = lifecycleAtMessage.state === "archived"
     ? lifecycleAtMessage.stateChangedAtMessageIndex

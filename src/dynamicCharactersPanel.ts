@@ -215,6 +215,7 @@ export function listManageableDynamicCharacters(
   return Object.values(registry.entities)
     .filter(entry => entry.kind !== "owner")
     .filter(entry => entry.introducedAtMessageIndex <= messageIndex)
+    .filter(entry => entry.deletedAtMessageIndex == null || entry.deletedAtMessageIndex > messageIndex)
     .map(entry => {
       const lifecycle = getEntityRegistryLifecycleStateForEntityIdForMessage(context, entry.id, messageIndex);
       const lifecycleState = lifecycle?.archivedAtMessageIndex != null
@@ -360,7 +361,7 @@ export function initDynamicCharactersPanel(input: {
           ? setEntityRegistryCardColor(liveContext, entityId, resolveDisplayedCardColor(liveItem))
           : setEntityRegistryCardColor(liveContext, entityId, null);
       } else if (action === "delete") {
-        changed = deleteEntityRegistryEntry(liveContext, entityId);
+        changed = deleteEntityRegistryEntry(liveContext, entityId, messageIndex);
       }
       if (changed) {
         await persistManualRegistryMutation(liveContext);
@@ -410,8 +411,8 @@ export function initDynamicCharactersPanel(input: {
         renderDialog();
       });
     }
-    const items = listManageableDynamicCharacters(input.getContext(), input.getSettings());
-    option.style.display = items.length ? "" : "none";
+    const settings = input.getSettings();
+    option.style.display = settings?.entityTrackingMode === "dynamic_characters" ? "" : "none";
   };
 
   document.addEventListener("click", event => {

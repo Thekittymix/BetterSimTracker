@@ -6,6 +6,11 @@ All notable changes to BetterSimTracker are documented here.
 ### Changed
 - Clarified extraction prompt scoping with an explicit target block and snapshot guidance, so the model is told more clearly who the current extraction target is and how to treat prior snapshots versus current state and recent messages.
 
+## [2.5.0-dev14] - 2026-04-02
+### Fixed
+- Fixed `Dynamic Characters` deletion so removing a dynamic character now hides it from the current chat and manager instead of letting it reappear from persisted message targets.
+- Fixed the `Dynamic Characters` chat option so it stays available in dynamic mode and shows an empty-state manager instead of disappearing when no dynamic characters are currently tracked.
+
 ## [2.5.0-dev9] - 2026-04-02
 ### Fixed
 - Fixed manual `Archive` in the `Dynamic Characters` manager so archived characters are hidden immediately instead of lingering until the normal auto-archive threshold.
