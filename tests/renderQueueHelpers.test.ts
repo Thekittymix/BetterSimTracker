@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildRenderPassSnapshot,
   computeManualPlaceholderMessageIndices,
   getCachedProjectedTrackerData,
   pruneProjectedTrackerDataCache,
+  resolveDirtyRenderStart,
 } from "../src/renderQueueHelpers";
-import type { ProjectedTrackerDataCacheEntry } from "../src/renderQueueHelpers";
+import type { ProjectedTrackerDataCacheEntry, RenderPassSnapshot } from "../src/renderQueueHelpers";
 
 test("computeManualPlaceholderMessageIndices returns none when auto-generate is on", () => {
   const context = {
@@ -134,5 +136,112 @@ test("pruneProjectedTrackerDataCache removes entries outside the live chat windo
   pruneProjectedTrackerDataCache(cache, 3);
 
   assert.deepEqual([...cache.keys()], [0, 2]);
+});
+
+function buildPassSnapshot(
+  entries: Array<{ messageIndex: number; data: any | null; recovery?: any | null }>,
+  overrides?: Partial<{
+    settings: any;
+    allCharacters: string[];
+    isGroupChat: boolean;
+    uiState: { phase: "idle" | "extracting" | "generating"; done: number; total: number; messageIndex: number | null; stepLabel: string | null };
+    summaryBusyMessageIndices: Set<number>;
+    isUserMessageIndex: (messageIndex: number) => boolean;
+  }>,
+): RenderPassSnapshot {
+  return buildRenderPassSnapshot(entries, {
+    settings: overrides?.settings ?? { entityTrackingMode: "dynamic_characters", collapseCardsByDefault: false },
+    allCharacters: overrides?.allCharacters ?? ["Candy", "Lisa"],
+    isGroupChat: overrides?.isGroupChat ?? false,
+    uiState: overrides?.uiState ?? { phase: "idle", done: 0, total: 0, messageIndex: null, stepLabel: null },
+    summaryBusyMessageIndices: overrides?.summaryBusyMessageIndices,
+    isUserMessageIndex: overrides?.isUserMessageIndex,
+  });
+}
+
+test("resolveDirtyRenderStart returns null when the render pass inputs are unchanged", () => {
+  const data7 = { timestamp: 7 } as any;
+  const data8 = { timestamp: 8 } as any;
+  const previous = buildPassSnapshot([
+    { messageIndex: 7, data: data7 },
+    { messageIndex: 8, data: data8 },
+  ]);
+  const next = buildPassSnapshot([
+    { messageIndex: 7, data: data7 },
+    { messageIndex: 8, data: data8 },
+  ]);
+
+  assert.equal(resolveDirtyRenderStart(previous, next), null);
+});
+
+test("resolveDirtyRenderStart returns the changed message index when one tracked payload ref changes", () => {
+  const data7 = { timestamp: 7 } as any;
+  const data8 = { timestamp: 8 } as any;
+  const nextData8 = { timestamp: 9 } as any;
+  const previous = buildPassSnapshot([
+    { messageIndex: 7, data: data7 },
+    { messageIndex: 8, data: data8 },
+  ]);
+  const next = buildPassSnapshot([
+    { messageIndex: 7, data: data7 },
+    { messageIndex: 8, data: nextData8 },
+  ]);
+
+  assert.equal(resolveDirtyRenderStart(previous, next), 8);
+});
+
+test("resolveDirtyRenderStart backtracks to the previous latest tracked message when a new later entry is added", () => {
+  const data9 = { timestamp: 9 } as any;
+  const data10 = { timestamp: 10 } as any;
+  const data11 = { timestamp: 11 } as any;
+  const previous = buildPassSnapshot([
+    { messageIndex: 9, data: data9 },
+    { messageIndex: 10, data: data10 },
+  ]);
+  const next = buildPassSnapshot([
+    { messageIndex: 9, data: data9 },
+    { messageIndex: 10, data: data10 },
+    { messageIndex: 11, data: data11 },
+  ]);
+
+  assert.equal(resolveDirtyRenderStart(previous, next), 10);
+});
+
+test("resolveDirtyRenderStart returns the earliest removed index when a tracked entry disappears", () => {
+  const data7 = { timestamp: 7 } as any;
+  const data8 = { timestamp: 8 } as any;
+  const previous = buildPassSnapshot([
+    { messageIndex: 7, data: data7 },
+    { messageIndex: 8, data: data8 },
+  ]);
+  const next = buildPassSnapshot([
+    { messageIndex: 8, data: data8 },
+  ]);
+
+  assert.equal(resolveDirtyRenderStart(previous, next), 7);
+});
+
+test("resolveDirtyRenderStart returns 0 when the global render config changes", () => {
+  const data7 = { timestamp: 7 } as any;
+  const previous = buildPassSnapshot([{ messageIndex: 7, data: data7 }], {
+    settings: { entityTrackingMode: "dynamic_characters", showInactive: false },
+  });
+  const next = buildPassSnapshot([{ messageIndex: 7, data: data7 }], {
+    settings: { entityTrackingMode: "dynamic_characters", showInactive: true },
+  });
+
+  assert.equal(resolveDirtyRenderStart(previous, next), 0);
+});
+
+test("resolveDirtyRenderStart marks the busy message when summary loading moves", () => {
+  const data10 = { timestamp: 10 } as any;
+  const previous = buildPassSnapshot([{ messageIndex: 10, data: data10 }], {
+    summaryBusyMessageIndices: new Set([10]),
+  });
+  const next = buildPassSnapshot([{ messageIndex: 10, data: data10 }], {
+    summaryBusyMessageIndices: new Set(),
+  });
+
+  assert.equal(resolveDirtyRenderStart(previous, next), 10);
 });
 

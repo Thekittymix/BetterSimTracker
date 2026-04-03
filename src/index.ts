@@ -182,9 +182,11 @@ import { isManualExtractionReason } from "./extractorHelpers";
 import { buildCharacterCardsContext } from "./characterCardContext";
 import { getCachedCharacterCardsContext, getCachedLorebookContext } from "./promptContextCache";
 import {
+  buildRenderPassSnapshot,
   computeManualPlaceholderMessageIndices,
   getCachedProjectedTrackerData,
   pruneProjectedTrackerDataCache,
+  resolveDirtyRenderStart,
 } from "./renderQueueHelpers";
 import { resolveGroupReplayTarget } from "./userTurnReplayTarget";
 
@@ -200,6 +202,7 @@ let latestPromptMacroData: TrackerData | null = null;
 let lastExtractionBaselineDebugMeta: Record<string, unknown> | null = null;
 let trackerUiState: TrackerUiState = { phase: "idle", done: 0, total: 0, messageIndex: null, stepLabel: null };
 const renderProjectedTrackerDataCache = new Map<number, import("./renderQueueHelpers").ProjectedTrackerDataCacheEntry>();
+let previousRenderPassSnapshot: import("./renderQueueHelpers").RenderPassSnapshot | null = null;
 const trackerRecoveryByMessage = new Map<number, TrackerRecoveryEntry>();
 let renderQueued = false;
 let extractionTimer: number | null = null;
@@ -1601,14 +1604,30 @@ function queueRender(): void {
         persistTrackerRecoveries(context);
       }
     }
+    const latestAiIndex = context ? getLastAiMessageIndex(context) : null;
+    const nextRenderPassSnapshot = buildRenderPassSnapshot(entries, {
+      settings,
+      allCharacters: allCharacterNames,
+      isGroupChat: Boolean(context?.groupId),
+      uiState: trackerUiState,
+      summaryBusyMessageIndices: activeSummaryRuns,
+      isUserMessageIndex: messageIndex => {
+        const liveContext = getSafeContext();
+        if (!liveContext || messageIndex < 0 || messageIndex >= liveContext.chat.length) return false;
+        return Boolean(liveContext.chat[messageIndex]?.is_user);
+      },
+    });
+    const dirtyRenderStart = resolveDirtyRenderStart(previousRenderPassSnapshot, nextRenderPassSnapshot);
+    previousRenderPassSnapshot = nextRenderPassSnapshot;
+
     pushTrace("render.queue", {
       entries: entries.length,
       uiPhase: trackerUiState.phase,
       uiMessageIndex: trackerUiState.messageIndex,
-      latestDataMessageIndex
+      latestDataMessageIndex,
+      dirtyRenderStart,
     });
 
-    const latestAiIndex = context ? getLastAiMessageIndex(context) : null;
     renderTracker(entries, settings, allCharacterNames, Boolean(context?.groupId), trackerUiState, latestAiIndex, activeSummaryRuns, messageIndex => {
       const liveContext = getSafeContext();
       if (!liveContext || messageIndex < 0 || messageIndex >= liveContext.chat.length) return false;
@@ -1734,7 +1753,7 @@ function queueRender(): void {
     }, messageIndex => {
       clearTrackerRecovery(messageIndex);
       void runExtraction("manual_refresh", messageIndex);
-    });
+    }, dirtyRenderStart);
   });
 }
 

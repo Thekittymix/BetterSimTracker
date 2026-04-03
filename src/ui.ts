@@ -5291,6 +5291,23 @@ function getSceneRoot(messageIndex: number | null): HTMLDivElement | null {
   return sceneRoot;
 }
 
+function shouldSkipIdleTrackerEntryRender(
+  root: Pick<HTMLElement, "dataset">,
+  sceneRoot: Pick<HTMLElement, "dataset"> | null,
+  messageIndex: number,
+  dirtyRenderStart: number | null | undefined,
+): boolean {
+  return (
+    (dirtyRenderStart == null || messageIndex < dirtyRenderStart)
+    && root.dataset.bstRenderPhase === "idle"
+    && Boolean(root.dataset.bstRenderSignature)
+    && (!sceneRoot || (
+      sceneRoot.dataset.bstRenderPhase === "idle"
+      && Boolean(sceneRoot.dataset.bstRenderSignature)
+    ))
+  );
+}
+
 export function renderTracker(
   entries: RenderEntry[],
   settings: BetterSimTrackerSettings,
@@ -5324,6 +5341,7 @@ export function renderTracker(
     getLifecycleState: (target: TrackerRegistrySyncTarget) => CardLifecycleState;
   }) => void,
   onRecoverTracker?: (messageIndex: number) => void,
+  dirtyRenderStart?: number | null,
 ): void {
   ensureStyles();
   const palette = allocateCharacterColors(allCharacters);
@@ -5515,6 +5533,13 @@ export function renderTracker(
     if (!wantsSceneAboveMessage) {
       document.querySelector(`.bst-scene-root[data-message-index="${entry.messageIndex}"]`)?.remove();
     }
+
+    const canSkipIdleRerender = shouldSkipIdleTrackerEntryRender(
+      root,
+      sceneRoot,
+      entry.messageIndex,
+      dirtyRenderStart,
+    );
 
     root.style.setProperty("--bst-card", "#1f2028");
     root.style.setProperty("--bst-accent", settings.accentColor);
@@ -6691,6 +6716,9 @@ export function renderTracker(
       : "";
     signatureParts.push(`scene:${sceneCardVisible ? "1" : "0"}:${sceneCollapsed ? "1" : "0"}:${settings.sceneCardEnabled ? "1" : "0"}:${settings.sceneCardPosition}:${settings.sceneCardLayout}:${(settings.sceneCardStatOrder ?? []).join(",")}:${JSON.stringify(settings.sceneCardStatDisplay ?? {})}:${settings.sceneCardTitle}:${settings.sceneCardColor}:${settings.sceneCardValueColor}:${settings.sceneCardShowWhenEmpty ? "1" : "0"}:${settings.sceneCardArrayCollapsedLimit}:${sceneCardHtml}`);
     const renderSignature = signatureParts.join("|#|");
+    if (canSkipIdleRerender) {
+      continue;
+    }
     if (root.dataset.bstRenderPhase === "idle" && root.dataset.bstRenderSignature === renderSignature) {
       continue;
     }
@@ -6848,6 +6876,10 @@ export function removeTrackerUI(): void {
   closeStExpressionFrameEditor();
   closeGraphModal();
 }
+
+export const __testables = {
+  shouldSkipIdleTrackerEntryRender,
+};
 
 function hasCharacterSnapshot(entry: TrackerData, character: string): boolean {
   for (const statKey of BUILT_IN_NUMERIC_STAT_KEYS) {
