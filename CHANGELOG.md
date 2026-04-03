@@ -30,6 +30,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed reload-time auto-bootstrap so partial chat hydration no longer backfills greeting trackers over newer persisted snapshots that are already ahead in local state.
 
+## [2.5.1.3-dev7] - 2026-04-03
+### Fixed
+- Fixed historical bootstrap saves so writing an older message snapshot no longer replaces the current scope's latest persisted tracker state during reload recovery.
+
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
 - Fixed extractor diagnostics so `scopeResolution` now uses the same entity-aware custom-stat lookup as real extraction, preventing debug dumps from showing stale owner-bucket values when the canonical tracker state already comes from entity-scoped data.

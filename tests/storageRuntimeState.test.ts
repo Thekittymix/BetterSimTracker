@@ -1993,6 +1993,40 @@ test("resolveHighestStoredTrackerMessageIndex keeps the furthest persisted snaps
   assert.equal(resolveHighestStoredTrackerMessageIndex(partialContext), 6);
 });
 
+test("saveTrackerSnapshot keeps a newer message as latest when an older message is written later", () => {
+  const context = makeContext() as STContext & { chatId: string };
+  context.chatId = "historical-bootstrap";
+  context.chat = [
+    { mes: "Greeting", name: "Family", is_user: false, is_system: false, extra: {} },
+    { mes: "User 1", is_user: true, is_system: false, extra: {} },
+    { mes: "AI 1", name: "Family", is_user: false, is_system: false, extra: {} },
+    { mes: "User 2", is_user: true, is_system: false, extra: {} },
+    { mes: "AI 2", name: "Family", is_user: false, is_system: false, extra: {} },
+    { mes: "User 3", is_user: true, is_system: false, extra: {} },
+    { mes: "AI 3", name: "Family", is_user: false, is_system: false, extra: {} },
+    { mes: "User 4", is_user: true, is_system: false, extra: {} },
+    { mes: "AI 4", name: "Family", is_user: false, is_system: false, extra: {} },
+  ];
+
+  saveTrackerSnapshot(context, makeTracker(7000, { activeCharacters: ["Kuba"] }), 7);
+  saveTrackerSnapshot(context, makeTracker(8000, { activeCharacters: ["Candy"] }), 8);
+  saveTrackerSnapshot(context, makeTracker(1000, { activeCharacters: ["Candy", "Lisa"] }), 0);
+
+  const latest = resolveLatestStoredTrackerData(context, 8);
+  assert.equal(latest.source, "chatState");
+  assert.ok(latest.data);
+  assert.equal(latest.messageIndex, 8);
+  assert.deepEqual(latest.data.activeCharacters, ["Candy"]);
+
+  const localLatest = getLocalLatestTrackerData(context);
+  assert.ok(localLatest);
+  assert.equal(localLatest.messageIndex, 8);
+  assert.deepEqual(localLatest.data.activeCharacters, ["Candy"]);
+
+  const historyEntries = getRecentTrackerHistoryEntries(context, 10);
+  assert.deepEqual(historyEntries.slice(0, 3).map(entry => entry.messageIndex), [0, 8, 7]);
+});
+
 test("getLocalLatestTrackerData detects an externally replaced scope store after the cache was warmed", () => {
   const previousStorage = (globalThis as unknown as { localStorage: unknown }).localStorage;
   (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = localStorageMock;

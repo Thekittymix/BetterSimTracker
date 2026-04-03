@@ -1228,10 +1228,21 @@ export function saveTrackerSnapshot(
   messageIndex: number,
 ): void {
   const timestamp = Date.now();
+  const shouldReplaceLatest = (
+    existing: { data: TrackerData; messageIndex: number; timestamp: number } | undefined,
+  ): boolean => {
+    if (!existing) return true;
+    if (messageIndex > existing.messageIndex) return true;
+    if (messageIndex < existing.messageIndex) return false;
+    return timestamp >= Number(existing.timestamp ?? 0);
+  };
   const push = (store: SnapshotStore): SnapshotStore => {
+    const nextLatest = shouldReplaceLatest(store.latest)
+      ? { data, messageIndex, timestamp }
+      : store.latest;
     const next: SnapshotStore = {
       ...store,
-      latest: { data, messageIndex, timestamp },
+      latest: nextLatest,
       history: [
         { data, timestamp, messageIndex },
         ...store.history.filter(item => item.data.timestamp !== data.timestamp)
@@ -1246,7 +1257,14 @@ export function saveTrackerSnapshot(
 
   const scope = getScopeKey(context);
   const latestByScope = readLatestByScopeMap();
-  latestByScope[scope] = { data, messageIndex, timestamp };
+  const existingScopeLatest = latestByScope[scope];
+  if (
+    !existingScopeLatest ||
+    messageIndex > existingScopeLatest.messageIndex ||
+    (messageIndex === existingScopeLatest.messageIndex && timestamp >= Number(existingScopeLatest.timestamp ?? 0))
+  ) {
+    latestByScope[scope] = { data, messageIndex, timestamp };
+  }
   writeLatestByScopeMap(latestByScope, scope);
 }
 
