@@ -106,7 +106,7 @@ type UiNumericStatDefinition = {
   showInGraph: boolean;
 };
 
-type UiNonNumericStatDefinition = {
+export type UiNonNumericStatDefinition = {
   id: string;
   label: string;
   kind: Exclude<CustomStatKind, "numeric">;
@@ -1120,6 +1120,214 @@ type RenderEntry = {
   data: TrackerData | null;
   recovery?: TrackerRecoveryEntry | null;
 };
+
+export type RenderHistoryLookupEntry = {
+  messageIndex: number;
+  data: TrackerData | null;
+};
+
+type RenderHistoryLookupResolver = {
+  resolveLookupNamesForOwnerInData: (
+    data: TrackerData | null | undefined,
+    ownerName: string,
+    messageIndex: number,
+  ) => string[];
+  isNumericGlobalScope: (key: string) => boolean;
+};
+
+export function createRenderHistoryLookupCache(
+  sortedEntries: RenderHistoryLookupEntry[],
+  resolver: RenderHistoryLookupResolver,
+): {
+  findPreviousDataWithNumericStat: (
+    messageIndex: number,
+    key: string,
+    ownerName: string,
+  ) => { data: TrackerData; value: number } | null;
+  findPreviousDataWithNonNumericStat: (
+    messageIndex: number,
+    def: UiNonNumericStatDefinition,
+    ownerName: string,
+  ) => TrackerData | null;
+  findPreviousDataWithBuiltInTextStat: (
+    stat: "mood" | "lastThought",
+    messageIndex: number,
+    ownerName: string,
+  ) => TrackerData | null;
+  resolvePreviousNonNumericValue: (
+    data: TrackerData,
+    def: UiNonNumericStatDefinition,
+    ownerName: string,
+    messageIndex: number,
+  ) => CustomNonNumericValue | undefined;
+  resolvePreviousBuiltInTextValue: (
+    data: TrackerData,
+    stat: "mood" | "lastThought",
+    ownerName: string,
+    messageIndex: number,
+  ) => string | undefined;
+} {
+  const lookupNamesByDataCache = new WeakMap<TrackerData, Map<string, string[]>>();
+  const lookupNamesWithoutDataCache = new Map<string, string[]>();
+  const numericResultCache = new Map<string, { data: TrackerData; value: number } | null>();
+  const nonNumericResultCache = new Map<string, TrackerData | null>();
+  const textResultCache = new Map<string, TrackerData | null>();
+  const nonNumericValueCache = new WeakMap<TrackerData, Map<string, CustomNonNumericValue | undefined>>();
+  const builtInTextValueCache = new WeakMap<TrackerData, Map<string, string | undefined>>();
+
+  const resolveLookupNames = (
+    data: TrackerData | null | undefined,
+    ownerName: string,
+    messageIndex: number,
+    candidateMessageIndex: number,
+  ): string[] => {
+    const cacheKey = `${candidateMessageIndex}|${messageIndex}|${ownerName.toLowerCase()}`;
+    const cache = data
+      ? (lookupNamesByDataCache.get(data) ?? new Map<string, string[]>())
+      : lookupNamesWithoutDataCache;
+    if (data && !lookupNamesByDataCache.has(data)) {
+      lookupNamesByDataCache.set(data, cache);
+    }
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+    const resolved = resolver.resolveLookupNamesForOwnerInData(data, ownerName, messageIndex);
+    cache.set(cacheKey, resolved);
+    return resolved;
+  };
+
+  const resolvePreviousNonNumericValue = (
+    data: TrackerData,
+    def: UiNonNumericStatDefinition,
+    ownerName: string,
+    messageIndex: number,
+  ): CustomNonNumericValue | undefined => {
+    const cacheKey = `${messageIndex}|${ownerName.toLowerCase()}|${def.id}`;
+    const cache = nonNumericValueCache.get(data) ?? new Map<string, CustomNonNumericValue | undefined>();
+    if (!nonNumericValueCache.has(data)) {
+      nonNumericValueCache.set(data, cache);
+    }
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+    const byOwner = data.customNonNumericStatistics?.[def.id];
+    let resolved: CustomNonNumericValue | undefined;
+    if (byOwner) {
+      const lookupNames = def.globalScope
+        ? [GLOBAL_TRACKER_KEY]
+        : resolveLookupNames(data, ownerName, messageIndex, -1);
+      for (const lookupName of lookupNames) {
+        const value = byOwner[lookupName];
+        if (value !== undefined) {
+          resolved = value;
+          break;
+        }
+      }
+    }
+    cache.set(cacheKey, resolved);
+    return resolved;
+  };
+
+  const resolvePreviousBuiltInTextValue = (
+    data: TrackerData,
+    stat: "mood" | "lastThought",
+    ownerName: string,
+    messageIndex: number,
+  ): string | undefined => {
+    const cacheKey = `${messageIndex}|${ownerName.toLowerCase()}|${stat}`;
+    const cache = builtInTextValueCache.get(data) ?? new Map<string, string | undefined>();
+    if (!builtInTextValueCache.has(data)) {
+      builtInTextValueCache.set(data, cache);
+    }
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+    const lookupNames = resolveLookupNames(data, ownerName, messageIndex, -1);
+    const source = stat === "mood" ? data.statistics.mood : data.statistics.lastThought;
+    let resolved: string | undefined;
+    for (const lookupName of lookupNames) {
+      if (source?.[lookupName] !== undefined) {
+        resolved = String(source[lookupName] ?? "");
+        break;
+      }
+    }
+    cache.set(cacheKey, resolved);
+    return resolved;
+  };
+
+  const findPreviousDataWithNumericStat = (
+    messageIndex: number,
+    key: string,
+    ownerName: string,
+  ): { data: TrackerData; value: number } | null => {
+    const cacheKey = `${messageIndex}|${key}|${ownerName.toLowerCase()}`;
+    if (numericResultCache.has(cacheKey)) return numericResultCache.get(cacheKey) ?? null;
+    let resolved: { data: TrackerData; value: number } | null = null;
+    for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
+      const candidate = sortedEntries[i];
+      if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
+      const lookupNames = resolveLookupNames(candidate.data, ownerName, messageIndex, candidate.messageIndex);
+      for (const lookupName of lookupNames) {
+        const value = getNumericRawValue(candidate.data, key, lookupName, resolver.isNumericGlobalScope(key));
+        if (value === undefined || Number.isNaN(value)) continue;
+        resolved = { data: candidate.data, value };
+        break;
+      }
+      if (resolved) break;
+    }
+    numericResultCache.set(cacheKey, resolved);
+    return resolved;
+  };
+
+  const findPreviousDataWithNonNumericStat = (
+    messageIndex: number,
+    def: UiNonNumericStatDefinition,
+    ownerName: string,
+  ): TrackerData | null => {
+    const cacheKey = `${messageIndex}|${def.id}|${ownerName.toLowerCase()}`;
+    if (nonNumericResultCache.has(cacheKey)) return nonNumericResultCache.get(cacheKey) ?? null;
+    let resolved: TrackerData | null = null;
+    for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
+      const candidate = sortedEntries[i];
+      if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
+      const lookupNames = resolveLookupNames(candidate.data, ownerName, messageIndex, candidate.messageIndex);
+      for (const lookupName of lookupNames) {
+        if (hasNonNumericValue(candidate.data, def, lookupName)) {
+          resolved = candidate.data;
+          break;
+        }
+      }
+      if (resolved) break;
+    }
+    nonNumericResultCache.set(cacheKey, resolved);
+    return resolved;
+  };
+
+  const findPreviousDataWithBuiltInTextStat = (
+    stat: "mood" | "lastThought",
+    messageIndex: number,
+    ownerName: string,
+  ): TrackerData | null => {
+    const cacheKey = `${stat}|${messageIndex}|${ownerName.toLowerCase()}`;
+    if (textResultCache.has(cacheKey)) return textResultCache.get(cacheKey) ?? null;
+    let resolved: TrackerData | null = null;
+    for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
+      const candidate = sortedEntries[i];
+      if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
+      const lookupNames = resolveLookupNames(candidate.data, ownerName, messageIndex, candidate.messageIndex);
+      const source = stat === "mood" ? candidate.data.statistics.mood : candidate.data.statistics.lastThought;
+      if (lookupNames.some(lookupName => source?.[lookupName] !== undefined)) {
+        resolved = candidate.data;
+        break;
+      }
+    }
+    textResultCache.set(cacheKey, resolved);
+    return resolved;
+  };
+
+  return {
+    findPreviousDataWithNumericStat,
+    findPreviousDataWithNonNumericStat,
+    findPreviousDataWithBuiltInTextStat,
+    resolvePreviousNonNumericValue,
+    resolvePreviousBuiltInTextValue,
+  };
+}
 
 const ROOT_CLASS = "bst-root";
 const collapsedTrackerMessages = new Set<number>();
@@ -5197,87 +5405,17 @@ export function renderTracker(
     ownerName: string,
     messageIndex: number,
   ): string[] => resolveLookupNamesForOwnerInData(null, ownerName, messageIndex);
-  const resolvePreviousNonNumericValue = (
-    data: TrackerData,
-    def: UiNonNumericStatDefinition,
-    ownerName: string,
-    messageIndex: number,
-  ): CustomNonNumericValue | undefined => {
-    const byOwner = data.customNonNumericStatistics?.[def.id];
-    if (!byOwner) return undefined;
-    const lookupNames = def.globalScope ? [GLOBAL_TRACKER_KEY] : resolveLookupNamesForOwnerInData(data, ownerName, messageIndex);
-    for (const lookupName of lookupNames) {
-      const value = byOwner[lookupName];
-      if (value !== undefined) return value;
-    }
-    return undefined;
-  };
-  const resolvePreviousBuiltInTextValue = (
-    data: TrackerData,
-    stat: "mood" | "lastThought",
-    ownerName: string,
-    messageIndex: number,
-  ): string | undefined => {
-    const lookupNames = resolveLookupNamesForOwnerInData(data, ownerName, messageIndex);
-    const source = stat === "mood" ? data.statistics.mood : data.statistics.lastThought;
-    for (const lookupName of lookupNames) {
-      if (source?.[lookupName] !== undefined) return String(source[lookupName] ?? "");
-    }
-    return undefined;
-  };
-  const findPreviousDataWithNumericStat = (
-    messageIndex: number,
-    key: string,
-    name: string,
-  ): { data: TrackerData; value: number } | null => {
-    for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
-      const candidate = sortedEntries[i];
-      if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      const lookupNames = resolveLookupNamesForOwnerInData(candidate.data, name, messageIndex);
-      for (const lookupName of lookupNames) {
-        const value = getNumericRawValue(candidate.data, key, lookupName, isNumericGlobalScope(key));
-        if (value === undefined || Number.isNaN(value)) continue;
-        return { data: candidate.data, value };
-      }
-    }
-    return null;
-  };
-  const findPreviousDataWithNonNumericStat = (
-    messageIndex: number,
-    def: UiNonNumericStatDefinition,
-    name: string,
-  ): TrackerData | null => {
-    for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
-      const candidate = sortedEntries[i];
-      if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      const candidateData = candidate.data;
-      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
-      for (const lookupName of lookupNames) {
-        if (hasNonNumericValue(candidateData, def, lookupName)) return candidateData;
-      }
-    }
-    return null;
-  };
-  const findPreviousDataWithMood = (messageIndex: number, name: string): TrackerData | null => {
-    for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
-      const candidate = sortedEntries[i];
-      if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      const candidateData = candidate.data;
-      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
-      if (lookupNames.some(lookupName => candidateData.statistics.mood?.[lookupName] !== undefined)) return candidateData;
-    }
-    return null;
-  };
-  const findPreviousDataWithLastThought = (messageIndex: number, name: string): TrackerData | null => {
-    for (let i = sortedEntries.length - 1; i >= 0; i -= 1) {
-      const candidate = sortedEntries[i];
-      if (candidate.messageIndex >= messageIndex || !candidate.data) continue;
-      const candidateData = candidate.data;
-      const lookupNames = resolveLookupNamesForOwnerInData(candidateData, name, messageIndex);
-      if (lookupNames.some(lookupName => candidateData.statistics.lastThought?.[lookupName] !== undefined)) return candidateData;
-    }
-    return null;
-  };
+  const historyLookupCache = createRenderHistoryLookupCache(sortedEntries, {
+    resolveLookupNamesForOwnerInData,
+    isNumericGlobalScope,
+  });
+  const {
+    findPreviousDataWithNumericStat,
+    findPreviousDataWithNonNumericStat,
+    findPreviousDataWithBuiltInTextStat,
+    resolvePreviousNonNumericValue,
+    resolvePreviousBuiltInTextValue,
+  } = historyLookupCache;
   const lifecycleSnapshots: CardLifecycleSnapshot[] = buildLifecycleHistorySnapshotsFromTrackerEntries(
     null,
     sortedEntries.filter(item => item.data),
@@ -5332,14 +5470,14 @@ export function renderTracker(
 
     if (!isGlobalOwner) {
       if (settings.trackMood && out.statistics.mood?.[owner] === undefined && !isTextStatExplicitlyCleared(out, "mood", owner)) {
-        const prevMood = findPreviousDataWithMood(messageIndex, owner);
+        const prevMood = findPreviousDataWithBuiltInTextStat("mood", messageIndex, owner);
         const prevMoodValue = prevMood ? resolvePreviousBuiltInTextValue(prevMood, "mood", owner, messageIndex) : undefined;
         if (prevMoodValue !== undefined) {
           out.statistics.mood[owner] = prevMoodValue;
         }
       }
       if (settings.trackLastThought && out.statistics.lastThought?.[owner] === undefined && !isTextStatExplicitlyCleared(out, "lastThought", owner)) {
-        const prevThought = findPreviousDataWithLastThought(messageIndex, owner);
+        const prevThought = findPreviousDataWithBuiltInTextStat("lastThought", messageIndex, owner);
         const prevThoughtValue = prevThought ? resolvePreviousBuiltInTextValue(prevThought, "lastThought", owner, messageIndex) : undefined;
         if (prevThoughtValue !== undefined) {
           out.statistics.lastThought[owner] = prevThoughtValue;
@@ -5873,7 +6011,7 @@ export function renderTracker(
       if (current !== undefined) return current;
       if (resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
         .some(lookupName => isTextStatExplicitlyCleared(data, "mood", lookupName))) return "";
-      const previous = findPreviousDataWithMood(entry.messageIndex, name);
+      const previous = findPreviousDataWithBuiltInTextStat("mood", entry.messageIndex, name);
       const previousValue = previous ? resolvePreviousBuiltInTextValue(previous, "mood", name, entry.messageIndex) : undefined;
       if (previousValue !== undefined) return previousValue;
       return "";
@@ -5887,7 +6025,7 @@ export function renderTracker(
       if (current !== undefined) return current;
       if (resolveRegistryLookupNamesForOwner(name, registryEntry ?? null)
         .some(lookupName => isTextStatExplicitlyCleared(data, "lastThought", lookupName))) return "";
-      const previous = findPreviousDataWithLastThought(entry.messageIndex, name);
+      const previous = findPreviousDataWithBuiltInTextStat("lastThought", entry.messageIndex, name);
       const previousValue = previous ? resolvePreviousBuiltInTextValue(previous, "lastThought", name, entry.messageIndex) : undefined;
       if (previousValue !== undefined) return previousValue;
       return "";
@@ -6101,7 +6239,7 @@ export function renderTracker(
         def => String(def.id).trim().toLowerCase(),
       );
       const moodText = getEffectiveMoodText(name, registryEntry);
-      const previousMoodData = findPreviousDataWithMood(entry.messageIndex, name);
+      const previousMoodData = findPreviousDataWithBuiltInTextStat("mood", entry.messageIndex, name);
       const prevMoodValue = previousMoodData
         ? resolvePreviousBuiltInTextValue(previousMoodData, "mood", name, entry.messageIndex)
         : undefined;
