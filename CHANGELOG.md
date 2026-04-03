@@ -38,6 +38,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Changed
 - Reduced repeated message-scoped tracker projection work during full render passes by caching per-message projected tracker data and invalidating it when the message, tracker payload, or tracking mode changes.
 
+## [2.5.1.3-dev9] - 2026-04-03
+### Changed
+- Reduced repeated extraction prompt-context assembly by caching character-card and lorebook context reads when the active context inputs and limits have not changed.
+
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
 - Fixed extractor diagnostics so `scopeResolution` now uses the same entity-aware custom-stat lookup as real extraction, preventing debug dumps from showing stale owner-bucket values when the canonical tracker state already comes from entity-scoped data.

@@ -180,6 +180,7 @@ import {
 } from "./runtimeEventHelpers";
 import { isManualExtractionReason } from "./extractorHelpers";
 import { buildCharacterCardsContext } from "./characterCardContext";
+import { getCachedCharacterCardsContext, getCachedLorebookContext } from "./promptContextCache";
 import {
   computeManualPlaceholderMessageIndices,
   getCachedProjectedTrackerData,
@@ -3849,13 +3850,19 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
         : resolveTrackerEntityIdsForOwners(context, sceneActiveCharacters);
       const preferredCharacterNameForCardContext = userExtraction ? undefined : preferredCharacterName;
-      contextText = `${contextText}${buildCharacterCardsContext(
-        context,
+      contextText = `${contextText}${getCachedCharacterCardsContext(context, {
         activeCharacters,
-        sceneEntityIdsForCardContext,
-        resolveEntityTrackingMode(runScopedSettings),
-        preferredCharacterNameForCardContext,
-      )}`.trim();
+        activeEntityIds: sceneEntityIdsForCardContext,
+        entityTrackingMode: resolveEntityTrackingMode(runScopedSettings),
+        preferredCharacterName: preferredCharacterNameForCardContext,
+        build: () => buildCharacterCardsContext(
+          context,
+          activeCharacters,
+          sceneEntityIdsForCardContext,
+          resolveEntityTrackingMode(runScopedSettings),
+          preferredCharacterNameForCardContext,
+        ),
+      })}`.trim();
     }
     if (activeSettings.includeLorebookInExtraction) {
       contextText = `${contextText}${buildLorebookExtractionContext(context, activeSettings.lorebookExtractionMaxChars)}`.trim();
@@ -4860,7 +4867,11 @@ function applyLorebookCharLimit(text: string, maxChars: number, maxCap = 12000):
 }
 
 function buildLorebookExtractionContext(context: STContext, maxChars: number): string {
-  let lorebookText = readLorebookContext(context, maxChars, 12000);
+  let lorebookText = getCachedLorebookContext(context, {
+    maxChars,
+    maxCap: 12000,
+    build: () => readLorebookContext(context, maxChars, 12000),
+  });
   if (!lorebookText && settings?.useInternalLorebookScanFallback && lastActivatedLorebookEntries.length) {
     lorebookText = applyLorebookCharLimit(lastActivatedLorebookEntries.join("\n\n"), maxChars, 12000);
   }
