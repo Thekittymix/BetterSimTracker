@@ -1756,6 +1756,7 @@ function queueRender(): void {
         messageIndex: payload.messageIndex,
         targets: payload.targets,
         getLifecycleStateByTarget: payload.getLifecycleState,
+        allowSameMessageDemotion: false,
       });
     }, messageIndex => {
       clearTrackerRecovery(messageIndex);

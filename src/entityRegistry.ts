@@ -381,6 +381,7 @@ export function syncEntityRegistryFromRender(input: {
   targets?: TrackerRegistrySyncTarget[];
   getLifecycleState?: (ownerName: string) => TrackerEntityLifecycleState;
   getLifecycleStateByTarget?: (target: TrackerRegistrySyncTarget) => TrackerEntityLifecycleState;
+  allowSameMessageDemotion?: boolean;
 }): boolean {
   const context = input.context;
   const rawTargets = Array.isArray(input.targets) && input.targets.length
@@ -388,6 +389,7 @@ export function syncEntityRegistryFromRender(input: {
     : (input.owners ?? []).map(ownerName => ({ ownerName, registryEntry: null }));
   if (!context || !isMultiCharacterEntityTrackingMode(input.mode) || !rawTargets.length) return false;
   const registry = readRegistry(context);
+  const allowSameMessageDemotion = input.allowSameMessageDemotion !== false;
   let changed = false;
   const seenTargetKeys = new Set<string>();
 
@@ -410,10 +412,16 @@ export function syncEntityRegistryFromRender(input: {
     const lifecycleState = input.getLifecycleStateByTarget
       ? input.getLifecycleStateByTarget({ ownerName, registryEntry })
       : (input.getLifecycleState?.(ownerName) ?? "inactive");
+    const sameMessageEvent = getLifecycleEvents(entry).find(event => event.messageIndex === input.messageIndex) ?? null;
+    const effectiveLifecycleState = !allowSameMessageDemotion
+      && sameMessageEvent?.state === "active"
+      && lifecycleState !== "active"
+      ? "active"
+      : lifecycleState;
     if (isDeletedAtMessage(entry, input.messageIndex)) {
       const deletedAtMessageIndex = resolveDeletedAtMessageIndex(entry);
       const canReactivateDeletedEntry =
-        lifecycleState === "active"
+        effectiveLifecycleState === "active"
         && deletedAtMessageIndex != null
         && input.messageIndex > deletedAtMessageIndex;
       if (!canReactivateDeletedEntry) continue;
@@ -491,7 +499,7 @@ export function syncEntityRegistryFromRender(input: {
         entry.archivedAtMessageIndex = derived.archivedAtMessageIndex;
         changed = true;
       }
-      if (upsertLifecycleEvent(entry, input.messageIndex, lifecycleState)) {
+      if (upsertLifecycleEvent(entry, input.messageIndex, effectiveLifecycleState)) {
         const nextDerived = resolveDerivedLifecycleMetadata(entry);
         if (entry.introducedAtMessageIndex !== nextDerived.introducedAtMessageIndex) {
           entry.introducedAtMessageIndex = nextDerived.introducedAtMessageIndex;

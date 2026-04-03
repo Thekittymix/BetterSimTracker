@@ -179,6 +179,36 @@ test("syncEntityRegistryFromTrackerData preserves registry continuity for inacti
   assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lastSeenMessageIndex, 1);
 });
 
+test("syncEntityRegistryFromTrackerData can still demote an active alias on the same message when tracker data itself changes", () => {
+  const context = makeContext();
+  const settings = makeSettings();
+
+  const current = makeTrackerData(["Ashley", "Blake"]);
+  writeTrackerDataToMessage(context, current, 1);
+  syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: current,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  const updated = makeTrackerData(["Ashley"]);
+  writeTrackerDataToMessage(context, updated, 1);
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 1,
+    data: updated,
+    settings,
+    allKnownCharacters: ["Ashley", "Blake"],
+  });
+
+  assert.equal(changed, true);
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.entities[registry.ownerToEntityId.ashley]?.lifecycleState, "active");
+  assert.equal(registry.entities[registry.ownerToEntityId.blake]?.lifecycleState, "inactive");
+});
+
 test("syncEntityRegistryFromTrackerData does not depend on showInactive to keep multi-character continuity", () => {
   const context = makeContext();
   const settings = {

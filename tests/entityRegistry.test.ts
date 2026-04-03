@@ -212,6 +212,40 @@ test("syncEntityRegistryFromRender is stable when the same lifecycle event is ap
   assert.equal(second, false);
 });
 
+test("syncEntityRegistryFromRender does not demote an active same-message lifecycle event during passive rerender sync", () => {
+  const context = makeContext();
+  syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+
+  const changed = syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "inactive",
+    allowSameMessageDemotion: false,
+  });
+
+  const registry = readEntityRegistry(context);
+  const ashleyId = buildTrackerEntityId({
+    sourceName: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    sourceAvatar: "camp.png",
+    ownerName: "Ashley",
+    matchedBy: "alias",
+  });
+  assert.equal(changed, false);
+  assert.equal(registry.entities[ashleyId]?.lifecycleState, "active");
+  assert.deepEqual(
+    registry.entities[ashleyId]?.lifecycleEvents,
+    [{ messageIndex: 8, state: "active" }],
+  );
+});
+
 test("syncEntityRegistryFromRender preserves latest metadata while backfilling historical lifecycle events", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
