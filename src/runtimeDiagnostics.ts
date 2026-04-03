@@ -44,6 +44,19 @@ type PromptInjectionLastMessageSnapshot = {
   generationType: string;
 } | null;
 
+type DiagnosticsDebugDetails = {
+  promptInjectionPreview: string | undefined;
+  promptInjectionCurrentPrompt: string | undefined;
+  promptInjectionLastMessage: PromptInjectionLastMessageSnapshot;
+  promptInjectionPreviousMessage: PromptInjectionLastMessageSnapshot;
+  promptInjectionLatestDataMessage: string | null;
+  promptInjectionDebugMeta: Record<string, unknown> | null;
+  macroDebugMeta: Record<string, unknown> | null;
+  baselineDebugMeta: Record<string, unknown> | null;
+  traceTailMemory: string[];
+  traceTailPersisted: string[];
+};
+
 function summarizeEntityRegistry(context: STContext): Array<Record<string, unknown>> {
   const rawRegistry = (context.chatMetadata as Record<string, unknown> | undefined)?.bstEntityRegistry;
   if (!rawRegistry || typeof rawRegistry !== "object" || Array.isArray(rawRegistry)) return [];
@@ -209,6 +222,47 @@ export function filterDebugRecordForDiagnostics(
   return {
     ...record,
     trace: filterDiagnosticsTrace(record.trace ?? [], includeGraphInDiagnostics),
+  };
+}
+
+export function buildDiagnosticsDebugDetails(input: {
+  debugEnabled: boolean;
+  includeGraphInDiagnostics: boolean;
+  currentPrompt: string | undefined;
+  lastMessageSnapshot: PromptInjectionLastMessageSnapshot;
+  latestDataMessagePrompt: string | null;
+  promptInjectionDebugMeta: Record<string, unknown> | null;
+  macroDebugMeta: Record<string, unknown> | null;
+  baselineDebugMeta: Record<string, unknown> | null;
+  debugTrace: string[];
+  readPersistedTrace: () => string[];
+}): DiagnosticsDebugDetails {
+  if (!input.debugEnabled) {
+    return {
+      promptInjectionPreview: undefined,
+      promptInjectionCurrentPrompt: undefined,
+      promptInjectionLastMessage: null,
+      promptInjectionPreviousMessage: null,
+      promptInjectionLatestDataMessage: null,
+      promptInjectionDebugMeta: null,
+      macroDebugMeta: null,
+      baselineDebugMeta: null,
+      traceTailMemory: [],
+      traceTailPersisted: [],
+    };
+  }
+
+  return {
+    promptInjectionPreview: input.currentPrompt,
+    promptInjectionCurrentPrompt: input.currentPrompt,
+    promptInjectionLastMessage: input.lastMessageSnapshot,
+    promptInjectionPreviousMessage: input.lastMessageSnapshot,
+    promptInjectionLatestDataMessage: input.latestDataMessagePrompt,
+    promptInjectionDebugMeta: input.promptInjectionDebugMeta,
+    macroDebugMeta: input.macroDebugMeta,
+    baselineDebugMeta: input.baselineDebugMeta,
+    traceTailMemory: filterDiagnosticsTrace(input.debugTrace.slice(-150), input.includeGraphInDiagnostics),
+    traceTailPersisted: filterDiagnosticsTrace(input.readPersistedTrace().slice(-300), input.includeGraphInDiagnostics),
   };
 }
 

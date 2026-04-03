@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
+  buildDiagnosticsDebugDetails,
   buildDiagnosticsReport,
   buildHistorySample,
   filterDebugRecordForDiagnostics,
@@ -261,6 +262,80 @@ test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
   };
   const filtered = filterDebugRecordForDiagnostics(record, false);
   assert.deepEqual(filtered?.trace, ["x extract.start y"]);
+});
+
+test("buildDiagnosticsDebugDetails skips persisted trace reads and debug-only payloads when debug is off", () => {
+  let persistedReads = 0;
+
+  const details = buildDiagnosticsDebugDetails({
+    debugEnabled: false,
+    includeGraphInDiagnostics: false,
+    currentPrompt: "preview",
+    lastMessageSnapshot: {
+      messageIndex: 2,
+      prompt: "<bst_inject_block>...</bst_inject_block>",
+      capturedAt: 1772800000000,
+      targetIndex: 2,
+      generationType: "normal",
+    },
+    latestDataMessagePrompt: "<bst_inject_block>...</bst_inject_block>",
+    promptInjectionDebugMeta: { targetOwner: "Seraphina" },
+    macroDebugMeta: { characterTargets: [{ ownerName: "Seraphina" }] },
+    baselineDebugMeta: { baselineBeforeIndex: 4 },
+    debugTrace: ["memory-trace"],
+    readPersistedTrace: () => {
+      persistedReads += 1;
+      return ["persisted-trace"];
+    },
+  });
+
+  assert.equal(persistedReads, 0);
+  assert.equal(details.promptInjectionPreview, undefined);
+  assert.equal(details.promptInjectionCurrentPrompt, undefined);
+  assert.equal(details.promptInjectionLastMessage, null);
+  assert.equal(details.promptInjectionPreviousMessage, null);
+  assert.equal(details.promptInjectionLatestDataMessage, null);
+  assert.equal(details.promptInjectionDebugMeta, null);
+  assert.equal(details.macroDebugMeta, null);
+  assert.equal(details.baselineDebugMeta, null);
+  assert.deepEqual(details.traceTailMemory, []);
+  assert.deepEqual(details.traceTailPersisted, []);
+});
+
+test("buildDiagnosticsDebugDetails preserves trace and prompt debug details when debug is on", () => {
+  let persistedReads = 0;
+
+  const details = buildDiagnosticsDebugDetails({
+    debugEnabled: true,
+    includeGraphInDiagnostics: false,
+    currentPrompt: "preview",
+    lastMessageSnapshot: {
+      messageIndex: 2,
+      prompt: "<bst_inject_block>...</bst_inject_block>",
+      capturedAt: 1772800000000,
+      targetIndex: 2,
+      generationType: "normal",
+    },
+    latestDataMessagePrompt: "<bst_inject_block>...</bst_inject_block>",
+    promptInjectionDebugMeta: { targetOwner: "Seraphina" },
+    macroDebugMeta: { characterTargets: [{ ownerName: "Seraphina" }] },
+    baselineDebugMeta: { baselineBeforeIndex: 4 },
+    debugTrace: ["2026 graph.open x", "2026 extract.start y"],
+    readPersistedTrace: () => {
+      persistedReads += 1;
+      return ["2026 graph.open persisted", "2026 extract.persisted"];
+    },
+  });
+
+  assert.equal(persistedReads, 1);
+  assert.equal(details.promptInjectionPreview, "preview");
+  assert.equal(details.promptInjectionCurrentPrompt, "preview");
+  assert.equal(details.promptInjectionLastMessage?.messageIndex, 2);
+  assert.equal(details.promptInjectionPreviousMessage?.messageIndex, 2);
+  assert.equal(details.promptInjectionLatestDataMessage, "<bst_inject_block>...</bst_inject_block>");
+  assert.deepEqual(details.promptInjectionDebugMeta, { targetOwner: "Seraphina" });
+  assert.deepEqual(details.traceTailMemory, ["2026 extract.start y"]);
+  assert.deepEqual(details.traceTailPersisted, ["2026 extract.persisted"]);
 });
 
 test("buildDiagnosticsReport produces expected core fields", () => {

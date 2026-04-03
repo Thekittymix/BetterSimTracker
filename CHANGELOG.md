@@ -10,6 +10,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Changed
 - Reduced hot-path storage and registry overhead by trimming repeated localStorage scans, repeated scope-map parses, and stringify-based lifecycle change detection in the first performance-focused dev batch.
 
+## [2.5.1.3-dev2] - 2026-04-03
+### Changed
+- Reduced diagnostics-dump overhead when debug mode is off by short-circuiting debug-only trace reads and prompt/debug payload assembly instead of building those heavy fields unconditionally.
+
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
 - Fixed extractor diagnostics so `scopeResolution` now uses the same entity-aware custom-stat lookup as real extraction, preventing debug dumps from showing stale owner-bucket values when the canonical tracker state already comes from entity-scoped data.

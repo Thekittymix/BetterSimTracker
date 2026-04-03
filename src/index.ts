@@ -159,6 +159,7 @@ import {
   wrapAsSystemNarrativeText,
 } from "./summaryText";
 import {
+  buildDiagnosticsDebugDetails,
   buildDiagnosticsReport,
   buildHistorySample,
   filterDebugRecordForDiagnostics,
@@ -4763,6 +4764,18 @@ function openSettings(): void {
         lastMessagePromptSnapshot.messageIndex === latestDataMessageIndex
           ? lastMessagePromptSnapshot.prompt
           : null;
+      const debugDetails = buildDiagnosticsDebugDetails({
+        debugEnabled: currentSettings.debug,
+        includeGraphInDiagnostics: currentSettings.includeGraphInDiagnostics,
+        currentPrompt: getLastInjectedPrompt(),
+        lastMessageSnapshot: lastMessagePromptSnapshot,
+        latestDataMessagePrompt: latestDataPrompt,
+        promptInjectionDebugMeta: getLastInjectedPromptDebug(),
+        macroDebugMeta: getBstMacroDebugSnapshot(),
+        baselineDebugMeta: lastExtractionBaselineDebugMeta,
+        debugTrace,
+        readPersistedTrace: () => readTraceLines(activeContext),
+      });
       const report = buildDiagnosticsReport({
         context: activeContext,
         settings: currentSettings,
@@ -4784,16 +4797,16 @@ function openSettings(): void {
         activity: lastActivityAnalysis,
         latestData,
         latestPromptMacroData,
-        promptInjectionPreview: currentSettings.debug ? getLastInjectedPrompt() : undefined,
-        promptInjectionCurrentPrompt: currentSettings.debug ? getLastInjectedPrompt() : undefined,
-        promptInjectionLastMessage: currentSettings.debug ? lastMessagePromptSnapshot : null,
-        promptInjectionPreviousMessage: currentSettings.debug ? lastMessagePromptSnapshot : null,
-        promptInjectionLatestDataMessage: currentSettings.debug ? latestDataPrompt : null,
-        promptInjectionDebugMeta: currentSettings.debug ? getLastInjectedPromptDebug() : null,
-        macroDebugMeta: currentSettings.debug ? getBstMacroDebugSnapshot() : null,
-        baselineDebugMeta: currentSettings.debug ? lastExtractionBaselineDebugMeta : null,
-        traceTailMemory: filterDiagnosticsTrace(debugTrace.slice(-150), currentSettings.includeGraphInDiagnostics),
-        traceTailPersisted: filterDiagnosticsTrace(readTraceLines(activeContext).slice(-300), currentSettings.includeGraphInDiagnostics),
+        promptInjectionPreview: debugDetails.promptInjectionPreview,
+        promptInjectionCurrentPrompt: debugDetails.promptInjectionCurrentPrompt,
+        promptInjectionLastMessage: debugDetails.promptInjectionLastMessage,
+        promptInjectionPreviousMessage: debugDetails.promptInjectionPreviousMessage,
+        promptInjectionLatestDataMessage: debugDetails.promptInjectionLatestDataMessage,
+        promptInjectionDebugMeta: debugDetails.promptInjectionDebugMeta,
+        macroDebugMeta: debugDetails.macroDebugMeta,
+        baselineDebugMeta: debugDetails.baselineDebugMeta,
+        traceTailMemory: debugDetails.traceTailMemory,
+        traceTailPersisted: debugDetails.traceTailPersisted,
         debugRecord: filteredLastDebugRecord,
       });
       console.log("[BetterSimTracker] diagnostics-dump", report);
