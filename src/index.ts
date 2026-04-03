@@ -129,7 +129,6 @@ import {
 import { getGraphPreferences } from "./graphPreferences";
 import { closeGraphModal, openGraphModal } from "./graphModal";
 import { buildStatSeries, selectGraphTimelineEntries } from "./graphTimeline";
-import { closeSettingsModal, openSettingsModal } from "./settingsModal";
 import { cancelActiveGenerations, generateJson } from "./generator";
 import { registerSlashCommands } from "./slashCommands";
 import { initCharacterPanel } from "./characterPanel";
@@ -258,6 +257,14 @@ const registeredEventSources = new WeakSet<object>();
 let activeExtractionRunId: number | null = null;
 const cancelledExtractionRuns = new Set<number>();
 const activeSummaryRuns = new Set<number>();
+let settingsModalModulePromise: Promise<typeof import("./settingsModal")> | null = null;
+
+function loadSettingsModalModule(): Promise<typeof import("./settingsModal")> {
+  if (!settingsModalModulePromise) {
+    settingsModalModulePromise = import("./settingsModal");
+  }
+  return settingsModalModulePromise;
+}
 let summaryVisibilityReloadInFlight = false;
 const BUILT_IN_NUMERIC_KEYS = new Set(["affection", "trust", "desire", "connection"]);
 const EDIT_MOOD_LABELS = new Map(moodOptions.map(label => [label.toLowerCase(), label]));
@@ -4751,7 +4758,7 @@ function registerEvents(context: STContext): void {
   }
 }
 
-function openSettings(): void {
+async function openSettingsAsync(): Promise<void> {
   if (!settings) return;
   const context = getSafeContext();
   const previewCharacterCandidates = context && settings
@@ -4762,7 +4769,8 @@ function openSettings(): void {
       allCharacterNames: allCharacterNames.filter(name => name !== USER_TRACKER_KEY && name !== GLOBAL_TRACKER_KEY),
     })
     : [];
-  openSettingsModal({
+  const settingsModal = await loadSettingsModalModule();
+  settingsModal.openSettingsModal({
     settings,
     profileOptions: context ? discoverConnectionProfiles(context) : [],
     previewCharacterCandidates,
@@ -4870,8 +4878,14 @@ function openSettings(): void {
   });
 }
 
-function closeSettings(): void {
-  closeSettingsModal();
+function openSettings(): void {
+  void openSettingsAsync();
+}
+
+async function closeSettings(): Promise<void> {
+  if (!settingsModalModulePromise) return;
+  const settingsModal = await loadSettingsModalModule();
+  settingsModal.closeSettingsModal();
 }
 
 function applyLorebookCharLimit(text: string, maxChars: number, maxCap = 12000): string {

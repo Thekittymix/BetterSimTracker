@@ -136,3 +136,12 @@ test("settings checkbox checked state keeps a visible non-color-mix fallback", (
   assert.match(source, /\.bst-check input\[type="checkbox"\]::before \{[\s\S]*border-right: 2px solid rgba\(247, 250, 255, 0\.96\);/);
   assert.match(source, /\.bst-check input\[type="checkbox"\]:checked \{[\s\S]*border-color: #78c9ff;[\s\S]*background: linear-gradient\(180deg, #76c9ff, #2f87d7\);/);
 });
+
+test("index lazy-loads the settings modal through a cached dynamic import", () => {
+  const source = fs.readFileSync(path.resolve("src/index.ts"), "utf8");
+  assert.doesNotMatch(source, /import\s+\{\s*closeSettingsModal,\s*openSettingsModal\s*\}\s+from\s+"\.\/settingsModal"/);
+  assert.match(source, /let settingsModalModulePromise: Promise<typeof import\("\.\/settingsModal"\)> \| null = null;/);
+  assert.match(source, /function loadSettingsModalModule\(\): Promise<typeof import\("\.\/settingsModal"\)>/);
+  assert.match(source, /settingsModalModulePromise = import\("\.\/settingsModal"\);/);
+  assert.match(source, /const settingsModal = await loadSettingsModalModule\(\);[\s\S]*settingsModal\.openSettingsModal\(/);
+});

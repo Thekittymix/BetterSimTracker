@@ -40,11 +40,15 @@ All notable changes to BetterSimTracker are documented here.
 
 ## [2.5.1.3-dev9] - 2026-04-03
 ### Changed
-- Reduced repeated extraction prompt-context assembly by caching character-card and lorebook context reads when the active context inputs and limits have not changed.
+- Reduced repeated extraction-context assembly by caching character-card and lorebook prompt context reads when the live inputs and limits are unchanged.
 
 ## [2.5.1.3-dev10] - 2026-04-03
 ### Changed
 - Reduced repeated full-pass tracker rerender work by computing a dirty-message cutoff and reusing already rendered idle tracker roots before that cutoff instead of rebuilding every visible message on each queue pass.
+
+## [2.5.1.3-dev11] - 2026-04-03
+### Changed
+- Reduced startup bundle work by lazy-loading the heavy settings modal module only when the settings UI is actually opened, instead of pulling it into the initial main bundle path.
 
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
