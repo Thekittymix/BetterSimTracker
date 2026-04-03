@@ -15,8 +15,9 @@ It tracks character relationship stats over time, stores them per AI message, vi
 - Lorebook extraction prefers already-activated ST lorebook context, with an optional internal fallback scan toggle.
 - Current ST builds use the modern macro engine path, reducing BST macro warning noise while keeping prompt macros working.
 - The settings modal is split into clearer sections (`Setup`, `Extraction`, `Context Sources`, `User Tracking`, `Prompt Injection`, `Tracking Schema`, `Display`, `Prompts`, `Diagnostics`) with cleaner subdrawer grouping.
-- Experimental builds expose `Entity Tracking Mode` with `Dynamic Characters`, keeping scene continuity separate from current-message speaker ownership while allowing conservative runtime-owned character entities without reusing ST character defaults or owner-specific runtime overrides as their source of truth.
-- Dev builds add a chat-scoped `Dynamic Characters` manager under the chat options menu for quick archive/restore and card-color control.
+- `Entity Tracking Mode` exposes `Dynamic Characters`, keeping scene continuity separate from current-message speaker ownership while allowing conservative runtime-owned character entities without reusing ST character defaults or owner-specific runtime overrides as their source of truth.
+- A chat-scoped `Dynamic Characters` manager lives under the chat options menu for quick archive/restore and card-color control.
+- Current builds reduce storage/render/diagnostics/extraction overhead through caching and reuse, and lazy-load the BST settings surface to cut startup bundle work.
 - Character/persona defaults, mood-image integrations (BST + ST expressions), graphing, and diagnostics are built-in.
 
 [![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/dogzera)
@@ -26,8 +27,8 @@ It tracks character relationship stats over time, stores them per AI message, vi
 - Per-message tracker cards directly in chat
 - Historical tracking (older AI messages keep their own past state)
 - Group chat support (multiple character cards in one message)
-- Experimental multi-character source-card mode for cards that represent multiple named characters, while keeping current speaker targeting separate from broader scene continuity
-- Experimental dynamic-character mode for conservative runtime-owned character entities that can be archived and later reactivated through the entity registry
+- Multi-character source-card mode for cards that represent multiple named characters, while keeping current speaker targeting separate from broader scene continuity
+- Dynamic-character mode for conservative runtime-owned character entities that can be archived and later reactivated through the entity registry
 - Chat-scoped `Dynamic Characters` manager in the chat options menu for archive/restore and per-chat card color
 - Scene activity detection (active vs inactive character state)
 - Polished tracker action controls for `Collapse cards`, `Summarize`, and `Retrack`
@@ -247,7 +248,7 @@ Numeric scaling formula used by runtime:
 - `Injection Prompt Template`: editable template for injected guidance (shown only when injection is enabled)
 - `Prompt Templates`: edit unified + per-stat sequential prompt instructions plus global custom-numeric and custom-non-numeric sequential defaults (protocol blocks are fixed; repair prompts are fixed)
 - `Manage Built-in Stats`: open a wizard to control built-in stat participation in extraction/cards/graph/injection (`lastThought` includes owner-scoped privacy toggle)
-- `Custom Stats`: create and manage additional custom stats (`numeric`, `enum_single`, `boolean`, `text_short`, `array`) via step-by-step wizard in settings, including owner-scoped privacy toggle per stat
+- `Custom Stats`: create and manage additional custom stats (`numeric`, `enum_single`, `boolean`, `text_short`, `array`, `date_time`) via step-by-step wizard in settings, including owner-scoped privacy toggle per stat
   - includes `Import JSON` and per-stat `Export JSON` actions for custom stat definitions
 - `Profile Token Limits`: extraction now respects profile max tokens and truncation length (when available)
 - `Max Tokens Override`: force max tokens for extraction (0 = auto)
