@@ -151,6 +151,7 @@ import {
 import { buildMergedPromptMacroData, resolveLatestStoredTrackerData, resolveLatestStoredTrackerDataBefore } from "./runtimeState";
 import { buildMacroPreviewCandidates, getBstMacroDebugSnapshot, syncBstMacros } from "./runtimeMacros";
 import { createPromptRefreshController } from "./runtimePromptSync";
+import { persistChatNow, persistChatNowBestEffort } from "./persistence";
 import {
   countSummarySentences,
   hasNumericCharacters,
@@ -3115,8 +3116,7 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
     settings: settings!,
     allKnownCharacters: allCharacterNames.filter(name => isTrackerEnabledForOwner(context, settings!, name)),
   });
-  context.saveChatDebounced?.();
-  void context.saveChat?.();
+  void persistChatNowBestEffort(context);
   pushTrace("tracker.edit", { messageIndex, character, active: payload.active ?? null });
   refreshFromStoredData();
 }
@@ -3227,8 +3227,7 @@ async function sendTrackerSummaryToChat(messageIndex: number): Promise<void> {
     const normalizedBody = normalizeSummaryProse(summaryBody) || "The current relationship state remains steady with no major shifts to report.";
     const summaryText = wrapAsSystemNarrativeText(normalizedBody);
     const delivery = await sendSummaryAsSystemMessage(context, summaryText, settings.summarizationNoteVisibleForAI);
-    context.saveChatDebounced?.();
-    await context.saveChat?.();
+    await persistChatNow(context);
     pushTrace("summary.sent", {
       messageIndex,
       activeCharacters: data.activeCharacters.length,
@@ -3614,8 +3613,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         refreshPromptMacroData(context);
         queuePromptSync(context);
         queueRender();
-        context.saveChatDebounced?.();
-        await context.saveChat?.();
+        await persistChatNow(context);
       } else if (hadTrackerAtStart) {
         clearTrackerDataForMessage(context, lastIndex);
         const resolved = resolveLatestStoredTrackerData(context, lastIndex);
@@ -3624,8 +3622,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         refreshPromptMacroData(context);
         queuePromptSync(context);
         queueRender();
-        context.saveChatDebounced?.();
-        await context.saveChat?.();
+        await persistChatNow(context);
       }
       if (!continuitySnapshot && !hadTrackerAtStart) {
         setTrackerRecovery(lastIndex, {
@@ -3788,8 +3785,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       latestDataMessageIndex = lastIndex;
       refreshPromptMacroData(context);
       writeTrackerDataToMessage(context, latestData, lastIndex);
-      context.saveChatDebounced?.();
-      await context.saveChat?.();
+      await persistChatNow(context);
       queuePromptSync(context);
       queueRender();
       pushTrace("extract.bootstrap.defaults", {
@@ -4065,8 +4061,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       allKnownCharacters: allCharacterNames.filter(name => isTrackerEnabledForOwner(context, activeSettings, name)),
     });
     clearTrackerRecovery(lastIndex);
-    context.saveChatDebounced?.();
-    await context.saveChat?.();
+    await persistChatNow(context);
 
     queuePromptSync(context);
     queueRender();
@@ -4897,8 +4892,7 @@ function clearCurrentChat(): void {
   pendingGenerationInjectionSnapshot = null;
   lastMessageInjectionSnapshot = null;
   trackerUiState = { phase: "idle", done: 0, total: 0, messageIndex: null };
-  activeContext.saveChatDebounced?.();
-  void activeContext.saveChat?.();
+  void persistChatNowBestEffort(activeContext);
   refreshFromStoredData();
 }
 

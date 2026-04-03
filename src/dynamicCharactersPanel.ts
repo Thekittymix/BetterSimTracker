@@ -5,6 +5,7 @@ import {
   setEntityRegistryCardColor,
   setEntityRegistryLifecycleOverride,
 } from "./entityRegistry";
+import { persistMetadataAndChatNowBestEffort } from "./persistence";
 import type {
   BetterSimTrackerSettings,
   STContext,
@@ -238,13 +239,7 @@ export function listManageableDynamicCharacters(
 }
 
 async function persistManualRegistryMutation(context: STContext): Promise<void> {
-  context.saveMetadataDebounced?.();
-  context.saveChatDebounced?.();
-  try {
-    await context.saveChat?.();
-  } catch {
-    // Ignore save failures here; runtime UI already updated locally.
-  }
+  await persistMetadataAndChatNowBestEffort(context);
 }
 
 export function renderDynamicCharactersDialogMarkup(items: DynamicCharactersManagerItem[]): string {

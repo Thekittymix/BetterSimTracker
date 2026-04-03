@@ -10,6 +10,7 @@ import { resolveTrackerEntityIdsForOwners, syncEntityRegistryFromRender } from "
 import {
   clearTrackerDataForMessage,
   clearTrackerDataForCurrentChat,
+  getLocalLatestTrackerData,
   getRecentTrackerHistoryEntries,
   getTrackerDataFromMessage,
   mergeTrackerDataChronologically,
@@ -1959,4 +1960,70 @@ test("resolveLatestStoredTrackerData recovers after a corrupted latestByScope pa
   assert.equal(after.source, "chatState");
   assert.ok(after.data);
   assert.deepEqual(after.data.activeCharacters, ["Seraphina"]);
+});
+
+test("getLocalLatestTrackerData detects an externally replaced scope store after the cache was warmed", () => {
+  const previousStorage = (globalThis as unknown as { localStorage: unknown }).localStorage;
+  (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = localStorageMock;
+  try {
+  const context = makeContext() as STContext & { chatId: string };
+  context.chatId = "store-cache-replace";
+
+  const initialTracker = makeTracker(50_001, { activeCharacters: ["Seraphina"] });
+  saveTrackerSnapshot(context, initialTracker, 2);
+
+  const initial = getLocalLatestTrackerData(context);
+  assert.equal(initial?.data.timestamp, 50_001);
+
+  const replacementTracker = makeTracker(50_999, {
+    activeCharacters: ["Seraphina"],
+    statistics: {
+      affection: { Seraphina: 77 },
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {},
+    },
+  });
+  localStorageMock.setItem(getLocalStoreKey("store-cache-replace"), JSON.stringify({
+    latest: {
+      data: replacementTracker,
+      messageIndex: 2,
+      timestamp: replacementTracker.timestamp,
+    },
+    history: [{
+      data: replacementTracker,
+      messageIndex: 2,
+      timestamp: replacementTracker.timestamp,
+    }],
+  }));
+
+  const refreshed = getLocalLatestTrackerData(context);
+  assert.equal(refreshed?.data.timestamp, 50_999);
+  assert.deepEqual(refreshed?.data.statistics.affection, { Seraphina: 77 });
+  } finally {
+    (globalThis as unknown as { localStorage: unknown }).localStorage = previousStorage;
+  }
+});
+
+test("getLocalLatestTrackerData resets the warmed scope-store cache after clear and fresh save", () => {
+  const previousStorage = (globalThis as unknown as { localStorage: unknown }).localStorage;
+  (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = localStorageMock;
+  try {
+  const context = makeContext() as STContext & { chatId: string };
+  context.chatId = "store-cache-clear";
+
+  saveTrackerSnapshot(context, makeTracker(60_001, { activeCharacters: ["Seraphina"] }), 2);
+  assert.equal(getLocalLatestTrackerData(context)?.data.timestamp, 60_001);
+
+  clearTrackerDataForCurrentChat(context);
+  assert.equal(getLocalLatestTrackerData(context), null);
+
+  saveTrackerSnapshot(context, makeTracker(60_777, { activeCharacters: ["Seraphina"] }), 2);
+  const resolved = getLocalLatestTrackerData(context);
+  assert.equal(resolved?.data.timestamp, 60_777);
+  } finally {
+    (globalThis as unknown as { localStorage: unknown }).localStorage = previousStorage;
+  }
 });

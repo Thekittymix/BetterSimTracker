@@ -909,11 +909,13 @@ type ChatStateStore = {
 };
 
 type LocalHistoryStoreSummary = { key: string; totalChars: number; timestamp: number };
+type CachedSnapshotStore = { raw: string | null; store: SnapshotStore };
 
 let localHistoryStoresCache: LocalHistoryStoreSummary[] | null = null;
 let latestByScopeCache:
   | Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>
   | null = null;
+let snapshotStoreCache = new Map<string, CachedSnapshotStore>();
 
 function normalizeStore(raw: unknown): SnapshotStore {
   if (!raw || typeof raw !== "object") return { history: [] };
@@ -922,6 +924,13 @@ function normalizeStore(raw: unknown): SnapshotStore {
     return { latest: parsed.latest, history: [] };
   }
   return { latest: parsed.latest, history: parsed.history };
+}
+
+function cloneSnapshotStore(store: SnapshotStore): SnapshotStore {
+  return {
+    latest: store.latest ? { ...store.latest } : undefined,
+    history: store.history.map(entry => ({ ...entry })),
+  };
 }
 
 function getStoreKey(context: STContext): string {
@@ -971,6 +980,7 @@ function pruneLocalHistoryStores(currentKey?: string): void {
     const victim = chooseVictim();
     if (!victim) return;
     localStorage.removeItem(victim.key);
+    snapshotStoreCache.delete(victim.key);
     stores = stores.filter(store => store.key !== victim.key);
     totalChars = stores.reduce((sum, store) => sum + store.totalChars, 0);
   }
@@ -1056,10 +1066,22 @@ function readStore(context: STContext): SnapshotStore {
   const key = getStoreKey(context);
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return { history: [] };
-    return normalizeStore(JSON.parse(raw));
+    const cached = snapshotStoreCache.get(key);
+    if (!raw) {
+      const empty = { history: [] };
+      snapshotStoreCache.set(key, { raw: null, store: empty });
+      return cloneSnapshotStore(empty);
+    }
+    if (cached && cached.raw === raw) {
+      return cloneSnapshotStore(cached.store);
+    }
+    const parsed = normalizeStore(JSON.parse(raw));
+    snapshotStoreCache.set(key, { raw, store: parsed });
+    return cloneSnapshotStore(parsed);
   } catch {
-    return { history: [] };
+    const empty = { history: [] };
+    snapshotStoreCache.set(key, { raw: null, store: empty });
+    return cloneSnapshotStore(empty);
   }
 }
 
@@ -1105,6 +1127,7 @@ function writeStore(context: STContext, store: SnapshotStore): void {
     }
   }
   if (serialized) {
+    snapshotStoreCache.set(key, { raw: serialized, store: compacted });
     const timestamp = getHistoryStoreTimestamp(compacted);
     const nextSummary: LocalHistoryStoreSummary = { key, totalChars: serialized.length, timestamp };
     const existing = listLocalHistoryStores().filter(store => store.key !== key);
@@ -1112,6 +1135,7 @@ function writeStore(context: STContext, store: SnapshotStore): void {
       .sort((left, right) => right.timestamp - left.timestamp);
   } else {
     localHistoryStoresCache = null;
+    snapshotStoreCache.delete(key);
   }
   pruneLocalHistoryStores(key);
 }
@@ -1702,6 +1726,7 @@ export function clearTrackerDataForCurrentChat(context: STContext): void {
   try {
     localStorage.removeItem(scopeKey);
     localHistoryStoresCache = null;
+    snapshotStoreCache.delete(scopeKey);
   } catch {
     // ignore
   }

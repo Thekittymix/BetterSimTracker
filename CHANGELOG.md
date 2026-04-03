@@ -14,6 +14,14 @@ All notable changes to BetterSimTracker are documented here.
 ### Changed
 - Reduced diagnostics-dump overhead when debug mode is off by short-circuiting debug-only trace reads and prompt/debug payload assembly instead of building those heavy fields unconditionally.
 
+## [2.5.1.3-dev3] - 2026-04-03
+### Changed
+- Reduced local history reread overhead by caching parsed per-scope snapshot stores in memory and invalidating that cache on write, clear, prune, or external raw-store replacement.
+
+## [2.5.1.3-dev4] - 2026-04-03
+### Changed
+- Reduced immediate persistence churn by routing save paths through a shared helper that prefers a direct `saveChat()` and only falls back to `saveChatDebounced()` when the immediate save is unavailable or fails.
+
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
 - Fixed extractor diagnostics so `scopeResolution` now uses the same entity-aware custom-stat lookup as real extraction, preventing debug dumps from showing stale owner-bucket values when the canonical tracker state already comes from entity-scoped data.
