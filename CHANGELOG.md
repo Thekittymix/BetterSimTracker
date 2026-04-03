@@ -6,49 +6,13 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed multi-character source-card reconciliation so a generic source owner is now suppressed when same-source child characters are active, preventing it from leaking into canonical resolved entities, active owners, prompt injection, extraction targets, and rendered cards.
 
-## [2.5.1.3-dev1] - 2026-04-03
+## [2.5.2] - 2026-04-03
 ### Changed
-- Reduced hot-path storage and registry overhead by trimming repeated localStorage scans, repeated scope-map parses, and stringify-based lifecycle change detection in the first performance-focused dev batch.
+- Reduced runtime overhead across storage, rendering, diagnostics, and extraction by caching repeated tracker reads, prompt-context assembly, and render projections instead of rebuilding them on every pass.
+- Reduced startup bundle work by lazy-loading the BetterSimTracker settings modal only when the settings UI is actually opened.
 
-## [2.5.1.3-dev2] - 2026-04-03
-### Changed
-- Reduced diagnostics-dump overhead when debug mode is off by short-circuiting debug-only trace reads and prompt/debug payload assembly instead of building those heavy fields unconditionally.
-
-## [2.5.1.3-dev3] - 2026-04-03
-### Changed
-- Reduced local history reread overhead by caching parsed per-scope snapshot stores in memory and invalidating that cache on write, clear, prune, or external raw-store replacement.
-
-## [2.5.1.3-dev4] - 2026-04-03
-### Changed
-- Reduced immediate persistence churn by routing save paths through a shared helper that prefers a direct `saveChat()` and only falls back to `saveChatDebounced()` when the immediate save is unavailable or fails.
-
-## [2.5.1.3-dev5] - 2026-04-03
-### Changed
-- Reduced repeated tracker-card history scans during a single render pass by memoizing previous-value lookups for numeric, non-numeric, and built-in text continuity reads.
-
-## [2.5.1.3-dev6] - 2026-04-03
 ### Fixed
-- Fixed reload-time auto-bootstrap so partial chat hydration no longer backfills greeting trackers over newer persisted snapshots that are already ahead in local state.
-
-## [2.5.1.3-dev7] - 2026-04-03
-### Fixed
-- Fixed historical bootstrap saves so writing an older message snapshot no longer replaces the current scope's latest persisted tracker state during reload recovery.
-
-## [2.5.1.3-dev8] - 2026-04-03
-### Changed
-- Reduced repeated message-scoped tracker projection work during full render passes by caching per-message projected tracker data and invalidating it when the message, tracker payload, or tracking mode changes.
-
-## [2.5.1.3-dev9] - 2026-04-03
-### Changed
-- Reduced repeated extraction-context assembly by caching character-card and lorebook prompt context reads when the live inputs and limits are unchanged.
-
-## [2.5.1.3-dev10] - 2026-04-03
-### Changed
-- Reduced repeated full-pass tracker rerender work by computing a dirty-message cutoff and reusing already rendered idle tracker roots before that cutoff instead of rebuilding every visible message on each queue pass.
-
-## [2.5.1.3-dev11] - 2026-04-03
-### Changed
-- Reduced startup bundle work by lazy-loading the heavy settings modal module only when the settings UI is actually opened, instead of pulling it into the initial main bundle path.
+- Fixed reload recovery so partial hydration and historical bootstrap saves no longer overwrite newer persisted tracker snapshots with older bootstrap state.
 
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
