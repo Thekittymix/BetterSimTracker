@@ -1906,3 +1906,57 @@ test("clearTrackerDataForCurrentChat removes persisted tracker data", () => {
   assert.equal(context.chatMetadata?.bstEntityRegistry, undefined);
   assert.equal(context.chatMetadata?.bstManualInactiveCharacters, undefined);
 });
+
+test("clearTrackerDataForCurrentChat resets persisted scope state before a fresh snapshot is saved again", () => {
+  const context = makeContext();
+  const first = makeTracker(1000, { activeCharacters: ["Ashley"] });
+  const second = makeTracker(2000, { activeCharacters: ["Blake"] });
+
+  writeTrackerDataToMessage(context, first, 2);
+  clearTrackerDataForCurrentChat(context);
+  saveTrackerSnapshot(context, second, 2);
+
+  const latest = resolveLatestStoredTrackerData(context, 2);
+  assert.equal(latest.source, "chatState");
+  assert.ok(latest.data);
+  assert.deepEqual(latest.data.activeCharacters, ["Blake"]);
+  assert.deepEqual(getRecentTrackerHistoryEntries(context, 10).map(entry => entry.data.activeCharacters), [["Blake"]]);
+});
+
+test("clearTrackerDataForCurrentChat removes only the current scope and preserves other persisted scopes", () => {
+  const firstContext = makeContext() as STContext & { chatId: string };
+  firstContext.chatId = "scope-a";
+  const secondContext = makeContext() as STContext & { chatId: string };
+  secondContext.chatId = "scope-b";
+
+  saveTrackerSnapshot(firstContext, makeTracker(1000, { activeCharacters: ["Ashley"] }), 2);
+  saveTrackerSnapshot(secondContext, makeTracker(2000, { activeCharacters: ["Blake"] }), 2);
+
+  clearTrackerDataForCurrentChat(firstContext);
+
+  const latestFirst = resolveLatestStoredTrackerData(firstContext, 2);
+  assert.equal(latestFirst.data, null);
+  assert.equal(latestFirst.source, "none");
+
+  const latestSecond = resolveLatestStoredTrackerData(secondContext, 2);
+  assert.equal(latestSecond.source, "chatState");
+  assert.ok(latestSecond.data);
+  assert.deepEqual(latestSecond.data.activeCharacters, ["Blake"]);
+});
+
+test("resolveLatestStoredTrackerData recovers after a corrupted latestByScope payload is replaced by a valid snapshot", () => {
+  const context = makeContext() as STContext & { chatId: string };
+  context.chatId = "corrupted-scope";
+
+  localStorageMock.setItem(`${EXTENSION_KEY}:latestByScope`, "{not-json");
+  const before = resolveLatestStoredTrackerData(context, 2);
+  assert.equal(before.data, null);
+  assert.equal(before.source, "none");
+
+  saveTrackerSnapshot(context, makeTracker(3000, { activeCharacters: ["Seraphina"] }), 2);
+
+  const after = resolveLatestStoredTrackerData(context, 2);
+  assert.equal(after.source, "chatState");
+  assert.ok(after.data);
+  assert.deepEqual(after.data.activeCharacters, ["Seraphina"]);
+});

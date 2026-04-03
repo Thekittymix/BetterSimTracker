@@ -135,10 +135,13 @@ function upsertLifecycleEvent(
   const next = Array.from(deduped.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([eventMessageIndex, eventState]) => ({ messageIndex: eventMessageIndex, state: eventState }));
-  const before = JSON.stringify(existing);
-  const after = JSON.stringify(next);
+  const changed = existing.length !== next.length
+    || existing.some((event, index) =>
+      Number(event.messageIndex) !== next[index]?.messageIndex
+      || event.state !== next[index]?.state,
+    );
   entry.lifecycleEvents = next;
-  return before !== after;
+  return changed;
 }
 
 function getLifecycleEvents(entry: TrackerEntityRegistryEntry): Array<{ messageIndex: number; state: TrackerEntityLifecycleState }> {

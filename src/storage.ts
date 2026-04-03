@@ -908,6 +908,13 @@ type ChatStateStore = {
   history: SnapshotEntry[];
 };
 
+type LocalHistoryStoreSummary = { key: string; totalChars: number; timestamp: number };
+
+let localHistoryStoresCache: LocalHistoryStoreSummary[] | null = null;
+let latestByScopeCache:
+  | Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>
+  | null = null;
+
 function normalizeStore(raw: unknown): SnapshotStore {
   if (!raw || typeof raw !== "object") return { history: [] };
   const parsed = raw as Partial<SnapshotStore>;
@@ -930,8 +937,11 @@ function getHistoryStoreTimestamp(store: SnapshotStore): number {
   return Number.isFinite(historyTimestamp) ? historyTimestamp : 0;
 }
 
-function listLocalHistoryStores(): Array<{ key: string; totalChars: number; timestamp: number }> {
-  const stores: Array<{ key: string; totalChars: number; timestamp: number }> = [];
+function listLocalHistoryStores(): LocalHistoryStoreSummary[] {
+  if (localHistoryStoresCache) {
+    return localHistoryStoresCache.map(store => ({ ...store }));
+  }
+  const stores: LocalHistoryStoreSummary[] = [];
   for (let index = 0; index < localStorage.length; index += 1) {
     const key = localStorage.key(index);
     if (!key || !key.startsWith(`${EXTENSION_KEY}:history:`)) continue;
@@ -944,7 +954,8 @@ function listLocalHistoryStores(): Array<{ key: string; totalChars: number; time
     }
     stores.push({ key, totalChars: raw.length, timestamp });
   }
-  return stores.sort((left, right) => right.timestamp - left.timestamp);
+  localHistoryStoresCache = stores.sort((left, right) => right.timestamp - left.timestamp);
+  return localHistoryStoresCache.map(store => ({ ...store }));
 }
 
 function pruneLocalHistoryStores(currentKey?: string): void {
@@ -952,25 +963,39 @@ function pruneLocalHistoryStores(currentKey?: string): void {
   let totalChars = stores.reduce((sum, store) => sum + store.totalChars, 0);
 
   const chooseVictim = (): { key: string } | undefined =>
-    [...stores].reverse().find(store => store.key !== currentKey);
+    stores[stores.length - 1] && stores[stores.length - 1].key !== currentKey
+      ? stores[stores.length - 1]
+      : [...stores].reverse().find(store => store.key !== currentKey);
 
   while (stores.length > LOCAL_STORE_SCOPE_LIMIT || totalChars > LOCAL_STORE_TOTAL_MAX_CHARS) {
     const victim = chooseVictim();
     if (!victim) return;
     localStorage.removeItem(victim.key);
-    stores = listLocalHistoryStores();
+    stores = stores.filter(store => store.key !== victim.key);
     totalChars = stores.reduce((sum, store) => sum + store.totalChars, 0);
   }
+  localHistoryStoresCache = stores.map(store => ({ ...store }));
 }
 
 function readLatestByScopeMap(): Record<string, { data: TrackerData; messageIndex: number; timestamp: number }> {
+  if (latestByScopeCache) {
+    return { ...latestByScopeCache };
+  }
   try {
     const raw = localStorage.getItem(LATEST_BY_SCOPE_KEY);
-    if (!raw) return {};
+    if (!raw) {
+      latestByScopeCache = {};
+      return {};
+    }
     const parsed = JSON.parse(raw) as Record<string, { data: TrackerData; messageIndex: number; timestamp: number }>;
-    if (!parsed || typeof parsed !== "object") return {};
-    return parsed;
+    if (!parsed || typeof parsed !== "object") {
+      latestByScopeCache = {};
+      return {};
+    }
+    latestByScopeCache = parsed;
+    return { ...parsed };
   } catch {
+    latestByScopeCache = {};
     return {};
   }
 }
@@ -1012,12 +1037,15 @@ function writeLatestByScopeMap(
   currentScope?: string,
 ): void {
   const pruned = pruneLatestByScopeMap(map, currentScope);
+  latestByScopeCache = pruned;
   try {
     localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify(pruned));
   } catch {
     if (!currentScope || !pruned[currentScope]) return;
     try {
-      localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify({ [currentScope]: pruned[currentScope] }));
+      const fallback = { [currentScope]: pruned[currentScope] };
+      latestByScopeCache = fallback;
+      localStorage.setItem(LATEST_BY_SCOPE_KEY, JSON.stringify(fallback));
     } catch {
       // ignore
     }
@@ -1057,21 +1085,33 @@ function writeStore(context: STContext, store: SnapshotStore): void {
   const key = getStoreKey(context);
   const compacted = compactStoreForLocalStorage(store);
   pruneLocalHistoryStores(key);
+  let serialized = "";
   try {
-    localStorage.setItem(key, JSON.stringify(compacted));
+    serialized = JSON.stringify(compacted);
+    localStorage.setItem(key, serialized);
   } catch {
     try {
-      localStorage.setItem(key, JSON.stringify({
+      serialized = JSON.stringify({
         latest: compacted.latest,
         history: compacted.latest ? [{
           data: compacted.latest.data,
           timestamp: compacted.latest.timestamp,
           messageIndex: compacted.latest.messageIndex,
         }] : [],
-      } satisfies SnapshotStore));
+      } satisfies SnapshotStore);
+      localStorage.setItem(key, serialized);
     } catch {
       // ignore
     }
+  }
+  if (serialized) {
+    const timestamp = getHistoryStoreTimestamp(compacted);
+    const nextSummary: LocalHistoryStoreSummary = { key, totalChars: serialized.length, timestamp };
+    const existing = listLocalHistoryStores().filter(store => store.key !== key);
+    localHistoryStoresCache = [nextSummary, ...existing]
+      .sort((left, right) => right.timestamp - left.timestamp);
+  } else {
+    localHistoryStoresCache = null;
   }
   pruneLocalHistoryStores(key);
 }
@@ -1661,6 +1701,7 @@ export function clearTrackerDataForCurrentChat(context: STContext): void {
   const scopeKey = getStoreKey(context);
   try {
     localStorage.removeItem(scopeKey);
+    localHistoryStoresCache = null;
   } catch {
     // ignore
   }

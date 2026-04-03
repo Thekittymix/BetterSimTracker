@@ -6,6 +6,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed multi-character source-card reconciliation so a generic source owner is now suppressed when same-source child characters are active, preventing it from leaking into canonical resolved entities, active owners, prompt injection, extraction targets, and rendered cards.
 
+## [2.5.1.3-dev1] - 2026-04-03
+### Changed
+- Reduced hot-path storage and registry overhead by trimming repeated localStorage scans, repeated scope-map parses, and stringify-based lifecycle change detection in the first performance-focused dev batch.
+
 ## [2.5.1.2] - 2026-04-02
 ### Fixed
 - Fixed extractor diagnostics so `scopeResolution` now uses the same entity-aware custom-stat lookup as real extraction, preventing debug dumps from showing stale owner-bucket values when the canonical tracker state already comes from entity-scoped data.

@@ -191,6 +191,27 @@ test("syncEntityRegistryFromRender marks archived aliases without deleting them"
   assert.equal(registry.entities[ashleyId]?.lastActiveMessageIndex, 8);
 });
 
+test("syncEntityRegistryFromRender is stable when the same lifecycle event is applied twice", () => {
+  const context = makeContext();
+  const first = syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+  const second = syncEntityRegistryFromRender({
+    context,
+    mode: "dynamic_characters",
+    messageIndex: 8,
+    owners: ["Ashley"],
+    getLifecycleState: () => "active",
+  });
+
+  assert.equal(first, true);
+  assert.equal(second, false);
+});
+
 test("syncEntityRegistryFromRender preserves latest metadata while backfilling historical lifecycle events", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({
