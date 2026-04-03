@@ -7,6 +7,7 @@ export type ResolveAutoBootstrapTargetInput = {
   pendingLateRenderExtraction: boolean;
   latestTrackableIndex: number | null;
   latestDataMessageIndex: number | null;
+  highestStoredMessageIndex: number | null;
   generateOnGreetingMessages: boolean;
   chatLength: number;
   isTrackableAiAt: (index: number) => boolean;
@@ -27,6 +28,7 @@ export function resolveAutoBootstrapTarget({
   pendingLateRenderExtraction,
   latestTrackableIndex,
   latestDataMessageIndex,
+  highestStoredMessageIndex,
   generateOnGreetingMessages,
   chatLength,
   isTrackableAiAt,
@@ -41,6 +43,14 @@ export function resolveAutoBootstrapTarget({
     latestTrackableIndex == null ||
     latestTrackableIndex < 0 ||
     latestTrackableIndex >= chatLength
+  ) {
+    return { targetMessageIndex: null, reason: null, skippedGreetingBootstrap: false };
+  }
+
+  if (
+    highestStoredMessageIndex != null &&
+    Number.isFinite(highestStoredMessageIndex) &&
+    highestStoredMessageIndex > latestTrackableIndex
   ) {
     return { targetMessageIndex: null, reason: null, skippedGreetingBootstrap: false };
   }

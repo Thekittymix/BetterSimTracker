@@ -148,7 +148,12 @@ import {
   overlayLatestGlobalCustomStats,
   selectLatestRelevantHistoryEntry,
 } from "./extractionBaselineHelpers";
-import { buildMergedPromptMacroData, resolveLatestStoredTrackerData, resolveLatestStoredTrackerDataBefore } from "./runtimeState";
+import {
+  buildMergedPromptMacroData,
+  resolveHighestStoredTrackerMessageIndex,
+  resolveLatestStoredTrackerData,
+  resolveLatestStoredTrackerDataBefore,
+} from "./runtimeState";
 import { buildMacroPreviewCandidates, getBstMacroDebugSnapshot, syncBstMacros } from "./runtimeMacros";
 import { createPromptRefreshController } from "./runtimePromptSync";
 import { persistChatNow, persistChatNowBestEffort } from "./persistence";
@@ -4180,6 +4185,7 @@ function refreshFromStoredData(): void {
     pendingLateRenderExtraction,
     latestTrackableIndex: lastTrackableIndex,
     latestDataMessageIndex,
+    highestStoredMessageIndex: resolveHighestStoredTrackerMessageIndex(context),
     generateOnGreetingMessages: settings.generateOnGreetingMessages,
     chatLength: context.chat.length,
     isTrackableAiAt: index => (

@@ -89,6 +89,20 @@ export function resolveLatestStoredTrackerData(
   });
 }
 
+export function resolveHighestStoredTrackerMessageIndex(context: STContext): number | null {
+  const candidates = [
+    getLatestTrackerDataWithIndex(context),
+    getChatStateLatestTrackerData(context),
+    getMetadataLatestTrackerData(context),
+    getLocalLatestTrackerData(context),
+  ]
+    .map(entry => Number(entry?.messageIndex ?? -1))
+    .filter(index => Number.isFinite(index) && index >= 0);
+
+  if (!candidates.length) return null;
+  return Math.max(...candidates);
+}
+
 export function resolveLatestStoredTrackerDataBefore(
   context: STContext,
   beforeMessageIndexExclusive: number,

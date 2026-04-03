@@ -5,7 +5,12 @@ import { buildEntityResolution } from "./helpers/entityResolution";
 import { USER_TRACKER_KEY } from "../src/constants";
 import { EXTENSION_KEY } from "../src/constants";
 import { isTrackableMessage } from "../src/messageFilter";
-import { buildMergedPromptMacroData, resolveLatestStoredTrackerData, resolveLatestStoredTrackerDataBefore } from "../src/runtimeState";
+import {
+  buildMergedPromptMacroData,
+  resolveHighestStoredTrackerMessageIndex,
+  resolveLatestStoredTrackerData,
+  resolveLatestStoredTrackerDataBefore,
+} from "../src/runtimeState";
 import { resolveTrackerEntityIdsForOwners, syncEntityRegistryFromRender } from "../src/entityRegistry";
 import {
   clearTrackerDataForMessage,
@@ -1960,6 +1965,32 @@ test("resolveLatestStoredTrackerData recovers after a corrupted latestByScope pa
   assert.equal(after.source, "chatState");
   assert.ok(after.data);
   assert.deepEqual(after.data.activeCharacters, ["Seraphina"]);
+});
+
+test("resolveHighestStoredTrackerMessageIndex keeps the furthest persisted snapshot during partial hydration", () => {
+  const fullContext = makeContext() as STContext & { chatId: string };
+  fullContext.chatId = "hydration-scope";
+  fullContext.chat = [
+    { mes: "Greeting", name: "Family", is_user: false, is_system: false, extra: {} },
+    { mes: "User 1", is_user: true, is_system: false, extra: {} },
+    { mes: "AI 1", name: "Family", is_user: false, is_system: false, extra: {} },
+    { mes: "User 2", is_user: true, is_system: false, extra: {} },
+    { mes: "AI 2", name: "Family", is_user: false, is_system: false, extra: {} },
+    { mes: "User 3", is_user: true, is_system: false, extra: {} },
+    { mes: "AI 3", name: "Family", is_user: false, is_system: false, extra: {} },
+  ];
+
+  saveTrackerSnapshot(fullContext, makeTracker(5000, { activeCharacters: ["Kuba"] }), 5);
+  saveTrackerSnapshot(fullContext, makeTracker(6000, { activeCharacters: ["Candy"] }), 6);
+
+  const partialContext = makeContext() as STContext & { chatId: string };
+  partialContext.chatId = "hydration-scope";
+  partialContext.chat = [
+    { mes: "Greeting", name: "Family", is_user: false, is_system: false, extra: {} },
+  ];
+
+  assert.equal(resolveLatestStoredTrackerData(partialContext, 0).source, "none");
+  assert.equal(resolveHighestStoredTrackerMessageIndex(partialContext), 6);
 });
 
 test("getLocalLatestTrackerData detects an externally replaced scope store after the cache was warmed", () => {
