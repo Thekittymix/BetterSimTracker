@@ -180,7 +180,11 @@ import {
 } from "./runtimeEventHelpers";
 import { isManualExtractionReason } from "./extractorHelpers";
 import { buildCharacterCardsContext } from "./characterCardContext";
-import { computeManualPlaceholderMessageIndices } from "./renderQueueHelpers";
+import {
+  computeManualPlaceholderMessageIndices,
+  getCachedProjectedTrackerData,
+  pruneProjectedTrackerDataCache,
+} from "./renderQueueHelpers";
 import { resolveGroupReplayTarget } from "./userTurnReplayTarget";
 
 declare const __BST_VERSION__: string;
@@ -194,6 +198,7 @@ let latestDataMessageIndex: number | null = null;
 let latestPromptMacroData: TrackerData | null = null;
 let lastExtractionBaselineDebugMeta: Record<string, unknown> | null = null;
 let trackerUiState: TrackerUiState = { phase: "idle", done: 0, total: 0, messageIndex: null, stepLabel: null };
+const renderProjectedTrackerDataCache = new Map<number, import("./renderQueueHelpers").ProjectedTrackerDataCacheEntry>();
 const trackerRecoveryByMessage = new Map<number, TrackerRecoveryEntry>();
 let renderQueued = false;
 let extractionTimer: number | null = null;
@@ -854,13 +859,20 @@ function getMessageScopedTrackerData(
   const message = messageIndex >= 0 && messageIndex < context.chat.length
     ? context.chat[messageIndex]
     : null;
-  return projectTrackerDataToMessageScopedOwners(
-    context,
-    data,
-    message,
-    settingsInput,
-    options,
-  );
+  return getCachedProjectedTrackerData(renderProjectedTrackerDataCache, {
+    messageIndex,
+    messageRef: message,
+    rawData: data,
+    entityTrackingMode: settingsInput.entityTrackingMode,
+    projectOwnerScopedCustomNonNumeric: options?.projectOwnerScopedCustomNonNumeric,
+    build: () => projectTrackerDataToMessageScopedOwners(
+      context,
+      data,
+      message,
+      settingsInput,
+      options,
+    ),
+  });
 }
 
 function getLatestRelevantTrackerDataWithIndexBefore(
@@ -1512,6 +1524,7 @@ function queueRender(): void {
 
     let recoveryMapMutated = false;
     if (context) {
+      pruneProjectedTrackerDataCache(renderProjectedTrackerDataCache, context.chat.length);
       for (let i = 0; i < context.chat.length; i += 1) {
         const message = context.chat[i];
         if (!isTrackableMessage(message)) continue;
@@ -1523,6 +1536,8 @@ function queueRender(): void {
         clearTrackerRecoveryWithOptions(i, false);
         if (hadRecovery) recoveryMapMutated = true;
       }
+    } else {
+      renderProjectedTrackerDataCache.clear();
     }
 
     if (latestData && latestDataMessageIndex != null && !entries.some(entry => entry.messageIndex === latestDataMessageIndex)) {
