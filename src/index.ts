@@ -14,10 +14,12 @@ import {
   resolveEntityResolverCandidateOwners,
   constrainFallbackOwnerScopesToPreviousUserScene,
   constrainResolvedOwnerScopesToPreviousUserScene,
+  buildEntityResolverContinuitySnapshot,
   resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
   filterResolvedEntitiesToTrackedOwners,
   resolveInitialExtractionOwners,
+  resolveModelExtractionOwnerScopes,
   resolvePersistedSnapshotResolvedEntities,
   resolvePersistedSnapshotActiveOwners,
   resolvePersistedSnapshotEntityOwners,
@@ -3452,12 +3454,19 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               })(),
             };
           });
+          const recentTrackerHistory = getRecentTrackerHistoryEntries(context, 4)
+            .filter(entry => entry.messageIndex < lastIndex)
+            .map(entry => entry.data);
           const resolverContextText = buildResolverContextUpToMessageIndex(context, lastIndex);
           const resolverPrompt = buildMultiCharacterResolverPrompt({
             candidateEntities,
             contextText: resolverContextText,
             message: lastMessage,
             allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
+            continuitySnapshot: buildEntityResolverContinuitySnapshot({
+              previousTrackerData: previousMessageTrackerData,
+              recentTrackerHistory,
+            }),
           });
           const resolverResponse = await generateJson(resolverPrompt, activeSettings);
           const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
@@ -3488,11 +3497,20 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             ? resolveMessageEntityIdsFromResolvedEntities(finalResolvedEntities)
             : [];
           if (parsedResolver) {
-            resolvedOwnerScopes = {
-              sceneActiveCharacters: parsedSceneOwners,
-              requestCharacters: parsedMessageOwners.length
+            const modelOwnerScopes = resolveModelExtractionOwnerScopes({
+              context,
+              message: lastMessage,
+              settings: activeSettings,
+              previousTrackerData: previousMessageTrackerData,
+              recentTrackerHistory,
+              resolvedSceneActiveCharacters: parsedSceneOwners,
+              resolvedRequestCharacters: parsedMessageOwners.length
                 ? parsedMessageOwners
                 : parsedSceneOwners,
+            });
+            resolvedOwnerScopes = {
+              sceneActiveCharacters: modelOwnerScopes.sceneActiveCharacters,
+              requestCharacters: modelOwnerScopes.requestCharacters,
               source: "model",
             };
             const nextResolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {

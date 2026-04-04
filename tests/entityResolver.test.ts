@@ -6,6 +6,7 @@ import {
   constrainResolvedEntitiesToMessageFocus,
   parseMultiCharacterResolverResponse,
   resolveMessageOwnersFromResolvedEntities,
+  resolveResolvedEntityConfidence,
   resolveSceneOwnersFromResolvedEntities,
 } from "../src/entityResolver";
 
@@ -94,6 +95,35 @@ test("buildMultiCharacterResolverPrompt forbids props and objects in created ent
   assert.match(prompt, /Do not create props, objects, containers, furniture, locations, groups/i);
 });
 
+test("buildMultiCharacterResolverPrompt includes explicit continuity snapshot guidance when provided", () => {
+  const prompt = buildMultiCharacterResolverPrompt({
+    candidateEntities: [
+      { entityRef: "ent1", ownerName: "Candy", entityId: "bst_narrative:candy" },
+      { entityRef: "ent2", ownerName: "Lisa", entityId: "bst_narrative:lisa" },
+    ],
+    contextText: "Candy bounced on her toes while Lisa stayed near the dresser.",
+    message: {
+      name: "Narrator",
+      mes: "Candy grinned and answered first while Lisa stayed close.",
+      is_user: false,
+    } as any,
+    continuitySnapshot: {
+      lastSceneOwners: ["Candy", "Lisa"],
+      persistentSceneOwners: ["Candy", "Lisa", "Serena"],
+      recentNarrativeEntities: ["Candy", "Lisa", "Serena"],
+      recentSourceGroups: [
+        { label: "Candy, Lisa, Serena", members: ["Candy", "Lisa", "Serena"] },
+      ],
+    },
+  });
+
+  assert.match(prompt, /Continuity snapshot:/);
+  assert.match(prompt, /"lastSceneOwners"/);
+  assert.match(prompt, /"persistentSceneOwners"/);
+  assert.match(prompt, /"recentNarrativeEntities"/);
+  assert.match(prompt, /Candy, Lisa, Serena/);
+});
+
 test("parseMultiCharacterResolverResponse keeps scene entities separate when no entity advances the message", () => {
   const parsed = parseMultiCharacterResolverResponse(
     JSON.stringify({
@@ -121,6 +151,8 @@ test("parseMultiCharacterResolverResponse keeps scene entities separate when no 
         aliases: undefined,
         inScene: true,
         inMessage: false,
+        sceneEvidence: ["resolver_entity_ref"],
+        sceneConfidence: 1,
       },
     ],
     createdEntities: [],
@@ -156,6 +188,10 @@ test("parseMultiCharacterResolverResponse accepts narrowed message entities from
         aliases: undefined,
         inScene: true,
         inMessage: true,
+        sceneEvidence: ["resolver_entity_ref"],
+        messageEvidence: ["resolver_entity_ref"],
+        sceneConfidence: 1,
+        messageConfidence: 1,
       },
       {
         entityId: "bst_mc_alias:test:raleigh",
@@ -165,6 +201,8 @@ test("parseMultiCharacterResolverResponse accepts narrowed message entities from
         aliases: undefined,
         inScene: true,
         inMessage: false,
+        sceneEvidence: ["resolver_entity_ref"],
+        sceneConfidence: 1,
       },
     ],
     createdEntities: [],
@@ -200,6 +238,10 @@ test("parseMultiCharacterResolverResponse maps entity refs back to stable entity
         aliases: undefined,
         inScene: true,
         inMessage: true,
+        sceneEvidence: ["resolver_entity_ref"],
+        messageEvidence: ["resolver_entity_ref"],
+        sceneConfidence: 1,
+        messageConfidence: 1,
       },
       {
         entityId: "bst_mc_alias:test:raleigh",
@@ -209,6 +251,8 @@ test("parseMultiCharacterResolverResponse maps entity refs back to stable entity
         aliases: undefined,
         inScene: true,
         inMessage: false,
+        sceneEvidence: ["resolver_entity_ref"],
+        sceneConfidence: 1,
       },
     ],
     createdEntities: [],
@@ -241,6 +285,8 @@ test("parseMultiCharacterResolverResponse keeps inMessage false when only scene 
         aliases: undefined,
         inScene: true,
         inMessage: false,
+        sceneEvidence: ["resolver_entity_ref"],
+        sceneConfidence: 1,
       },
     ],
     createdEntities: [],
@@ -273,11 +319,46 @@ test("parseMultiCharacterResolverResponse accepts ownerName fallback when the mo
         aliases: ["Blackout Blake"],
         inScene: true,
         inMessage: true,
+        sceneEvidence: ["resolver_owner_name"],
+        messageEvidence: ["resolver_owner_name"],
+        sceneConfidence: 0.8,
+        messageConfidence: 0.8,
       },
     ],
     createdEntities: [],
     unresolvedMentions: [],
   });
+});
+
+test("parseMultiCharacterResolverResponse records alias-based evidence when the model resolves by alias", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [
+        { ownerName: "Blackout Blake", inScene: true, inMessage: true },
+      ],
+      created: [],
+      unresolvedMentions: [],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Blake", entityId: "bst_mc_alias:test:blake", aliases: ["Blackout Blake"] },
+    ],
+  );
+
+  assert.deepEqual(parsed?.resolvedEntities, [
+    {
+      entityId: "bst_mc_alias:test:blake",
+      kind: "st-character",
+      name: "Blake",
+      avatar: null,
+      aliases: ["Blackout Blake"],
+      inScene: true,
+      inMessage: true,
+      sceneEvidence: ["resolver_alias"],
+      messageEvidence: ["resolver_alias"],
+      sceneConfidence: 0.72,
+      messageConfidence: 0.72,
+    },
+  ]);
 });
 
 test("parseMultiCharacterResolverResponse preserves explicit empty-scene resolutions", () => {
@@ -353,6 +434,10 @@ test("parseMultiCharacterResolverResponse preserves narrative candidate kinds", 
         aliases: ["Spirit"],
         inScene: true,
         inMessage: true,
+        sceneEvidence: ["resolver_entity_ref"],
+        messageEvidence: ["resolver_entity_ref"],
+        sceneConfidence: 1,
+        messageConfidence: 1,
       },
     ],
     createdEntities: [],
@@ -405,6 +490,18 @@ test("constrainResolvedEntitiesToMessageFocus keeps only the explicit focused sp
     { name: "Blake", inScene: true, inMessage: true },
     { name: "Garret", inScene: true, inMessage: false },
   ]);
+  assert.deepEqual(constrained.find(entity => entity.name === "Blake")?.messageEvidence, ["focus_constrained"]);
+  assert.equal(constrained.find(entity => entity.name === "Blake")?.messageConfidence, 0.12);
+  assert.equal(constrained.find(entity => entity.name === "Ashley")?.messageEvidence, undefined);
+  assert.equal(constrained.find(entity => entity.name === "Ashley")?.messageConfidence, undefined);
+});
+
+test("resolveResolvedEntityConfidence weights resolver evidence deterministically", () => {
+  assert.equal(resolveResolvedEntityConfidence(["resolver_entity_ref"]), 1);
+  assert.equal(resolveResolvedEntityConfidence(["resolver_owner_name"]), 0.8);
+  assert.equal(resolveResolvedEntityConfidence(["resolver_alias"]), 0.72);
+  assert.equal(resolveResolvedEntityConfidence(["resolver_alias", "focus_constrained"]), 0.84);
+  assert.equal(resolveResolvedEntityConfidence(undefined), undefined);
 });
 
 test("resolved-owner helpers recover alias owners from technical entity labels", () => {

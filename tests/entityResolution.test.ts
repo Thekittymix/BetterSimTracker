@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
+  buildEntityResolverContinuitySnapshot,
   collectResolvedCharacterNames,
   extractMultiCharacterAliases,
   filterResolvedEntitiesToTrackedOwners,
@@ -20,6 +21,7 @@ import {
   resolveExtractionOwnerScopes,
   resolveEntityResolverCandidateOwners,
   resolveInitialExtractionOwners,
+  resolveModelExtractionOwnerScopes,
   resolveMessageScopedActiveCharacters,
   resolveMessageScopedParticipants,
   resolveUserExtractionOwnerScopes,
@@ -453,6 +455,260 @@ test("resolveUserExtractionOwnerScopes keeps non-user scene continuity while pin
     requestCharacters: [USER_TRACKER_KEY],
     source: "fallback",
   });
+});
+
+test("resolveModelExtractionOwnerScopes keeps recent scene continuity while preserving narrow reply focus", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Ashley answered softly while Blake hovered by the window and Garret paced behind Raleigh.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        mes: "Ashley lowered her voice and answered without looking up.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Ashley"],
+    resolvedRequestCharacters: ["Ashley"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
+  assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
+});
+
+test("resolveModelExtractionOwnerScopes does not widen scene continuity through an explicit alone cue", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Ashley, Blake, Garret, and Raleigh were all still here a moment ago.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        mes: "Blake remained here alone and answered in a flat monotone.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Blake"],
+    resolvedRequestCharacters: ["Blake"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Blake"]);
+  assert.deepEqual(resolved.requestCharacters, ["Blake"]);
+});
+
+test("resolveModelExtractionOwnerScopes can widen from recent scene memory when the immediate previous snapshot was too narrow", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Ashley answered quietly while the others stayed in the room with her.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const broadScene = buildEntityResolution({
+    sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+    messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+    source: "model",
+  });
+  const narrowScene = buildEntityResolution({
+    sceneOwners: ["Ashley"],
+    messageOwners: ["Ashley"],
+    source: "model",
+  });
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Ashley"],
+      entityResolution: narrowScene,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Ashley"], entityResolution: narrowScene } as any,
+      { activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"], entityResolution: broadScene } as any,
+      { activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"], entityResolution: broadScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Ashley"],
+    resolvedRequestCharacters: ["Ashley"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
+  assert.deepEqual(resolved.requestCharacters, ["Ashley"]);
+});
+
+test("resolveModelExtractionOwnerScopes does not revive owners from only one stale scene-memory snapshot", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Blake kept talking while the room had otherwise gone quiet.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const blakeOnly = buildEntityResolution({
+    sceneOwners: ["Blake"],
+    messageOwners: ["Blake"],
+    source: "model",
+  });
+  const olderBroad = buildEntityResolution({
+    sceneOwners: ["Ashley", "Blake"],
+    messageOwners: ["Ashley", "Blake"],
+    source: "model",
+  });
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Blake"],
+      entityResolution: blakeOnly,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Blake"], entityResolution: blakeOnly } as any,
+      { activeCharacters: ["Blake"], entityResolution: blakeOnly } as any,
+      { activeCharacters: ["Ashley", "Blake"], entityResolution: olderBroad } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Blake"],
+    resolvedRequestCharacters: ["Blake"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Blake"]);
+  assert.deepEqual(resolved.requestCharacters, ["Blake"]);
+});
+
+test("model-backed owner scopes persist the wider scene while keeping message focus narrow in the saved snapshot", () => {
+  const context = {
+    characters: [
+      { name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", avatar: "camp.png" },
+    ],
+    chat: [
+      {
+        mes: "Ashley answered softly while Blake hovered by the window and Garret paced behind Raleigh.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        mes: "Ashley lowered her voice and answered without looking up.",
+        name: "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Ashley", "Blake", "Garret", "Raleigh"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      messageOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
+      source: "model",
+    }),
+  } as any;
+
+  const ownerScopes = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Ashley"],
+    resolvedRequestCharacters: ["Ashley"],
+  });
+
+  const persistedActiveOwners = resolvePersistedSnapshotActiveOwners({
+    sceneActiveCharacters: ownerScopes.sceneActiveCharacters,
+    requestCharacters: ownerScopes.requestCharacters,
+    userExtraction: false,
+  });
+  assert.deepEqual(persistedActiveOwners, ["Ashley", "Blake", "Garret", "Raleigh"]);
+
+  const persistedResolvedEntities = resolvePersistedSnapshotResolvedEntities({
+    context,
+    sceneActiveCharacters: ownerScopes.sceneActiveCharacters,
+    requestCharacters: ownerScopes.requestCharacters,
+    resolvedEntities: buildEntityResolution({
+      resolvedEntities: [
+        {
+          entityId: "bst_mc_alias:camp.png:ashley",
+          kind: "st-character",
+          name: "Ashley",
+          avatar: "camp.png",
+          inScene: true,
+          inMessage: true,
+          aliases: ["Ashley"],
+        },
+      ],
+      source: "model",
+    }).resolvedEntities ?? [],
+    userExtraction: false,
+    entityTrackingMode: "dynamic_characters",
+  });
+
+  const inSceneOwners = persistedResolvedEntities.filter(entity => entity.inScene).map(entity => entity.name);
+  const inMessageOwners = persistedResolvedEntities.filter(entity => entity.inMessage).map(entity => entity.name);
+  assert.deepEqual(inSceneOwners.sort(), ["Ashley", "Blake", "Garret", "Raleigh"].sort());
+  assert.deepEqual(inMessageOwners, ["Ashley"]);
 });
 
 test("resolveUserExtractionOwnerScopes preserves previous mixed-scene continuity when fallback activity no longer includes an inactive narrative entity", () => {
@@ -1793,4 +2049,116 @@ test("resolveStableEntityIdForOwner can synthesize multi-character alias ids bef
     resolveStableEntityIdForOwner(context, "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "dynamic_characters"),
     "bst_owner:camp.png|camp whispering pines | ashley, blake, garret, & raleigh",
   );
+});
+
+test("resolveModelExtractionOwnerScopes keeps recent narrative scene continuity while message focus stays narrow", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Candy laughed while Lisa and Serena stayed beside her on the bed.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const broadNarrativeScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: true },
+    ],
+    source: "model",
+  });
+  const narrowNarrativeScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+    ],
+    source: "model",
+  });
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Candy"],
+      entityResolution: narrowNarrativeScene,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Candy"], entityResolution: narrowNarrativeScene } as any,
+      { activeCharacters: ["Candy", "Lisa", "Serena"], entityResolution: broadNarrativeScene } as any,
+      { activeCharacters: ["Candy", "Lisa", "Serena"], entityResolution: broadNarrativeScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Candy"],
+    resolvedRequestCharacters: ["Candy"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Candy", "Lisa", "Serena"]);
+  assert.deepEqual(resolved.requestCharacters, ["Candy"]);
+});
+
+test("buildEntityResolverContinuitySnapshot summarizes recent scene owners, narratives, and source groups", () => {
+  const snapshot = buildEntityResolverContinuitySnapshot({
+    previousTrackerData: {
+      activeCharacters: ["Candy", "Lisa"],
+      entityResolution: buildEntityResolution({
+        resolvedEntities: [
+          { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+          { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+        ],
+        source: "model",
+      }),
+      entityOwnerMap: {
+        Candy: {
+          entityId: "bst_narrative:candy",
+          ownerName: "Candy",
+          canonicalName: "Candy",
+          aliases: [],
+          sourceKey: "family:test",
+          kind: "narrative-entity",
+        },
+        Lisa: {
+          entityId: "bst_narrative:lisa",
+          ownerName: "Lisa",
+          canonicalName: "Lisa",
+          aliases: [],
+          sourceKey: "family:test",
+          kind: "narrative-entity",
+        },
+      },
+    } as any,
+    recentTrackerHistory: [
+      {
+        activeCharacters: ["Candy", "Lisa", "Serena"],
+        entityResolution: buildEntityResolution({
+          resolvedEntities: [
+            { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+            { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+            { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: true },
+          ],
+          source: "model",
+        }),
+        entityOwnerMap: {
+          Candy: { entityId: "bst_narrative:candy", ownerName: "Candy", canonicalName: "Candy", aliases: [], sourceKey: "family:test", kind: "narrative-entity" },
+          Lisa: { entityId: "bst_narrative:lisa", ownerName: "Lisa", canonicalName: "Lisa", aliases: [], sourceKey: "family:test", kind: "narrative-entity" },
+          Serena: { entityId: "bst_narrative:serena", ownerName: "Serena", canonicalName: "Serena", aliases: [], sourceKey: "family:test", kind: "narrative-entity" },
+        },
+      } as any,
+    ],
+  });
+
+  assert.deepEqual(snapshot, {
+    lastSceneOwners: ["Candy", "Lisa"],
+    persistentSceneOwners: ["Candy", "Lisa", "Serena"],
+    recentNarrativeEntities: ["Candy", "Lisa", "Serena"],
+    recentSourceGroups: [
+      {
+        label: "Candy, Lisa, Serena",
+        members: ["Candy", "Lisa", "Serena"],
+      },
+    ],
+  });
 });

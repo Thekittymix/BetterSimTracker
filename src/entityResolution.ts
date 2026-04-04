@@ -12,6 +12,7 @@ import type {
   TrackerData,
   TrackerResolvedEntity,
 } from "./types";
+import type { EntityResolverContinuitySnapshot } from "./entityResolver";
 import { USER_TRACKER_KEY } from "./constants";
 import {
   filterShadowedSourceOwners,
@@ -207,6 +208,23 @@ function hasDepartureCue(text: string, name: string): boolean {
   return hasVerb && hasPlace;
 }
 
+function buildExclusivePresencePatterns(name: string): RegExp[] {
+  const escaped = escapeRegex(name);
+  return [
+    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\balone\\b`, "i"),
+    new RegExp(`\\bonly\\s+${escaped}\\b`, "i"),
+    new RegExp(`\\bjust\\s+${escaped}\\b`, "i"),
+    new RegExp(`\\bonly\\s+${escaped}\\s+(?:stays|stayed|remains|remained|is\\s+here)\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\b(?:stays?|stayed|remains?|remained)\\b[^.!?\\n]{0,40}\\b(?:alone|here\\s+alone)\\b`, "i"),
+  ];
+}
+
+function hasExclusivePresenceCue(text: string, name: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized || !name) return false;
+  return buildExclusivePresencePatterns(name).some(pattern => pattern.test(normalized));
+}
+
 function resolveMessageIndex(context: STContext | null, message: ChatMessage | null | undefined): number {
   if (!context || !Array.isArray(context.chat) || !message) return -1;
   const directIndex = context.chat.lastIndexOf(message);
@@ -241,23 +259,6 @@ function filterSceneActiveCharactersByRecentDepartureCues(
   const scanStart = Math.max(0, currentMessageIndex - maxDepartureScan);
   const excluded = new Set<string>();
   const normalizedRequestCharacters = uniqueStrings(requestCharacters.map(normalizeToken));
-
-  const buildExclusivePresencePatterns = (name: string): RegExp[] => {
-    const escaped = escapeRegex(name);
-    return [
-      new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\balone\\b`, "i"),
-      new RegExp(`\\bonly\\s+${escaped}\\b`, "i"),
-      new RegExp(`\\bjust\\s+${escaped}\\b`, "i"),
-      new RegExp(`\\bonly\\s+${escaped}\\s+(?:stays|stayed|remains|remained|is\\s+here)\\b`, "i"),
-      new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\b(?:stays?|stayed|remains?|remained)\\b[^.!?\\n]{0,40}\\b(?:alone|here\\s+alone)\\b`, "i"),
-    ];
-  };
-
-  const hasExclusivePresenceCue = (text: string, name: string): boolean => {
-    const normalized = normalizeToken(text);
-    if (!normalized || !name) return false;
-    return buildExclusivePresencePatterns(name).some(pattern => pattern.test(normalized));
-  };
 
   const recentUserMessages = context.chat
     .slice(scanStart, currentMessageIndex)
@@ -757,6 +758,174 @@ export function resolveUserExtractionOwnerScopes(input: {
   };
 }
 
+export function resolveModelExtractionOwnerScopes(input: {
+  context: STContext | null;
+  message: ChatMessage | null | undefined;
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
+  previousTrackerData?: TrackerData | null;
+  recentTrackerHistory?: Array<TrackerData | null | undefined>;
+  resolvedSceneActiveCharacters: string[];
+  resolvedRequestCharacters: string[];
+}): {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+} {
+  const resolvedSceneActiveCharacters = resolvePersistedActiveOwners(
+    input.resolvedSceneActiveCharacters,
+    { includeUserOwner: false },
+  );
+  const resolvedRequestCharacters = resolvePersistedActiveOwners(
+    input.resolvedRequestCharacters,
+    { includeUserOwner: false },
+  );
+  const defaultScopes = {
+    sceneActiveCharacters: resolvedSceneActiveCharacters,
+    requestCharacters: resolvedRequestCharacters.length
+      ? resolvedRequestCharacters
+      : resolvedSceneActiveCharacters,
+  };
+  if (!isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings))) return defaultScopes;
+  if (!resolvedSceneActiveCharacters.length) return defaultScopes;
+
+  const previousSceneActiveCharacters = resolvePersistedActiveOwners(
+    resolveTrackerSceneOwners(null, input.previousTrackerData),
+    { includeUserOwner: false },
+  );
+  if (!previousSceneActiveCharacters.length) return defaultScopes;
+  const recentSceneMemoryOwners = (() => {
+    const recentScenes = (input.recentTrackerHistory ?? [])
+      .map(entry => resolvePersistedActiveOwners(resolveTrackerSceneOwners(null, entry), { includeUserOwner: false }))
+      .filter(sceneOwners => sceneOwners.length)
+      .slice(0, 3);
+    if (!recentScenes.length) return previousSceneActiveCharacters;
+    const ownerCounts = new Map<string, { ownerName: string; count: number }>();
+    for (const sceneOwners of recentScenes) {
+      for (const ownerName of sceneOwners) {
+        const ownerKey = normalizeKey(ownerName);
+        if (!ownerKey) continue;
+        const existing = ownerCounts.get(ownerKey);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          ownerCounts.set(ownerKey, { ownerName, count: 1 });
+        }
+      }
+    }
+    const latestSceneKeys = new Set(recentScenes[0]?.map(normalizeKey).filter(Boolean) ?? []);
+    return uniqueStrings([
+      ...previousSceneActiveCharacters,
+      ...Array.from(ownerCounts.entries())
+        .filter(([ownerKey, entry]) => latestSceneKeys.has(ownerKey) || entry.count >= 2)
+        .map(([, entry]) => entry.ownerName),
+    ]);
+  })();
+
+  const currentMessageText = normalizeToken(input.message?.mes);
+  const sceneKeys = new Set(resolvedSceneActiveCharacters.map(normalizeKey));
+  const exclusiveResolvedKeys = new Set(
+    resolvedSceneActiveCharacters
+      .filter(owner => hasExclusivePresenceCue(currentMessageText, owner))
+      .map(normalizeKey),
+  );
+  const mergedSceneActiveCharacters = uniqueStrings([
+    ...resolvedSceneActiveCharacters,
+    ...recentSceneMemoryOwners.filter(owner => {
+      const ownerKey = normalizeKey(owner);
+      if (!ownerKey || sceneKeys.has(ownerKey)) return false;
+      if (hasDepartureCue(currentMessageText, owner)) return false;
+      if (exclusiveResolvedKeys.size && !exclusiveResolvedKeys.has(ownerKey)) return false;
+      return true;
+    }),
+  ]);
+  const derivedRequestCharacters = resolvedRequestCharacters.length
+    ? resolvedRequestCharacters
+    : resolveMessageScopedParticipants(
+        input.context,
+        mergedSceneActiveCharacters,
+        input.message,
+        input.settings,
+      );
+  const allowedRequestKeys = new Set(mergedSceneActiveCharacters.map(normalizeKey));
+
+  return {
+    sceneActiveCharacters: mergedSceneActiveCharacters,
+    requestCharacters: derivedRequestCharacters.filter(owner => allowedRequestKeys.has(normalizeKey(owner))),
+  };
+}
+
+export function buildEntityResolverContinuitySnapshot(input: {
+  previousTrackerData?: TrackerData | null;
+  recentTrackerHistory?: Array<TrackerData | null | undefined>;
+}): EntityResolverContinuitySnapshot | null {
+  const previousSceneOwners = resolvePersistedActiveOwners(
+    resolveTrackerSceneOwners(null, input.previousTrackerData),
+    { includeUserOwner: false },
+  );
+  const recentEntries = (input.recentTrackerHistory ?? []).filter(Boolean).slice(0, 3) as TrackerData[];
+  const recentScenes = recentEntries
+    .map(entry => resolvePersistedActiveOwners(resolveTrackerSceneOwners(null, entry), { includeUserOwner: false }))
+    .filter(sceneOwners => sceneOwners.length);
+
+  const ownerCounts = new Map<string, { ownerName: string; count: number }>();
+  for (const sceneOwners of recentScenes) {
+    for (const ownerName of sceneOwners) {
+      const ownerKey = normalizeKey(ownerName);
+      if (!ownerKey) continue;
+      const existing = ownerCounts.get(ownerKey);
+      if (existing) existing.count += 1;
+      else ownerCounts.set(ownerKey, { ownerName, count: 1 });
+    }
+  }
+  const latestSceneKeys = new Set(recentScenes[0]?.map(normalizeKey).filter(Boolean) ?? []);
+  const persistentSceneOwners = uniqueStrings([
+    ...previousSceneOwners,
+    ...Array.from(ownerCounts.entries())
+      .filter(([ownerKey, entry]) => latestSceneKeys.has(ownerKey) || entry.count >= 2)
+      .map(([, entry]) => entry.ownerName),
+  ]);
+
+  const recentNarrativeEntities = uniqueStrings(
+    recentEntries.flatMap(entry =>
+      (entry.entityResolution?.resolvedEntities ?? [])
+        .filter(entity => entity?.kind === "narrative-entity" && entity.inScene)
+        .map(entity => normalizeToken(entity.name))
+        .filter(Boolean),
+    ),
+  );
+
+  const recentSourceGroups = Array.from(
+    recentEntries.reduce((groups, entry) => {
+      for (const snapshot of Object.values(entry.entityOwnerMap ?? {})) {
+        const sourceKey = normalizeToken(snapshot?.sourceKey);
+        const ownerName = normalizeToken(snapshot?.ownerName);
+        if (!sourceKey || !ownerName) continue;
+        const bucket = groups.get(sourceKey) ?? new Set<string>();
+        bucket.add(ownerName);
+        groups.set(sourceKey, bucket);
+      }
+      return groups;
+    }, new Map<string, Set<string>>()).values(),
+  )
+    .map(members => uniqueStrings(Array.from(members)))
+    .filter(members => members.length >= 2)
+    .slice(0, 5)
+    .map(members => ({
+      label: members.join(", "),
+      members,
+    }));
+
+  if (!previousSceneOwners.length && !persistentSceneOwners.length && !recentNarrativeEntities.length && !recentSourceGroups.length) {
+    return null;
+  }
+
+  return {
+    lastSceneOwners: previousSceneOwners,
+    persistentSceneOwners,
+    recentNarrativeEntities,
+    recentSourceGroups,
+  };
+}
+
 export function constrainFallbackOwnerScopesToPreviousUserScene(input: {
   userExtraction: boolean;
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
@@ -907,6 +1076,10 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
       persistedResolvedEntities.push({
         ...entity,
         aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+        ...(entity.sceneEvidence?.length ? { sceneEvidence: [...entity.sceneEvidence] } : {}),
+        ...(inMessage && entity.messageEvidence?.length ? { messageEvidence: [...entity.messageEvidence] } : {}),
+        ...(typeof entity.sceneConfidence === "number" ? { sceneConfidence: entity.sceneConfidence } : {}),
+        ...(inMessage && typeof entity.messageConfidence === "number" ? { messageConfidence: entity.messageConfidence } : {}),
         created: Boolean(entity.created),
         inScene,
         inMessage,
@@ -981,6 +1154,10 @@ export function filterResolvedEntitiesToTrackedOwners(input: {
     .map(entity => ({
       ...entity,
       aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+      ...(entity.sceneEvidence?.length ? { sceneEvidence: [...entity.sceneEvidence] } : {}),
+      ...(entity.messageEvidence?.length ? { messageEvidence: [...entity.messageEvidence] } : {}),
+      ...(typeof entity.sceneConfidence === "number" ? { sceneConfidence: entity.sceneConfidence } : {}),
+      ...(typeof entity.messageConfidence === "number" ? { messageConfidence: entity.messageConfidence } : {}),
       created: Boolean(entity.created),
     }));
 }

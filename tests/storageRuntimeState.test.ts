@@ -538,10 +538,21 @@ test("getTrackerDataFromMessage preserves explicit entity resolution payload", (
   const tracker = makeTracker(1001, {
     activeCharacters: ["Blake"],
     entityResolution: buildEntityResolution({
-      sceneOwners: ["Blake"],
-      messageOwners: ["Blake"],
-      sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-      messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+      resolvedEntities: [
+        {
+          entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+          kind: "st-character",
+          name: "Blake",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          sceneEvidence: ["resolver_entity_ref"],
+          messageEvidence: ["resolver_entity_ref", "focus_constrained"],
+          sceneConfidence: 1,
+          messageConfidence: 1,
+          created: false,
+        },
+      ],
       source: "model",
     }),
   });
@@ -559,10 +570,21 @@ test("getTrackerDataFromMessage preserves explicit entity resolution payload", (
   };
   const stored = getTrackerDataFromMessage(message);
   assert.deepEqual(stored?.entityResolution, buildEntityResolution({
-    sceneOwners: ["Blake"],
-    messageOwners: ["Blake"],
-    sceneEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
-    messageEntityIds: ["bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake"],
+    resolvedEntities: [
+      {
+        entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+        sceneEvidence: ["resolver_entity_ref"],
+        messageEvidence: ["resolver_entity_ref", "focus_constrained"],
+        sceneConfidence: 1,
+        messageConfidence: 1,
+        created: false,
+      },
+    ],
     source: "model",
   }));
 });

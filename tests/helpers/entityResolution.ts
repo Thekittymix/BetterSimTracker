@@ -48,6 +48,18 @@ function normalizeResolvedEntities(raw: TrackerResolvedEntity[] | undefined): Tr
         const aliases = uniqueStrings(entity.aliases);
         return aliases.length ? aliases : undefined;
       })(),
+      ...(Array.isArray(entity.sceneEvidence) && entity.sceneEvidence.length
+        ? {
+            sceneEvidence: Array.from(new Set(entity.sceneEvidence.map(item => normalizeToken(item)).filter(Boolean))) as TrackerResolvedEntity["sceneEvidence"],
+          }
+        : {}),
+      ...(Array.isArray(entity.messageEvidence) && entity.messageEvidence.length
+        ? {
+            messageEvidence: Array.from(new Set(entity.messageEvidence.map(item => normalizeToken(item)).filter(Boolean))) as TrackerResolvedEntity["messageEvidence"],
+          }
+        : {}),
+      ...(typeof entity.sceneConfidence === "number" ? { sceneConfidence: entity.sceneConfidence } : {}),
+      ...(typeof entity.messageConfidence === "number" ? { messageConfidence: entity.messageConfidence } : {}),
       inScene: Boolean(entity.inScene),
       inMessage: Boolean(entity.inMessage),
       created: Boolean(entity.created),

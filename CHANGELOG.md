@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.2.1-dev1] - 2026-04-04
+### Changed
+- Made model-backed entity resolution more context-aware by carrying a short scene-memory window, preserving broader scene continuity while keeping current-message request focus narrow.
+- Added explicit resolver continuity snapshots and evidence/confidence metadata so resolved scene participants can retain why and how strongly they were matched across parser, persistence, and reread paths.
+
 ## [2.5.2.1] - 2026-04-04
 ### Fixed
 - Fixed manual tracker-edit saves so still-present multi-character and narrative-entity participants no longer flip to `Inactive` after `Edit latest tracker stats -> Save`, even after storage normalization, reread, and registry/lifecycle sync.

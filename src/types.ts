@@ -115,6 +115,12 @@ export interface TrackerData {
 }
 
 export type TrackerResolvedEntityKind = "st-character" | "persona" | "narrative-entity";
+export type TrackerResolvedEntityEvidence =
+  | "resolver_entity_ref"
+  | "resolver_entity_id"
+  | "resolver_owner_name"
+  | "resolver_alias"
+  | "focus_constrained";
 
 export interface TrackerResolvedEntity {
   entityId: string;
@@ -125,6 +131,10 @@ export interface TrackerResolvedEntity {
   sourceKey?: string;
   inScene: boolean;
   inMessage: boolean;
+  sceneEvidence?: TrackerResolvedEntityEvidence[];
+  messageEvidence?: TrackerResolvedEntityEvidence[];
+  sceneConfidence?: number;
+  messageConfidence?: number;
   created?: boolean;
 }
 

@@ -1,5 +1,10 @@
 import { USER_TRACKER_KEY } from "./constants";
-import type { ChatMessage, TrackerResolvedEntity, TrackerResolvedEntityKind } from "./types";
+import type {
+  ChatMessage,
+  TrackerResolvedEntity,
+  TrackerResolvedEntityEvidence,
+  TrackerResolvedEntityKind,
+} from "./types";
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
@@ -75,10 +80,27 @@ export type NarrativeEntityCreationProposal = {
   inMessage: boolean;
 };
 
+export type EntityResolverContinuitySnapshot = {
+  lastSceneOwners: string[];
+  persistentSceneOwners: string[];
+  recentNarrativeEntities: string[];
+  recentSourceGroups: Array<{
+    label: string;
+    members: string[];
+  }>;
+};
+
 export type MultiCharacterResolutionResult = {
   resolvedEntities: TrackerResolvedEntity[];
   createdEntities: NarrativeEntityCreationProposal[];
   unresolvedMentions: string[];
+};
+
+type CandidateMatchKind = "entity_ref" | "entity_id" | "owner_name" | "alias";
+
+type CandidateMatch = {
+  candidate: MultiCharacterResolverCandidate;
+  matchedBy: CandidateMatchKind;
 };
 
 function scoreCandidateFocus(messageText: string, candidate: MultiCharacterResolverCandidate): number {
@@ -105,7 +127,42 @@ type ParsedResolvedRef = {
   ownerName: string;
   inScene: boolean;
   inMessage: boolean;
+  sceneEvidence?: TrackerResolvedEntityEvidence[];
+  messageEvidence?: TrackerResolvedEntityEvidence[];
 };
+
+function uniqueEvidence(values: TrackerResolvedEntityEvidence[] | undefined): TrackerResolvedEntityEvidence[] | undefined {
+  if (!values?.length) return undefined;
+  return Array.from(new Set(values));
+}
+
+const RESOLVED_ENTITY_EVIDENCE_WEIGHT: Record<TrackerResolvedEntityEvidence, number> = {
+  resolver_entity_ref: 1,
+  resolver_entity_id: 0.95,
+  resolver_owner_name: 0.8,
+  resolver_alias: 0.72,
+  focus_constrained: 0.12,
+};
+
+export function resolveResolvedEntityConfidence(evidence: TrackerResolvedEntityEvidence[] | undefined): number | undefined {
+  const unique = uniqueEvidence(evidence);
+  if (!unique?.length) return undefined;
+  const total = unique.reduce((sum, item) => sum + (RESOLVED_ENTITY_EVIDENCE_WEIGHT[item] ?? 0), 0);
+  return Math.max(0, Math.min(1, Number(total.toFixed(3))));
+}
+
+function resolveCandidateMatchEvidence(matchedBy: CandidateMatchKind): TrackerResolvedEntityEvidence {
+  switch (matchedBy) {
+    case "entity_ref":
+      return "resolver_entity_ref";
+    case "entity_id":
+      return "resolver_entity_id";
+    case "owner_name":
+      return "resolver_owner_name";
+    case "alias":
+      return "resolver_alias";
+  }
+}
 
 function hasExplicitResolverShape(record: Record<string, unknown>): boolean {
   return (
@@ -126,6 +183,7 @@ export function buildMultiCharacterResolverPrompt(input: {
   contextText: string;
   message: ChatMessage;
   allowNarrativeEntityCreation?: boolean;
+  continuitySnapshot?: EntityResolverContinuitySnapshot | null;
 }): string {
   const candidateEntities = input.candidateEntities
     .map(candidate => ({
@@ -144,6 +202,7 @@ export function buildMultiCharacterResolverPrompt(input: {
   const messageText = normalizeToken(input.message?.mes);
   const messageRole = input.message?.is_user ? "user" : "ai";
   const allowNarrativeEntityCreation = input.allowNarrativeEntityCreation === true;
+  const continuitySnapshot = input.continuitySnapshot;
 
   return [
     "SYSTEM:",
@@ -187,6 +246,23 @@ export function buildMultiCharacterResolverPrompt(input: {
     "",
     "Recent context:",
     contextText || "(none)",
+    "",
+    "Continuity snapshot:",
+    continuitySnapshot
+      ? JSON.stringify(
+          {
+            lastSceneOwners: continuitySnapshot.lastSceneOwners,
+            persistentSceneOwners: continuitySnapshot.persistentSceneOwners,
+            recentNarrativeEntities: continuitySnapshot.recentNarrativeEntities,
+            recentSourceGroups: continuitySnapshot.recentSourceGroups.map(group => ({
+              label: group.label,
+              members: group.members,
+            })),
+          },
+          null,
+          2,
+        )
+      : "(none)",
     "",
     "Latest message metadata:",
     `role: ${messageRole}`,
@@ -240,14 +316,16 @@ export function parseMultiCharacterResolverResponse(
     }
   }
 
-  const resolveCandidate = (item: Record<string, unknown>): MultiCharacterResolverCandidate | null => {
+  const resolveCandidate = (item: Record<string, unknown>): CandidateMatch | null => {
     const entityRef = normalizeToken(item.entityRef);
     if (entityRef && candidateByRef.has(entityRef)) {
-      return candidateByRef.get(entityRef) ?? null;
+      const candidate = candidateByRef.get(entityRef) ?? null;
+      return candidate ? { candidate, matchedBy: "entity_ref" } : null;
     }
     const entityId = normalizeToken(item.entityId);
     if (entityId && candidateByEntityId.has(entityId)) {
-      return candidateByEntityId.get(entityId) ?? null;
+      const candidate = candidateByEntityId.get(entityId) ?? null;
+      return candidate ? { candidate, matchedBy: "entity_id" } : null;
     }
     const directName = [
       item.ownerName,
@@ -259,14 +337,19 @@ export function parseMultiCharacterResolverResponse(
       .map(value => normalizeToken(value))
       .find(Boolean);
     if (directName) {
-      return candidateByName.get(directName.toLowerCase()) ?? null;
+      const candidate = candidateByName.get(directName.toLowerCase()) ?? null;
+      if (!candidate) return null;
+      const matchedBy: CandidateMatchKind = normalizeToken(candidate.ownerName).toLowerCase() === directName.toLowerCase()
+        ? "owner_name"
+        : "alias";
+      return { candidate, matchedBy };
     }
     if (Array.isArray(item.aliases)) {
       for (const alias of item.aliases) {
         const normalizedAlias = normalizeToken(alias).toLowerCase();
         if (!normalizedAlias) continue;
         const candidate = candidateByName.get(normalizedAlias);
-        if (candidate) return candidate;
+        if (candidate) return { candidate, matchedBy: "alias" };
       }
     }
     return null;
@@ -283,15 +366,22 @@ export function parseMultiCharacterResolverResponse(
         .map(value => {
           if (!value || typeof value !== "object" || Array.isArray(value)) return null;
           const item = value as Record<string, unknown>;
-          const candidate = resolveCandidate(item);
+          const matched = resolveCandidate(item);
+          const candidate = matched?.candidate;
           const ownerName = normalizeToken(candidate?.ownerName);
-          if (!candidate || !ownerName) return null;
-          return {
+          if (!matched || !candidate || !ownerName) return null;
+          const matchEvidence = resolveCandidateMatchEvidence(matched.matchedBy);
+          const inScene = normalizeBoolean(item.inScene);
+          const inMessage = normalizeBoolean(item.inMessage);
+          const parsedRef: ParsedResolvedRef = {
             entityRef: normalizeToken(candidate.entityRef),
             ownerName,
-            inScene: normalizeBoolean(item.inScene),
-            inMessage: normalizeBoolean(item.inMessage),
+            inScene,
+            inMessage,
           };
+          if (inScene) parsedRef.sceneEvidence = [matchEvidence];
+          if (inMessage) parsedRef.messageEvidence = [matchEvidence];
+          return parsedRef;
         })
         .filter((value): value is ParsedResolvedRef => Boolean(value))
     : [];
@@ -312,6 +402,14 @@ export function parseMultiCharacterResolverResponse(
       aliases: Array.isArray(candidate.aliases) && candidate.aliases.length
         ? candidate.aliases.map(alias => normalizeToken(alias)).filter(Boolean)
         : undefined,
+      ...(uniqueEvidence(resolved.sceneEvidence) ? { sceneEvidence: uniqueEvidence(resolved.sceneEvidence) } : {}),
+      ...(uniqueEvidence(resolved.messageEvidence) ? { messageEvidence: uniqueEvidence(resolved.messageEvidence) } : {}),
+      ...(resolveResolvedEntityConfidence(resolved.sceneEvidence) !== undefined
+        ? { sceneConfidence: resolveResolvedEntityConfidence(resolved.sceneEvidence) }
+        : {}),
+      ...(resolveResolvedEntityConfidence(resolved.messageEvidence) !== undefined
+        ? { messageConfidence: resolveResolvedEntityConfidence(resolved.messageEvidence) }
+        : {}),
       inScene: resolved.inScene,
       inMessage: resolved.inMessage,
     });
@@ -402,10 +500,22 @@ export function constrainResolvedEntitiesToMessageFocus(
   return resolvedEntities.map(entity => {
     const isFocused = (focusedEntityId && normalizeToken(entity.entityId) === focusedEntityId)
       || normalizeToken(entity.name).toLowerCase() === focusedOwnerKey;
+    const nextMessageEvidence = isFocused
+      ? uniqueEvidence([
+          ...(entity.inMessage ? (entity.messageEvidence ?? []) : []),
+          "focus_constrained",
+        ])
+      : undefined;
     return {
       ...entity,
       aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
       inMessage: isFocused ? entity.inScene || entity.inMessage : false,
+      ...(entity.sceneEvidence?.length ? { sceneEvidence: [...entity.sceneEvidence] } : {}),
+      ...(typeof entity.sceneConfidence === "number" ? { sceneConfidence: entity.sceneConfidence } : {}),
+      ...(nextMessageEvidence ? { messageEvidence: nextMessageEvidence } : {}),
+      ...(resolveResolvedEntityConfidence(nextMessageEvidence) !== undefined
+        ? { messageConfidence: resolveResolvedEntityConfidence(nextMessageEvidence) }
+        : {}),
     };
   });
 }

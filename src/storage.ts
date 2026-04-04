@@ -21,12 +21,26 @@ import { normalizeCustomNonNumericValue } from "./customStatRuntime";
 import { buildTrackerDataEntityOwnerMap, clearEntityRegistry, filterShadowedSourceOwners } from "./entityRegistry";
 const CHAT_STATE_KEY = `${EXTENSION_KEY}:chat`;
 
+function uniqueResolvedEntityEvidence(values: unknown): TrackerResolvedEntity["sceneEvidence"] {
+  if (!Array.isArray(values)) return undefined;
+  const normalized = Array.from(new Set(values.map(item => String(item ?? "").trim()).filter(Boolean)));
+  return normalized.length
+    ? normalized as TrackerResolvedEntity["sceneEvidence"]
+    : undefined;
+}
+
 function normalizeKey(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
 function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
+}
+
+function normalizeResolvedEntityConfidence(value: unknown): number | undefined {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return undefined;
+  return Math.max(0, Math.min(1, numeric));
 }
 
 function buildNarrativeEntitySourceKey(entityId: string, ownerName: string, canonicalName: string): string {
@@ -103,6 +117,14 @@ function normalizeResolvedEntities(raw: unknown): TrackerResolvedEntity[] {
       avatar: String(record.avatar ?? "").trim() || null,
       aliases: aliases?.length ? aliases : undefined,
       ...(String(record.sourceKey ?? "").trim() ? { sourceKey: String(record.sourceKey ?? "").trim() } : {}),
+      ...(uniqueResolvedEntityEvidence(record.sceneEvidence) ? { sceneEvidence: uniqueResolvedEntityEvidence(record.sceneEvidence) } : {}),
+      ...(uniqueResolvedEntityEvidence(record.messageEvidence) ? { messageEvidence: uniqueResolvedEntityEvidence(record.messageEvidence) } : {}),
+      ...(normalizeResolvedEntityConfidence(record.sceneConfidence) !== undefined
+        ? { sceneConfidence: normalizeResolvedEntityConfidence(record.sceneConfidence) }
+        : {}),
+      ...(normalizeResolvedEntityConfidence(record.messageConfidence) !== undefined
+        ? { messageConfidence: normalizeResolvedEntityConfidence(record.messageConfidence) }
+        : {}),
       inScene: Boolean(record.inScene),
       inMessage: Boolean(record.inMessage),
       created: Boolean(record.created),
@@ -119,6 +141,10 @@ function cloneEntityResolution(
     resolvedEntities: entityResolution.resolvedEntities?.map(entity => ({
       ...entity,
       aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+      ...(entity.sceneEvidence?.length ? { sceneEvidence: [...entity.sceneEvidence] } : {}),
+      ...(entity.messageEvidence?.length ? { messageEvidence: [...entity.messageEvidence] } : {}),
+      ...(typeof entity.sceneConfidence === "number" ? { sceneConfidence: entity.sceneConfidence } : {}),
+      ...(typeof entity.messageConfidence === "number" ? { messageConfidence: entity.messageConfidence } : {}),
       created: Boolean(entity.created),
     })) ?? [],
     source: entityResolution.source,

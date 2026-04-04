@@ -19,6 +19,10 @@ test("buildPersistedTrackerSnapshot persists entity-scoped buckets for resolved 
         avatar: null,
         inScene: true,
         inMessage: true,
+        sceneEvidence: ["resolver_entity_ref"],
+        messageEvidence: ["resolver_entity_ref", "focus_constrained"],
+        sceneConfidence: 1,
+        messageConfidence: 1,
       },
     ],
     source: "model",
@@ -47,6 +51,22 @@ test("buildPersistedTrackerSnapshot persists entity-scoped buckets for resolved 
   assert.deepEqual(snapshot.customNonNumericStatisticsByEntityId?.clothes, {
     "bst_mc_alias:test:blake": ["oversized baggy dark emo goth clothes"],
   });
+  assert.deepEqual(snapshot.entityResolution?.resolvedEntities, [
+    {
+      entityId: "bst_mc_alias:test:blake",
+      kind: "st-character",
+      name: "Blake",
+      avatar: null,
+      aliases: undefined,
+      inScene: true,
+      inMessage: true,
+      sceneEvidence: ["resolver_entity_ref"],
+      messageEvidence: ["resolver_entity_ref", "focus_constrained"],
+      sceneConfidence: 1,
+      messageConfidence: 1,
+      created: false,
+    },
+  ]);
 });
 
 test("buildPersistedTrackerSnapshot lets explicit target mapping override mismatched positional entity ids", () => {

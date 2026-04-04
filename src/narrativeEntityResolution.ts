@@ -206,6 +206,10 @@ function mergeResolvedEntity(
     target.set(entity.entityId, {
       ...entity,
       aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+      ...(entity.sceneEvidence?.length ? { sceneEvidence: [...entity.sceneEvidence] } : {}),
+      ...(entity.messageEvidence?.length ? { messageEvidence: [...entity.messageEvidence] } : {}),
+      ...(typeof entity.sceneConfidence === "number" ? { sceneConfidence: entity.sceneConfidence } : {}),
+      ...(typeof entity.messageConfidence === "number" ? { messageConfidence: entity.messageConfidence } : {}),
       ...(normalizeToken(entity.sourceKey) ? { sourceKey: normalizeToken(entity.sourceKey) } : {}),
       created: Boolean(entity.created),
     });
@@ -216,6 +220,24 @@ function mergeResolvedEntity(
   existing.created = Boolean(existing.created || entity.created);
   const mergedAliases = uniqueStrings([...(existing.aliases ?? []), ...(entity.aliases ?? [])]);
   existing.aliases = mergedAliases.length ? mergedAliases : undefined;
+  const mergedSceneEvidence = uniqueStrings([...(existing.sceneEvidence ?? []), ...(entity.sceneEvidence ?? [])]);
+  if (mergedSceneEvidence.length) {
+    existing.sceneEvidence = mergedSceneEvidence as TrackerResolvedEntity["sceneEvidence"];
+  } else {
+    delete existing.sceneEvidence;
+  }
+  const mergedMessageEvidence = uniqueStrings([...(existing.messageEvidence ?? []), ...(entity.messageEvidence ?? [])]);
+  if (mergedMessageEvidence.length) {
+    existing.messageEvidence = mergedMessageEvidence as TrackerResolvedEntity["messageEvidence"];
+  } else {
+    delete existing.messageEvidence;
+  }
+  if (typeof entity.sceneConfidence === "number") {
+    existing.sceneConfidence = Math.max(existing.sceneConfidence ?? 0, entity.sceneConfidence);
+  }
+  if (typeof entity.messageConfidence === "number") {
+    existing.messageConfidence = Math.max(existing.messageConfidence ?? 0, entity.messageConfidence);
+  }
   if (!existing.sourceKey && normalizeToken(entity.sourceKey)) {
     existing.sourceKey = normalizeToken(entity.sourceKey);
   }

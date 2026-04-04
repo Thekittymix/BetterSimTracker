@@ -138,6 +138,10 @@ export function buildPersistedTrackerSnapshot(input: {
       resolvedEntities: input.resolvedEntities.map(entity => ({
         ...entity,
         aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+        ...(entity.sceneEvidence?.length ? { sceneEvidence: [...entity.sceneEvidence] } : {}),
+        ...(entity.messageEvidence?.length ? { messageEvidence: [...entity.messageEvidence] } : {}),
+        ...(typeof entity.sceneConfidence === "number" ? { sceneConfidence: entity.sceneConfidence } : {}),
+        ...(typeof entity.messageConfidence === "number" ? { messageConfidence: entity.messageConfidence } : {}),
         created: Boolean(entity.created),
       })),
       source: input.source,
