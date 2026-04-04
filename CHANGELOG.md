@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.2.1-dev2] - 2026-04-04
+### Fixed
+- Fixed retrack continuity seeding for model-backed entity resolution so older messages now build scene memory from the nearest prior message indices instead of later-written historical snapshots ordered only by timestamp.
+
 ## [2.5.2.1-dev1] - 2026-04-04
 ### Changed
 - Made model-backed entity resolution more context-aware by carrying a short scene-memory window, preserving broader scene continuity while keeping current-message request focus narrow.

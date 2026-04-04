@@ -926,6 +926,18 @@ export function buildEntityResolverContinuitySnapshot(input: {
   };
 }
 
+export function selectResolverContinuityHistoryEntries(
+  entries: Array<{ data: TrackerData; messageIndex: number }>,
+  beforeMessageIndexExclusive: number,
+  limit = 4,
+): TrackerData[] {
+  return entries
+    .filter(entry => entry.messageIndex < beforeMessageIndexExclusive)
+    .sort((a, b) => b.messageIndex - a.messageIndex)
+    .slice(0, Math.max(0, limit))
+    .map(entry => entry.data);
+}
+
 export function constrainFallbackOwnerScopesToPreviousUserScene(input: {
   userExtraction: boolean;
   settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;

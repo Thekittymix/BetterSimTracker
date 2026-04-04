@@ -4,6 +4,7 @@ import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
   buildEntityResolverContinuitySnapshot,
+  selectResolverContinuityHistoryEntries,
   collectResolvedCharacterNames,
   extractMultiCharacterAliases,
   filterResolvedEntitiesToTrackedOwners,
@@ -2161,4 +2162,42 @@ test("buildEntityResolverContinuitySnapshot summarizes recent scene owners, narr
       },
     ],
   });
+});
+
+test("selectResolverContinuityHistoryEntries prefers nearest prior messages over later-written older snapshots", () => {
+  const oldest = {
+    timestamp: 500,
+    activeCharacters: ["Oldest"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Oldest"],
+      messageOwners: ["Oldest"],
+      source: "model",
+    }),
+  } as any;
+  const nearer = {
+    timestamp: 100,
+    activeCharacters: ["Nearer"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Nearer"],
+      messageOwners: ["Nearer"],
+      source: "model",
+    }),
+  } as any;
+  const nearest = {
+    timestamp: 200,
+    activeCharacters: ["Nearest"],
+    entityResolution: buildEntityResolution({
+      sceneOwners: ["Nearest"],
+      messageOwners: ["Nearest"],
+      source: "model",
+    }),
+  } as any;
+
+  const selected = selectResolverContinuityHistoryEntries([
+    { messageIndex: 1, data: oldest },
+    { messageIndex: 4, data: nearer },
+    { messageIndex: 5, data: nearest },
+  ], 6, 3);
+
+  assert.deepEqual(selected, [nearest, nearer, oldest]);
 });

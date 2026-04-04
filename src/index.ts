@@ -15,6 +15,7 @@ import {
   constrainFallbackOwnerScopesToPreviousUserScene,
   constrainResolvedOwnerScopesToPreviousUserScene,
   buildEntityResolverContinuitySnapshot,
+  selectResolverContinuityHistoryEntries,
   resolveExtractionOwnerScopes,
   resolveEntityTrackingMode,
   filterResolvedEntitiesToTrackedOwners,
@@ -3454,9 +3455,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               })(),
             };
           });
-          const recentTrackerHistory = getRecentTrackerHistoryEntries(context, 4)
-            .filter(entry => entry.messageIndex < lastIndex)
-            .map(entry => entry.data);
+          const recentTrackerHistory = selectResolverContinuityHistoryEntries(
+            getRecentTrackerHistoryEntries(context, Math.max(8, lastIndex + 4)),
+            lastIndex,
+            4,
+          );
           const resolverContextText = buildResolverContextUpToMessageIndex(context, lastIndex);
           const resolverPrompt = buildMultiCharacterResolverPrompt({
             candidateEntities,
