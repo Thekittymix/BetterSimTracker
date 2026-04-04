@@ -3474,7 +3474,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           const resolverResponse = await generateJson(resolverPrompt, activeSettings);
           const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
           const constrainedResolvedEntities = parsedResolver
-            ? constrainResolvedEntitiesToMessageFocus(parsedResolver.resolvedEntities, candidateEntities, lastMessage)
+            ? constrainResolvedEntitiesToMessageFocus(parsedResolver.resolvedEntities, candidateEntities, lastMessage, previousMessage)
             : [];
           const materializedResolution = parsedResolver
             ? materializeNarrativeEntityCreations({

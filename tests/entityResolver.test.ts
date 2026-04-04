@@ -496,6 +496,70 @@ test("constrainResolvedEntitiesToMessageFocus keeps only the explicit focused sp
   assert.equal(constrained.find(entity => entity.name === "Ashley")?.messageConfidence, undefined);
 });
 
+test("constrainResolvedEntitiesToMessageFocus honors a previous user single-reply directive even when the AI reply advances everyone", () => {
+  const constrained = constrainResolvedEntitiesToMessageFocus(
+    [
+      {
+        entityId: "bst_narrative:candy",
+        kind: "narrative-entity",
+        name: "Candy",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "bst_narrative:lisa",
+        kind: "narrative-entity",
+        name: "Lisa",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "bst_narrative:marylyn",
+        kind: "narrative-entity",
+        name: "Marylyn",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "bst_narrative:serena",
+        kind: "narrative-entity",
+        name: "Serena",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    [
+      { entityRef: "ent1", ownerName: "Candy", entityId: "bst_narrative:candy" },
+      { entityRef: "ent2", ownerName: "Lisa", entityId: "bst_narrative:lisa" },
+      { entityRef: "ent3", ownerName: "Marylyn", entityId: "bst_narrative:marylyn" },
+      { entityRef: "ent4", ownerName: "Serena", entityId: "bst_narrative:serena" },
+    ],
+    {
+      name: "Your Family",
+      mes: "Candy answered, but Lisa scoffed, Serena watched with amusement, and Marylyn added a soft comment.",
+      is_user: false,
+    } as any,
+    {
+      name: "Kuba",
+      mes: "\"Candy, answer only for yourself in one short reply.\" The rest of you stay here and listen, but don't answer.",
+      is_user: true,
+    } as any,
+  );
+
+  assert.deepEqual(constrained.map(entity => ({ name: entity.name, inScene: entity.inScene, inMessage: entity.inMessage })), [
+    { name: "Candy", inScene: true, inMessage: true },
+    { name: "Lisa", inScene: true, inMessage: false },
+    { name: "Marylyn", inScene: true, inMessage: false },
+    { name: "Serena", inScene: true, inMessage: false },
+  ]);
+  assert.deepEqual(constrained.find(entity => entity.name === "Candy")?.messageEvidence, ["focus_constrained"]);
+  assert.equal(constrained.find(entity => entity.name === "Candy")?.messageConfidence, 0.12);
+});
+
 test("resolveResolvedEntityConfidence weights resolver evidence deterministically", () => {
   assert.equal(resolveResolvedEntityConfidence(["resolver_entity_ref"]), 1);
   assert.equal(resolveResolvedEntityConfidence(["resolver_owner_name"]), 0.8);

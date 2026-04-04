@@ -122,6 +122,20 @@ function scoreCandidateFocus(messageText: string, candidate: MultiCharacterResol
   return best;
 }
 
+function hasExplicitSingleReplyDirective(text: string): boolean {
+  const normalized = normalizeToken(text).toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes("answer only for yourself")
+    || normalized.includes("only for yourself")
+    || normalized.includes("stay silent")
+    || normalized.includes("stays silent")
+    || normalized.includes("don't answer")
+    || normalized.includes("do not answer")
+    || normalized.includes("just answer for yourself")
+  );
+}
+
 type ParsedResolvedRef = {
   entityRef: string;
   ownerName: string;
@@ -469,6 +483,7 @@ export function constrainResolvedEntitiesToMessageFocus(
   resolvedEntities: TrackerResolvedEntity[],
   candidateEntities: MultiCharacterResolverCandidate[],
   message: ChatMessage | null | undefined,
+  previousMessage?: ChatMessage | null | undefined,
 ): TrackerResolvedEntity[] {
   if (!resolvedEntities.length) return [];
   if (!message || message.is_user || message.is_system) {
@@ -479,23 +494,31 @@ export function constrainResolvedEntitiesToMessageFocus(
     return resolvedEntities.map(entity => ({ ...entity, aliases: entity.aliases?.length ? [...entity.aliases] : undefined }));
   }
 
-  const scored = candidateEntities
-    .map(candidate => ({ candidate, score: scoreCandidateFocus(String(message.mes ?? ""), candidate) }))
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score);
-  if (!scored.length) {
-    return resolvedEntities.map(entity => ({ ...entity, aliases: entity.aliases?.length ? [...entity.aliases] : undefined }));
-  }
-  if (scored.length > 1 && scored[0].score === scored[1].score) {
-    return resolvedEntities.map(entity => ({ ...entity, aliases: entity.aliases?.length ? [...entity.aliases] : undefined }));
-  }
-  if (scored.length > 1 && scored[1].score > 0) {
+  const resolveSingleFocusedCandidate = (focusText: string): MultiCharacterResolverCandidate | null => {
+    const scored = candidateEntities
+      .map(candidate => ({ candidate, score: scoreCandidateFocus(focusText, candidate) }))
+      .filter(item => item.score > 0)
+      .sort((a, b) => b.score - a.score);
+    if (!scored.length) return null;
+    if (scored.length > 1 && scored[0].score === scored[1].score) return null;
+    if (scored.length > 1 && scored[1].score > 0) return null;
+    return scored[0].candidate;
+  };
+
+  const focusedCandidate = previousMessage
+    && previousMessage.is_user
+    && !previousMessage.is_system
+    && hasExplicitSingleReplyDirective(String(previousMessage.mes ?? ""))
+    ? resolveSingleFocusedCandidate(String(previousMessage.mes ?? ""))
+    : null;
+  const fallbackFocusedCandidate = resolveSingleFocusedCandidate(String(message.mes ?? ""));
+  const finalFocusedCandidate = focusedCandidate ?? fallbackFocusedCandidate;
+  if (!finalFocusedCandidate) {
     return resolvedEntities.map(entity => ({ ...entity, aliases: entity.aliases?.length ? [...entity.aliases] : undefined }));
   }
 
-  const focusedCandidate = scored[0].candidate;
-  const focusedEntityId = normalizeToken(focusedCandidate.entityId);
-  const focusedOwnerKey = normalizeToken(focusedCandidate.ownerName).toLowerCase();
+  const focusedEntityId = normalizeToken(finalFocusedCandidate.entityId);
+  const focusedOwnerKey = normalizeToken(finalFocusedCandidate.ownerName).toLowerCase();
 
   return resolvedEntities.map(entity => {
     const isFocused = (focusedEntityId && normalizeToken(entity.entityId) === focusedEntityId)

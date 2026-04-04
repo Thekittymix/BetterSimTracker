@@ -712,6 +712,40 @@ test("model-backed owner scopes persist the wider scene while keeping message fo
   assert.deepEqual(inMessageOwners, ["Ashley"]);
 });
 
+test("persisted snapshot keeps wide scene but narrow message focus for a single-responder directive", () => {
+  const context = {
+    characters: [
+      { name: "Your Family", avatar: "your family.png" },
+    ],
+  } as any;
+
+  const persistedResolvedEntities = resolvePersistedSnapshotResolvedEntities({
+    context,
+    sceneActiveCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+    requestCharacters: ["Candy"],
+    resolvedEntities: buildEntityResolution({
+      resolvedEntities: [
+        { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+        { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: false },
+        { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: false },
+        { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: false },
+      ],
+      source: "model",
+    }).resolvedEntities ?? [],
+    userExtraction: false,
+    entityTrackingMode: "dynamic_characters",
+  });
+
+  assert.deepEqual(
+    persistedResolvedEntities.filter(entity => entity.inScene).map(entity => entity.name).sort(),
+    ["Candy", "Lisa", "Marylyn", "Serena"].sort(),
+  );
+  assert.deepEqual(
+    persistedResolvedEntities.filter(entity => entity.inMessage).map(entity => entity.name),
+    ["Candy"],
+  );
+});
+
 test("resolveUserExtractionOwnerScopes preserves previous mixed-scene continuity when fallback activity no longer includes an inactive narrative entity", () => {
   const context = {
     characters: [
