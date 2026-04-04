@@ -264,7 +264,7 @@ function normalizeTrackerData(
     clearedCustomStatistics: pruneClearedOwnerBuckets(clearedCustomStatistics),
     clearedCustomNonNumericStatistics: pruneClearedOwnerBuckets(clearedCustomNonNumericStatistics),
     entityOwnerMap: normalizedEntityOwnerMap,
-  });
+  }, normalizedOptions);
 }
 
 function normalizeEntityResolution(
@@ -496,7 +496,10 @@ function remapClearedOwnerBuckets<T extends ClearedCustomStatistics | ClearedCus
   return Object.keys(out).length ? (out as T) : undefined;
 }
 
-function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
+function normalizeTrackerDataEntityBuckets(
+  data: TrackerData,
+  options?: { preserveExplicitActiveCharactersWhenConsistent?: boolean },
+): TrackerData {
   const { ownerToTarget, targetToEntity, mergedEntityOwnerMap } = buildEntityOwnerProjection(data.entityOwnerMap);
   if (!Object.keys(ownerToTarget).length) {
     return {
@@ -579,6 +582,7 @@ function normalizeTrackerDataEntityBuckets(data: TrackerData): TrackerData {
     },
     remappedSceneOwners,
     remappedMessageOwners,
+    options,
   );
   return {
     ...data,
