@@ -119,8 +119,7 @@ export type TrackerResolvedEntityEvidence =
   | "resolver_entity_ref"
   | "resolver_entity_id"
   | "resolver_owner_name"
-  | "resolver_alias"
-  | "focus_constrained";
+  | "resolver_alias";
 
 export interface TrackerResolvedEntity {
   entityId: string;

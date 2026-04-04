@@ -2,9 +2,9 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.2.1-dev3] - 2026-04-04
+## [2.5.2.1-dev4] - 2026-04-04
 ### Fixed
-- Fixed model-backed message-focus resolution so explicit user directives that only one scene participant should answer no longer leave the whole scene marked as `inMessage` during save, retrack, reread, and reload flows.
+- Rebuilt model-backed message-focus resolution so mixed-scene replies now rely on stronger resolver prompt/context guidance instead of brittle phrase-based code heuristics, keeping `inScene` broad while allowing `inMessage` to stay narrow through save, retrack, reread, and reload flows.
 
 ## [2.5.2.1-dev2] - 2026-04-04
 ### Fixed

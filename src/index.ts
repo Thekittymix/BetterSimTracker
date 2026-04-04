@@ -29,7 +29,6 @@ import {
 } from "./entityResolution";
 import {
   buildMultiCharacterResolverPrompt,
-  constrainResolvedEntitiesToMessageFocus,
   parseMultiCharacterResolverResponse,
   resolveMessageEntityIdsFromResolvedEntities,
   resolveMessageOwnersFromResolvedEntities,
@@ -3465,6 +3464,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             candidateEntities,
             contextText: resolverContextText,
             message: lastMessage,
+            previousMessage,
             allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
             continuitySnapshot: buildEntityResolverContinuitySnapshot({
               previousTrackerData: previousMessageTrackerData,
@@ -3473,20 +3473,17 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           });
           const resolverResponse = await generateJson(resolverPrompt, activeSettings);
           const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
-          const constrainedResolvedEntities = parsedResolver
-            ? constrainResolvedEntitiesToMessageFocus(parsedResolver.resolvedEntities, candidateEntities, lastMessage, previousMessage)
-            : [];
           const materializedResolution = parsedResolver
             ? materializeNarrativeEntityCreations({
                 context,
                 settings: activeSettings,
                 candidateEntities,
-                resolvedEntities: constrainedResolvedEntities,
+                resolvedEntities: parsedResolver.resolvedEntities,
                 createdEntities: parsedResolver.createdEntities,
                 unresolvedMentions: parsedResolver.unresolvedMentions,
               })
             : null;
-          const finalResolvedEntities = materializedResolution?.resolvedEntities ?? constrainedResolvedEntities;
+          const finalResolvedEntities = materializedResolution?.resolvedEntities ?? (parsedResolver?.resolvedEntities ?? []);
           const parsedSceneOwners = parsedResolver
             ? resolveSceneOwnersFromResolvedEntities(finalResolvedEntities)
             : [];

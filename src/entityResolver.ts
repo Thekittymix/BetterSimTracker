@@ -37,19 +37,6 @@ function resolveOwnerNameFromResolvedEntity(entity: TrackerResolvedEntity): stri
   return resolveOwnerNameFallbackFromEntityId(entityId) || entityName;
 }
 
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function countAliasMentions(text: string, alias: string): number {
-  const escaped = escapeRegex(alias.trim());
-  if (!escaped) return 0;
-  const pattern = new RegExp(`(^|[^A-Za-z])${escaped}(?=$|[^A-Za-z])`, "gi");
-  let count = 0;
-  while (pattern.exec(text)) count += 1;
-  return count;
-}
-
 function safeJsonParse(raw: string): unknown {
   try {
     return JSON.parse(raw);
@@ -103,39 +90,6 @@ type CandidateMatch = {
   matchedBy: CandidateMatchKind;
 };
 
-function scoreCandidateFocus(messageText: string, candidate: MultiCharacterResolverCandidate): number {
-  const text = normalizeToken(messageText);
-  if (!text) return 0;
-  const normalizedText = text.toLowerCase();
-  const names = Array.from(new Set(
-    [candidate.ownerName, ...(candidate.aliases ?? [])]
-      .map(value => normalizeToken(value))
-      .filter(Boolean),
-  ));
-  let best = 0;
-  for (const name of names) {
-    const escaped = escapeRegex(name);
-    const startsWithName = new RegExp(`^[\\s"'([{-]*${escaped}(?:\\b|['â€™]s\\b)`, "i").test(text);
-    const mentions = countAliasMentions(normalizedText, name.toLowerCase());
-    best = Math.max(best, (startsWithName ? 100 : 0) + mentions);
-  }
-  return best;
-}
-
-function hasExplicitSingleReplyDirective(text: string): boolean {
-  const normalized = normalizeToken(text).toLowerCase();
-  if (!normalized) return false;
-  return (
-    normalized.includes("answer only for yourself")
-    || normalized.includes("only for yourself")
-    || normalized.includes("stay silent")
-    || normalized.includes("stays silent")
-    || normalized.includes("don't answer")
-    || normalized.includes("do not answer")
-    || normalized.includes("just answer for yourself")
-  );
-}
-
 type ParsedResolvedRef = {
   entityRef: string;
   ownerName: string;
@@ -155,7 +109,6 @@ const RESOLVED_ENTITY_EVIDENCE_WEIGHT: Record<TrackerResolvedEntityEvidence, num
   resolver_entity_id: 0.95,
   resolver_owner_name: 0.8,
   resolver_alias: 0.72,
-  focus_constrained: 0.12,
 };
 
 export function resolveResolvedEntityConfidence(evidence: TrackerResolvedEntityEvidence[] | undefined): number | undefined {
@@ -196,6 +149,7 @@ export function buildMultiCharacterResolverPrompt(input: {
   candidateEntities: MultiCharacterResolverCandidate[];
   contextText: string;
   message: ChatMessage;
+  previousMessage?: ChatMessage | null;
   allowNarrativeEntityCreation?: boolean;
   continuitySnapshot?: EntityResolverContinuitySnapshot | null;
 }): string {
@@ -212,9 +166,15 @@ export function buildMultiCharacterResolverPrompt(input: {
     }))
     .filter(candidate => candidate.entityRef && candidate.ownerName);
   const contextText = normalizeToken(input.contextText);
+  const previousMessage = input.previousMessage;
   const messageName = normalizeToken(input.message?.name);
   const messageText = normalizeToken(input.message?.mes);
   const messageRole = input.message?.is_user ? "user" : "ai";
+  const previousMessageName = normalizeToken(previousMessage?.name);
+  const previousMessageText = normalizeToken(previousMessage?.mes);
+  const previousMessageRole = previousMessage
+    ? (previousMessage.is_user ? "user" : "ai")
+    : "";
   const allowNarrativeEntityCreation = input.allowNarrativeEntityCreation === true;
   const continuitySnapshot = input.continuitySnapshot;
 
@@ -233,6 +193,8 @@ export function buildMultiCharacterResolverPrompt(input: {
     '- `inMessage=true` means the latest message actively advances that entity in a way that matters for tracking.',
     "- `inMessage` may be true while `inScene` is false if the message shows the entity leaving by the end.",
     "- Silent/background entities may remain `inScene=true`, but must stay `inMessage=false` unless the latest message itself directly advances them.",
+    "- When the previous user turn addresses one participant to respond while other known entities remain present, keep the scene broad but keep `inMessage=true` only for entities the latest reply actually advances.",
+    "- Do not mark an entity `inMessage=true` just because it is named in instructions, listed as present, or silently observing.",
     "- If the latest user instruction or AI message makes it clear that no known tracked entity remains in scene, return an empty `resolved` array.",
     ...(allowNarrativeEntityCreation
       ? [
@@ -243,8 +205,9 @@ export function buildMultiCharacterResolverPrompt(input: {
       : []),
     "",
     "Examples:",
-    '- If the user says `Blake, answer only for yourself. Ashley, Garret, and Raleigh stay silent.`, resolve the silent characters as `inScene=true, inMessage=false` if they remain present.',
+    '- If the previous user turn addresses Blake as the respondent while Ashley, Garret, and Raleigh remain present, and the latest AI reply only advances Blake, keep Ashley/Garret/Raleigh as `inScene=true, inMessage=false`.',
     '- If the latest AI reply contains only Blake acting/speaking, return Blake with `inMessage=true` and keep Ashley/Garret/Raleigh as `inMessage=false` unless that same reply directly advances them too.',
+    '- If a later sentence in the same latest AI reply shows Ashley speaking or taking a meaningful action, Ashley may also become `inMessage=true`.',
     "",
     "Candidate entities:",
     JSON.stringify(
@@ -260,6 +223,20 @@ export function buildMultiCharacterResolverPrompt(input: {
     "",
     "Recent context:",
     contextText || "(none)",
+    "",
+    "Previous message metadata:",
+    previousMessage
+      ? `role: ${previousMessageRole}`
+      : "(none)",
+    previousMessage
+      ? `speaker: ${previousMessageName || "(unknown)"}`
+      : "",
+    previousMessage
+      ? "Previous message:"
+      : "",
+    previousMessage
+      ? (previousMessageText || "(empty)")
+      : "",
     "",
     "Continuity snapshot:",
     continuitySnapshot
@@ -477,70 +454,6 @@ export function parseMultiCharacterResolverResponse(
     createdEntities,
     unresolvedMentions,
   };
-}
-
-export function constrainResolvedEntitiesToMessageFocus(
-  resolvedEntities: TrackerResolvedEntity[],
-  candidateEntities: MultiCharacterResolverCandidate[],
-  message: ChatMessage | null | undefined,
-  previousMessage?: ChatMessage | null | undefined,
-): TrackerResolvedEntity[] {
-  if (!resolvedEntities.length) return [];
-  if (!message || message.is_user || message.is_system) {
-    return resolvedEntities.map(entity => ({ ...entity, aliases: entity.aliases?.length ? [...entity.aliases] : undefined }));
-  }
-  const currentlyInMessage = resolvedEntities.filter(entity => entity.inMessage);
-  if (currentlyInMessage.length <= 1) {
-    return resolvedEntities.map(entity => ({ ...entity, aliases: entity.aliases?.length ? [...entity.aliases] : undefined }));
-  }
-
-  const resolveSingleFocusedCandidate = (focusText: string): MultiCharacterResolverCandidate | null => {
-    const scored = candidateEntities
-      .map(candidate => ({ candidate, score: scoreCandidateFocus(focusText, candidate) }))
-      .filter(item => item.score > 0)
-      .sort((a, b) => b.score - a.score);
-    if (!scored.length) return null;
-    if (scored.length > 1 && scored[0].score === scored[1].score) return null;
-    if (scored.length > 1 && scored[1].score > 0) return null;
-    return scored[0].candidate;
-  };
-
-  const focusedCandidate = previousMessage
-    && previousMessage.is_user
-    && !previousMessage.is_system
-    && hasExplicitSingleReplyDirective(String(previousMessage.mes ?? ""))
-    ? resolveSingleFocusedCandidate(String(previousMessage.mes ?? ""))
-    : null;
-  const fallbackFocusedCandidate = resolveSingleFocusedCandidate(String(message.mes ?? ""));
-  const finalFocusedCandidate = focusedCandidate ?? fallbackFocusedCandidate;
-  if (!finalFocusedCandidate) {
-    return resolvedEntities.map(entity => ({ ...entity, aliases: entity.aliases?.length ? [...entity.aliases] : undefined }));
-  }
-
-  const focusedEntityId = normalizeToken(finalFocusedCandidate.entityId);
-  const focusedOwnerKey = normalizeToken(finalFocusedCandidate.ownerName).toLowerCase();
-
-  return resolvedEntities.map(entity => {
-    const isFocused = (focusedEntityId && normalizeToken(entity.entityId) === focusedEntityId)
-      || normalizeToken(entity.name).toLowerCase() === focusedOwnerKey;
-    const nextMessageEvidence = isFocused
-      ? uniqueEvidence([
-          ...(entity.inMessage ? (entity.messageEvidence ?? []) : []),
-          "focus_constrained",
-        ])
-      : undefined;
-    return {
-      ...entity,
-      aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
-      inMessage: isFocused ? entity.inScene || entity.inMessage : false,
-      ...(entity.sceneEvidence?.length ? { sceneEvidence: [...entity.sceneEvidence] } : {}),
-      ...(typeof entity.sceneConfidence === "number" ? { sceneConfidence: entity.sceneConfidence } : {}),
-      ...(nextMessageEvidence ? { messageEvidence: nextMessageEvidence } : {}),
-      ...(resolveResolvedEntityConfidence(nextMessageEvidence) !== undefined
-        ? { messageConfidence: resolveResolvedEntityConfidence(nextMessageEvidence) }
-        : {}),
-    };
-  });
 }
 
 export function resolveSceneEntityIdsFromResolvedEntities(resolvedEntities: TrackerResolvedEntity[]): string[] {

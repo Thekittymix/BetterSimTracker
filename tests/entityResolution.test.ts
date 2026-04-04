@@ -27,6 +27,10 @@ import {
   resolveMessageScopedParticipants,
   resolveUserExtractionOwnerScopes,
 } from "../src/entityResolution";
+import {
+  buildMultiCharacterResolverPrompt,
+  parseMultiCharacterResolverResponse,
+} from "../src/entityResolver";
 import { USER_TRACKER_KEY } from "../src/constants";
 
 test("extractMultiCharacterAliases parses multi-character source card names generically", () => {
@@ -732,6 +736,109 @@ test("persisted snapshot keeps wide scene but narrow message focus for a single-
       ],
       source: "model",
     }).resolvedEntities ?? [],
+    userExtraction: false,
+    entityTrackingMode: "dynamic_characters",
+  });
+
+  assert.deepEqual(
+    persistedResolvedEntities.filter(entity => entity.inScene).map(entity => entity.name).sort(),
+    ["Candy", "Lisa", "Marylyn", "Serena"].sort(),
+  );
+  assert.deepEqual(
+    persistedResolvedEntities.filter(entity => entity.inMessage).map(entity => entity.name),
+    ["Candy"],
+  );
+});
+
+test("model-backed mixed-scene prompt and persistence keep scene broad while message focus stays narrow without code hardcoding", () => {
+  const context = {
+    characters: [
+      { name: "Your Family", avatar: "your family.png" },
+    ],
+    chat: [
+      {
+        name: "Kuba",
+        mes: "\"Candy, answer first.\" Lisa, Marylyn, and Serena stay here and listen.",
+        is_user: true,
+        is_system: false,
+      },
+      {
+        name: "Your Family",
+        mes: "Candy answered in a quick, breathless rush while Lisa, Marylyn, and Serena watched from the bed.",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+        { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+        { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+        { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: true },
+      ],
+      source: "model",
+    }),
+  } as any;
+
+  const prompt = buildMultiCharacterResolverPrompt({
+    candidateEntities: [
+      { entityRef: "ent1", ownerName: "Candy", entityId: "bst_narrative:candy", kind: "narrative-entity" },
+      { entityRef: "ent2", ownerName: "Lisa", entityId: "bst_narrative:lisa", kind: "narrative-entity" },
+      { entityRef: "ent3", ownerName: "Marylyn", entityId: "bst_narrative:marylyn", kind: "narrative-entity" },
+      { entityRef: "ent4", ownerName: "Serena", entityId: "bst_narrative:serena", kind: "narrative-entity" },
+    ],
+    contextText: "Candy, Lisa, Marylyn, and Serena are all still in the room.",
+    previousMessage: context.chat[0],
+    message: context.chat[1],
+  });
+
+  assert.match(prompt, /Previous message metadata:/);
+  assert.match(prompt, /keep the scene broad but keep `inMessage=true` only for entities the latest reply actually advances/i);
+  assert.match(prompt, /Do not mark an entity `inMessage=true` just because it is named in instructions/i);
+
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [
+        { entityRef: "ent1", inScene: true, inMessage: true },
+        { entityRef: "ent2", inScene: true, inMessage: false },
+        { entityRef: "ent3", inScene: true, inMessage: false },
+        { entityRef: "ent4", inScene: true, inMessage: false },
+      ],
+      created: [],
+      unresolvedMentions: [],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Candy", entityId: "bst_narrative:candy", kind: "narrative-entity" },
+      { entityRef: "ent2", ownerName: "Lisa", entityId: "bst_narrative:lisa", kind: "narrative-entity" },
+      { entityRef: "ent3", ownerName: "Marylyn", entityId: "bst_narrative:marylyn", kind: "narrative-entity" },
+      { entityRef: "ent4", ownerName: "Serena", entityId: "bst_narrative:serena", kind: "narrative-entity" },
+    ],
+  );
+
+  assert.ok(parsed);
+
+  const ownerScopes = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    recentTrackerHistory: [previousTrackerData],
+    resolvedSceneActiveCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+    resolvedRequestCharacters: ["Candy"],
+  });
+
+  assert.deepEqual(ownerScopes.sceneActiveCharacters, ["Candy", "Lisa", "Marylyn", "Serena"]);
+  assert.deepEqual(ownerScopes.requestCharacters, ["Candy"]);
+
+  const persistedResolvedEntities = resolvePersistedSnapshotResolvedEntities({
+    context,
+    sceneActiveCharacters: ownerScopes.sceneActiveCharacters,
+    requestCharacters: ownerScopes.requestCharacters,
+    resolvedEntities: parsed?.resolvedEntities ?? [],
     userExtraction: false,
     entityTrackingMode: "dynamic_characters",
   });
