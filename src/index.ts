@@ -3156,7 +3156,9 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
   next.customStatisticsByEntityId = entitySynced.customStatisticsByEntityId;
   next.customNonNumericStatisticsByEntityId = entitySynced.customNonNumericStatisticsByEntityId;
 
-  writeTrackerDataToMessage(context, next, messageIndex);
+  writeTrackerDataToMessage(context, next, messageIndex, {
+    preserveExplicitActiveCharactersWhenConsistent: true,
+  });
   syncEntityRegistryFromTrackerData({
     context,
     messageIndex,

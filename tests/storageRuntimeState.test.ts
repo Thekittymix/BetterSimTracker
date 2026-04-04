@@ -145,6 +145,61 @@ test("writeTrackerDataToMessage stores per-message tracker data and snapshot his
   assert.equal(history[0].messageIndex, 2);
 });
 
+test("writeTrackerDataToMessage can preserve explicit scene-active owners during manual tracker edit saves", () => {
+  const context = makeContext();
+  const tracker = makeTracker(1002, {
+    activeCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: [
+        {
+          entityId: "bst_narrative:candy",
+          kind: "narrative-entity",
+          name: "Candy",
+          avatar: null,
+          inScene: true,
+          inMessage: false,
+          created: false,
+        },
+        {
+          entityId: "bst_narrative:lisa",
+          kind: "narrative-entity",
+          name: "Lisa",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+        {
+          entityId: "bst_narrative:marylyn",
+          kind: "narrative-entity",
+          name: "Marylyn",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+        {
+          entityId: "bst_narrative:serena",
+          kind: "narrative-entity",
+          name: "Serena",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
+    }),
+  });
+
+  writeTrackerDataToMessage(context, tracker, 2, {
+    preserveExplicitActiveCharactersWhenConsistent: true,
+  });
+
+  const stored = getTrackerDataFromMessage(context.chat[2]);
+  assert.deepEqual(stored?.activeCharacters, ["Candy", "Lisa", "Marylyn", "Serena"]);
+});
+
 test("saveTrackerSnapshot compacts localStorage history copies without shrinking runtime history resolution", () => {
   (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = localStorageMock;
   localStorageMock.clear();
@@ -994,6 +1049,32 @@ test("resolveNormalizedTrackerActiveCharacters prefers resolver owners over expl
       ["Blake"],
     ),
     ["Blake"],
+  );
+});
+
+test("resolveNormalizedTrackerActiveCharacters can preserve explicit active scene owners for manual edit saves when they match resolved scene owners", () => {
+  assert.deepEqual(
+    resolveNormalizedTrackerActiveCharacters(
+      {
+        activeCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+      } as TrackerData,
+      ["Candy", "Lisa", "Marylyn", "Serena"],
+      ["Lisa", "Marylyn", "Serena"],
+      { preserveExplicitActiveCharactersWhenConsistent: true },
+    ),
+    ["Candy", "Lisa", "Marylyn", "Serena"],
+  );
+
+  assert.deepEqual(
+    resolveNormalizedTrackerActiveCharacters(
+      {
+        activeCharacters: ["Garret", "Raleigh"],
+      } as TrackerData,
+      ["Blake"],
+      ["Ashley"],
+      { preserveExplicitActiveCharactersWhenConsistent: true },
+    ),
+    ["Ashley"],
   );
 });
 

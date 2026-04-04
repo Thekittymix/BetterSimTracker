@@ -175,6 +175,7 @@ export function resolveNormalizedTrackerActiveCharacters(
   data: { activeCharacters?: TrackerData["activeCharacters"] | null; entityOwnerMap?: TrackerData["entityOwnerMap"] | null },
   resolvedSceneOwners: string[] = [],
   resolvedMessageOwners: string[] = [],
+  options?: { preserveExplicitActiveCharactersWhenConsistent?: boolean },
 ): string[] {
   const rawActiveCharacters = Array.isArray(data.activeCharacters)
     ? Array.from(new Set((data.activeCharacters ?? []).map(item => String(item ?? "").trim()).filter(Boolean)))
@@ -187,6 +188,24 @@ export function resolveNormalizedTrackerActiveCharacters(
   if (rawActiveCharacters.includes(USER_TRACKER_KEY)) {
     return rawActiveCharacters;
   }
+  const filteredResolvedSceneOwners = filterShadowedSourceOwners(
+    null,
+    { entityOwnerMap: data.entityOwnerMap ?? undefined } as TrackerData,
+    [...resolvedSceneOwners],
+  );
+  if (
+    options?.preserveExplicitActiveCharactersWhenConsistent
+    && filteredRawActiveCharacters.length
+    && filteredResolvedSceneOwners.length
+  ) {
+    const explicitKeys = new Set(filteredRawActiveCharacters.map(normalizeKey));
+    const sceneKeys = new Set(filteredResolvedSceneOwners.map(normalizeKey));
+    const sameSize = explicitKeys.size === sceneKeys.size;
+    const sameMembers = sameSize && [...explicitKeys].every(key => sceneKeys.has(key));
+    if (sameMembers) {
+      return filteredRawActiveCharacters;
+    }
+  }
   if (resolvedMessageOwners.length) {
     return filterShadowedSourceOwners(
       null,
@@ -194,17 +213,19 @@ export function resolveNormalizedTrackerActiveCharacters(
       [...resolvedMessageOwners],
     );
   }
-  if (resolvedSceneOwners.length) {
-    return filterShadowedSourceOwners(
-      null,
-      { entityOwnerMap: data.entityOwnerMap ?? undefined } as TrackerData,
-      [...resolvedSceneOwners],
-    );
+  if (filteredResolvedSceneOwners.length) {
+    return filteredResolvedSceneOwners;
   }
   return filteredRawActiveCharacters;
 }
 
-function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
+function normalizeTrackerData(
+  data: Partial<TrackerData>,
+  options?: { preserveExplicitActiveCharactersWhenConsistent?: boolean },
+): TrackerData {
+  const normalizedOptions = {
+    preserveExplicitActiveCharactersWhenConsistent: options?.preserveExplicitActiveCharactersWhenConsistent ?? true,
+  };
   const clearedStatistics = normalizeClearedStatistics(data.clearedStatistics);
   const clearedCustomStatistics = normalizeClearedOwnerBuckets(data.clearedCustomStatistics);
   const clearedCustomNonNumericStatistics = normalizeClearedOwnerBuckets(data.clearedCustomNonNumericStatistics);
@@ -224,6 +245,7 @@ function normalizeTrackerData(data: Partial<TrackerData>): TrackerData {
     { activeCharacters: data.activeCharacters, entityOwnerMap: normalizedEntityOwnerMap },
     normalizedSceneOwners,
     normalizedMessageOwners,
+    normalizedOptions,
   );
   return normalizeTrackerDataEntityBuckets({
     timestamp: Number(data.timestamp ?? Date.now()),
@@ -1396,6 +1418,7 @@ export function writeTrackerDataToMessage(
   context: STContext,
   data: TrackerData,
   messageIndex: number,
+  options?: { preserveExplicitActiveCharactersWhenConsistent?: boolean },
 ): void {
   if (messageIndex < 0 || messageIndex >= context.chat.length) return;
   const message = context.chat[messageIndex];
@@ -1423,7 +1446,7 @@ export function writeTrackerDataToMessage(
     ...data,
     entityOwnerMap: buildTrackerDataEntityOwnerMap(context, data) ?? data.entityOwnerMap,
   };
-  swipeStorage[swipeKey] = normalizeTrackerData(enriched);
+  swipeStorage[swipeKey] = normalizeTrackerData(enriched, options);
   message.extra[EXTENSION_KEY] = swipeStorage;
   saveTrackerSnapshot(context, swipeStorage[swipeKey], messageIndex);
 }

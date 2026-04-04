@@ -6,6 +6,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed dynamic-character lifecycle sync so passive rerenders after saving an AI character card no longer demote an already-active multi-character entry to `inactive` on the same message without a real tracker-state change.
 
+## [2.5.2-dev2] - 2026-04-04
+### Fixed
+- Fixed manual tracker-stat saves so explicitly active scene participants no longer get dropped from saved `activeCharacters` just because they were out of immediate message focus, which was causing BST edit-save flows to flip still-present characters to `Inactive`.
+
 ## [2.5.1.3] - 2026-04-02
 ### Fixed
 - Fixed multi-character source-card reconciliation so a generic source owner is now suppressed when same-source child characters are active, preventing it from leaking into canonical resolved entities, active owners, prompt injection, extraction targets, and rendered cards.
