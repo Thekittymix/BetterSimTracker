@@ -2,17 +2,9 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.2-dev1] - 2026-04-03
+## [2.5.2.1] - 2026-04-04
 ### Fixed
-- Fixed dynamic-character lifecycle sync so passive rerenders after saving an AI character card no longer demote an already-active multi-character entry to `inactive` on the same message without a real tracker-state change.
-
-## [2.5.2-dev2] - 2026-04-04
-### Fixed
-- Fixed manual tracker-stat saves so explicitly active scene participants no longer get dropped from saved `activeCharacters` just because they were out of immediate message focus, which was causing BST edit-save flows to flip still-present characters to `Inactive`.
-
-## [2.5.2-dev3] - 2026-04-04
-### Fixed
-- Fixed the deeper manual tracker-edit save path so the preserved active scene set now survives both storage normalization passes and registry/lifecycle reread, preventing still-present narrative entities from flipping to `Inactive` after `Edit latest tracker stats -> Save`.
+- Fixed manual tracker-edit saves so still-present multi-character and narrative-entity participants no longer flip to `Inactive` after `Edit latest tracker stats -> Save`, even after storage normalization, reread, and registry/lifecycle sync.
 
 ## [2.5.1.3] - 2026-04-02
 ### Fixed
