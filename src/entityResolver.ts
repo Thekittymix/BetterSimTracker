@@ -189,12 +189,15 @@ export function buildMultiCharacterResolverPrompt(input: {
     "Return strict JSON only.",
     "",
     "Definitions:",
-    '- `inScene=true` means the entity is still present/relevant in the scene at the end of the latest message.',
+    '- `inScene=true` means the entity is still physically or interactionally present in the active scene frame at the end of the latest message.',
     '- `inMessage=true` means the latest message actively advances that entity in a way that matters for tracking.',
     "- `inMessage` may be true while `inScene` is false if the message shows the entity leaving by the end.",
     "- Silent/background entities may remain `inScene=true`, but must stay `inMessage=false` unless the latest message itself directly advances them.",
+    "- Do not keep an entity `inScene=true` just because they are discussed, worried about, or named from elsewhere while remaining off-screen or in another room.",
+    "- If the latest message says an entity is elsewhere, resting away from the interaction, or otherwise not entering the current scene frame, treat them as `inScene=false` unless that same message actually brings them back into the scene.",
     "- When the previous user turn addresses one participant to respond while other known entities remain present, keep the scene broad but keep `inMessage=true` only for entities the latest reply actually advances.",
     "- Do not mark an entity `inMessage=true` just because it is named in instructions, listed as present, or silently observing.",
+    "- Do not mark an entity `inMessage=true` just because someone talks about them in dialogue or narration while they remain absent from the active interaction.",
     "- If the latest user instruction or AI message makes it clear that no known tracked entity remains in scene, return an empty `resolved` array.",
     ...(allowNarrativeEntityCreation
       ? [
@@ -208,6 +211,7 @@ export function buildMultiCharacterResolverPrompt(input: {
     '- If the previous user turn addresses Blake as the respondent while Ashley, Garret, and Raleigh remain present, and the latest AI reply only advances Blake, keep Ashley/Garret/Raleigh as `inScene=true, inMessage=false`.',
     '- If the latest AI reply contains only Blake acting/speaking, return Blake with `inMessage=true` and keep Ashley/Garret/Raleigh as `inMessage=false` unless that same reply directly advances them too.',
     '- If a later sentence in the same latest AI reply shows Ashley speaking or taking a meaningful action, Ashley may also become `inMessage=true`.',
+    '- If the latest AI reply says Blake is resting in another room and Ashley only talks about Blake from the hallway, Blake should be `inScene=false, inMessage=false` for that hallway scene.',
     "",
     "Candidate entities:",
     JSON.stringify(

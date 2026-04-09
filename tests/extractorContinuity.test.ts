@@ -33,6 +33,40 @@ function loadExtractor(): typeof import("../src/extractor") {
   }
 }
 
+function loadExtractorWithGeneratorMock(mock: {
+  generateJson: (prompt: string, settings: BetterSimTrackerSettings) => Promise<{ text: string; meta: Record<string, unknown> }>;
+  cancelActiveGenerations?: () => number;
+}): typeof import("../src/extractor") {
+  const moduleLoader = require("node:module") as {
+    _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+  };
+  const originalLoad = moduleLoader._load;
+  delete require.cache[require.resolve("../src/extractor")];
+  moduleLoader._load = function patchedLoad(request: string, parent: unknown, isMain: boolean): unknown {
+    if (request === "sillytavern-utils-lib") {
+      return {
+        Generator: class {
+          generateRequest(): never {
+            throw new Error("Generator path should not be used in extractor continuity tests.");
+          }
+        },
+      };
+    }
+    if (request === "./generator") {
+      return {
+        generateJson: mock.generateJson,
+        cancelActiveGenerations: mock.cancelActiveGenerations ?? (() => 0),
+      };
+    }
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    return require("../src/extractor") as typeof import("../src/extractor");
+  } finally {
+    moduleLoader._load = originalLoad;
+  }
+}
+
 function withSillyTavernContext<T>(context: STContext, run: () => Promise<T>): Promise<T> {
   const globalBag = globalThis as typeof globalThis & { SillyTavern?: SillyTavernGlobal };
   const previous = globalBag.SillyTavern;
@@ -325,4 +359,77 @@ test("extractStatisticsParallel scopeResolution debug uses entity-aware custom n
     "tank top",
   ]);
   assert.equal(result.debug?.meta?.scopeResolution?.current?.clothes?.Ash?.resolvedFrom, "entity_lookup");
+});
+
+test("extractStatisticsParallel stops scheduling later stat requests after a fatal request failure", async () => {
+  const progressLabels: string[] = [];
+  let callCount = 0;
+  let cancelCount = 0;
+  const context = makeBaseContext(async () => ({ choices: [] }));
+  const globalBag = globalThis as any;
+  const previousWindow = globalBag.window;
+  globalBag.window = globalThis;
+  const { extractStatisticsParallel } = loadExtractorWithGeneratorMock({
+    generateJson: async (prompt: string) => {
+      callCount += 1;
+      if (/affection/i.test(prompt)) {
+        throw new Error("API request failed");
+      }
+      await new Promise(resolve => setTimeout(resolve, 10));
+      return {
+        text: JSON.stringify({
+          characters: [
+            { name: "Ash", confidence: 1, delta: { trust: 0 } },
+          ],
+        }),
+        meta: {},
+      };
+    },
+    cancelActiveGenerations: () => {
+      cancelCount += 1;
+      return 1;
+    },
+  });
+
+  try {
+    await assert.rejects(
+      withSillyTavernContext(context, () => extractStatisticsParallel({
+        context,
+        settings: makeSettings({
+          trackAffection: true,
+          trackTrust: true,
+          trackDesire: true,
+          maxConcurrentCalls: 2,
+        }),
+        userName: "User",
+        activeCharacters: ["Ash"],
+        contextText: "Ashley freezes in the doorway.",
+        previousTrackerData: makeTracker(),
+        previousStatistics: {
+          affection: { Ash: 61 },
+          trust: { Ash: 62 },
+          desire: { Ash: 63 },
+          connection: {},
+          mood: {},
+          lastThought: {},
+        },
+        previousCustomStatistics: {},
+        previousCustomStatisticsRaw: {},
+        previousCustomNonNumericStatistics: {},
+        hasPriorTrackerData: true,
+        history: [],
+        onProgress: (_done, _total, label) => {
+          if (label) progressLabels.push(label);
+        },
+      })),
+      /API request failed/,
+    );
+
+    assert.equal(cancelCount, 1);
+    assert.ok(callCount >= 2);
+    assert.equal(progressLabels.some(label => /Requesting Built-in: Desire/i.test(label)), false);
+  } finally {
+    if (previousWindow === undefined) delete globalBag.window;
+    else globalBag.window = previousWindow;
+  }
 });

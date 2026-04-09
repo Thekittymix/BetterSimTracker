@@ -2,12 +2,15 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3-dev3] - 2026-04-09
+### Fixed
+- Fixed extractor failure orchestration so exhausted API/generator retries now abort the active extraction batch instead of continuing into later stat requests before surfacing the failure.
+- Strengthened model-backed multi-character resolver guidance so off-screen or elsewhere-mentioned participants are less likely to be treated as active in-scene/message entities just because another character talks about them.
+
 ## [2.5.3-dev2] - 2026-04-09
 ### Fixed
-- Fixed multi-character activity detection so mention-only source-card replies no longer reactivate inactive aliases just because their names appear in the reply text.
 - Fixed continuity ordering for retracks and merged runtime state so newer message indices now win over later-written older snapshots across history, prompt/runtime merge, and retrack seeding.
 - Fixed inactive narrative and alias continuity so off-screen entities keep their stable owner/entity mapping and prior owner-scoped stats across tracker edit saves and rereads instead of resurfacing with default built-in values.
-- Fixed extraction failure handling so exhausted retryable API/generator failures stop the user-turn gate and surface a failure/recovery state instead of silently continuing into later extractions.
 
 ## [2.5.3] - 2026-04-04
 ### Changed

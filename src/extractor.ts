@@ -1,5 +1,5 @@
 import { GLOBAL_TRACKER_KEY, STAT_KEYS, USER_TRACKER_KEY } from "./constants";
-import { generateJson } from "./generator";
+import { cancelActiveGenerations, generateJson } from "./generator";
 import { parseCustomDeltaResponse, parseCustomValueResponse, parseUnifiedDeltaResponse } from "./parse";
 import {
   DEFAULT_REPAIR_LAST_THOUGHT_TEMPLATE,
@@ -348,6 +348,7 @@ export async function extractStatisticsParallel(input: {
   });
   let debugRecord: DeltaDebugRecord | null = null;
   let cancelled = false;
+  let terminalError: unknown = null;
   const normalizedUserName = String(userName ?? "").trim();
   const nonUserActiveNames = activeCharacters
     .filter(name => name !== USER_TRACKER_KEY)
@@ -405,6 +406,11 @@ export async function extractStatisticsParallel(input: {
       cancelled = true;
       throw new DOMException("Request aborted by user", "AbortError");
     }
+  };
+  const registerTerminalError = (error: unknown): void => {
+    if (terminalError || isAbortError(error)) return;
+    terminalError = error;
+    cancelActiveGenerations();
   };
 
   if ((!builtInAndTextStats.length && !customStats.length) || !activeCharacters.length) {
@@ -933,6 +939,7 @@ export async function extractStatisticsParallel(input: {
   };
     let progressDone = 0;
   const tickProgress = (label?: string): void => {
+      if (terminalError) return;
       progressDone = Math.min(progressTotal, progressDone + 1);
       onProgress?.(progressDone, progressTotal, label);
     };
@@ -949,8 +956,10 @@ export async function extractStatisticsParallel(input: {
         const attemptNo = requestSeq;
         try {
           checkCancelled();
+          if (terminalError) throw terminalError;
           const response = await generateJson(prompt, settings);
           checkCancelled();
+          if (terminalError) throw terminalError;
           const type = attemptIndex === 0 ? retryType : `${retryType}_transport_retry_${attemptIndex}`;
           requestMetas.push({ ...response.meta, statList, attempt: attemptNo, retryType: type });
           return response;
@@ -961,6 +970,7 @@ export async function extractStatisticsParallel(input: {
           }
           lastError = error;
           if (attemptIndex >= retryDelaysMs.length) {
+            registerTerminalError(error);
             throw error;
           }
           // Some providers transiently reject immediate follow-up requests after main generation.
@@ -1608,6 +1618,7 @@ export async function extractStatisticsParallel(input: {
           if (!stat) return;
           const one = await runOneBuiltInOrTextRequest([stat]);
           checkCancelled();
+          if (terminalError) throw terminalError;
           rawBlocks.push({ label: stat, raw: one.raw });
           promptBlocks.push({ label: stat, prompt: one.prompt });
           applyParsedForBuiltInOrTextStat(stat, one.parsedOne);
@@ -1815,6 +1826,7 @@ export async function extractStatisticsParallel(input: {
           const group = customQueue.shift();
           if (!group?.length) return;
           await runCustomGroupRequest(group, activeCharacters, "custom");
+          if (terminalError) throw terminalError;
         }
       };
       await Promise.all(Array.from({ length: customWorkers }, () => runCustomWorker()));
@@ -1824,6 +1836,7 @@ export async function extractStatisticsParallel(input: {
           checkCancelled();
           const one = await runOneBuiltInOrTextRequest([stat], [owner]);
           checkCancelled();
+          if (terminalError) throw terminalError;
           rawBlocks.push({ label: `${stat}:${owner}`, raw: one.raw });
           promptBlocks.push({ label: `${stat}:${owner}`, prompt: one.prompt });
           applyParsedForBuiltInOrTextStat(stat, one.parsedOne);
@@ -1834,6 +1847,7 @@ export async function extractStatisticsParallel(input: {
         for (const owner of activeCharacters) {
           checkCancelled();
           await runCustomGroupRequest(group, [owner], `custom:${owner}`);
+          if (terminalError) throw terminalError;
         }
       }
     }
@@ -1888,6 +1902,10 @@ export async function extractStatisticsParallel(input: {
       }
     };
   } catch (error) {
+    if (terminalError && isAbortError(error)) {
+      console.error("[BetterSimTracker] Unified extraction failed:", terminalError);
+      throw terminalError;
+    }
     if (isAbortError(error)) {
       cancelled = true;
     } else {
@@ -1898,6 +1916,9 @@ export async function extractStatisticsParallel(input: {
     onProgress?.(progressTotal, progressTotal, "Finalizing");
   }
 
+  if (terminalError) {
+    throw terminalError;
+  }
   if (cancelled) {
     throw new DOMException("Request aborted by user", "AbortError");
   }

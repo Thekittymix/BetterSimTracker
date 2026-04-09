@@ -65,6 +65,33 @@ test("buildMultiCharacterResolverPrompt includes previous-message responder guid
   assert.match(prompt, /Do not mark an entity `inMessage=true` just because it is named in instructions/i);
 });
 
+test("buildMultiCharacterResolverPrompt distinguishes off-screen mention from active scene presence", () => {
+  const prompt = buildMultiCharacterResolverPrompt({
+    candidateEntities: [
+      { entityRef: "ent1", ownerName: "Marylyn", entityId: "bst_narrative:marylyn" },
+      { entityRef: "ent2", ownerName: "Candy", entityId: "bst_narrative:candy" },
+    ],
+    contextText: "Marylyn and Candy were both tracked earlier in the house.",
+    previousMessage: {
+      name: "Kuba",
+      mes: "\"Did Candy manage to fall asleep?\"",
+      is_user: true,
+      is_system: false,
+    } as any,
+    message: {
+      name: "Your Family",
+      mes: "Marylyn says Candy is resting in the guest room and does not enter the hallway scene.",
+      is_user: false,
+      is_system: false,
+    } as any,
+  });
+
+  assert.match(prompt, /off-screen or in another room/i);
+  assert.match(prompt, /resting away from the interaction/i);
+  assert.match(prompt, /talks about them in dialogue or narration while they remain absent/i);
+  assert.match(prompt, /resting in another room/i);
+});
+
 test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", () => {
   const prompt = buildMultiCharacterResolverPrompt({
     candidateEntities: [
