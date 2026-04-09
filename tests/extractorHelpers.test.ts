@@ -284,6 +284,79 @@ test("overlayLatestOwnerScopedContinuity refreshes only the requested owner scop
   );
 });
 
+test("overlayLatestOwnerScopedContinuity restores prior built-in and custom stats for a scene-only returning character", () => {
+  const next = overlayLatestOwnerScopedContinuity({
+    timestamp: 10,
+    activeCharacters: ["Blake", "Candy"],
+    statistics: {
+      affection: { Blake: 64 },
+      trust: { Blake: 58 },
+      desire: { Blake: 47 },
+      connection: { Blake: 55 },
+      mood: { Blake: "Guarded" },
+      lastThought: { Blake: "I need to keep this conversation focused on me." },
+    },
+    customStatistics: {
+      stress: { Blake: 23 },
+    },
+    customNonNumericStatistics: {
+      pose: { Blake: "standing near the bed" },
+      clothes: { Blake: ["jeans", "hoodie"] },
+    },
+  } as never, {
+    timestamp: 9,
+    activeCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+    statistics: {
+      affection: { Candy: 72 },
+      trust: { Candy: 68 },
+      desire: { Candy: 59 },
+      connection: { Candy: 74 },
+      mood: { Candy: "Excited" },
+      lastThought: { Candy: "I'm finally back with everyone again." },
+    },
+    customStatistics: {
+      stress: { Candy: 11 },
+    },
+    customNonNumericStatistics: {
+      pose: { Candy: "perched on Kuba's lap" },
+      clothes: { Candy: ["too-small t-shirt", "panties"] },
+    },
+  } as never, ["Candy"]);
+
+  assert.deepEqual(next.statistics.affection, {
+    Blake: 64,
+    Candy: 72,
+  });
+  assert.deepEqual(next.statistics.trust, {
+    Blake: 58,
+    Candy: 68,
+  });
+  assert.deepEqual(next.statistics.mood, {
+    Blake: "Guarded",
+    Candy: "Excited",
+  });
+  assert.deepEqual(next.statistics.lastThought, {
+    Blake: "I need to keep this conversation focused on me.",
+    Candy: "I'm finally back with everyone again.",
+  });
+  assert.deepEqual(next.customStatistics, {
+    stress: {
+      Blake: 23,
+      Candy: 11,
+    },
+  });
+  assert.deepEqual(next.customNonNumericStatistics, {
+    pose: {
+      Blake: "standing near the bed",
+      Candy: "perched on Kuba's lap",
+    },
+    clothes: {
+      Blake: ["jeans", "hoodie"],
+      Candy: ["too-small t-shirt", "panties"],
+    },
+  });
+});
+
 test("buildNoActiveContinuityTrackerData preserves continuity stats while keeping scene continuity and clearing active resolver state", () => {
   const snapshot = buildNoActiveContinuityTrackerData({
     previousTrackerData: {

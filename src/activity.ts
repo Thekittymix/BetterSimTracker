@@ -50,11 +50,12 @@ function escapeRegex(value: string): string {
 }
 
 function countAliasMentions(text: string, alias: string): number {
-  const escaped = escapeRegex(alias.trim());
-  if (!escaped) return 0;
-  const pattern = new RegExp(`(^|[^A-Za-z])${escaped}(?=$|[^A-Za-z])`, "gi");
+  const normalizedText = String(text ?? "").trim();
+  const normalizedAlias = String(alias ?? "").trim();
+  if (!normalizedText || !normalizedAlias) return 0;
+  const pattern = new RegExp(`(^|[^a-z0-9])${escapeRegex(normalizedAlias)}(?=$|[^a-z0-9])`, "gi");
   let count = 0;
-  while (pattern.exec(text)) count += 1;
+  while (pattern.exec(normalizedText)) count += 1;
   return count;
 }
 
@@ -90,13 +91,9 @@ function collectActivityNamesFromMessage(
     { entityTrackingMode: mode },
   ).filter(name => name.toLowerCase() !== resolved.sourceName.toLowerCase());
   const visibleAliases = aliases.filter(alias => allNamesSet.has(alias));
-  if (visibleAliases.length >= 2) return visibleAliases;
-  const text = String(message.mes ?? "").trim().toLowerCase();
-  const mentionedAliases = visibleAliases.filter(alias =>
-    countAliasMentions(text, alias.toLowerCase()) > 0,
-  );
-  if (mentionedAliases.length) return mentionedAliases;
-  return allNamesSet.has(speaker) ? [speaker] : [];
+  const explicitlyMentionedAliases = visibleAliases.filter(alias => countAliasMentions(String(message.mes ?? ""), alias) > 0);
+  if (explicitlyMentionedAliases.length >= 2) return visibleAliases;
+  return [];
 }
 
 export function getAllTrackedCharacterNames(

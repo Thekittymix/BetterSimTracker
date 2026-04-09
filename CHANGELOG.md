@@ -2,6 +2,12 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3-dev1] - 2026-04-09
+### Fixed
+- Fixed multi-character activity detection so mention-only source-card replies no longer reactivate inactive aliases just because their names appear in the reply text.
+- Fixed continuity ordering for retracks and merged runtime state so newer message indices now win over later-written older snapshots across history, prompt/runtime merge, and retrack seeding.
+- Fixed extraction failure handling so exhausted retryable API/generator failures stop the user-turn gate and surface a failure/recovery state instead of silently continuing into later extractions.
+
 ## [2.5.3] - 2026-04-04
 ### Changed
 - Improved mixed-scene character resolution so tracker scenes can retain broader participant continuity while still narrowing current-message focus to the characters a reply actually advances.

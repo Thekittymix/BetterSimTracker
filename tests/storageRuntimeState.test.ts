@@ -1255,7 +1255,7 @@ test("writeTrackerDataToMessage preserves user-only activeCharacters when entity
   assert.deepEqual(stored?.entityResolution, data.entityResolution);
 });
 
-test("buildMergedPromptMacroData prefers a newer manual edit on an older message over a stale later snapshot", () => {
+test("buildMergedPromptMacroData keeps later-message state over a later-written manual edit on an older message", () => {
   const context = makeContext();
   context.chat.push(
     { mes: "User edited later", is_user: true, is_system: false, extra: {} },
@@ -1292,12 +1292,12 @@ test("buildMergedPromptMacroData prefers a newer manual edit on an older message
   const merged = buildMergedPromptMacroData(context, staleLaterAiSnapshot);
   assert.ok(merged);
   assert.deepEqual(merged?.customNonNumericStatistics?.clothes, {
-    [USER_TRACKER_KEY]: ["jeans"],
+    [USER_TRACKER_KEY]: ["t-shirt", "jeans"],
     Seraphina: ["black sundress"],
   });
 });
 
-test("buildMergedPromptMacroData preserves a newer explicit nude user clothes edit over a later stale AI snapshot", () => {
+test("buildMergedPromptMacroData keeps later-message user clothes over a later-written older nude edit", () => {
   const context = makeContext();
   context.chat.push(
     { mes: "User manual edit", is_user: true, is_system: false, extra: {} },
@@ -1325,7 +1325,7 @@ test("buildMergedPromptMacroData preserves a newer explicit nude user clothes ed
   const merged = buildMergedPromptMacroData(context, staleLaterAiSnapshot);
   assert.ok(merged);
   assert.deepEqual(merged?.customNonNumericStatistics?.clothes, {
-    [USER_TRACKER_KEY]: ["nude"],
+    [USER_TRACKER_KEY]: ["t-shirt", "jeans"],
     Seraphina: ["black sundress"],
   });
 });
@@ -1366,7 +1366,7 @@ test("buildMergedPromptMacroData preserves explicit clears over older history", 
   assert.equal(merged?.clearedCustomNonNumericStatistics?.physicality?.Seraphina, true);
 });
 
-test("mergeTrackerDataChronologically preserves newer character manual edit over stale later snapshot", () => {
+test("mergeTrackerDataChronologically keeps later message continuity over a later-written older manual edit", () => {
   const editedCharacter = makeTracker(3000, {
     activeCharacters: ["Seraphina"],
     customNonNumericStatistics: {
@@ -1381,7 +1381,7 @@ test("mergeTrackerDataChronologically preserves newer character manual edit over
   });
   const merged = mergeTrackerDataChronologically([editedCharacter, staleLaterUserSnapshot]);
   assert.ok(merged);
-  assert.equal(merged?.customNonNumericStatistics?.physicality?.Seraphina, "Edited physicality");
+  assert.equal(merged?.customNonNumericStatistics?.physicality?.Seraphina, "Older physicality");
 });
 
 test("mergeTrackerDataChronologically canonicalizes alias-owner buckets by entity identity across snapshots", () => {
@@ -2127,7 +2127,7 @@ test("saveTrackerSnapshot keeps a newer message as latest when an older message 
   assert.deepEqual(localLatest.data.activeCharacters, ["Candy"]);
 
   const historyEntries = getRecentTrackerHistoryEntries(context, 10);
-  assert.deepEqual(historyEntries.slice(0, 3).map(entry => entry.messageIndex), [0, 8, 7]);
+  assert.deepEqual(historyEntries.slice(0, 3).map(entry => entry.messageIndex), [8, 7, 0]);
 });
 
 test("getLocalLatestTrackerData detects an externally replaced scope store after the cache was warmed", () => {

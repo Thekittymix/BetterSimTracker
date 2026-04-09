@@ -44,12 +44,12 @@ export function buildMergedPromptMacroData(
   }
 
   entries.sort((a, b) => {
-    if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
     if (a.messageIndex == null && b.messageIndex != null) return 1;
     if (a.messageIndex != null && b.messageIndex == null) return -1;
     if (a.messageIndex != null && b.messageIndex != null && a.messageIndex !== b.messageIndex) {
       return a.messageIndex - b.messageIndex;
     }
+    if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
     return Number(a.preferred) - Number(b.preferred);
   });
 

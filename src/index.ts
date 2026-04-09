@@ -82,6 +82,7 @@ import {
   selectNoActiveContinuityTrackerEntry,
   shouldBypassConfidenceControls,
 } from "./extractorHelpers";
+import { resolveExtractionFailurePolicy } from "./extractionFailurePolicy";
 import { isTrackableAiMessage, isTrackableMessage, isTrackableUserMessage } from "./messageFilter";
 import { clearPromptInjection, getLastInjectedPrompt, getLastInjectedPromptDebug } from "./promptInjection";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
@@ -968,8 +969,8 @@ function getMergedRelevantTrackerDataWithIndexBefore(
   if (!relevantEntries.length) return null;
 
   relevantEntries.sort((a, b) => {
-    if (a.timestamp !== b.timestamp) return a.timestamp - b.timestamp;
-    return a.messageIndex - b.messageIndex;
+    if (a.messageIndex !== b.messageIndex) return a.messageIndex - b.messageIndex;
+    return a.timestamp - b.timestamp;
   });
   const latestEntry = relevantEntries[relevantEntries.length - 1];
   const merged = mergeTrackerDataChronologically(relevantEntries.map(entry => entry.data));
@@ -4081,6 +4082,39 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       merged = filterStatisticsToCharacters(merged, [USER_TRACKER_KEY]);
       mergedCustom = filterCustomStatisticsToCharacters(mergedCustom, [USER_TRACKER_KEY], globalNumericStatIds);
       mergedCustomNonNumeric = filterCustomNonNumericStatisticsToCharacters(mergedCustomNonNumeric, [USER_TRACKER_KEY], globalNonNumericStatIds);
+    } else {
+      const sceneOnlyCharacters = sceneActiveCharacters.filter(ownerName =>
+        !requestCharacters.some(requestOwner => String(requestOwner).trim().toLowerCase() === String(ownerName).trim().toLowerCase()),
+      );
+      const requestEntityIdSet = new Set(requestEntityIds);
+      const sceneOnlyEntityIds = sceneActiveEntityIds.filter(entityId => !requestEntityIdSet.has(entityId));
+      if (sceneOnlyCharacters.length) {
+        const latestSceneScopedEntry = getLatestCharacterOwnedTrackerDataWithIndexBefore(
+          context,
+          baselineBeforeIndex,
+          sceneOnlyCharacters,
+          sceneOnlyEntityIds,
+          runScopedSettings,
+        ) ?? getLatestRelevantTrackerDataWithIndexBefore(
+          context,
+          baselineBeforeIndex,
+          sceneOnlyCharacters,
+          sceneOnlyEntityIds,
+          runScopedSettings,
+        );
+        if (latestSceneScopedEntry?.data) {
+          const continuityOverlay = overlayLatestOwnerScopedContinuity({
+            timestamp: Date.now(),
+            activeCharacters: sceneOnlyCharacters,
+            statistics: merged,
+            customStatistics: mergedCustom,
+            customNonNumericStatistics: mergedCustomNonNumeric,
+          } as TrackerData, latestSceneScopedEntry.data, sceneOnlyCharacters);
+          merged = continuityOverlay.statistics;
+          mergedCustom = continuityOverlay.customStatistics ?? {};
+          mergedCustomNonNumeric = continuityOverlay.customNonNumericStatistics ?? {};
+        }
+      }
     }
 
     const persistedSceneActiveCharacters = resolvePersistedSnapshotActiveOwners({
@@ -4161,43 +4195,35 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       return;
     }
     const message = getErrorMessage(error);
-    const isEmptyOutputError = /(?:^|\s)(?:Generator|Active runtime request) returned empty output/i.test(message);
-    const isRetryableApiFailure = /(api request failed|failed to fetch|network\s+error|timeout|http\s+5\d\d|status\s*code\s*5\d\d)/i.test(message);
-    const shouldRetryFailure = isEmptyOutputError || isRetryableApiFailure;
-    const canAutoRetryReason =
-      isManualRefreshReason ||
-      reason === "AUTO_BOOTSTRAP_MISSING_TRACKER" ||
-      reason === BOOTSTRAP_CONTINUE_REASON;
-    if (
-      canAutoRetryReason &&
-      reason !== "manual_refresh_retry" &&
-      shouldRetryFailure
-    ) {
-      const retryReason =
-        reason === "manual_refresh"
-          ? "manual_refresh_retry"
-          : reason === "AUTO_BOOTSTRAP_MISSING_TRACKER"
-            ? BOOTSTRAP_CONTINUE_REASON
-            : "manual_refresh_retry";
+    const failurePolicy = resolveExtractionFailurePolicy({
+      reason,
+      message,
+      hadTrackerAtStart,
+      isUserExtraction: userExtraction,
+    });
+    if (failurePolicy.shouldRetry && failurePolicy.retryReason) {
       pushTrace("extract.retry", {
         reason,
-        retryReason: isEmptyOutputError ? "empty_generator_output" : "retryable_api_failure",
+        retryReason: failurePolicy.retryKind,
         targetMessageIndex: targetMessageIndex ?? null,
       });
-      scheduleExtraction(retryReason, targetMessageIndex, 180);
+      scheduleExtraction(failurePolicy.retryReason, targetMessageIndex, 180);
       retryScheduled = true;
     }
     pushTrace("extract.error", {
       reason,
       message
     });
-    if (!hadTrackerAtStart && !retryScheduled) {
+    if (failurePolicy.shouldSetRecovery && !retryScheduled) {
       setTrackerRecovery(lastIndex, {
         kind: "error",
         title: "Tracker generation failed",
         detail: sanitizeTrackerRecoveryDetail(message),
         actionLabel: "Retry Tracker",
       });
+    }
+    if (failurePolicy.shouldResetUserTurnGate && !retryScheduled) {
+      resetUserTurnGate("tracker_generation_failed");
     }
     console.error("[BetterSimTracker] Extraction failed:", error);
   } finally {
@@ -4208,7 +4234,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     isExtracting = false;
     setTrackerUi(context, { phase: "idle", done: 0, total: 0, messageIndex: latestDataMessageIndex, stepLabel: null });
     queueRender();
-    if (userExtraction && !retryScheduled) {
+    if (userExtraction && !retryScheduled && userTurnGateActive) {
       finalizeUserTurnGateReplay(reason);
     }
   }

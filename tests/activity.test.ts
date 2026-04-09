@@ -280,7 +280,7 @@ test("activity analysis keeps the full alias pool active for a multi-character s
   assert.match(result.reasons.Blake, /spoke in last 5 messages/i);
 });
 
-test("manual inactive alias override clears when a later source-card reply explicitly mentions that alias again", () => {
+test("manual inactive alias override does not clear from a mention-only multi-character source-card reply", () => {
   const context = {
     groupId: undefined,
     characterId: 0,
@@ -313,9 +313,15 @@ test("manual inactive alias override clears when a later source-card reply expli
     entityTrackingMode: "dynamic_characters",
   });
 
-  assert.deepEqual(result.manualInactiveCharacters, []);
-  assert.deepEqual(readManualInactiveCharacters(context), []);
-  assert.deepEqual(result.activeCharacters, ["Ashley", "Blake", "Garret", "Raleigh"]);
+  assert.deepEqual(result.manualInactiveCharacters, ["Ashley"]);
+  assert.deepEqual(readManualInactiveCharacters(context), ["Ashley"]);
+  assert.deepEqual(result.activeCharacters, [
+    "Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh",
+    "Blake",
+    "Garret",
+    "Raleigh",
+  ]);
+  assert.equal(result.reasons.Ashley, "manual inactive override");
 });
 
 test("activity analysis can scope retrack detection away from later messages", () => {

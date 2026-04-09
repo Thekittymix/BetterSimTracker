@@ -1243,7 +1243,10 @@ function rebuildPersistedTrackerStores(context: STContext): void {
     });
   }
 
-  const sorted = [...entries].sort((a, b) => b.timestamp - a.timestamp);
+  const sorted = [...entries].sort((a, b) => {
+    if (a.messageIndex !== b.messageIndex) return b.messageIndex - a.messageIndex;
+    return b.timestamp - a.timestamp;
+  });
   const latest = sorted[0]
     ? {
         data: sorted[0].data,
@@ -1386,7 +1389,12 @@ export function getRecentTrackerHistory(context: STContext, limit: number): Trac
 
   const merged: SnapshotEntry[] = [
     ...byMessageIndex.values()
-  ].sort((a, b) => b.timestamp - a.timestamp);
+  ].sort((a, b) => {
+    const leftIndex = Number(a.messageIndex ?? -1);
+    const rightIndex = Number(b.messageIndex ?? -1);
+    if (leftIndex !== rightIndex) return rightIndex - leftIndex;
+    return b.timestamp - a.timestamp;
+  });
 
   return merged.slice(0, limit).map(item => item.data);
 }
@@ -1432,7 +1440,10 @@ export function getRecentTrackerHistoryEntries(
     }
   }
 
-  const merged = [...byMessageIndex.values()].sort((a, b) => b.timestamp - a.timestamp);
+  const merged = [...byMessageIndex.values()].sort((a, b) => {
+    if (a.messageIndex !== b.messageIndex) return b.messageIndex - a.messageIndex;
+    return b.timestamp - a.timestamp;
+  });
   return merged.slice(0, limit);
 }
 
@@ -1658,8 +1669,7 @@ function pruneClearedOwnerBuckets<T extends ClearedCustomStatistics | ClearedCus
 export function mergeTrackerDataChronologically(entries: TrackerData[]): TrackerData | null {
   if (!entries.length) return null;
   const sorted = [...entries]
-    .map(entry => normalizeTrackerDataEntityBuckets(entry))
-    .sort((a, b) => Number(a.timestamp ?? 0) - Number(b.timestamp ?? 0));
+    .map(entry => normalizeTrackerDataEntityBuckets(entry));
   let mergedStatistics: Statistics | null = null;
   let mergedStatisticsByEntityId: Statistics | null = null;
   let mergedCustomStatistics: CustomStatistics | null = null;
