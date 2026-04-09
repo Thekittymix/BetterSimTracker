@@ -1,10 +1,11 @@
-import test from "node:test";
+import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { __testables as editModalTestables } from "../src/editStatsModal";
 import { readEntityRegistry } from "../src/entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "../src/entityRegistrySync";
+import { hasCharacterOwnedTrackedValueForSelection, overlayLatestOwnerScopedContinuity } from "../src/extractionBaselineHelpers";
 import { writeTrackerDataToMessage, getTrackerDataFromMessage } from "../src/storage";
 import { buildEditedTrackerDataSnapshot, applyEditedTrackerActiveState, syncEditedTrackerEntityState } from "../src/trackerEditState";
 import { resolveCurrentLifecycleOwnersForTrackerData } from "../src/ui";
@@ -14,7 +15,39 @@ function assertSameMembers(actual: string[], expected: string[]): void {
   assert.deepEqual([...actual].sort(), [...expected].sort());
 }
 
+class MemoryStorage {
+  private map = new Map<string, string>();
+  get length(): number {
+    return this.map.size;
+  }
+  getItem(key: string): string | null {
+    return this.map.has(key) ? this.map.get(key)! : null;
+  }
+  key(index: number): string | null {
+    return [...this.map.keys()][index] ?? null;
+  }
+  setItem(key: string, value: string): void {
+    this.map.set(key, value);
+  }
+  removeItem(key: string): void {
+    this.map.delete(key);
+  }
+  clear(): void {
+    this.map.clear();
+  }
+}
+
+const localStorageMock = new MemoryStorage();
+Object.defineProperty(globalThis, "localStorage", {
+  value: localStorageMock,
+  writable: true,
+  configurable: true,
+});
+
+let contextCounter = 0;
+
 function makeContext(): STContext {
+  contextCounter += 1;
   return {
     chat: [
       {
@@ -33,6 +66,7 @@ function makeContext(): STContext {
         avatar: "your-family.png",
       },
     ],
+    chatId: `manual-tracker-edit-${contextCounter}`,
     groupId: null,
     characterId: 0,
     onlineStatus: "connected",
@@ -45,8 +79,19 @@ function makeSettings(): BetterSimTrackerSettings {
     showInactive: true,
     autoArchiveInactiveCards: true,
     archiveInactiveAfterTurns: 3,
-  } as BetterSimTrackerSettings;
+    trackAffection: true,
+    trackTrust: true,
+    trackDesire: true,
+    trackConnection: true,
+    trackMood: true,
+    trackLastThought: true,
+    customStats: [],
+  } as unknown as BetterSimTrackerSettings;
 }
+
+afterEach(() => {
+  localStorageMock.clear();
+});
 
 function makeCurrentTracker(): TrackerData {
   return {
@@ -206,4 +251,114 @@ test("manual tracker edit save keeps an in-scene narrative entity active through
   const registry = readEntityRegistry(context);
   assert.equal(registry.ownerToEntityId.candy, "bst_narrative:candy");
   assert.equal(registry.entities["bst_narrative:candy"]?.lifecycleState, "active");
+});
+
+test("manual tracker edit save keeps inactive narrative entity continuity available through reread and later owner-scoped overlay", () => {
+  const context = makeContext();
+  const settings = makeSettings();
+  const current = makeCurrentTracker();
+
+  const edited = buildEditedTrackerDataSnapshot({
+    current,
+    timestamp: 1001,
+    activeCharacters: [...current.activeCharacters],
+    statistics: {
+      ...structuredClone(current.statistics),
+      affection: { ...structuredClone(current.statistics.affection), Candy: 61 },
+      trust: { ...structuredClone(current.statistics.trust), Candy: 62 },
+      desire: { ...structuredClone(current.statistics.desire), Candy: 63 },
+      connection: { ...structuredClone(current.statistics.connection), Candy: 64 },
+    },
+    customStatistics: structuredClone(current.customStatistics ?? {}),
+    customNonNumericStatistics: {
+      ...structuredClone(current.customNonNumericStatistics ?? {}),
+      physicality: {
+        ...(structuredClone(current.customNonNumericStatistics?.physicality ?? {}) as Record<string, string>),
+        Candy: "Warm and lively",
+      },
+    },
+    clearedStatistics: current.clearedStatistics ? structuredClone(current.clearedStatistics) : undefined,
+    clearedCustomStatistics: current.clearedCustomStatistics ? structuredClone(current.clearedCustomStatistics) : undefined,
+    clearedCustomNonNumericStatistics: current.clearedCustomNonNumericStatistics
+      ? structuredClone(current.clearedCustomNonNumericStatistics)
+      : undefined,
+  });
+
+  const withInactive = applyEditedTrackerActiveState(edited, "Candy", false);
+  const entitySynced = syncEditedTrackerEntityState(withInactive, "Candy");
+
+  writeTrackerDataToMessage(context, entitySynced, 0, {
+    preserveExplicitActiveCharactersWhenConsistent: true,
+  });
+
+  const reread = getTrackerDataFromMessage(context.chat[0]);
+  assert.ok(reread);
+  assertSameMembers(reread.activeCharacters, ["Lisa", "Marylyn", "Serena"]);
+  assertSameMembers(resolveCurrentLifecycleOwnersForTrackerData(reread), ["Lisa", "Marylyn", "Serena"]);
+  assert.equal(reread.entityOwnerMap?.Candy?.entityId, "bst_narrative:candy");
+  assert.equal(reread.statistics.affection.Candy, 61);
+  assert.equal(reread.statistics.trust.Candy, 62);
+  assert.equal(reread.statistics.desire.Candy, 63);
+  assert.equal(reread.statistics.connection.Candy, 64);
+  assert.equal(reread.customNonNumericStatistics?.physicality?.Candy, "Warm and lively");
+  assert.deepEqual(reread.customNonNumericStatistics?.clothes?.Candy, ["too-small t-shirt", "panties"]);
+
+  const changed = syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 0,
+    data: reread,
+    settings,
+    allKnownCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+  });
+
+  assert.equal(changed, true);
+  const registry = readEntityRegistry(context);
+  assert.equal(registry.ownerToEntityId.candy, "bst_narrative:candy");
+  assert.equal(registry.entities["bst_narrative:candy"]?.lifecycleState, "inactive");
+
+  assert.equal(
+    hasCharacterOwnedTrackedValueForSelection(
+      reread,
+      {
+        ownerNames: ["Candy"],
+        entityIds: ["bst_narrative:candy"],
+      },
+      settings,
+      context,
+    ),
+    true,
+  );
+
+  const continuityBase: TrackerData = {
+    timestamp: 1002,
+    activeCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+    statistics: {
+      affection: { Candy: 50 },
+      trust: { Candy: 50 },
+      desire: { Candy: 50 },
+      connection: { Candy: 50 },
+      mood: {},
+      lastThought: {},
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: {
+        Candy: [],
+      },
+      physicality: {
+        Candy: "Unknown",
+      },
+      pose: {
+        Candy: "Unknown",
+      },
+    },
+  } as TrackerData;
+
+  const overlay = overlayLatestOwnerScopedContinuity(continuityBase, reread, ["Candy"]);
+  assert.equal(overlay.statistics.affection.Candy, 61);
+  assert.equal(overlay.statistics.trust.Candy, 62);
+  assert.equal(overlay.statistics.desire.Candy, 63);
+  assert.equal(overlay.statistics.connection.Candy, 64);
+  assert.equal(overlay.customNonNumericStatistics?.physicality?.Candy, "Warm and lively");
+  assert.deepEqual(overlay.customNonNumericStatistics?.clothes?.Candy, ["too-small t-shirt", "panties"]);
 });

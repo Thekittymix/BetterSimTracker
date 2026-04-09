@@ -83,6 +83,7 @@ import {
   shouldBypassConfidenceControls,
 } from "./extractorHelpers";
 import { resolveExtractionFailurePolicy } from "./extractionFailurePolicy";
+import { shouldReplayUserTurnAfterExtraction } from "./extractionContinuationPolicy";
 import { isTrackableAiMessage, isTrackableMessage, isTrackableUserMessage } from "./messageFilter";
 import { clearPromptInjection, getLastInjectedPrompt, getLastInjectedPromptDebug } from "./promptInjection";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
@@ -3377,6 +3378,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
   isExtracting = true;
   const runId = ++runSequence;
   let retryScheduled = false;
+  let extractionSucceeded = false;
   activeExtractionRunId = runId;
   cancelledExtractionRuns.delete(runId);
   pushTrace("extract.start", {
@@ -4173,6 +4175,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
 
     queuePromptSync(context);
     queueRender();
+    extractionSucceeded = true;
     pushTrace("extract.finish", {
       runId,
       reason,
@@ -4234,7 +4237,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     isExtracting = false;
     setTrackerUi(context, { phase: "idle", done: 0, total: 0, messageIndex: latestDataMessageIndex, stepLabel: null });
     queueRender();
-    if (userExtraction && !retryScheduled && userTurnGateActive) {
+    if (shouldReplayUserTurnAfterExtraction({
+      userExtraction,
+      retryScheduled,
+      userTurnGateActive,
+      extractionSucceeded,
+    })) {
       finalizeUserTurnGateReplay(reason);
     }
   }

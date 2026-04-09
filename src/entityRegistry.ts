@@ -1028,6 +1028,12 @@ function collectTrackerDataOwnerNames(
       .map(entity => normalizeKey(entity.name))
       .filter(Boolean),
   );
+  const isPreservableOffResolverOwner = (raw: unknown): boolean => {
+    const ownerName = normalizeToken(raw);
+    if (!ownerName) return false;
+    const snapshot = resolveTrackerDataEntityOwnerSnapshot(data, ownerName);
+    return snapshot?.kind === "narrative-entity" || snapshot?.kind === "multi_character_alias";
+  };
   const push = (raw: unknown): void => {
     const value = normalizeToken(raw);
     const key = normalizeKey(value);
@@ -1043,6 +1049,7 @@ function collectTrackerDataOwnerNames(
       hasExplicitResolverOwners
       && key !== normalizeKey(USER_TRACKER_KEY)
       && !allowedResolverOwnerKeys.has(key)
+      && !isPreservableOffResolverOwner(value)
     ) {
       return;
     }
