@@ -14,6 +14,28 @@ function normalizeLooseKey(value: unknown): string {
   return normalizeToken(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function collectMentionedAliases(text: string, aliases: string[]): string[] {
+  const normalizedText = normalizeToken(text);
+  if (!normalizedText) return [];
+  const seen = new Set<string>();
+  const mentioned: string[] = [];
+  for (const alias of aliases) {
+    const value = normalizeToken(alias);
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    const pattern = new RegExp(`(^|[^A-Za-z0-9])${escapeRegex(value)}(?=$|[^A-Za-z0-9])`, "i");
+    if (!pattern.test(normalizedText)) continue;
+    seen.add(key);
+    mentioned.push(value);
+  }
+  return mentioned;
+}
+
 function boundedEditDistanceAtMostOne(left: string, right: string): boolean {
   if (left === right) return true;
   const lengthDelta = Math.abs(left.length - right.length);
@@ -254,6 +276,19 @@ export function buildMultiCharacterResolverPrompt(input: {
     };
     return Object.keys(hints).length ? hints : undefined;
   };
+  const resolveCandidateMentionHints = (candidate: typeof candidateEntities[number]): {
+    latestMessageAliases?: string[];
+    previousMessageAliases?: string[];
+  } | undefined => {
+    const aliases = [candidate.ownerName, ...(candidate.aliases ?? [])];
+    const latestMessageAliases = collectMentionedAliases(messageText, aliases);
+    const previousMessageAliases = collectMentionedAliases(previousMessageText, aliases);
+    const hints = {
+      ...(latestMessageAliases.length ? { latestMessageAliases } : {}),
+      ...(previousMessageAliases.length ? { previousMessageAliases } : {}),
+    };
+    return Object.keys(hints).length ? hints : undefined;
+  };
 
   return [
     "SYSTEM:",
@@ -279,6 +314,7 @@ export function buildMultiCharacterResolverPrompt(input: {
     "- Use continuity hints as prior-state context: they can preserve likely `inScene=true` for silent/background participants, but the latest message still controls whether an entity leaves, stays off-screen, or becomes `inMessage=true`.",
     "- `inLastScene`, `inPersistentScene`, and `sourceGroupMembers` are not commands to activate everyone; they are continuity evidence to compare against the latest message.",
     "- Candidate `lifecycle` is historical registry context only. An inactive or archived candidate can return only when the latest context clearly brings them back; an active candidate can still become absent if the latest context moves them away.",
+    "- Candidate `mentionHints` show exact owner/alias mentions in the latest and previous messages. Mentions are evidence to inspect, not automatic proof of `inScene=true` or `inMessage=true`.",
     "- Before using `created`, compare the proposed name against candidate `ownerName` and `aliases`.",
     "- If a name is a minor spelling, capitalization, punctuation, or transliteration variant of one candidate and the role/context points to the same person, resolve that existing `entityRef` instead of creating a new entity.",
     "- If a near-name match is ambiguous between multiple candidates, do not guess; leave it unresolved unless the latest context clearly identifies one candidate.",
@@ -305,6 +341,7 @@ export function buildMultiCharacterResolverPrompt(input: {
         aliases: candidate.aliases,
         lifecycle: candidate.lifecycle,
         continuityHints: resolveCandidateContinuityHints(candidate),
+        mentionHints: resolveCandidateMentionHints(candidate),
       })),
       null,
       2,

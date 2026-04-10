@@ -171,6 +171,12 @@ test("buildMultiCharacterResolverPrompt includes explicit continuity snapshot gu
       },
     ],
     contextText: "Candy bounced on her toes while Lisa stayed near the dresser.",
+    previousMessage: {
+      name: "Kuba",
+      mes: "\"Lisa, wait here while Candy answers.\"",
+      is_user: true,
+      is_system: false,
+    } as any,
     message: {
       name: "Narrator",
       mes: "Candy grinned and answered first while Lisa stayed close.",
@@ -203,6 +209,10 @@ test("buildMultiCharacterResolverPrompt includes explicit continuity snapshot gu
   assert.match(prompt, /"lastSeenMessageIndex": 4/);
   assert.match(prompt, /Candidate `lifecycle` is historical registry context only/i);
   assert.match(prompt, /inactive or archived candidate can return only when the latest context clearly brings them back/i);
+  assert.match(prompt, /"mentionHints"/);
+  assert.match(prompt, /"latestMessageAliases": \[\s+"Candy"\s+\]/);
+  assert.match(prompt, /"previousMessageAliases": \[\s+"Lisa"\s+\]/);
+  assert.match(prompt, /Mentions are evidence to inspect, not automatic proof/i);
 });
 
 test("parseMultiCharacterResolverResponse keeps scene entities separate when no entity advances the message", () => {

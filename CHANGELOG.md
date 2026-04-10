@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev7] - 2026-04-10
+### Changed
+- Added exact latest/previous message mention hints to resolver candidates so the model can compare explicit mentions against continuity and lifecycle context without treating mentions as automatic activity.
+
 ## [2.5.3.1-dev6] - 2026-04-10
 ### Changed
 - Added registry lifecycle context to resolver candidates so inactive and archived entities can be interpreted against recent message evidence instead of treated as anonymous names.
