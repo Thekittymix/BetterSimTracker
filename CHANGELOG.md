@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev9] - 2026-04-10
+### Fixed
+- Blocked inactive and archived dynamic entities from being reactivated by resolver continuity alone unless the latest message provides current identity evidence for that entity.
+
 ## [2.5.3.1-dev8] - 2026-04-10
 ### Changed
 - Expanded resolver candidate selection with conservative unique near-name mention matching so existing dynamic entities can be offered to the model when the latest message uses a minor spelling variant.
