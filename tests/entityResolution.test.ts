@@ -11,6 +11,7 @@ import {
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
   resolvePersistedActiveOwners,
+  resolvePersistedSnapshotActiveEntityIds,
   resolvePersistedSnapshotActiveOwners,
   resolvePersistedSnapshotEntityOwners,
   resolvePersistedSnapshotResolvedEntities,
@@ -1627,6 +1628,26 @@ test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the us
       userExtraction: false,
     }),
     ["Ashley", "Blake", "Garret", "Raleigh"],
+  );
+});
+
+test("resolvePersistedSnapshotActiveEntityIds keeps scene ids aligned with persisted scene owners", () => {
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveEntityIds({
+      sceneActiveEntityIds: ["ent-ashley", "ent-blake"],
+      requestEntityIds: ["ent-blake"],
+      userExtraction: false,
+    }),
+    ["ent-ashley", "ent-blake"],
+  );
+
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveEntityIds({
+      sceneActiveEntityIds: ["ent-ashley", "ent-blake"],
+      requestEntityIds: ["bst_owner:__bst_user__"],
+      userExtraction: true,
+    }),
+    ["bst_owner:__bst_user__"],
   );
 });
 

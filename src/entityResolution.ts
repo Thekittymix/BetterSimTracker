@@ -1033,6 +1033,18 @@ export function resolvePersistedSnapshotActiveOwners(input: {
   );
 }
 
+export function resolvePersistedSnapshotActiveEntityIds(input: {
+  sceneActiveEntityIds: string[];
+  requestEntityIds: string[];
+  userExtraction: boolean;
+}): string[] {
+  return uniqueStrings(
+    (input.userExtraction ? input.requestEntityIds : input.sceneActiveEntityIds)
+      .map(entityId => normalizeToken(entityId))
+      .filter(Boolean),
+  );
+}
+
 export function resolvePersistedSnapshotEntityOwners(input: {
   sceneActiveCharacters: string[];
 }): string[] {

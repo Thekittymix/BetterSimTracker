@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev2] - 2026-04-10
+### Fixed
+- Fixed persisted scene snapshot entity-id alignment when the current message advances fewer characters than the full active scene, preventing scene participants from being mapped onto the wrong entity-scoped buckets.
+
+### Changed
+- Added regression coverage for persisted scene owner/entity alignment across narrower message-focus turns.
+
 ## [2.5.3.1-dev1] - 2026-04-10
 ### Fixed
 - Fixed disabled prompt injection so the `{{bst_injection}}` macro/debug state is cleared together with the hidden ST extension prompt instead of retaining the latest tracker guidance block.

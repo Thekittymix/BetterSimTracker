@@ -22,6 +22,7 @@ import {
   resolveInitialExtractionOwners,
   resolveModelExtractionOwnerScopes,
   resolvePersistedSnapshotResolvedEntities,
+  resolvePersistedSnapshotActiveEntityIds,
   resolvePersistedSnapshotActiveOwners,
   resolvePersistedSnapshotEntityOwners,
   resolveStableEntityIdForOwner,
@@ -4124,6 +4125,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       requestCharacters: activeCharacters,
       userExtraction,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const persistedSceneActiveEntityIds = resolvePersistedSnapshotActiveEntityIds({
+      sceneActiveEntityIds,
+      requestEntityIds,
+      userExtraction,
+    });
     const persistedResolvedEntities = resolvePersistedSnapshotResolvedEntities({
       context,
       sceneActiveCharacters,
@@ -4147,7 +4153,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     latestData = buildPersistedTrackerSnapshot({
       context,
       activeCharacters: persistedSceneActiveCharacters,
-      activeEntityIds,
+      activeEntityIds: persistedSceneActiveEntityIds,
       explicitTargetToEntity: persistedExplicitTargetToEntity,
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
       resolvedEntities: filteredPersistedResolvedEntities,
