@@ -3457,6 +3457,13 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
                 ));
                 return aliases;
               })(),
+              lifecycle: registryEntry
+                ? {
+                    state: registryEntry.lifecycleState,
+                    lastSeenMessageIndex: registryEntry.lastSeenMessageIndex,
+                    lastActiveMessageIndex: registryEntry.lastActiveMessageIndex,
+                  }
+                : undefined,
             };
           });
           const recentTrackerHistory = selectResolverContinuityHistoryEntries(

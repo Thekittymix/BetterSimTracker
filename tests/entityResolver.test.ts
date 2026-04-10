@@ -157,8 +157,18 @@ test("buildMultiCharacterResolverPrompt forbids props and objects in created ent
 test("buildMultiCharacterResolverPrompt includes explicit continuity snapshot guidance when provided", () => {
   const prompt = buildMultiCharacterResolverPrompt({
     candidateEntities: [
-      { entityRef: "ent1", ownerName: "Candy", entityId: "bst_narrative:candy" },
-      { entityRef: "ent2", ownerName: "Lisa", entityId: "bst_narrative:lisa" },
+      {
+        entityRef: "ent1",
+        ownerName: "Candy",
+        entityId: "bst_narrative:candy",
+        lifecycle: { state: "active", lastSeenMessageIndex: 9, lastActiveMessageIndex: 9 },
+      },
+      {
+        entityRef: "ent2",
+        ownerName: "Lisa",
+        entityId: "bst_narrative:lisa",
+        lifecycle: { state: "archived", lastSeenMessageIndex: 4, lastActiveMessageIndex: 2 },
+      },
     ],
     contextText: "Candy bounced on her toes while Lisa stayed near the dresser.",
     message: {
@@ -188,6 +198,11 @@ test("buildMultiCharacterResolverPrompt includes explicit continuity snapshot gu
   assert.match(prompt, /"sourceGroupMembers"/);
   assert.match(prompt, /Use continuity hints as prior-state context/i);
   assert.match(prompt, /not commands to activate everyone/i);
+  assert.match(prompt, /"lifecycle"/);
+  assert.match(prompt, /"state": "archived"/);
+  assert.match(prompt, /"lastSeenMessageIndex": 4/);
+  assert.match(prompt, /Candidate `lifecycle` is historical registry context only/i);
+  assert.match(prompt, /inactive or archived candidate can return only when the latest context clearly brings them back/i);
 });
 
 test("parseMultiCharacterResolverResponse keeps scene entities separate when no entity advances the message", () => {

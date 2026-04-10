@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev6] - 2026-04-10
+### Changed
+- Added registry lifecycle context to resolver candidates so inactive and archived entities can be interpreted against recent message evidence instead of treated as anonymous names.
+
 ## [2.5.3.1-dev5] - 2026-04-10
 ### Changed
 - Added per-entity continuity hints to the model-backed resolver prompt so recent scene, persistent-scene, and source-group context is available without treating it as an instruction to activate every character.
