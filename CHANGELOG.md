@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev3] - 2026-04-10
+### Changed
+- Added a targeted runtime refresh API for diagnostics so `window.BetterSimTracker.refresh({ messageIndex })` can retrack a specific chat message without changing the default refresh behavior.
+
 ## [2.5.3.1-dev2] - 2026-04-10
 ### Fixed
 - Fixed persisted scene snapshot entity-id alignment when the current message advances fewer characters than the full active scene, preventing scene participants from being mapped onto the wrong entity-scoped buckets.

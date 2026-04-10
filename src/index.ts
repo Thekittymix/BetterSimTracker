@@ -193,6 +193,7 @@ import {
   resolveDirtyRenderStart,
 } from "./renderQueueHelpers";
 import { resolveGroupReplayTarget } from "./userTurnReplayTarget";
+import { normalizeRefreshTargetMessageIndex, type RefreshTargetInput } from "./windowApi";
 
 declare const __BST_VERSION__: string;
 
@@ -4989,8 +4990,8 @@ function toggle(): boolean {
   return settings.enabled;
 }
 
-async function refresh(): Promise<void> {
-  await runExtraction("manual_refresh");
+async function refresh(input?: RefreshTargetInput): Promise<void> {
+  await runExtraction("manual_refresh", normalizeRefreshTargetMessageIndex(input));
 }
 
 function exposeWindowApi(): void {
