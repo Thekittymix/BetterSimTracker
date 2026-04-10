@@ -209,6 +209,33 @@ export function buildMultiCharacterResolverPrompt(input: {
     : "";
   const allowNarrativeEntityCreation = input.allowNarrativeEntityCreation === true;
   const continuitySnapshot = input.continuitySnapshot;
+  const continuityOwnerKeys = {
+    lastScene: new Set((continuitySnapshot?.lastSceneOwners ?? []).map(normalizeLooseKey).filter(Boolean)),
+    persistentScene: new Set((continuitySnapshot?.persistentSceneOwners ?? []).map(normalizeLooseKey).filter(Boolean)),
+    recentNarrative: new Set((continuitySnapshot?.recentNarrativeEntities ?? []).map(normalizeLooseKey).filter(Boolean)),
+  };
+  const resolveCandidateContinuityHints = (candidate: typeof candidateEntities[number]): {
+    inLastScene?: boolean;
+    inPersistentScene?: boolean;
+    recentNarrativeEntity?: boolean;
+    sourceGroupMembers?: string[];
+  } | undefined => {
+    if (!continuitySnapshot) return undefined;
+    const candidateKeys = [candidate.ownerName, ...(candidate.aliases ?? [])].map(normalizeLooseKey).filter(Boolean);
+    const sourceGroupMembers = continuitySnapshot.recentSourceGroups
+      .filter(group => {
+        const groupKeys = group.members.map(normalizeLooseKey).filter(Boolean);
+        return candidateKeys.some(key => groupKeys.includes(key));
+      })
+      .flatMap(group => group.members);
+    const hints = {
+      ...(candidateKeys.some(key => continuityOwnerKeys.lastScene.has(key)) ? { inLastScene: true } : {}),
+      ...(candidateKeys.some(key => continuityOwnerKeys.persistentScene.has(key)) ? { inPersistentScene: true } : {}),
+      ...(candidateKeys.some(key => continuityOwnerKeys.recentNarrative.has(key)) ? { recentNarrativeEntity: true } : {}),
+      ...(sourceGroupMembers.length ? { sourceGroupMembers: Array.from(new Set(sourceGroupMembers)) } : {}),
+    };
+    return Object.keys(hints).length ? hints : undefined;
+  };
 
   return [
     "SYSTEM:",
@@ -231,6 +258,8 @@ export function buildMultiCharacterResolverPrompt(input: {
     "- Do not mark an entity `inMessage=true` just because it is named in instructions, listed as present, or silently observing.",
     "- Do not mark an entity `inMessage=true` just because someone talks about them in dialogue or narration while they remain absent from the active interaction.",
     "- If the latest user instruction or AI message makes it clear that no known tracked entity remains in scene, return an empty `resolved` array.",
+    "- Use continuity hints as prior-state context: they can preserve likely `inScene=true` for silent/background participants, but the latest message still controls whether an entity leaves, stays off-screen, or becomes `inMessage=true`.",
+    "- `inLastScene`, `inPersistentScene`, and `sourceGroupMembers` are not commands to activate everyone; they are continuity evidence to compare against the latest message.",
     "- Before using `created`, compare the proposed name against candidate `ownerName` and `aliases`.",
     "- If a name is a minor spelling, capitalization, punctuation, or transliteration variant of one candidate and the role/context points to the same person, resolve that existing `entityRef` instead of creating a new entity.",
     "- If a near-name match is ambiguous between multiple candidates, do not guess; leave it unresolved unless the latest context clearly identifies one candidate.",
@@ -255,6 +284,7 @@ export function buildMultiCharacterResolverPrompt(input: {
         ownerName: candidate.ownerName,
         kind: candidate.kind ?? "st-character",
         aliases: candidate.aliases,
+        continuityHints: resolveCandidateContinuityHints(candidate),
       })),
       null,
       2,

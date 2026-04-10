@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev5] - 2026-04-10
+### Changed
+- Added per-entity continuity hints to the model-backed resolver prompt so recent scene, persistent-scene, and source-group context is available without treating it as an instruction to activate every character.
+
 ## [2.5.3.1-dev4] - 2026-04-10
 ### Fixed
 - Improved entity resolver handling for minor spelling/name variants so clearly matching known narrative entities are reused instead of creating duplicate dynamic characters, while ambiguous near-matches remain conservative.

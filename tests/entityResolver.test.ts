@@ -181,6 +181,13 @@ test("buildMultiCharacterResolverPrompt includes explicit continuity snapshot gu
   assert.match(prompt, /"persistentSceneOwners"/);
   assert.match(prompt, /"recentNarrativeEntities"/);
   assert.match(prompt, /Candy, Lisa, Serena/);
+  assert.match(prompt, /"continuityHints"/);
+  assert.match(prompt, /"inLastScene": true/);
+  assert.match(prompt, /"inPersistentScene": true/);
+  assert.match(prompt, /"recentNarrativeEntity": true/);
+  assert.match(prompt, /"sourceGroupMembers"/);
+  assert.match(prompt, /Use continuity hints as prior-state context/i);
+  assert.match(prompt, /not commands to activate everyone/i);
 });
 
 test("parseMultiCharacterResolverResponse keeps scene entities separate when no entity advances the message", () => {
