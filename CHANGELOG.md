@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev4] - 2026-04-10
+### Fixed
+- Improved entity resolver handling for minor spelling/name variants so clearly matching known narrative entities are reused instead of creating duplicate dynamic characters, while ambiguous near-matches remain conservative.
+
 ## [2.5.3.1-dev3] - 2026-04-10
 ### Changed
 - Added a targeted runtime refresh API for diagnostics so `window.BetterSimTracker.refresh({ messageIndex })` can retrack a specific chat message without changing the default refresh behavior.

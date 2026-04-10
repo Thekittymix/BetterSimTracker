@@ -10,6 +10,38 @@ function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+function normalizeLooseKey(value: unknown): string {
+  return normalizeToken(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function boundedEditDistanceAtMostOne(left: string, right: string): boolean {
+  if (left === right) return true;
+  const lengthDelta = Math.abs(left.length - right.length);
+  if (lengthDelta > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (left.length > right.length) {
+      i += 1;
+    } else if (right.length > left.length) {
+      j += 1;
+    } else {
+      i += 1;
+      j += 1;
+    }
+  }
+  if (i < left.length || j < right.length) edits += 1;
+  return edits <= 1;
+}
+
 function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
   const normalizedEntityId = normalizeToken(entityId);
   if (!normalizedEntityId) return "";
@@ -199,6 +231,9 @@ export function buildMultiCharacterResolverPrompt(input: {
     "- Do not mark an entity `inMessage=true` just because it is named in instructions, listed as present, or silently observing.",
     "- Do not mark an entity `inMessage=true` just because someone talks about them in dialogue or narration while they remain absent from the active interaction.",
     "- If the latest user instruction or AI message makes it clear that no known tracked entity remains in scene, return an empty `resolved` array.",
+    "- Before using `created`, compare the proposed name against candidate `ownerName` and `aliases`.",
+    "- If a name is a minor spelling, capitalization, punctuation, or transliteration variant of one candidate and the role/context points to the same person, resolve that existing `entityRef` instead of creating a new entity.",
+    "- If a near-name match is ambiguous between multiple candidates, do not guess; leave it unresolved unless the latest context clearly identifies one candidate.",
     ...(allowNarrativeEntityCreation
       ? [
           "- Use `created` only for clearly new non-user characters, beings, or scene actors that are distinct, scene-relevant, and not already covered by the known candidate list.",
@@ -298,6 +333,7 @@ export function parseMultiCharacterResolverResponse(
       .map(candidate => [normalizeToken(candidate.entityId), candidate] as const),
   );
   const candidateByName = new Map<string, MultiCharacterResolverCandidate>();
+  const candidateList = candidateEntities.filter(candidate => normalizeToken(candidate.entityRef) && normalizeToken(candidate.ownerName));
   for (const candidate of candidateEntities) {
     const ownerName = normalizeToken(candidate.ownerName);
     if (ownerName && !candidateByName.has(ownerName.toLowerCase())) {
@@ -310,6 +346,26 @@ export function parseMultiCharacterResolverResponse(
       }
     }
   }
+
+  const resolveFuzzyCandidateByName = (name: string): MultiCharacterResolverCandidate | null => {
+    const nameKey = normalizeLooseKey(name);
+    if (!nameKey) return null;
+    const matches = new Map<string, MultiCharacterResolverCandidate>();
+    for (const candidate of candidateList) {
+      const candidateNames = [candidate.ownerName, ...(candidate.aliases ?? [])]
+        .map(alias => normalizeLooseKey(alias))
+        .filter(Boolean);
+      if (!candidateNames.some(candidateKey =>
+        candidateKey[0] === nameKey[0] && boundedEditDistanceAtMostOne(candidateKey, nameKey),
+      )) {
+        continue;
+      }
+      const matchKey = normalizeToken(candidate.entityId) || normalizeToken(candidate.entityRef) || normalizeToken(candidate.ownerName).toLowerCase();
+      if (!matchKey) continue;
+      matches.set(matchKey, candidate);
+    }
+    return matches.size === 1 ? Array.from(matches.values())[0] ?? null : null;
+  };
 
   const resolveCandidate = (item: Record<string, unknown>): CandidateMatch | null => {
     const entityRef = normalizeToken(item.entityRef);
@@ -332,7 +388,7 @@ export function parseMultiCharacterResolverResponse(
       .map(value => normalizeToken(value))
       .find(Boolean);
     if (directName) {
-      const candidate = candidateByName.get(directName.toLowerCase()) ?? null;
+      const candidate = candidateByName.get(directName.toLowerCase()) ?? resolveFuzzyCandidateByName(directName);
       if (!candidate) return null;
       const matchedBy: CandidateMatchKind = normalizeToken(candidate.ownerName).toLowerCase() === directName.toLowerCase()
         ? "owner_name"

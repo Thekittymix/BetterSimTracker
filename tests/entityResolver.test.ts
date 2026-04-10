@@ -32,6 +32,8 @@ test("buildMultiCharacterResolverPrompt lists candidate owners and latest messag
   assert.match(prompt, /Blake watched the door click shut\./);
   assert.match(prompt, /inScene=true.*end of the latest message/i);
   assert.match(prompt, /`inMessage` may be true while `inScene` is false/i);
+  assert.match(prompt, /minor spelling, capitalization, punctuation, or transliteration variant/i);
+  assert.match(prompt, /resolve that existing `entityRef` instead of creating a new entity/i);
 });
 
 test("buildMultiCharacterResolverPrompt includes previous-message responder guidance without relying on phrase hardcoding in code", () => {
@@ -463,6 +465,63 @@ test("parseMultiCharacterResolverResponse preserves narrative creation proposals
       },
     ],
     unresolvedMentions: ["Forest Spirit"],
+  });
+});
+
+test("parseMultiCharacterResolverResponse resolves a unique minor spelling variant to an existing candidate", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [
+        { name: "Elise", inScene: true, inMessage: true },
+      ],
+      created: [],
+      unresolvedMentions: [],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Elyse", entityId: "bst_narrative:elyse", kind: "narrative-entity" },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:elyse",
+        kind: "narrative-entity",
+        name: "Elyse",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: true,
+        sceneEvidence: ["resolver_alias"],
+        messageEvidence: ["resolver_alias"],
+        sceneConfidence: 0.72,
+        messageConfidence: 0.72,
+      },
+    ],
+    createdEntities: [],
+    unresolvedMentions: [],
+  });
+});
+
+test("parseMultiCharacterResolverResponse leaves ambiguous minor spelling variants unresolved", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [
+        { name: "Elise", inScene: true, inMessage: true },
+      ],
+      created: [],
+      unresolvedMentions: ["Elise"],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Elyse", entityId: "bst_narrative:elyse", kind: "narrative-entity" },
+      { entityRef: "ent2", ownerName: "Elisa", entityId: "bst_narrative:elisa", kind: "narrative-entity" },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    resolvedEntities: [],
+    createdEntities: [],
+    unresolvedMentions: ["Elise"],
   });
 });
 

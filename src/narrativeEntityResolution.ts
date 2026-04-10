@@ -477,7 +477,21 @@ function findNarrativeRegistryMatch(
       looseMatches.set(entry.id, entry);
     }
   }
-  return looseMatches.size === 1 ? Array.from(looseMatches.values())[0] : null;
+  if (looseMatches.size === 1) return Array.from(looseMatches.values())[0] ?? null;
+
+  const fuzzyMatches = new Map<string, TrackerEntityRegistryEntry>();
+  const nameKeys = names.map(name => normalizeLooseKey(name)).filter(Boolean);
+  for (const entry of Object.values(registry.entities)) {
+    if (entry.kind !== "narrative-entity") continue;
+    const entryKeys = buildAliasPool(entry.ownerName, entry.aliases).map(alias => normalizeLooseKey(alias)).filter(Boolean);
+    const matches = nameKeys.some(nameKey =>
+      entryKeys.some(entryKey =>
+        entryKey[0] === nameKey[0] && boundedEditDistanceAtMostOne(entryKey, nameKey),
+      ),
+    );
+    if (matches) fuzzyMatches.set(entry.id, entry);
+  }
+  return fuzzyMatches.size === 1 ? Array.from(fuzzyMatches.values())[0] ?? null : null;
 }
 
 function slugifyNarrativeEntityName(name: string): string {

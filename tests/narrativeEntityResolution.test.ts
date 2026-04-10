@@ -382,6 +382,146 @@ test("materializeNarrativeEntityCreations reuses archived narrative registry ent
   });
 });
 
+test("materializeNarrativeEntityCreations reuses a unique minor spelling variant from the narrative registry", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_narrative:elyse": {
+          id: "bst_narrative:elyse",
+          ownerName: "Elyse",
+          canonicalName: "Elyse",
+          aliases: [],
+          sourceName: "Elyse",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:elyse",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "archived",
+          archivedAtMessageIndex: 1,
+          lifecycleEvents: [
+            { messageIndex: 0, state: "active" },
+            { messageIndex: 1, state: "archived" },
+          ],
+        },
+      },
+      ownerToEntityId: {
+        elyse: "bst_narrative:elyse",
+      },
+    },
+  };
+
+  const result = materializeNarrativeEntityCreations({
+    context,
+    settings: { entityTrackingMode: "dynamic_characters" },
+    candidateEntities: [],
+    resolvedEntities: [],
+    createdEntities: [
+      { name: "Elise", inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["Elise"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:elyse",
+        kind: "narrative-entity",
+        name: "Elyse",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
+test("materializeNarrativeEntityCreations does not reuse ambiguous minor spelling variants from the narrative registry", () => {
+  const context = makeContext();
+  context.chatMetadata = {
+    bstEntityRegistry: {
+      version: 1,
+      entities: {
+        "bst_narrative:elyse": {
+          id: "bst_narrative:elyse",
+          ownerName: "Elyse",
+          canonicalName: "Elyse",
+          aliases: [],
+          sourceName: "Elyse",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:elyse",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "archived",
+          archivedAtMessageIndex: 1,
+          lifecycleEvents: [
+            { messageIndex: 0, state: "active" },
+            { messageIndex: 1, state: "archived" },
+          ],
+        },
+        "bst_narrative:elisa": {
+          id: "bst_narrative:elisa",
+          ownerName: "Elisa",
+          canonicalName: "Elisa",
+          aliases: [],
+          sourceName: "Elisa",
+          sourceAvatar: null,
+          sourceKey: "narrative:bst_narrative:elisa",
+          kind: "narrative-entity",
+          introducedAtMessageIndex: 0,
+          lastSeenMessageIndex: 0,
+          lastActiveMessageIndex: 0,
+          lifecycleState: "archived",
+          archivedAtMessageIndex: 1,
+          lifecycleEvents: [
+            { messageIndex: 0, state: "active" },
+            { messageIndex: 1, state: "archived" },
+          ],
+        },
+      },
+      ownerToEntityId: {
+        elyse: "bst_narrative:elyse",
+        elisa: "bst_narrative:elisa",
+      },
+    },
+  };
+
+  const result = materializeNarrativeEntityCreations({
+    context,
+    settings: { entityTrackingMode: "dynamic_characters" },
+    candidateEntities: [],
+    resolvedEntities: [],
+    createdEntities: [
+      { name: "Elise", inScene: true, inMessage: true },
+    ],
+    unresolvedMentions: ["Elise"],
+  });
+
+  assert.deepEqual(result, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:elise",
+        kind: "narrative-entity",
+        name: "Elise",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: true,
+        created: true,
+      },
+    ],
+    unresolvedMentions: [],
+  });
+});
+
 test("materializeNarrativeEntityCreations reuses archived narrative registry entities when created names include a leading article", () => {
   const context = makeContext();
   context.chatMetadata = {
