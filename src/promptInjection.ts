@@ -710,8 +710,17 @@ export async function syncPromptInjection(input: {
   settings: BetterSimTrackerSettings;
   data: TrackerData | null;
 }): Promise<void> {
-  const { context, settings, data } = input;
   const module = await loadScriptModule();
+  await syncPromptInjectionWithScriptModule({ ...input, module });
+}
+
+function syncPromptInjectionWithScriptModule(input: {
+  context: STContext;
+  settings: BetterSimTrackerSettings;
+  data: TrackerData | null;
+  module: ScriptModule | null;
+}): void {
+  const { context, settings, data, module } = input;
   const setExtensionPrompt = module?.setExtensionPrompt;
   if (typeof setExtensionPrompt !== "function") return;
 
@@ -728,6 +737,13 @@ export async function syncPromptInjection(input: {
     return;
   }
 
+  if (!settings.injectTrackerIntoPrompt) {
+    lastInjectedPrompt = "";
+    lastInjectedPromptDebug = null;
+    setExtensionPrompt(INJECT_KEY, "", inChat, depth, false, systemRole);
+    return;
+  }
+
   const prompt = buildPrompt(data, settings, context);
   lastInjectedPrompt = prompt;
   const ownerLines = extractOwnerLinesFromPrompt(prompt);
@@ -737,10 +753,6 @@ export async function syncPromptInjection(input: {
     ownerLines,
     reservedOwnerLineDetected: ownerLines.some(line => /silly\s*tavern\s*system|sillytavern\s*system|^\-\s*system\b/i.test(line)),
   };
-  if (!settings.injectTrackerIntoPrompt) {
-    setExtensionPrompt(INJECT_KEY, "", inChat, depth, false, systemRole);
-    return;
-  }
 
   setExtensionPrompt(INJECT_KEY, prompt, inChat, depth, Boolean(prompt), systemRole);
 }
@@ -757,4 +769,5 @@ export const __testables = {
   buildPrompt,
   isOwnerStatEnabled,
   resolveInjectionTargetOwner,
+  syncPromptInjectionWithScriptModule,
 };

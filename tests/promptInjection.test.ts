@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { buildEntityResolution } from "./helpers/entityResolution";
 
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
-import { __testables } from "../src/promptInjection";
+import { __testables, getLastInjectedPrompt } from "../src/promptInjection";
 import { defaultSettings } from "../src/settings";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
 
@@ -1061,4 +1061,48 @@ test("buildPrompt prefers the current narrative entity id over colliding owner d
 
   const prompt = __testables.buildPrompt(data, settings, context);
   assert.match(prompt, /- Blake: mood=Guarded/);
+});
+
+test("syncPromptInjection clears both ST prompt and bst_injection macro state when injection is disabled", async () => {
+  const calls: Array<{
+    key: string;
+    value: string;
+    position: number;
+    depth: number;
+    scan?: boolean;
+    role?: number;
+  }> = [];
+  const settings = makeSettings({
+    injectTrackerIntoPrompt: false,
+    trackMood: true,
+  });
+  const data = makeTracker({
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Seraphina: "Hopeful" },
+      lastThought: {},
+    },
+  });
+
+  await __testables.syncPromptInjectionWithScriptModule({
+    context: makeContext(),
+    settings,
+    data,
+    module: {
+      extension_prompt_types: { IN_CHAT: 3 },
+      extension_prompt_roles: { SYSTEM: 0 },
+      setExtensionPrompt: (key, value, position, depth, scan, role) => {
+        calls.push({ key, value, position, depth, scan, role });
+      },
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].key, "bst_relationship_state");
+  assert.equal(calls[0].value, "");
+  assert.equal(calls[0].scan, false);
+  assert.equal(getLastInjectedPrompt(), "");
 });

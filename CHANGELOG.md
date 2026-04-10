@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev1] - 2026-04-10
+### Fixed
+- Fixed disabled prompt injection so the `{{bst_injection}}` macro/debug state is cleared together with the hidden ST extension prompt instead of retaining the latest tracker guidance block.
+
+### Changed
+- Added regression coverage for disabled prompt injection cleanup and manual tracker-edit persistence through reread, registry sync, and render target selection.
+
 ## [2.5.3.1] - 2026-04-09
 ### Fixed
 - Fixed continuity ordering for retracks and merged runtime state so newer message indices now win over later-written older snapshots across history, prompt/runtime merge, and retrack seeding.

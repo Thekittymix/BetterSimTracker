@@ -8,8 +8,14 @@ import { syncEntityRegistryFromTrackerData } from "../src/entityRegistrySync";
 import { hasCharacterOwnedTrackedValueForSelection, overlayLatestOwnerScopedContinuity } from "../src/extractionBaselineHelpers";
 import { writeTrackerDataToMessage, getTrackerDataFromMessage } from "../src/storage";
 import { buildEditedTrackerDataSnapshot, applyEditedTrackerActiveState, syncEditedTrackerEntityState } from "../src/trackerEditState";
-import { resolveCurrentLifecycleOwnersForTrackerData } from "../src/ui";
-import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
+import {
+  collectCharacterNamesFromTrackerData,
+  filterRenderTargetsForTrackingMode,
+  mergeRegistryRenderTargets,
+  resolveCurrentLifecycleOwnersForTrackerData,
+  selectDisplayPoolTargetsWithRegistry,
+} from "../src/ui";
+import type { BetterSimTrackerSettings, STContext, TrackerData, TrackerEntityRegistryEntry } from "../src/types";
 
 function assertSameMembers(actual: string[], expected: string[]): void {
   assert.deepEqual([...actual].sort(), [...expected].sort());
@@ -315,6 +321,44 @@ test("manual tracker edit save keeps inactive narrative entity continuity availa
   const registry = readEntityRegistry(context);
   assert.equal(registry.ownerToEntityId.candy, "bst_narrative:candy");
   assert.equal(registry.entities["bst_narrative:candy"]?.lifecycleState, "inactive");
+
+  const registryEntries = Object.values(registry.entities);
+  const registryEntryByOwner = new Map(
+    registryEntries.map(entry => [String(entry.ownerName ?? "").trim().toLowerCase(), entry] as const),
+  );
+  const mergedRenderTargets = mergeRegistryRenderTargets({
+    targets: [
+      ...collectCharacterNamesFromTrackerData(context, reread),
+      ...resolveCurrentLifecycleOwnersForTrackerData(reread),
+    ],
+    registryEntries,
+    resolveRegistryEntry: ownerName => registryEntryByOwner.get(ownerName.toLowerCase()) ?? null,
+  });
+  const displayPoolTargets = selectDisplayPoolTargetsWithRegistry({
+    entityTrackingMode: settings.entityTrackingMode,
+    includeAllTargets: settings.showInactive,
+    activeCharacters: resolveCurrentLifecycleOwnersForTrackerData(reread),
+    dataCharacterNames: collectCharacterNamesFromTrackerData(context, reread),
+    mergedWithRegistryTargets: mergedRenderTargets,
+    resolveTarget: ownerName => {
+      const entry = registryEntryByOwner.get(ownerName.toLowerCase()) ?? null;
+      return {
+        ownerName,
+        uiKey: entry?.id ?? ownerName,
+        registryEntry: entry as TrackerEntityRegistryEntry | null,
+      };
+    },
+    shouldKeepTarget: () => true,
+  });
+  const visibleTargets = filterRenderTargetsForTrackingMode({
+    entityTrackingMode: settings.entityTrackingMode,
+    targets: displayPoolTargets,
+  });
+  const candyTarget = visibleTargets.find(target => target.registryEntry?.id === "bst_narrative:candy");
+
+  assert.ok(candyTarget);
+  assert.equal(candyTarget.ownerName, "Candy");
+  assert.equal(candyTarget.registryEntry?.lifecycleState, "inactive");
 
   assert.equal(
     hasCharacterOwnedTrackedValueForSelection(

@@ -241,7 +241,7 @@ Numeric scaling formula used by runtime:
 - `Regenerate Tracker After Message Edit`: controls whether editing an already tracked message auto-runs extraction again for that message
 - `Strict JSON Repair`: retries if model output is invalid
 - `Auto Detect Active`: scene-based active character detection
-- `Inject Tracker Into Prompt`: uses current relationship state as hidden guidance
+- `Inject Tracker Into Prompt`: uses current relationship state as hidden guidance; when disabled, BST also clears the `{{bst_injection}}` macro state instead of exposing the last generated guidance block.
 - `Injection Depth`: controls prompt-injection depth in the in-chat prompt stack (`0..8`)
 - `Summarization Note Visible for AI`: controls visibility mode for newly generated Summarize notes (prose summaries of current tracked stats) in the active chat (`ON` = AI-visible notes, `OFF` = hidden system notes)
 - `Inject Summarization Note`: appends the latest Summarize note (prose summary of current tracked stats) into hidden prompt injection guidance
@@ -278,7 +278,7 @@ Numeric scaling formula used by runtime:
 - `Max Delta Per Turn`: hard clamp for how much one update can change a numeric stat.
 - `Confidence Dampening`: scales delta strength by model confidence.
 - `Mood Stickiness`: keeps mood stable unless model confidence/context strongly supports change.
-- `Inject Tracker Into Prompt`: inject hidden relationship state guidance into chat generation prompts.
+- `Inject Tracker Into Prompt`: inject hidden relationship state guidance into chat generation prompts. When disabled, the hidden prompt and `{{bst_injection}}` macro output are both cleared.
 - `Injection Depth`: depth value passed to ST extension prompt injection (`0` = nearest/top in-chat insertion, max `8`).
 - `Summarization Note Visible for AI`: when enabled, newly generated Summarize notes (prose summaries of current tracked stats) are AI-visible in the current chat; when disabled, newly generated notes are hidden system notes. Existing notes are not changed retroactively.
 - `Inject Summarization Note`: when enabled, the latest Summarize note (prose summary of current tracked stats) is added to prompt injection guidance.
