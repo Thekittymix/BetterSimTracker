@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 
 import {
   buildMultiCharacterResolverPrompt,
-  filterResolvedEntitiesForLifecycleReactivation,
   parseMultiCharacterResolverResponse,
   resolveMessageOwnersFromResolvedEntities,
   resolveResolvedEntityConfidence,
@@ -556,86 +555,6 @@ test("parseMultiCharacterResolverResponse leaves ambiguous minor spelling varian
     createdEntities: [],
     unresolvedMentions: ["Elise"],
   });
-});
-
-test("filterResolvedEntitiesForLifecycleReactivation removes inactive or archived entities without latest-message evidence", () => {
-  const resolvedEntities = [
-    {
-      entityId: "bst_narrative:serena",
-      kind: "narrative-entity" as const,
-      name: "Serena",
-      avatar: null,
-      inScene: true,
-      inMessage: true,
-    },
-    {
-      entityId: "bst_narrative:lisa",
-      kind: "narrative-entity" as const,
-      name: "Lisa",
-      avatar: null,
-      inScene: true,
-      inMessage: false,
-    },
-    {
-      entityId: "bst_narrative:candy",
-      kind: "narrative-entity" as const,
-      name: "Candy",
-      avatar: null,
-      inScene: true,
-      inMessage: false,
-    },
-  ];
-
-  assert.deepEqual(filterResolvedEntitiesForLifecycleReactivation({
-    resolvedEntities,
-    candidateEntities: [
-      { entityRef: "ent1", ownerName: "Serena", entityId: "bst_narrative:serena", kind: "narrative-entity", lifecycle: { state: "active" } },
-      { entityRef: "ent2", ownerName: "Lisa", entityId: "bst_narrative:lisa", kind: "narrative-entity", lifecycle: { state: "archived" } },
-      { entityRef: "ent3", ownerName: "Candy", entityId: "bst_narrative:candy", kind: "narrative-entity", lifecycle: { state: "inactive" } },
-    ],
-    messageText: "Serena leaned closer to Marylyn in the hallway. Marylyn answered her directly.",
-    messageName: "Your Family",
-  }), [
-    {
-      entityId: "bst_narrative:serena",
-      kind: "narrative-entity",
-      name: "Serena",
-      avatar: null,
-      inScene: true,
-      inMessage: true,
-    },
-  ]);
-});
-
-test("filterResolvedEntitiesForLifecycleReactivation allows inactive or archived entities with direct or unique near-name evidence", () => {
-  const resolvedEntities = [
-    {
-      entityId: "bst_narrative:lisa",
-      kind: "narrative-entity" as const,
-      name: "Lisa",
-      avatar: null,
-      inScene: true,
-      inMessage: true,
-    },
-    {
-      entityId: "bst_narrative:elyse",
-      kind: "narrative-entity" as const,
-      name: "Elyse",
-      avatar: null,
-      inScene: true,
-      inMessage: true,
-    },
-  ];
-
-  assert.deepEqual(filterResolvedEntitiesForLifecycleReactivation({
-    resolvedEntities,
-    candidateEntities: [
-      { entityRef: "ent1", ownerName: "Lisa", entityId: "bst_narrative:lisa", kind: "narrative-entity", lifecycle: { state: "archived" } },
-      { entityRef: "ent2", ownerName: "Elyse", entityId: "bst_narrative:elyse", kind: "narrative-entity", lifecycle: { state: "inactive" } },
-    ],
-    messageText: "Lisa returned to the hallway as Elise stepped in behind her.",
-    messageName: "Your Family",
-  }), resolvedEntities);
 });
 
 test("parseMultiCharacterResolverResponse preserves narrative candidate kinds", () => {

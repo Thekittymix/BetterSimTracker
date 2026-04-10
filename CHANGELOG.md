@@ -2,9 +2,9 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.3.1-dev9] - 2026-04-10
+## [2.5.3.1-dev10] - 2026-04-10
 ### Fixed
-- Blocked inactive and archived dynamic entities from being reactivated by resolver continuity alone unless the latest message provides current identity evidence for that entity.
+- Removed the invalid dev9 lifecycle reactivation guard so normal scene continuity can continue preserving recently active silent/background participants.
 
 ## [2.5.3.1-dev8] - 2026-04-10
 ### Changed

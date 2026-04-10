@@ -30,7 +30,6 @@ import {
 } from "./entityResolution";
 import {
   buildMultiCharacterResolverPrompt,
-  filterResolvedEntitiesForLifecycleReactivation,
   parseMultiCharacterResolverResponse,
   resolveMessageEntityIdsFromResolvedEntities,
   resolveMessageOwnersFromResolvedEntities,
@@ -3496,12 +3495,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
                 unresolvedMentions: parsedResolver.unresolvedMentions,
               })
             : null;
-          const finalResolvedEntities = filterResolvedEntitiesForLifecycleReactivation({
-            resolvedEntities: materializedResolution?.resolvedEntities ?? (parsedResolver?.resolvedEntities ?? []),
-            candidateEntities,
-            messageText: String(lastMessage?.mes ?? ""),
-            messageName: String(lastMessage?.name ?? ""),
-          });
+          const finalResolvedEntities = materializedResolution?.resolvedEntities ?? (parsedResolver?.resolvedEntities ?? []);
           const parsedSceneOwners = parsedResolver
             ? resolveSceneOwnersFromResolvedEntities(finalResolvedEntities)
             : [];

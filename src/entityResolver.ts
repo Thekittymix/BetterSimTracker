@@ -36,19 +36,6 @@ function collectMentionedAliases(text: string, aliases: string[]): string[] {
   return mentioned;
 }
 
-function collectLooseMentionKeysForAliasShape(messageText: string, alias: string): string[] {
-  const aliasTokens = normalizeToken(alias).match(/[A-Za-z0-9]+/g) ?? [];
-  if (!aliasTokens.length || aliasTokens.length > 4) return [];
-  const messageTokens = normalizeToken(messageText).match(/[A-Za-z0-9]+/g) ?? [];
-  if (messageTokens.length < aliasTokens.length) return [];
-  const keys: string[] = [];
-  for (let index = 0; index <= messageTokens.length - aliasTokens.length; index += 1) {
-    const key = normalizeLooseKey(messageTokens.slice(index, index + aliasTokens.length).join(" "));
-    if (key) keys.push(key);
-  }
-  return Array.from(new Set(keys));
-}
-
 function boundedEditDistanceAtMostOne(left: string, right: string): boolean {
   if (left === right) return true;
   const lengthDelta = Math.abs(left.length - right.length);
@@ -614,108 +601,6 @@ export function parseMultiCharacterResolverResponse(
     createdEntities,
     unresolvedMentions,
   };
-}
-
-function resolveCandidateLookupNames(candidate: MultiCharacterResolverCandidate): string[] {
-  return Array.from(new Set(
-    [candidate.ownerName, ...(candidate.aliases ?? [])]
-      .map(normalizeToken)
-      .filter(Boolean),
-  ));
-}
-
-function hasLatestReactivationEvidence(
-  messageText: string,
-  messageName: string,
-  candidate: MultiCharacterResolverCandidate,
-  candidates: MultiCharacterResolverCandidate[],
-): boolean {
-  const lookupNames = resolveCandidateLookupNames(candidate);
-  if (!lookupNames.length) return false;
-  if (collectMentionedAliases(messageText, lookupNames).length) return true;
-  if (messageName && collectMentionedAliases(messageName, lookupNames).length) return true;
-
-  const candidateKey = normalizeToken(candidate.entityId)
-    || normalizeToken(candidate.entityRef)
-    || normalizeToken(candidate.ownerName).toLowerCase();
-  const matchedMentionKeys = new Set<string>();
-  for (const lookupName of lookupNames) {
-    const lookupKey = normalizeLooseKey(lookupName);
-    if (lookupKey.length < 3) continue;
-    for (const mentionKey of collectLooseMentionKeysForAliasShape(messageText, lookupName)) {
-      if (
-        mentionKey.length < 3
-        || mentionKey === lookupKey
-        || mentionKey[0] !== lookupKey[0]
-        || !boundedEditDistanceAtMostOne(mentionKey, lookupKey)
-      ) {
-        continue;
-      }
-      matchedMentionKeys.add(mentionKey);
-    }
-  }
-  if (!matchedMentionKeys.size) return false;
-
-  for (const mentionKey of matchedMentionKeys) {
-    const matchingCandidateKeys = new Set<string>();
-    for (const otherCandidate of candidates) {
-      const otherKey = normalizeToken(otherCandidate.entityId)
-        || normalizeToken(otherCandidate.entityRef)
-        || normalizeToken(otherCandidate.ownerName).toLowerCase();
-      if (!otherKey) continue;
-      for (const otherName of resolveCandidateLookupNames(otherCandidate)) {
-        const otherNameKey = normalizeLooseKey(otherName);
-        if (
-          otherNameKey.length >= 3
-          && mentionKey[0] === otherNameKey[0]
-          && boundedEditDistanceAtMostOne(mentionKey, otherNameKey)
-        ) {
-          matchingCandidateKeys.add(otherKey);
-        }
-      }
-    }
-    if (matchingCandidateKeys.size === 1 && matchingCandidateKeys.has(candidateKey)) return true;
-  }
-  return false;
-}
-
-export function filterResolvedEntitiesForLifecycleReactivation(input: {
-  resolvedEntities: TrackerResolvedEntity[];
-  candidateEntities: MultiCharacterResolverCandidate[];
-  messageText: string;
-  messageName?: string | null;
-}): TrackerResolvedEntity[] {
-  if (!input.resolvedEntities.length || !input.candidateEntities.length) {
-    return input.resolvedEntities;
-  }
-  const candidatesByEntityId = new Map(
-    input.candidateEntities
-      .filter(candidate => normalizeToken(candidate.entityId))
-      .map(candidate => [normalizeToken(candidate.entityId), candidate] as const),
-  );
-  const candidatesByName = new Map<string, MultiCharacterResolverCandidate>();
-  for (const candidate of input.candidateEntities) {
-    for (const lookupName of resolveCandidateLookupNames(candidate)) {
-      const key = lookupName.toLowerCase();
-      if (key && !candidatesByName.has(key)) candidatesByName.set(key, candidate);
-    }
-  }
-
-  return input.resolvedEntities.filter(entity => {
-    if (!entity?.inScene && !entity?.inMessage) return false;
-    const candidate = candidatesByEntityId.get(normalizeToken(entity.entityId))
-      ?? candidatesByName.get(resolveOwnerNameFromResolvedEntity(entity).toLowerCase())
-      ?? null;
-    if (!candidate) return true;
-    const lifecycleState = candidate?.lifecycle?.state;
-    if (lifecycleState !== "inactive" && lifecycleState !== "archived") return true;
-    return hasLatestReactivationEvidence(
-      input.messageText,
-      normalizeToken(input.messageName),
-      candidate,
-      input.candidateEntities,
-    );
-  });
 }
 
 export function resolveSceneEntityIdsFromResolvedEntities(resolvedEntities: TrackerResolvedEntity[]): string[] {
