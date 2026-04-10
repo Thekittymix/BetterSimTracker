@@ -2119,6 +2119,166 @@ test("resolveEntityResolverCandidateOwners can widen an ai-turn candidate set wi
   );
 });
 
+test("resolveEntityResolverCandidateOwners can widen candidate set with a unique minor spelling mention", () => {
+  const context = {
+    characters: [],
+    chatMetadata: {
+      bstEntityRegistry: {
+        entities: {
+          "bst_narrative:elyse": {
+            id: "bst_narrative:elyse",
+            ownerName: "Elyse",
+            canonicalName: "Elyse",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "narrative:bst_narrative:elyse",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "archived",
+            archivedAtMessageIndex: 1,
+            lifecycleEvents: [
+              { messageIndex: 0, state: "active" },
+              { messageIndex: 1, state: "archived" },
+            ],
+          },
+        },
+        ownerToEntityId: {
+          elyse: "bst_narrative:elyse",
+        },
+      },
+    },
+    chat: [
+      {
+        name: "Narrator",
+        mes: "Elise stepped back into the doorway, clearly returning to the scene.",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolveEntityResolverCandidateOwners(
+      context,
+      ["Blake"],
+      context.chat[0],
+      { entityTrackingMode: "dynamic_characters" },
+      {
+        previousTrackerData: {
+          timestamp: 1,
+          activeCharacters: ["Blake"],
+          entityResolution: buildEntityResolution({
+            sceneOwners: ["Blake"],
+            messageOwners: ["Blake"],
+            source: "model",
+          }),
+          statistics: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            mood: {},
+            lastThought: {},
+          },
+          customStatistics: {},
+          customNonNumericStatistics: {},
+        } as any,
+      },
+    ),
+    ["Blake", "Elyse"],
+  );
+});
+
+test("resolveEntityResolverCandidateOwners does not widen ambiguous minor spelling mentions", () => {
+  const context = {
+    characters: [],
+    chatMetadata: {
+      bstEntityRegistry: {
+        entities: {
+          "bst_narrative:elyse": {
+            id: "bst_narrative:elyse",
+            ownerName: "Elyse",
+            canonicalName: "Elyse",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "narrative:bst_narrative:elyse",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "archived",
+            archivedAtMessageIndex: 1,
+            lifecycleEvents: [
+              { messageIndex: 0, state: "active" },
+              { messageIndex: 1, state: "archived" },
+            ],
+          },
+          "bst_narrative:elisa": {
+            id: "bst_narrative:elisa",
+            ownerName: "Elisa",
+            canonicalName: "Elisa",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "narrative:bst_narrative:elisa",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "archived",
+            archivedAtMessageIndex: 1,
+            lifecycleEvents: [
+              { messageIndex: 0, state: "active" },
+              { messageIndex: 1, state: "archived" },
+            ],
+          },
+        },
+        ownerToEntityId: {
+          elyse: "bst_narrative:elyse",
+          elisa: "bst_narrative:elisa",
+        },
+      },
+    },
+    chat: [
+      {
+        name: "Narrator",
+        mes: "Elise stepped back into the doorway.",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolveEntityResolverCandidateOwners(
+      context,
+      ["Blake"],
+      context.chat[0],
+      { entityTrackingMode: "dynamic_characters" },
+      {
+        previousTrackerData: {
+          timestamp: 1,
+          activeCharacters: ["Blake"],
+          entityResolution: buildEntityResolution({
+            sceneOwners: ["Blake"],
+            messageOwners: ["Blake"],
+            source: "model",
+          }),
+          statistics: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            mood: {},
+            lastThought: {},
+          },
+          customStatistics: {},
+          customNonNumericStatistics: {},
+        } as any,
+      },
+    ),
+    ["Blake"],
+  );
+});
+
 test("resolvePersistedSnapshotResolvedEntities can synthesize entity-first continuity without legacy owner arrays", () => {
   const context = {
     characters: [

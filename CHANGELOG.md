@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev8] - 2026-04-10
+### Changed
+- Expanded resolver candidate selection with conservative unique near-name mention matching so existing dynamic entities can be offered to the model when the latest message uses a minor spelling variant.
+
 ## [2.5.3.1-dev7] - 2026-04-10
 ### Changed
 - Added exact latest/previous message mention hints to resolver candidates so the model can compare explicit mentions against continuity and lifecycle context without treating mentions as automatic activity.

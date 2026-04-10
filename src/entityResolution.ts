@@ -40,6 +40,10 @@ function normalizeKey(value: unknown): string {
   return normalizeToken(value).toLowerCase();
 }
 
+function normalizeLooseKey(value: unknown): string {
+  return normalizeKey(value).replace(/[^a-z0-9]+/g, "");
+}
+
 function uniqueStrings(values: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -162,6 +166,99 @@ function countAliasMentions(text: string, alias: string): number {
   let count = 0;
   while (pattern.exec(text)) count += 1;
   return count;
+}
+
+function boundedEditDistanceAtMostOne(left: string, right: string): boolean {
+  if (left === right) return true;
+  const lengthDelta = Math.abs(left.length - right.length);
+  if (lengthDelta > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (left.length > right.length) {
+      i += 1;
+    } else if (right.length > left.length) {
+      j += 1;
+    } else {
+      i += 1;
+      j += 1;
+    }
+  }
+  if (i < left.length || j < right.length) edits += 1;
+  return edits <= 1;
+}
+
+function collectLooseMentionKeysForAliasShape(messageText: string, alias: string): string[] {
+  const aliasTokens = normalizeToken(alias).match(/[A-Za-z0-9]+/g) ?? [];
+  if (!aliasTokens.length || aliasTokens.length > 4) return [];
+  const messageTokens = normalizeToken(messageText).match(/[A-Za-z0-9]+/g) ?? [];
+  if (messageTokens.length < aliasTokens.length) return [];
+  const keys: string[] = [];
+  for (let index = 0; index <= messageTokens.length - aliasTokens.length; index += 1) {
+    const key = normalizeLooseKey(messageTokens.slice(index, index + aliasTokens.length).join(" "));
+    if (key) keys.push(key);
+  }
+  return uniqueStrings(keys);
+}
+
+function collectMentionedOwnerNamesFromLookupSets(
+  messageText: string,
+  ownerLookupSets: Array<{ ownerName: string; lookupNames: string[] }>,
+): string[] {
+  const exactMentioned: string[] = [];
+  const exactSeen = new Set<string>();
+  const nearMentionOwnersByMention = new Map<string, Set<string>>();
+  const ownerByKey = new Map<string, string>();
+
+  for (const entry of ownerLookupSets) {
+    const ownerName = normalizeToken(entry.ownerName);
+    if (!ownerName) continue;
+    const ownerKey = normalizeKey(ownerName);
+    ownerByKey.set(ownerKey, ownerName);
+    const lookupNames = uniqueStrings(entry.lookupNames);
+    if (collectMentionedAliases(messageText, lookupNames).length) {
+      pushUniqueString(exactMentioned, exactSeen, ownerName);
+      continue;
+    }
+    for (const lookupName of lookupNames) {
+      const lookupKey = normalizeLooseKey(lookupName);
+      if (lookupKey.length < 3) continue;
+      for (const mentionKey of collectLooseMentionKeysForAliasShape(messageText, lookupName)) {
+        if (
+          mentionKey.length < 3
+          || mentionKey === lookupKey
+          || mentionKey[0] !== lookupKey[0]
+          || !boundedEditDistanceAtMostOne(mentionKey, lookupKey)
+        ) {
+          continue;
+        }
+        const owners = nearMentionOwnersByMention.get(mentionKey) ?? new Set<string>();
+        owners.add(ownerKey);
+        nearMentionOwnersByMention.set(mentionKey, owners);
+      }
+    }
+  }
+
+  const out = [...exactMentioned];
+  const outSeen = new Set(out.map(normalizeKey));
+  for (const owners of nearMentionOwnersByMention.values()) {
+    if (owners.size !== 1) continue;
+    const ownerKey = Array.from(owners)[0] ?? "";
+    if (!ownerKey || outSeen.has(ownerKey)) continue;
+    const ownerName = ownerByKey.get(ownerKey);
+    if (!ownerName) continue;
+    outSeen.add(ownerKey);
+    out.push(ownerName);
+  }
+  return out;
 }
 
 function hasDepartureCue(text: string, name: string): boolean {
@@ -507,21 +604,21 @@ export function resolveEntityResolverCandidateOwners(
     : [];
   const mentionedOwners = message && !message.is_system
     ? (() => {
-        const mentioned: string[] = [];
-        const mentionedSeen = new Set<string>();
         const messageText = normalizeToken(message.mes);
-        for (const ownerName of normalizedOwners) {
-          const registryEntry = getEntityRegistryEntryByOwnerName(context, ownerName);
-          const lookupNames = uniqueStrings([
-            ownerName,
-            registryEntry?.canonicalName ?? "",
-            ...(registryEntry?.aliases ?? []),
-          ]);
-          if (collectMentionedAliases(messageText, lookupNames).length) {
-            pushUniqueString(mentioned, mentionedSeen, ownerName);
-          }
-        }
-        return mentioned;
+        return collectMentionedOwnerNamesFromLookupSets(
+          messageText,
+          normalizedOwners.map(ownerName => {
+            const registryEntry = getEntityRegistryEntryByOwnerName(context, ownerName);
+            return {
+              ownerName,
+              lookupNames: uniqueStrings([
+                ownerName,
+                registryEntry?.canonicalName ?? "",
+                ...(registryEntry?.aliases ?? []),
+              ]),
+            };
+          }),
+        );
       })()
     : [];
   const shouldScopeBySceneAndMentions = Boolean(
@@ -542,16 +639,23 @@ export function resolveEntityResolverCandidateOwners(
   const latestMessageIndex = Math.max(0, (context.chat?.length ?? 1) - 1);
   const previousSceneOwnerKeys = new Set(previousSceneOwners.map(owner => normalizeKey(owner)));
   const messageText = normalizeToken(message?.mes);
-  const narrativeRegistryOwners = Object.values(registry.entities)
+  const narrativeRegistryLookupSets = Object.values(registry.entities)
     .filter(entry => entry?.kind === "narrative-entity")
     .filter(entry => entry.introducedAtMessageIndex <= latestMessageIndex)
+    .map(entry => ({
+      ownerName: normalizeToken(entry.ownerName),
+      lookupNames: uniqueStrings([entry.ownerName, entry.canonicalName ?? "", ...(entry.aliases ?? [])]),
+    }))
+    .filter(entry => entry.ownerName);
+  const mentionedNarrativeRegistryOwners = collectMentionedOwnerNamesFromLookupSets(messageText, narrativeRegistryLookupSets);
+  const mentionedNarrativeRegistryOwnerKeys = new Set(mentionedNarrativeRegistryOwners.map(owner => normalizeKey(owner)));
+  const narrativeRegistryOwners = narrativeRegistryLookupSets
     .filter(entry => {
       if (!shouldScopeBySceneAndMentions) return true;
       if (previousSceneOwnerKeys.has(normalizeKey(entry.ownerName))) return true;
-      const lookupNames = uniqueStrings([entry.ownerName, entry.canonicalName ?? "", ...(entry.aliases ?? [])]);
-      return collectMentionedAliases(messageText, lookupNames).length > 0;
+      return mentionedNarrativeRegistryOwnerKeys.has(normalizeKey(entry.ownerName));
     })
-    .map(entry => normalizeToken(entry.ownerName))
+    .map(entry => entry.ownerName)
     .filter(Boolean);
 
   return filterShadowedSourceOwners(
