@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev11] - 2026-04-11
+### Fixed
+- Fixed persisted mixed-scene snapshot finalization so AI-turn characters advanced in the latest reply are preserved in the saved scene and resolved entity payload instead of being dropped when scene continuity resolves too narrowly.
+
 ## [2.5.3.1-dev10] - 2026-04-10
 ### Fixed
 - Removed the invalid dev9 lifecycle reactivation guard so normal scene continuity can continue preserving recently active silent/background participants.

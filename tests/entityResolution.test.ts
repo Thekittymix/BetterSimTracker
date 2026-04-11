@@ -1631,6 +1631,17 @@ test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the us
   );
 });
 
+test("resolvePersistedSnapshotActiveOwners preserves AI message owners even when scene continuity is empty", () => {
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveOwners({
+      sceneActiveCharacters: [],
+      requestCharacters: ["Candy"],
+      userExtraction: false,
+    }),
+    ["Candy"],
+  );
+});
+
 test("resolvePersistedSnapshotActiveEntityIds keeps scene ids aligned with persisted scene owners", () => {
   assert.deepEqual(
     resolvePersistedSnapshotActiveEntityIds({
@@ -1704,6 +1715,42 @@ test("resolvePersistedSnapshotResolvedEntities keeps user snapshots scene-only a
       entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
       kind: "st-character",
       name: "Blake",
+      avatar: null,
+      aliases: undefined,
+      inScene: true,
+      inMessage: true,
+      created: false,
+    }],
+  );
+});
+
+test("resolvePersistedSnapshotResolvedEntities promotes AI message owners into persisted scene continuity", () => {
+  const context = {
+    characters: [
+      { name: "Your Family", avatar: "your family.png" },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolvePersistedSnapshotResolvedEntities({
+      context,
+      sceneActiveCharacters: [],
+      requestCharacters: ["Candy"],
+      resolvedEntities: [{
+        entityId: "bst_narrative:candy",
+        kind: "narrative-entity",
+        name: "Candy",
+        avatar: null,
+        inScene: false,
+        inMessage: true,
+      }],
+      userExtraction: false,
+      entityTrackingMode: "dynamic_characters",
+    }),
+    [{
+      entityId: "bst_narrative:candy",
+      kind: "narrative-entity",
+      name: "Candy",
       avatar: null,
       aliases: undefined,
       inScene: true,

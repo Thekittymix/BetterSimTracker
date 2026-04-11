@@ -4148,6 +4148,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     });
     const persistedResolvedEntityOwners = resolvePersistedSnapshotEntityOwners({
       sceneActiveCharacters,
+      requestCharacters: activeCharacters,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const filteredPersistedResolvedEntities = filterResolvedEntitiesToTrackedOwners({
       context,

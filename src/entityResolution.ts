@@ -1132,7 +1132,12 @@ export function resolvePersistedSnapshotActiveOwners(input: {
   userExtraction: boolean;
 }): string[] {
   return resolvePersistedActiveOwners(
-    input.userExtraction ? input.requestCharacters : input.sceneActiveCharacters,
+    input.userExtraction
+      ? input.requestCharacters
+      : [
+          ...input.sceneActiveCharacters,
+          ...input.requestCharacters,
+        ],
     { includeUserOwner: input.userExtraction },
   );
 }
@@ -1151,9 +1156,13 @@ export function resolvePersistedSnapshotActiveEntityIds(input: {
 
 export function resolvePersistedSnapshotEntityOwners(input: {
   sceneActiveCharacters: string[];
+  requestCharacters?: string[];
 }): string[] {
   return resolvePersistedActiveOwners(
-    input.sceneActiveCharacters,
+    [
+      ...input.sceneActiveCharacters,
+      ...(input.requestCharacters ?? []),
+    ],
     { includeUserOwner: false },
   );
 }
@@ -1166,8 +1175,11 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
   userExtraction: boolean;
   entityTrackingMode?: EntityTrackingMode;
 }): TrackerResolvedEntity[] {
-  const sceneOwners = resolvePersistedActiveOwners(input.sceneActiveCharacters);
-  const sceneOwnerKeys = new Set(sceneOwners.map(owner => normalizeKey(owner)));
+  const persistedSceneOwners = resolvePersistedActiveOwners([
+    ...input.sceneActiveCharacters,
+    ...input.requestCharacters,
+  ]);
+  const sceneOwnerKeys = new Set(persistedSceneOwners.map(owner => normalizeKey(owner)));
   const messageOwners = resolvePersistedActiveOwners(
     input.userExtraction ? [] : input.requestCharacters,
     { includeUserOwner: false },
@@ -1189,7 +1201,9 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
           )
         : entityName;
       const ownerKey = normalizeKey(resolvedOwnerName);
-      const inScene = ownerKey ? sceneOwnerKeys.has(ownerKey) : Boolean(entity.inScene);
+      const inScene = ownerKey
+        ? (sceneOwnerKeys.has(ownerKey) || messageOwnerKeys.has(ownerKey))
+        : Boolean(entity.inScene || entity.inMessage);
       const inMessage = input.userExtraction
         ? false
         : (ownerKey ? messageOwnerKeys.has(ownerKey) : Boolean(entity.inMessage));
@@ -1214,7 +1228,7 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
       });
     }
 
-    for (const ownerName of sceneOwners) {
+    for (const ownerName of persistedSceneOwners) {
       const ownerKey = normalizeKey(ownerName);
       if (!ownerKey || seenOwnerKeys.has(ownerKey)) continue;
       persistedResolvedEntities.push({
@@ -1237,7 +1251,7 @@ export function resolvePersistedSnapshotResolvedEntities(input: {
     return persistedResolvedEntities;
   }
 
-  return sceneOwners.map(ownerName => ({
+  return persistedSceneOwners.map(ownerName => ({
     entityId: resolveStableEntityIdForOwner(
       input.context,
       ownerName,
