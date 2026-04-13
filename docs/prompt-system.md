@@ -81,6 +81,7 @@ Injection behavior (`src/promptInjection.ts`):
 
 - Runs only when enabled and tracker data exists.
 - Builds hidden guidance block from current tracker state.
+- When prompt injection is disabled, BST clears both the ST extension prompt and the `{{bst_injection}}` macro/debug state.
 - Includes built-ins and custom stats that are marked `includeInInjection`.
 - Applies owner privacy rules:
   - built-in `lastThought` can be owner-private,

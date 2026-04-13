@@ -32,6 +32,8 @@ test("buildMultiCharacterResolverPrompt lists candidate owners and latest messag
   assert.match(prompt, /Blake watched the door click shut\./);
   assert.match(prompt, /inScene=true.*end of the latest message/i);
   assert.match(prompt, /`inMessage` may be true while `inScene` is false/i);
+  assert.match(prompt, /minor spelling, capitalization, punctuation, or transliteration variant/i);
+  assert.match(prompt, /resolve that existing `entityRef` instead of creating a new entity/i);
 });
 
 test("buildMultiCharacterResolverPrompt includes previous-message responder guidance without relying on phrase hardcoding in code", () => {
@@ -155,10 +157,26 @@ test("buildMultiCharacterResolverPrompt forbids props and objects in created ent
 test("buildMultiCharacterResolverPrompt includes explicit continuity snapshot guidance when provided", () => {
   const prompt = buildMultiCharacterResolverPrompt({
     candidateEntities: [
-      { entityRef: "ent1", ownerName: "Candy", entityId: "bst_narrative:candy" },
-      { entityRef: "ent2", ownerName: "Lisa", entityId: "bst_narrative:lisa" },
+      {
+        entityRef: "ent1",
+        ownerName: "Candy",
+        entityId: "bst_narrative:candy",
+        lifecycle: { state: "active", lastSeenMessageIndex: 9, lastActiveMessageIndex: 9 },
+      },
+      {
+        entityRef: "ent2",
+        ownerName: "Lisa",
+        entityId: "bst_narrative:lisa",
+        lifecycle: { state: "archived", lastSeenMessageIndex: 4, lastActiveMessageIndex: 2 },
+      },
     ],
     contextText: "Candy bounced on her toes while Lisa stayed near the dresser.",
+    previousMessage: {
+      name: "Kuba",
+      mes: "\"Lisa, wait here while Candy answers.\"",
+      is_user: true,
+      is_system: false,
+    } as any,
     message: {
       name: "Narrator",
       mes: "Candy grinned and answered first while Lisa stayed close.",
@@ -179,6 +197,22 @@ test("buildMultiCharacterResolverPrompt includes explicit continuity snapshot gu
   assert.match(prompt, /"persistentSceneOwners"/);
   assert.match(prompt, /"recentNarrativeEntities"/);
   assert.match(prompt, /Candy, Lisa, Serena/);
+  assert.match(prompt, /"continuityHints"/);
+  assert.match(prompt, /"inLastScene": true/);
+  assert.match(prompt, /"inPersistentScene": true/);
+  assert.match(prompt, /"recentNarrativeEntity": true/);
+  assert.match(prompt, /"sourceGroupMembers"/);
+  assert.match(prompt, /Use continuity hints as prior-state context/i);
+  assert.match(prompt, /not commands to activate everyone/i);
+  assert.match(prompt, /"lifecycle"/);
+  assert.match(prompt, /"state": "archived"/);
+  assert.match(prompt, /"lastSeenMessageIndex": 4/);
+  assert.match(prompt, /Candidate `lifecycle` is historical registry context only/i);
+  assert.match(prompt, /inactive or archived candidate can return only when the latest context clearly brings them back/i);
+  assert.match(prompt, /"mentionHints"/);
+  assert.match(prompt, /"latestMessageAliases": \[\s+"Candy"\s+\]/);
+  assert.match(prompt, /"previousMessageAliases": \[\s+"Lisa"\s+\]/);
+  assert.match(prompt, /Mentions are evidence to inspect, not automatic proof/i);
 });
 
 test("parseMultiCharacterResolverResponse keeps scene entities separate when no entity advances the message", () => {
@@ -463,6 +497,63 @@ test("parseMultiCharacterResolverResponse preserves narrative creation proposals
       },
     ],
     unresolvedMentions: ["Forest Spirit"],
+  });
+});
+
+test("parseMultiCharacterResolverResponse resolves a unique minor spelling variant to an existing candidate", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [
+        { name: "Elise", inScene: true, inMessage: true },
+      ],
+      created: [],
+      unresolvedMentions: [],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Elyse", entityId: "bst_narrative:elyse", kind: "narrative-entity" },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:elyse",
+        kind: "narrative-entity",
+        name: "Elyse",
+        avatar: null,
+        aliases: undefined,
+        inScene: true,
+        inMessage: true,
+        sceneEvidence: ["resolver_alias"],
+        messageEvidence: ["resolver_alias"],
+        sceneConfidence: 0.72,
+        messageConfidence: 0.72,
+      },
+    ],
+    createdEntities: [],
+    unresolvedMentions: [],
+  });
+});
+
+test("parseMultiCharacterResolverResponse leaves ambiguous minor spelling variants unresolved", () => {
+  const parsed = parseMultiCharacterResolverResponse(
+    JSON.stringify({
+      resolved: [
+        { name: "Elise", inScene: true, inMessage: true },
+      ],
+      created: [],
+      unresolvedMentions: ["Elise"],
+    }),
+    [
+      { entityRef: "ent1", ownerName: "Elyse", entityId: "bst_narrative:elyse", kind: "narrative-entity" },
+      { entityRef: "ent2", ownerName: "Elisa", entityId: "bst_narrative:elisa", kind: "narrative-entity" },
+    ],
+  );
+
+  assert.deepEqual(parsed, {
+    resolvedEntities: [],
+    createdEntities: [],
+    unresolvedMentions: ["Elise"],
   });
 });
 

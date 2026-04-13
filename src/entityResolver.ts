@@ -10,6 +10,60 @@ function normalizeToken(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+function normalizeLooseKey(value: unknown): string {
+  return normalizeToken(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function collectMentionedAliases(text: string, aliases: string[]): string[] {
+  const normalizedText = normalizeToken(text);
+  if (!normalizedText) return [];
+  const seen = new Set<string>();
+  const mentioned: string[] = [];
+  for (const alias of aliases) {
+    const value = normalizeToken(alias);
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    const pattern = new RegExp(`(^|[^A-Za-z0-9])${escapeRegex(value)}(?=$|[^A-Za-z0-9])`, "i");
+    if (!pattern.test(normalizedText)) continue;
+    seen.add(key);
+    mentioned.push(value);
+  }
+  return mentioned;
+}
+
+function boundedEditDistanceAtMostOne(left: string, right: string): boolean {
+  if (left === right) return true;
+  const lengthDelta = Math.abs(left.length - right.length);
+  if (lengthDelta > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < left.length && j < right.length) {
+    if (left[i] === right[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (left.length > right.length) {
+      i += 1;
+    } else if (right.length > left.length) {
+      j += 1;
+    } else {
+      i += 1;
+      j += 1;
+    }
+  }
+  if (i < left.length || j < right.length) edits += 1;
+  return edits <= 1;
+}
+
 function resolveOwnerNameFallbackFromEntityId(entityId: string): string {
   const normalizedEntityId = normalizeToken(entityId);
   if (!normalizedEntityId) return "";
@@ -58,6 +112,11 @@ export type MultiCharacterResolverCandidate = {
   entityId?: string | null;
   avatar?: string | null;
   aliases?: string[];
+  lifecycle?: {
+    state?: "active" | "inactive" | "archived";
+    lastSeenMessageIndex?: number | null;
+    lastActiveMessageIndex?: number | null;
+  };
 };
 
 export type NarrativeEntityCreationProposal = {
@@ -163,6 +222,19 @@ export function buildMultiCharacterResolverPrompt(input: {
       aliases: Array.isArray(candidate.aliases)
         ? candidate.aliases.map(alias => normalizeToken(alias)).filter(Boolean)
         : [],
+      lifecycle: candidate.lifecycle && typeof candidate.lifecycle === "object"
+        ? {
+            ...(candidate.lifecycle.state === "active" || candidate.lifecycle.state === "inactive" || candidate.lifecycle.state === "archived"
+              ? { state: candidate.lifecycle.state }
+              : {}),
+            ...(Number.isFinite(Number(candidate.lifecycle.lastSeenMessageIndex))
+              ? { lastSeenMessageIndex: Number(candidate.lifecycle.lastSeenMessageIndex) }
+              : {}),
+            ...(Number.isFinite(Number(candidate.lifecycle.lastActiveMessageIndex))
+              ? { lastActiveMessageIndex: Number(candidate.lifecycle.lastActiveMessageIndex) }
+              : {}),
+          }
+        : undefined,
     }))
     .filter(candidate => candidate.entityRef && candidate.ownerName);
   const contextText = normalizeToken(input.contextText);
@@ -177,6 +249,46 @@ export function buildMultiCharacterResolverPrompt(input: {
     : "";
   const allowNarrativeEntityCreation = input.allowNarrativeEntityCreation === true;
   const continuitySnapshot = input.continuitySnapshot;
+  const continuityOwnerKeys = {
+    lastScene: new Set((continuitySnapshot?.lastSceneOwners ?? []).map(normalizeLooseKey).filter(Boolean)),
+    persistentScene: new Set((continuitySnapshot?.persistentSceneOwners ?? []).map(normalizeLooseKey).filter(Boolean)),
+    recentNarrative: new Set((continuitySnapshot?.recentNarrativeEntities ?? []).map(normalizeLooseKey).filter(Boolean)),
+  };
+  const resolveCandidateContinuityHints = (candidate: typeof candidateEntities[number]): {
+    inLastScene?: boolean;
+    inPersistentScene?: boolean;
+    recentNarrativeEntity?: boolean;
+    sourceGroupMembers?: string[];
+  } | undefined => {
+    if (!continuitySnapshot) return undefined;
+    const candidateKeys = [candidate.ownerName, ...(candidate.aliases ?? [])].map(normalizeLooseKey).filter(Boolean);
+    const sourceGroupMembers = continuitySnapshot.recentSourceGroups
+      .filter(group => {
+        const groupKeys = group.members.map(normalizeLooseKey).filter(Boolean);
+        return candidateKeys.some(key => groupKeys.includes(key));
+      })
+      .flatMap(group => group.members);
+    const hints = {
+      ...(candidateKeys.some(key => continuityOwnerKeys.lastScene.has(key)) ? { inLastScene: true } : {}),
+      ...(candidateKeys.some(key => continuityOwnerKeys.persistentScene.has(key)) ? { inPersistentScene: true } : {}),
+      ...(candidateKeys.some(key => continuityOwnerKeys.recentNarrative.has(key)) ? { recentNarrativeEntity: true } : {}),
+      ...(sourceGroupMembers.length ? { sourceGroupMembers: Array.from(new Set(sourceGroupMembers)) } : {}),
+    };
+    return Object.keys(hints).length ? hints : undefined;
+  };
+  const resolveCandidateMentionHints = (candidate: typeof candidateEntities[number]): {
+    latestMessageAliases?: string[];
+    previousMessageAliases?: string[];
+  } | undefined => {
+    const aliases = [candidate.ownerName, ...(candidate.aliases ?? [])];
+    const latestMessageAliases = collectMentionedAliases(messageText, aliases);
+    const previousMessageAliases = collectMentionedAliases(previousMessageText, aliases);
+    const hints = {
+      ...(latestMessageAliases.length ? { latestMessageAliases } : {}),
+      ...(previousMessageAliases.length ? { previousMessageAliases } : {}),
+    };
+    return Object.keys(hints).length ? hints : undefined;
+  };
 
   return [
     "SYSTEM:",
@@ -199,6 +311,13 @@ export function buildMultiCharacterResolverPrompt(input: {
     "- Do not mark an entity `inMessage=true` just because it is named in instructions, listed as present, or silently observing.",
     "- Do not mark an entity `inMessage=true` just because someone talks about them in dialogue or narration while they remain absent from the active interaction.",
     "- If the latest user instruction or AI message makes it clear that no known tracked entity remains in scene, return an empty `resolved` array.",
+    "- Use continuity hints as prior-state context: they can preserve likely `inScene=true` for silent/background participants, but the latest message still controls whether an entity leaves, stays off-screen, or becomes `inMessage=true`.",
+    "- `inLastScene`, `inPersistentScene`, and `sourceGroupMembers` are not commands to activate everyone; they are continuity evidence to compare against the latest message.",
+    "- Candidate `lifecycle` is historical registry context only. An inactive or archived candidate can return only when the latest context clearly brings them back; an active candidate can still become absent if the latest context moves them away.",
+    "- Candidate `mentionHints` show exact owner/alias mentions in the latest and previous messages. Mentions are evidence to inspect, not automatic proof of `inScene=true` or `inMessage=true`.",
+    "- Before using `created`, compare the proposed name against candidate `ownerName` and `aliases`.",
+    "- If a name is a minor spelling, capitalization, punctuation, or transliteration variant of one candidate and the role/context points to the same person, resolve that existing `entityRef` instead of creating a new entity.",
+    "- If a near-name match is ambiguous between multiple candidates, do not guess; leave it unresolved unless the latest context clearly identifies one candidate.",
     ...(allowNarrativeEntityCreation
       ? [
           "- Use `created` only for clearly new non-user characters, beings, or scene actors that are distinct, scene-relevant, and not already covered by the known candidate list.",
@@ -220,6 +339,9 @@ export function buildMultiCharacterResolverPrompt(input: {
         ownerName: candidate.ownerName,
         kind: candidate.kind ?? "st-character",
         aliases: candidate.aliases,
+        lifecycle: candidate.lifecycle,
+        continuityHints: resolveCandidateContinuityHints(candidate),
+        mentionHints: resolveCandidateMentionHints(candidate),
       })),
       null,
       2,
@@ -298,6 +420,7 @@ export function parseMultiCharacterResolverResponse(
       .map(candidate => [normalizeToken(candidate.entityId), candidate] as const),
   );
   const candidateByName = new Map<string, MultiCharacterResolverCandidate>();
+  const candidateList = candidateEntities.filter(candidate => normalizeToken(candidate.entityRef) && normalizeToken(candidate.ownerName));
   for (const candidate of candidateEntities) {
     const ownerName = normalizeToken(candidate.ownerName);
     if (ownerName && !candidateByName.has(ownerName.toLowerCase())) {
@@ -310,6 +433,26 @@ export function parseMultiCharacterResolverResponse(
       }
     }
   }
+
+  const resolveFuzzyCandidateByName = (name: string): MultiCharacterResolverCandidate | null => {
+    const nameKey = normalizeLooseKey(name);
+    if (!nameKey) return null;
+    const matches = new Map<string, MultiCharacterResolverCandidate>();
+    for (const candidate of candidateList) {
+      const candidateNames = [candidate.ownerName, ...(candidate.aliases ?? [])]
+        .map(alias => normalizeLooseKey(alias))
+        .filter(Boolean);
+      if (!candidateNames.some(candidateKey =>
+        candidateKey[0] === nameKey[0] && boundedEditDistanceAtMostOne(candidateKey, nameKey),
+      )) {
+        continue;
+      }
+      const matchKey = normalizeToken(candidate.entityId) || normalizeToken(candidate.entityRef) || normalizeToken(candidate.ownerName).toLowerCase();
+      if (!matchKey) continue;
+      matches.set(matchKey, candidate);
+    }
+    return matches.size === 1 ? Array.from(matches.values())[0] ?? null : null;
+  };
 
   const resolveCandidate = (item: Record<string, unknown>): CandidateMatch | null => {
     const entityRef = normalizeToken(item.entityRef);
@@ -332,7 +475,7 @@ export function parseMultiCharacterResolverResponse(
       .map(value => normalizeToken(value))
       .find(Boolean);
     if (directName) {
-      const candidate = candidateByName.get(directName.toLowerCase()) ?? null;
+      const candidate = candidateByName.get(directName.toLowerCase()) ?? resolveFuzzyCandidateByName(directName);
       if (!candidate) return null;
       const matchedBy: CandidateMatchKind = normalizeToken(candidate.ownerName).toLowerCase() === directName.toLowerCase()
         ? "owner_name"

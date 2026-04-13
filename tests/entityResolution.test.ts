@@ -11,6 +11,7 @@ import {
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
   resolvePersistedActiveOwners,
+  resolvePersistedSnapshotActiveEntityIds,
   resolvePersistedSnapshotActiveOwners,
   resolvePersistedSnapshotEntityOwners,
   resolvePersistedSnapshotResolvedEntities,
@@ -1630,6 +1631,37 @@ test("resolvePersistedSnapshotActiveOwners keeps user snapshots scoped to the us
   );
 });
 
+test("resolvePersistedSnapshotActiveOwners preserves AI message owners even when scene continuity is empty", () => {
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveOwners({
+      sceneActiveCharacters: [],
+      requestCharacters: ["Candy"],
+      userExtraction: false,
+    }),
+    ["Candy"],
+  );
+});
+
+test("resolvePersistedSnapshotActiveEntityIds keeps scene ids aligned with persisted scene owners", () => {
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveEntityIds({
+      sceneActiveEntityIds: ["ent-ashley", "ent-blake"],
+      requestEntityIds: ["ent-blake"],
+      userExtraction: false,
+    }),
+    ["ent-ashley", "ent-blake"],
+  );
+
+  assert.deepEqual(
+    resolvePersistedSnapshotActiveEntityIds({
+      sceneActiveEntityIds: ["ent-ashley", "ent-blake"],
+      requestEntityIds: ["bst_owner:__bst_user__"],
+      userExtraction: true,
+    }),
+    ["bst_owner:__bst_user__"],
+  );
+});
+
 test("resolvePersistedSnapshotResolvedEntities keeps user snapshots scene-only and preserves AI message participation", () => {
   const context = {
     characters: [
@@ -1683,6 +1715,42 @@ test("resolvePersistedSnapshotResolvedEntities keeps user snapshots scene-only a
       entityId: "bst_mc_alias:camp.png|camp whispering pines | ashley, blake, garret, & raleigh:blake",
       kind: "st-character",
       name: "Blake",
+      avatar: null,
+      aliases: undefined,
+      inScene: true,
+      inMessage: true,
+      created: false,
+    }],
+  );
+});
+
+test("resolvePersistedSnapshotResolvedEntities promotes AI message owners into persisted scene continuity", () => {
+  const context = {
+    characters: [
+      { name: "Your Family", avatar: "your family.png" },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolvePersistedSnapshotResolvedEntities({
+      context,
+      sceneActiveCharacters: [],
+      requestCharacters: ["Candy"],
+      resolvedEntities: [{
+        entityId: "bst_narrative:candy",
+        kind: "narrative-entity",
+        name: "Candy",
+        avatar: null,
+        inScene: false,
+        inMessage: true,
+      }],
+      userExtraction: false,
+      entityTrackingMode: "dynamic_characters",
+    }),
+    [{
+      entityId: "bst_narrative:candy",
+      kind: "narrative-entity",
+      name: "Candy",
       avatar: null,
       aliases: undefined,
       inScene: true,
@@ -2095,6 +2163,166 @@ test("resolveEntityResolverCandidateOwners can widen an ai-turn candidate set wi
       },
     ),
     ["Blake", "Ashley"],
+  );
+});
+
+test("resolveEntityResolverCandidateOwners can widen candidate set with a unique minor spelling mention", () => {
+  const context = {
+    characters: [],
+    chatMetadata: {
+      bstEntityRegistry: {
+        entities: {
+          "bst_narrative:elyse": {
+            id: "bst_narrative:elyse",
+            ownerName: "Elyse",
+            canonicalName: "Elyse",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "narrative:bst_narrative:elyse",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "archived",
+            archivedAtMessageIndex: 1,
+            lifecycleEvents: [
+              { messageIndex: 0, state: "active" },
+              { messageIndex: 1, state: "archived" },
+            ],
+          },
+        },
+        ownerToEntityId: {
+          elyse: "bst_narrative:elyse",
+        },
+      },
+    },
+    chat: [
+      {
+        name: "Narrator",
+        mes: "Elise stepped back into the doorway, clearly returning to the scene.",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolveEntityResolverCandidateOwners(
+      context,
+      ["Blake"],
+      context.chat[0],
+      { entityTrackingMode: "dynamic_characters" },
+      {
+        previousTrackerData: {
+          timestamp: 1,
+          activeCharacters: ["Blake"],
+          entityResolution: buildEntityResolution({
+            sceneOwners: ["Blake"],
+            messageOwners: ["Blake"],
+            source: "model",
+          }),
+          statistics: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            mood: {},
+            lastThought: {},
+          },
+          customStatistics: {},
+          customNonNumericStatistics: {},
+        } as any,
+      },
+    ),
+    ["Blake", "Elyse"],
+  );
+});
+
+test("resolveEntityResolverCandidateOwners does not widen ambiguous minor spelling mentions", () => {
+  const context = {
+    characters: [],
+    chatMetadata: {
+      bstEntityRegistry: {
+        entities: {
+          "bst_narrative:elyse": {
+            id: "bst_narrative:elyse",
+            ownerName: "Elyse",
+            canonicalName: "Elyse",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "narrative:bst_narrative:elyse",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "archived",
+            archivedAtMessageIndex: 1,
+            lifecycleEvents: [
+              { messageIndex: 0, state: "active" },
+              { messageIndex: 1, state: "archived" },
+            ],
+          },
+          "bst_narrative:elisa": {
+            id: "bst_narrative:elisa",
+            ownerName: "Elisa",
+            canonicalName: "Elisa",
+            aliases: [],
+            kind: "narrative-entity",
+            sourceKey: "narrative:bst_narrative:elisa",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "archived",
+            archivedAtMessageIndex: 1,
+            lifecycleEvents: [
+              { messageIndex: 0, state: "active" },
+              { messageIndex: 1, state: "archived" },
+            ],
+          },
+        },
+        ownerToEntityId: {
+          elyse: "bst_narrative:elyse",
+          elisa: "bst_narrative:elisa",
+        },
+      },
+    },
+    chat: [
+      {
+        name: "Narrator",
+        mes: "Elise stepped back into the doorway.",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  assert.deepEqual(
+    resolveEntityResolverCandidateOwners(
+      context,
+      ["Blake"],
+      context.chat[0],
+      { entityTrackingMode: "dynamic_characters" },
+      {
+        previousTrackerData: {
+          timestamp: 1,
+          activeCharacters: ["Blake"],
+          entityResolution: buildEntityResolution({
+            sceneOwners: ["Blake"],
+            messageOwners: ["Blake"],
+            source: "model",
+          }),
+          statistics: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            mood: {},
+            lastThought: {},
+          },
+          customStatistics: {},
+          customNonNumericStatistics: {},
+        } as any,
+      },
+    ),
+    ["Blake"],
   );
 });
 

@@ -545,7 +545,7 @@ declare global {
       openSettings: () => void;
       closeSettings: () => void;
       toggle: () => boolean;
-      refresh: () => Promise<void>;
+      refresh: (input?: number | { messageIndex?: unknown } | null) => Promise<void>;
     };
   }
 }

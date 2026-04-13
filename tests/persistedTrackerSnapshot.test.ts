@@ -167,3 +167,61 @@ test("buildPersistedTrackerSnapshot prunes stale owner-keyed compatibility bucke
   assert.deepEqual(snapshot.customNonNumericStatistics?.clothes, { Ashley: ["hoodie"], Blake: ["dark shirt"] });
   assert.deepEqual(snapshot.customNonNumericStatistics?.scene_date_time, { __bst_global__: "2026-03-04 20:12" });
 });
+
+test("buildPersistedTrackerSnapshot keeps entity-scoped scene buckets aligned when message focus is narrower than scene", () => {
+  const snapshot = buildPersistedTrackerSnapshot({
+    context: null,
+    timestamp: 987,
+    activeCharacters: ["Ashley", "Blake"],
+    activeEntityIds: ["ent-ashley", "ent-blake"],
+    entityTrackingMode: "dynamic_characters",
+    resolvedEntities: [
+      {
+        entityId: "ent-ashley",
+        kind: "st-character",
+        name: "Ashley",
+        avatar: null,
+        inScene: true,
+        inMessage: false,
+      },
+      {
+        entityId: "ent-blake",
+        kind: "st-character",
+        name: "Blake",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+    ],
+    source: "model",
+    statistics: {
+      affection: { Ashley: 57, Blake: 49 },
+      trust: { Ashley: 54, Blake: 46 },
+      desire: {},
+      connection: {},
+      mood: { Ashley: "Anxious", Blake: "Focused" },
+      lastThought: { Ashley: "She is still here.", Blake: "Answer now." },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      pose: {
+        Ashley: "waiting by the doorway",
+        Blake: "speaking at the table",
+      },
+    },
+  });
+
+  assert.deepEqual(snapshot.activeCharacters, ["Ashley", "Blake"]);
+  assert.deepEqual(snapshot.statisticsByEntityId?.affection, {
+    "ent-ashley": 57,
+    "ent-blake": 49,
+  });
+  assert.deepEqual(snapshot.statisticsByEntityId?.mood, {
+    "ent-ashley": "Anxious",
+    "ent-blake": "Focused",
+  });
+  assert.deepEqual(snapshot.customNonNumericStatisticsByEntityId?.pose, {
+    "ent-ashley": "waiting by the doorway",
+    "ent-blake": "speaking at the table",
+  });
+});

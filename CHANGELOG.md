@@ -2,6 +2,52 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.1-dev11] - 2026-04-11
+### Fixed
+- Fixed persisted mixed-scene snapshot finalization so AI-turn characters advanced in the latest reply are preserved in the saved scene and resolved entity payload instead of being dropped when scene continuity resolves too narrowly.
+
+## [2.5.3.1-dev10] - 2026-04-10
+### Fixed
+- Removed the invalid dev9 lifecycle reactivation guard so normal scene continuity can continue preserving recently active silent/background participants.
+
+## [2.5.3.1-dev8] - 2026-04-10
+### Changed
+- Expanded resolver candidate selection with conservative unique near-name mention matching so existing dynamic entities can be offered to the model when the latest message uses a minor spelling variant.
+
+## [2.5.3.1-dev7] - 2026-04-10
+### Changed
+- Added exact latest/previous message mention hints to resolver candidates so the model can compare explicit mentions against continuity and lifecycle context without treating mentions as automatic activity.
+
+## [2.5.3.1-dev6] - 2026-04-10
+### Changed
+- Added registry lifecycle context to resolver candidates so inactive and archived entities can be interpreted against recent message evidence instead of treated as anonymous names.
+
+## [2.5.3.1-dev5] - 2026-04-10
+### Changed
+- Added per-entity continuity hints to the model-backed resolver prompt so recent scene, persistent-scene, and source-group context is available without treating it as an instruction to activate every character.
+
+## [2.5.3.1-dev4] - 2026-04-10
+### Fixed
+- Improved entity resolver handling for minor spelling/name variants so clearly matching known narrative entities are reused instead of creating duplicate dynamic characters, while ambiguous near-matches remain conservative.
+
+## [2.5.3.1-dev3] - 2026-04-10
+### Changed
+- Added a targeted runtime refresh API for diagnostics so `window.BetterSimTracker.refresh({ messageIndex })` can retrack a specific chat message without changing the default refresh behavior.
+
+## [2.5.3.1-dev2] - 2026-04-10
+### Fixed
+- Fixed persisted scene snapshot entity-id alignment when the current message advances fewer characters than the full active scene, preventing scene participants from being mapped onto the wrong entity-scoped buckets.
+
+### Changed
+- Added regression coverage for persisted scene owner/entity alignment across narrower message-focus turns.
+
+## [2.5.3.1-dev1] - 2026-04-10
+### Fixed
+- Fixed disabled prompt injection so the `{{bst_injection}}` macro/debug state is cleared together with the hidden ST extension prompt instead of retaining the latest tracker guidance block.
+
+### Changed
+- Added regression coverage for disabled prompt injection cleanup and manual tracker-edit persistence through reread, registry sync, and render target selection.
+
 ## [2.5.3.1] - 2026-04-09
 ### Fixed
 - Fixed continuity ordering for retracks and merged runtime state so newer message indices now win over later-written older snapshots across history, prompt/runtime merge, and retrack seeding.

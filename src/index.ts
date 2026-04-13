@@ -22,6 +22,7 @@ import {
   resolveInitialExtractionOwners,
   resolveModelExtractionOwnerScopes,
   resolvePersistedSnapshotResolvedEntities,
+  resolvePersistedSnapshotActiveEntityIds,
   resolvePersistedSnapshotActiveOwners,
   resolvePersistedSnapshotEntityOwners,
   resolveStableEntityIdForOwner,
@@ -192,6 +193,7 @@ import {
   resolveDirtyRenderStart,
 } from "./renderQueueHelpers";
 import { resolveGroupReplayTarget } from "./userTurnReplayTarget";
+import { normalizeRefreshTargetMessageIndex, type RefreshTargetInput } from "./windowApi";
 
 declare const __BST_VERSION__: string;
 
@@ -3455,6 +3457,13 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
                 ));
                 return aliases;
               })(),
+              lifecycle: registryEntry
+                ? {
+                    state: registryEntry.lifecycleState,
+                    lastSeenMessageIndex: registryEntry.lastSeenMessageIndex,
+                    lastActiveMessageIndex: registryEntry.lastActiveMessageIndex,
+                  }
+                : undefined,
             };
           });
           const recentTrackerHistory = selectResolverContinuityHistoryEntries(
@@ -4124,6 +4133,11 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       requestCharacters: activeCharacters,
       userExtraction,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
+    const persistedSceneActiveEntityIds = resolvePersistedSnapshotActiveEntityIds({
+      sceneActiveEntityIds,
+      requestEntityIds,
+      userExtraction,
+    });
     const persistedResolvedEntities = resolvePersistedSnapshotResolvedEntities({
       context,
       sceneActiveCharacters,
@@ -4134,6 +4148,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     });
     const persistedResolvedEntityOwners = resolvePersistedSnapshotEntityOwners({
       sceneActiveCharacters,
+      requestCharacters: activeCharacters,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const filteredPersistedResolvedEntities = filterResolvedEntitiesToTrackedOwners({
       context,
@@ -4147,7 +4162,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     latestData = buildPersistedTrackerSnapshot({
       context,
       activeCharacters: persistedSceneActiveCharacters,
-      activeEntityIds,
+      activeEntityIds: persistedSceneActiveEntityIds,
       explicitTargetToEntity: persistedExplicitTargetToEntity,
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
       resolvedEntities: filteredPersistedResolvedEntities,
@@ -4983,8 +4998,8 @@ function toggle(): boolean {
   return settings.enabled;
 }
 
-async function refresh(): Promise<void> {
-  await runExtraction("manual_refresh");
+async function refresh(input?: RefreshTargetInput): Promise<void> {
+  await runExtraction("manual_refresh", normalizeRefreshTargetMessageIndex(input));
 }
 
 function exposeWindowApi(): void {
