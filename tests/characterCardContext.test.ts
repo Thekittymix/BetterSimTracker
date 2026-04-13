@@ -237,3 +237,31 @@ test("buildCharacterCardsContext keeps active character cards in non-target cont
   assert.match(rendered, /Character Card - Seraphina/);
 });
 
+test("buildCharacterCardsContext includes the focused source card as target context for 1:1 alias owners", () => {
+  const context = {
+    characterId: 0,
+    groupId: "",
+    characters: [
+      {
+        name: "Your Family",
+        avatar: "family.png",
+        description: "Marylyn lets her family sprawl through the house all summer.",
+        personality: "Warm, chaotic, and prone to teasing.",
+      },
+    ],
+  } as any;
+
+  const rendered = buildCharacterCardsContext(
+    context,
+    ["Candy"],
+    [],
+    "standard",
+    "Your Family",
+  );
+
+  assert.match(rendered, /Target character card context \(highest priority card context for Your Family;/);
+  assert.match(rendered, /Character Card - Your Family/);
+  assert.match(rendered, /Marylyn lets her family sprawl through the house all summer\./);
+  assert.match(rendered, /Warm, chaotic, and prone to teasing\./);
+});
+

@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.2-dev1] - 2026-04-13
+### Fixed
+- Fixed 1:1 alias-owner character-card context so extraction prompts now include the focused source card instead of leaving `BST_TARGET_CARD_CONTEXT` empty when the active owner resolves through a source-card alias.
+
 ## [2.5.3.2] - 2026-04-13
 ### Added
 - Added a targeted runtime refresh API so `window.BetterSimTracker.refresh({ messageIndex })` can retrack a specific chat message without changing the default refresh behavior.

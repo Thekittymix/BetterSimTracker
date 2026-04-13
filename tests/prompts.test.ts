@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { USER_TRACKER_KEY } from "../src/constants";
+import { buildCharacterCardsContext } from "../src/characterCardContext";
 
 import {
   DEFAULT_PROTOCOL_SEQUENTIAL_CUSTOM_NUMERIC,
@@ -841,6 +842,51 @@ test("buildSequentialPrompt separates target card context from non-target cards"
   assert.match(prompt, /Character Card - Ashley/);
   assert.match(prompt, /<BST_OTHER_CARD_CONTEXT>/);
   assert.match(prompt, /Character Card - Blake/);
+});
+
+test("buildSequentialPrompt carries focused 1:1 source card context for alias owners", () => {
+  const context = {
+    characterId: 0,
+    groupId: "",
+    characters: [
+      {
+        name: "Your Family",
+        avatar: "family.png",
+        description: "Marylyn keeps the house running with affectionate chaos.",
+      },
+    ],
+  } as any;
+  const contextText = [
+    "Recent messages:",
+    "Kuba: I'm in my room alone",
+    "Your Family: A blonde head pokes in through the doorway.",
+    buildCharacterCardsContext(context, ["Candy"], [], "standard", "Your Family"),
+  ].join("\n\n");
+
+  const prompt = buildSequentialPrompt(
+    "mood",
+    "Kuba",
+    ["Candy"],
+    contextText,
+    {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Candy: "Neutral" },
+      lastThought: {},
+    },
+    [],
+    12,
+    undefined,
+    undefined,
+    "Your Family",
+  );
+
+  assert.match(prompt, /<BST_TARGET_CARD_CONTEXT>/);
+  assert.match(prompt, /Character Card - Your Family/);
+  assert.match(prompt, /Marylyn keeps the house running with affectionate chaos\./);
+  assert.doesNotMatch(prompt, /<BST_TARGET_CARD_CONTEXT>\s*- none\s*<\/BST_TARGET_CARD_CONTEXT>/);
 });
 
 test("buildUnifiedPrompt only includes requested built-in stat families", () => {

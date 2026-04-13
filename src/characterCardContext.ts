@@ -105,7 +105,14 @@ export function buildCharacterCardsContext(
         const resolved = resolveCharacterIdentity(context, token, resolvedMode);
         return Boolean(resolved && normalizeNameKey(resolved.sourceName) === nameKey);
       });
-    if (!isActiveByAvatar && !isActiveByName && !isActiveByAlias && !isActiveByEntitySource) continue;
+    const isPreferredFocusedTarget = Boolean(
+      !inGroup
+      && preferredNameKey
+      && focusedAvatar
+      && avatarKey === focusedAvatar
+      && nameKey === preferredNameKey,
+    );
+    if (!isActiveByAvatar && !isActiveByName && !isActiveByAlias && !isActiveByEntitySource && !isPreferredFocusedTarget) continue;
 
     const duplicateCount = duplicateNameCounts.get(nameKey) ?? 1;
     const duplicateIndex = duplicateNameIndices.get(nameKey) ?? 0;
