@@ -5363,6 +5363,22 @@ function rerenderTextShortToggleInPlace(host: ParentNode, key: string, expanded:
   button.textContent = expanded ? "Less" : "More";
 }
 
+function rerenderCardCollapseInPlace(host: ParentNode, cardKey: string, collapsed: boolean): void {
+  const card = host.querySelector(`.bst-card[data-bst-card-key="${CSS.escape(cardKey)}"]`) as HTMLElement | null;
+  if (!card) return;
+  card.classList.toggle("bst-card-collapsed", collapsed);
+  const body = card.querySelector(".bst-body") as HTMLElement | null;
+  if (body) {
+    body.style.display = collapsed ? "none" : "";
+  }
+  const button = card.querySelector(`[data-bst-action="toggle-card-collapse"][data-bst-card-key="${CSS.escape(cardKey)}"]`) as HTMLButtonElement | null;
+  if (!button) return;
+  const displayName = String((card.querySelector(".bst-name") as HTMLElement | null)?.textContent ?? "").trim() || "card";
+  button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  button.setAttribute("title", collapsed ? `Expand ${displayName}` : `Collapse ${displayName}`);
+  button.innerHTML = `<span aria-hidden="true">${collapsed ? "&#9656;" : "&#9662;"}</span>`;
+}
+
 function closestFromEventTarget(target: EventTarget | null, selector: string): HTMLElement | null {
   if (!target || typeof target !== "object") return null;
   const direct = target as { closest?: (value: string) => Element | null };
@@ -5786,14 +5802,13 @@ export function renderTracker(
               collapsedActiveCardKeys,
               expandedInactiveCardKeys,
             });
+            rerenderCardCollapseInPlace(root, cardKey, nextCollapsed);
           });
           collapse.setAttribute("aria-expanded", String(!nextCollapsed));
           collapse.setAttribute("title", nextCollapsed ? "Expand cards" : "Collapse cards");
           collapse.innerHTML = nextCollapsed
             ? `<span class="bst-root-action-icon" aria-hidden="true">&#9656;</span><span class="bst-root-action-label">Expand cards</span>`
             : `<span class="bst-root-action-icon" aria-hidden="true">&#9662;</span><span class="bst-root-action-label">Collapse cards</span>`;
-          root.dataset.bstRenderSignature = "";
-          onRequestRerender?.();
           return;
         }
         const cardCollapse = closestFromEventTarget(target, '[data-bst-action="toggle-card-collapse"]');
@@ -5808,8 +5823,7 @@ export function renderTracker(
             collapsedActiveCardKeys,
             expandedInactiveCardKeys,
           });
-          root.dataset.bstRenderSignature = "";
-          onRequestRerender?.();
+          rerenderCardCollapseInPlace(root, cardKey, nextCollapsed);
           return;
         }
         const cancel = closestFromEventTarget(target, '[data-bst-action="cancel-extraction"]');

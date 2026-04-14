@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.4-dev6] - 2026-04-14
+### Fixed
+- Fixed tracker card collapse and expand actions so both per-card toggles and root card collapse now update locally in place instead of triggering heavy full-tracker rerenders.
+
 ## [2.5.3.4-dev5] - 2026-04-14
 ### Fixed
 - Fixed model-backed scene-presence matching so characters who are only discussed by name no longer stay `inScene` from polluted continuity, while legitimate grouped background participants still remain in-scene when the latest message explicitly keeps them present.
