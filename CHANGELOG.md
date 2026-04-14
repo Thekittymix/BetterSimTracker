@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.4-dev5] - 2026-04-14
+### Fixed
+- Fixed model-backed scene-presence matching so characters who are only discussed by name no longer stay `inScene` from polluted continuity, while legitimate grouped background participants still remain in-scene when the latest message explicitly keeps them present.
+
 ## [2.5.3.4-dev4] - 2026-04-14
 ### Fixed
 - Fixed model-resolved scene scopes so newly mentioned off-scene characters no longer become active just from being named, while genuinely present background participants can still stay in-scene without becoming current-message responders.

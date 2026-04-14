@@ -340,10 +340,11 @@ function hasDirectScenePresenceCue(text: string, name: string): boolean {
   if (hasOffSceneMentionCue(normalized, name)) return false;
   const escaped = escapeRegex(name);
   const subjectActionPattern = String.raw`(?:answer(?:s|ed|ing)?|reply(?:s|ed|ing)?|say(?:s|ing)?|said|ask(?:s|ed|ing)?|watch(?:es|ed|ing)?|look(?:s|ed|ing)?|glanc(?:e|es|ed|ing)|hover(?:s|ed|ing)?|pace(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|remain(?:s|ed|ing)?|stay(?:s|ed|ing)?|enter(?:s|ed|ing)?|walk(?:s|ed|ing)?|come(?:s|ing)?|came|step(?:s|ped|ping)?|lean(?:s|ed|ing)?|smile(?:s|d|ing)?|laugh(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|move(?:s|d|ing)?)`;
-  const nearbyActionPattern = String.raw`(?:watch(?:es|ed|ing)?|look(?:s|ed|ing)?|glanc(?:e|es|ed|ing)|hover(?:s|ed|ing)?|pace(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|remain(?:s|ed|ing)?|stay(?:s|ed|ing)?|enter(?:s|ed|ing)?|walk(?:s|ed|ing)?|come(?:s|ing)?|came|step(?:s|ped|ping)?|lean(?:s|ed|ing)?|smile(?:s|d|ing)?|laugh(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|move(?:s|d|ing)?)`;
   const patterns = [
-    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\b${subjectActionPattern}\\b`, "i"),
-    new RegExp(`\\b${nearbyActionPattern}\\b[^.!?\\n]{0,80}\\b${escaped}\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b[^.!?\\n,:;]{0,80}\\b${subjectActionPattern}\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b(?:\\s*,\\s*[^.!?\\n,:;]+){0,4}\\s*(?:,?\\s*and\\s+[^.!?\\n,:;]+)?[^.!?\\n]{0,24}\\b${subjectActionPattern}\\b`, "i"),
+    new RegExp(`\\b(?:with|beside|next\\s+to|near|alongside|behind|across\\s+from)\\s+${escaped}\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,40}\\b(?:with|beside|next\\s+to|near|alongside|behind|across\\s+from)\\b`, "i"),
   ];
   return patterns.some(pattern => pattern.test(normalized));
 }
@@ -377,6 +378,14 @@ function hasRecentScenePresenceEvidence(
     if (hasDirectScenePresenceCue(text, name)) return true;
   }
   return false;
+}
+
+function hasMentionOnlyReference(text: string, name: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized || !name) return false;
+  if (hasOffSceneMentionCue(normalized, name)) return false;
+  if (hasDirectScenePresenceCue(normalized, name)) return false;
+  return countAliasMentions(normalized.toLowerCase(), name.toLowerCase()) > 0;
 }
 
 function filterModelResolvedOwnerScopesByMessageEvidence(input: {
@@ -416,6 +425,7 @@ function filterModelResolvedOwnerScopesByMessageEvidence(input: {
       if (!ownerKey) return false;
       if (allowedRequestKeys.has(ownerKey)) return true;
       if (previousSceneKeys.has(ownerKey)) {
+        if (hasMentionOnlyReference(messageText, owner)) return false;
         return hasRecentScenePresenceEvidence(input.context, input.message, owner);
       }
       return hasDirectScenePresenceCue(messageText, owner);
@@ -1055,6 +1065,7 @@ export function resolveModelExtractionOwnerScopes(input: {
       if (!ownerKey || sceneKeys.has(ownerKey)) return false;
       if (hasDepartureCue(currentMessageText, owner)) return false;
       if (exclusiveResolvedKeys.size && !exclusiveResolvedKeys.has(ownerKey)) return false;
+      if (hasMentionOnlyReference(currentMessageText, owner)) return false;
       if (!hasRecentScenePresenceEvidence(input.context, input.message, owner) && !hasGroupSceneContinuityCue(currentMessageText)) return false;
       return true;
     }),
