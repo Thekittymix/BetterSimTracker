@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { hasThoughtOverflow, renderThoughtMarkup, resolveThoughtToggleState, shouldEnableThoughtExpand } from "../src/uiThought";
 
 test("shouldEnableThoughtExpand enables for long one-line text", () => {
@@ -76,4 +78,10 @@ test("hasThoughtOverflow ignores tiny measurement noise without real hidden cont
   assert.equal(hasThoughtOverflow({ scrollHeight: 81, clientHeight: 80, scrollWidth: 0, clientWidth: 0 }), false);
   assert.equal(hasThoughtOverflow({ scrollHeight: 80, clientHeight: 80, scrollWidth: 81, clientWidth: 80 }), false);
   assert.equal(hasThoughtOverflow({ scrollHeight: 83, clientHeight: 80, scrollWidth: 0, clientWidth: 0 }), true);
+});
+
+test("thought more toggles update locally on card click without queueing a full rerender", () => {
+  const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
+  assert.match(source, /function rerenderThoughtToggleInPlace\(host: ParentNode, key: string, expanded: boolean\): void/);
+  assert.match(source, /rerenderThoughtToggleInPlace\(root, key, !expanded\);/);
 });

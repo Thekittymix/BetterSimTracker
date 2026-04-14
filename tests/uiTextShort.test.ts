@@ -60,3 +60,10 @@ test("expanded text-short toggle is not cleared just because expanded layout rem
   assert.match(source, /toggle\.setAttribute\("aria-expanded", expanded \? "true" : state\.ariaExpanded\);/);
   assert.match(source, /toggle\.textContent = expanded \? "Less" : state\.label;/);
 });
+
+test("text-short more toggles update locally on card click without queueing a full rerender", () => {
+  const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
+  assert.match(source, /function rerenderTextShortToggleInPlace\(host: ParentNode, key: string, expanded: boolean\): void/);
+  assert.match(source, /rerenderTextShortToggleInPlace\(root, key, !expanded\);/);
+  assert.match(source, /rerenderTextShortToggleInPlace\(sceneRoot, key, !expanded\);/);
+});

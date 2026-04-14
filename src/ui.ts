@@ -5329,13 +5329,38 @@ function rerenderArrayToggleInPlace(host: ParentNode, key: string, expanded: boo
   if (!container) return;
   const allItems = Array.from(container.querySelectorAll<HTMLElement>(".bst-array-item-chip"));
   if (allItems.length === 0) return;
-  const collapsedLimit = 4;
+  const collapsedLimitRaw = Number(button.getAttribute("data-bst-array-collapsed-limit") ?? "4");
+  const collapsedLimit = Number.isFinite(collapsedLimitRaw) ? Math.max(1, collapsedLimitRaw) : 4;
   allItems.forEach((item, index) => {
     item.hidden = !expanded && index >= collapsedLimit;
   });
   button.setAttribute("aria-expanded", expanded ? "true" : "false");
   const hiddenCount = Math.max(0, allItems.length - collapsedLimit);
   button.textContent = expanded ? "Show less" : `+${hiddenCount} more`;
+}
+
+function rerenderThoughtToggleInPlace(host: ParentNode, key: string, expanded: boolean): void {
+  const container = host.querySelector(`[data-bst-thought-container="1"][data-bst-thought-key="${CSS.escape(key)}"]`) as HTMLElement | null;
+  if (!container) return;
+  const button = container.querySelector('[data-bst-action="toggle-thought"]') as HTMLButtonElement | null;
+  if (!button) return;
+  container.classList.toggle("bst-thought-expanded", expanded);
+  button.hidden = false;
+  button.removeAttribute("hidden");
+  button.setAttribute("aria-expanded", expanded ? "true" : "false");
+  button.textContent = expanded ? "Less" : "More";
+}
+
+function rerenderTextShortToggleInPlace(host: ParentNode, key: string, expanded: boolean): void {
+  const container = host.querySelector(`[data-bst-text-short-container="1"][data-bst-text-short-key="${CSS.escape(key)}"]`) as HTMLElement | null;
+  if (!container) return;
+  const button = container.querySelector('[data-bst-action="toggle-text-short"]') as HTMLButtonElement | null;
+  if (!button) return;
+  container.classList.toggle("bst-text-short-expanded", expanded);
+  button.hidden = false;
+  button.removeAttribute("hidden");
+  button.setAttribute("aria-expanded", expanded ? "true" : "false");
+  button.textContent = expanded ? "Less" : "More";
 }
 
 function closestFromEventTarget(target: EventTarget | null, selector: string): HTMLElement | null {
@@ -5635,16 +5660,7 @@ export function renderTracker(
             expandedThoughtKeys.add(key);
           }
           root.dataset.bstRenderSignature = "";
-          if (onRequestRerender) {
-            onRequestRerender();
-          } else {
-            const container = root.querySelector(`[data-bst-thought-container="1"][data-bst-thought-key="${CSS.escape(key)}"]`) as HTMLElement | null;
-            if (container) {
-              container.classList.toggle("bst-thought-expanded", !expanded);
-            }
-            thoughtToggle.setAttribute("aria-expanded", String(!expanded));
-            thoughtToggle.textContent = expanded ? "More" : "Less";
-          }
+          rerenderThoughtToggleInPlace(root, key, !expanded);
           return;
         }
         const textShortToggle = closestFromEventTarget(target, '[data-bst-action="toggle-text-short"]');
@@ -5658,16 +5674,7 @@ export function renderTracker(
             expandedTextShortKeys.add(key);
           }
           root.dataset.bstRenderSignature = "";
-          if (onRequestRerender) {
-            onRequestRerender();
-          } else {
-            const container = root.querySelector(`[data-bst-text-short-container="1"][data-bst-text-short-key="${CSS.escape(key)}"]`) as HTMLElement | null;
-            if (container) {
-              container.classList.toggle("bst-text-short-expanded", !expanded);
-            }
-            textShortToggle.setAttribute("aria-expanded", String(!expanded));
-            textShortToggle.textContent = expanded ? "More" : "Less";
-          }
+          rerenderTextShortToggleInPlace(root, key, !expanded);
           return;
         }
         const arrayToggle = closestFromEventTarget(target, '[data-bst-action="toggle-array-values"]');
@@ -5681,11 +5688,7 @@ export function renderTracker(
             expandedArrayValueKeys.add(key);
           }
           root.dataset.bstRenderSignature = "";
-          if (onRequestRerender) {
-            onRequestRerender();
-          } else {
-            rerenderArrayToggleInPlace(root, key, !wasExpanded);
-          }
+          rerenderArrayToggleInPlace(root, key, !wasExpanded);
           return;
         }
         const button = closestFromEventTarget(target, '[data-bst-action="graph"]');
@@ -5880,25 +5883,22 @@ export function renderTracker(
           }
           root.dataset.bstRenderSignature = "";
           sceneRoot.dataset.bstRenderSignature = "";
-          if (onRequestRerender) {
-            onRequestRerender();
-          } else {
-            rerenderArrayToggleInPlace(sceneRoot, key, !wasExpanded);
-          }
+          rerenderArrayToggleInPlace(sceneRoot, key, !wasExpanded);
           return;
         }
         const textShortToggle = closestFromEventTarget(target, '[data-bst-action="toggle-text-short"]');
         if (!textShortToggle) return;
         const key = String(textShortToggle.getAttribute("data-bst-text-short-key") ?? "").trim();
         if (!key) return;
-        if (expandedTextShortKeys.has(key)) {
+        const expanded = expandedTextShortKeys.has(key);
+        if (expanded) {
           expandedTextShortKeys.delete(key);
         } else {
           expandedTextShortKeys.add(key);
         }
         root.dataset.bstRenderSignature = "";
         sceneRoot.dataset.bstRenderSignature = "";
-        onRequestRerender?.();
+        rerenderTextShortToggleInPlace(sceneRoot, key, !expanded);
       });
     }
     root.classList.toggle("bst-root-collapsed", isMessageCollapsed(entry.messageIndex));
@@ -6419,7 +6419,7 @@ export function renderTracker(
                 <div class="bst-array-items">
                   ${chips}
                   ${hasOverflow
-                    ? `<button type="button" class="bst-array-toggle" data-bst-action="toggle-array-values" data-bst-array-key="${escapeHtml(arrayKey)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Show less" : `+${items.length - 4} more`}</button>`
+                    ? `<button type="button" class="bst-array-toggle" data-bst-action="toggle-array-values" data-bst-array-key="${escapeHtml(arrayKey)}" data-bst-array-collapsed-limit="4" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Show less" : `+${items.length - 4} more`}</button>`
                     : ""}
                 </div>
               </div>
@@ -6702,7 +6702,7 @@ export function renderTracker(
                   <div class="bst-array-items">
                     ${chips}
                     ${hasOverflow
-                      ? `<button type="button" class="bst-array-toggle" data-bst-action="toggle-array-values" data-bst-array-key="${escapeHtml(sceneArrayKey)}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Show less" : `+${items.length - arrayLimit} more`}</button>`
+                      ? `<button type="button" class="bst-array-toggle" data-bst-action="toggle-array-values" data-bst-array-key="${escapeHtml(sceneArrayKey)}" data-bst-array-collapsed-limit="${arrayLimit}" aria-expanded="${expanded ? "true" : "false"}">${expanded ? "Show less" : `+${items.length - arrayLimit} more`}</button>`
                       : ""}
                   </div>
                 </div>
