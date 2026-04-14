@@ -2790,6 +2790,9 @@ export function ensureStyles(): void {
   opacity: 0.75;
 }
 .bst-array-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid rgba(255,255,255,0.34);
   background: rgba(14, 20, 30, 0.82);
   color: #dbe8ff;
@@ -2797,6 +2800,11 @@ export function ensureStyles(): void {
   font-size: 10px;
   line-height: 1.2;
   padding: 2px 8px;
+  min-height: 28px;
+  touch-action: manipulation;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
   cursor: pointer;
 }
 .bst-array-toggle:hover {
@@ -2865,7 +2873,7 @@ export function ensureStyles(): void {
   -webkit-appearance: none;
   width: auto !important;
   min-width: 0 !important;
-  min-height: 0 !important;
+  min-height: 28px !important;
   border: 1px solid rgba(255,255,255,0.3) !important;
   border-radius: 999px !important;
   background: rgba(10, 15, 24, 0.72) !important;
@@ -2873,6 +2881,10 @@ export function ensureStyles(): void {
   font-size: 11px;
   line-height: 1;
   padding: 4px 8px;
+  touch-action: manipulation;
+  pointer-events: auto;
+  position: relative;
+  z-index: 1;
   cursor: pointer;
   transition: border-color .15s ease, background .15s ease, transform .15s ease;
 }

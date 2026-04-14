@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { renderTextShortMarkup, resolveTextShortToggleState, shouldEnableTextShortExpand } from "../src/uiTextShort";
 
 test("shouldEnableTextShortExpand enables for multiline and long text", () => {
@@ -44,4 +46,10 @@ test("resolveTextShortToggleState exposes toggle only on real overflow", () => {
     resolveTextShortToggleState({ scrollHeight: 45, clientHeight: 45, scrollWidth: 0, clientWidth: 0 }, true),
     { overflowing: false, hidden: true, ariaExpanded: "false", label: "More" },
   );
+});
+
+test("mobile-facing more toggles keep an explicit tap target and pointer-safe CSS", () => {
+  const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
+  assert.match(source, /\.bst-expand-toggle \{[\s\S]*min-height: 28px !important;[\s\S]*touch-action: manipulation;[\s\S]*pointer-events: auto;[\s\S]*position: relative;[\s\S]*z-index: 1;/);
+  assert.match(source, /\.bst-array-toggle \{[\s\S]*min-height: 28px;[\s\S]*touch-action: manipulation;[\s\S]*pointer-events: auto;[\s\S]*position: relative;[\s\S]*z-index: 1;/);
 });
