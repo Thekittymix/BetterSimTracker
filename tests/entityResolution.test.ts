@@ -2470,6 +2470,78 @@ test("resolveModelExtractionOwnerScopes keeps recent narrative scene continuity 
   assert.deepEqual(resolved.requestCharacters, ["Candy"]);
 });
 
+test("resolveModelExtractionOwnerScopes does not activate a newly mentioned off-scene owner from model scene output alone", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Marylyn says Candy is resting in the guest room and does not enter the hallway scene.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Marylyn"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      ],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Marylyn", "Candy"],
+    resolvedRequestCharacters: ["Marylyn"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Marylyn"]);
+  assert.deepEqual(resolved.requestCharacters, ["Marylyn"]);
+});
+
+test("resolveModelExtractionOwnerScopes keeps a newly present background participant when the message gives real scene evidence", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Marylyn answered from the bed while Lisa watched from the doorway.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Marylyn"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      ],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Marylyn", "Lisa"],
+    resolvedRequestCharacters: ["Marylyn"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Marylyn", "Lisa"]);
+  assert.deepEqual(resolved.requestCharacters, ["Marylyn"]);
+});
+
 test("buildEntityResolverContinuitySnapshot summarizes recent scene owners, narratives, and source groups", () => {
   const snapshot = buildEntityResolverContinuitySnapshot({
     previousTrackerData: {

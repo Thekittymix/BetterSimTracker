@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.4-dev1] - 2026-04-14
+### Fixed
+- Fixed model-resolved scene scopes so newly mentioned off-scene characters no longer become active just from being named, while genuinely present background participants can still stay in-scene without becoming current-message responders.
+
 ## [2.5.3.4] - 2026-04-14
 ### Fixed
 - Fixed tracker card `More` controls across thought, short-text, and array stat surfaces so they now expand and collapse with local in-place DOM updates instead of heavy tracker rerenders, while expanded text panels no longer self-reset during overflow recalculation and nested button clicks still resolve reliably.
