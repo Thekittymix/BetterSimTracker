@@ -2,9 +2,9 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.3.3-dev3] - 2026-04-14
+## [2.5.3.3-dev4] - 2026-04-14
 ### Fixed
-- Fixed tracker `More` / `+N more` controls so delegated card clicks still resolve when the browser reports a nested text node as the event target, and array-based expansions no longer depend entirely on a full rerender to update.
+- Fixed tracker `More` controls so expanded thought and short-text panels no longer immediately self-reset when BST recalculates overflow on the already-expanded layout, while delegated card clicks still resolve reliably from nested event targets.
 
 ## [2.5.3.3] - 2026-04-13
 ### Fixed

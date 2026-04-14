@@ -1394,19 +1394,20 @@ function syncRenderedExpandableOverflowState(): void {
       const textNode = container.querySelector<HTMLElement>(".bst-thought-text, .bst-mood-bubble-text");
       const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-thought"]');
       if (!textNode || !toggle) return;
+      const expanded = expandedThoughtKeys.has(key);
       const state = resolveThoughtToggleState({
         scrollHeight: textNode.scrollHeight,
         clientHeight: textNode.clientHeight,
         scrollWidth: textNode.scrollWidth,
         clientWidth: textNode.clientWidth,
-      }, expandedThoughtKeys.has(key));
-      if (!state.overflowing) {
+      }, expanded);
+      if (!expanded && !state.overflowing) {
         if (key) expandedThoughtKeys.delete(key);
         container.classList.remove("bst-thought-expanded");
       }
-      applyExpandableToggleVisibility(toggle, state.hidden);
-      toggle.setAttribute("aria-expanded", state.ariaExpanded);
-      toggle.textContent = state.label;
+      applyExpandableToggleVisibility(toggle, expanded ? false : state.hidden);
+      toggle.setAttribute("aria-expanded", expanded ? "true" : state.ariaExpanded);
+      toggle.textContent = expanded ? "Less" : state.label;
     });
   };
   const syncTextShortOverflowIn = (host: ParentNode | null | undefined): void => {
@@ -1416,19 +1417,20 @@ function syncRenderedExpandableOverflowState(): void {
       const textNode = container.querySelector<HTMLElement>(".bst-text-short-value-text");
       const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-text-short"]');
       if (!textNode || !toggle) return;
+      const expanded = expandedTextShortKeys.has(key);
       const state = resolveTextShortToggleState({
         scrollHeight: textNode.scrollHeight,
         clientHeight: textNode.clientHeight,
         scrollWidth: textNode.scrollWidth,
         clientWidth: textNode.clientWidth,
-      }, expandedTextShortKeys.has(key));
-      if (!state.overflowing) {
+      }, expanded);
+      if (!expanded && !state.overflowing) {
         if (key) expandedTextShortKeys.delete(key);
         container.classList.remove("bst-text-short-expanded");
       }
-      applyExpandableToggleVisibility(toggle, state.hidden);
-      toggle.setAttribute("aria-expanded", state.ariaExpanded);
-      toggle.textContent = state.label;
+      applyExpandableToggleVisibility(toggle, expanded ? false : state.hidden);
+      toggle.setAttribute("aria-expanded", expanded ? "true" : state.ariaExpanded);
+      toggle.textContent = expanded ? "Less" : state.label;
     });
   };
   document.querySelectorAll<HTMLElement>(`.${ROOT_CLASS}, .bst-scene-root`).forEach(host => {
@@ -6838,19 +6840,20 @@ export function renderTracker(
         const textNode = container.querySelector<HTMLElement>(".bst-thought-text, .bst-mood-bubble-text");
         const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-thought"]');
         if (!textNode || !toggle) return;
+        const expanded = expandedThoughtKeys.has(key);
         const state = resolveThoughtToggleState({
           scrollHeight: textNode.scrollHeight,
           clientHeight: textNode.clientHeight,
           scrollWidth: textNode.scrollWidth,
           clientWidth: textNode.clientWidth,
-        }, expandedThoughtKeys.has(key));
-        if (!state.overflowing) {
+        }, expanded);
+        if (!expanded && !state.overflowing) {
           if (key) expandedThoughtKeys.delete(key);
           container.classList.remove("bst-thought-expanded");
         }
-        toggle.hidden = state.hidden;
-        toggle.setAttribute("aria-expanded", state.ariaExpanded);
-        toggle.textContent = state.label;
+        toggle.hidden = expanded ? false : state.hidden;
+        toggle.setAttribute("aria-expanded", expanded ? "true" : state.ariaExpanded);
+        toggle.textContent = expanded ? "Less" : state.label;
       });
     };
     const syncTextShortOverflowIn = (host: ParentNode | null | undefined): void => {
@@ -6860,19 +6863,20 @@ export function renderTracker(
         const textNode = container.querySelector<HTMLElement>(".bst-text-short-value-text");
         const toggle = container.querySelector<HTMLButtonElement>('[data-bst-action="toggle-text-short"]');
         if (!textNode || !toggle) return;
+        const expanded = expandedTextShortKeys.has(key);
         const state = resolveTextShortToggleState({
           scrollHeight: textNode.scrollHeight,
           clientHeight: textNode.clientHeight,
           scrollWidth: textNode.scrollWidth,
           clientWidth: textNode.clientWidth,
-        }, expandedTextShortKeys.has(key));
-        if (!state.overflowing) {
+        }, expanded);
+        if (!expanded && !state.overflowing) {
           if (key) expandedTextShortKeys.delete(key);
           container.classList.remove("bst-text-short-expanded");
         }
-        toggle.hidden = state.hidden;
-        toggle.setAttribute("aria-expanded", state.ariaExpanded);
-        toggle.textContent = state.label;
+        toggle.hidden = expanded ? false : state.hidden;
+        toggle.setAttribute("aria-expanded", expanded ? "true" : state.ariaExpanded);
+        toggle.textContent = expanded ? "Less" : state.label;
       });
     };
     if (sceneRoot) {

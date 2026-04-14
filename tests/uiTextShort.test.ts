@@ -53,3 +53,10 @@ test("mobile-facing more toggles keep an explicit tap target and pointer-safe CS
   assert.match(source, /\.bst-expand-toggle \{[\s\S]*min-height: 28px !important;[\s\S]*touch-action: manipulation;[\s\S]*pointer-events: auto;[\s\S]*position: relative;[\s\S]*z-index: 1;/);
   assert.match(source, /\.bst-array-toggle \{[\s\S]*min-height: 28px;[\s\S]*touch-action: manipulation;[\s\S]*pointer-events: auto;[\s\S]*position: relative;[\s\S]*z-index: 1;/);
 });
+
+test("expanded text-short toggle is not cleared just because expanded layout removes overflow", () => {
+  const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
+  assert.match(source, /const expanded = expandedTextShortKeys\.has\(key\);[\s\S]*if \(!expanded && !state\.overflowing\) \{/);
+  assert.match(source, /toggle\.setAttribute\("aria-expanded", expanded \? "true" : state\.ariaExpanded\);/);
+  assert.match(source, /toggle\.textContent = expanded \? "Less" : state\.label;/);
+});
