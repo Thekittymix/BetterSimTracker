@@ -373,8 +373,7 @@ function filterModelResolvedOwnerScopesByMessageEvidence(input: {
     if (!ownerKey) return false;
     if (previousSceneKeys.has(ownerKey)) return true;
     if (hasOffSceneMentionCue(messageText, owner)) return false;
-    if (countAliasMentions(normalizedMessageText, owner.toLowerCase()) === 0) return true;
-    return hasDirectScenePresenceCue(messageText, owner);
+    return true;
   });
   const allowedRequestKeys = new Set(filteredRequestCharacters.map(normalizeKey));
 

@@ -2506,6 +2506,42 @@ test("resolveModelExtractionOwnerScopes does not activate a newly mentioned off-
   assert.deepEqual(resolved.requestCharacters, ["Marylyn"]);
 });
 
+test("resolveModelExtractionOwnerScopes keeps a model-resolved in-message owner even when not in the previous scene", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Lisa laughed softly and leaned against the doorway.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Marylyn"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      ],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Lisa"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+  assert.ok(resolved.sceneActiveCharacters.includes("Lisa"));
+  assert.deepEqual(resolved.requestCharacters, ["Lisa"]);
+});
+
 test("resolveModelExtractionOwnerScopes keeps a newly present background participant when the message gives real scene evidence", () => {
   const context = {
     characters: [],
