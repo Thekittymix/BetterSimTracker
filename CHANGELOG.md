@@ -2,9 +2,9 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.3.3-dev2] - 2026-04-14
+## [2.5.3.3-dev3] - 2026-04-14
 ### Fixed
-- Fixed tracker `More` / `+N more` controls so array-based card expansions no longer depend entirely on a full rerender and can still expand/collapse correctly through the local button flow.
+- Fixed tracker `More` / `+N more` controls so delegated card clicks still resolve when the browser reports a nested text node as the event target, and array-based expansions no longer depend entirely on a full rerender to update.
 
 ## [2.5.3.3] - 2026-04-13
 ### Fixed

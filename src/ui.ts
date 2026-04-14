@@ -5336,6 +5336,19 @@ function rerenderArrayToggleInPlace(host: ParentNode, key: string, expanded: boo
   button.textContent = expanded ? "Show less" : `+${hiddenCount} more`;
 }
 
+function closestFromEventTarget(target: EventTarget | null, selector: string): HTMLElement | null {
+  if (!target || typeof target !== "object") return null;
+  const direct = target as { closest?: (value: string) => Element | null };
+  if (typeof direct.closest === "function") {
+    const match = direct.closest(selector);
+    return match instanceof HTMLElement ? match : null;
+  }
+  const parentElement = (target as { parentElement?: Element | null }).parentElement ?? null;
+  if (!parentElement || typeof parentElement.closest !== "function") return null;
+  const match = parentElement.closest(selector);
+  return match instanceof HTMLElement ? match : null;
+}
+
 export function renderTracker(
   entries: RenderEntry[],
   settings: BetterSimTrackerSettings,
@@ -5593,8 +5606,7 @@ export function renderTracker(
     if (!root.dataset.bstBound) {
       root.dataset.bstBound = "1";
       const openPreviewFromTarget = (target: EventTarget | null): boolean => {
-        const node = target as HTMLElement | null;
-        const preview = node?.closest('[data-bst-action="open-mood-preview"]') as HTMLElement | null;
+        const preview = closestFromEventTarget(target, '[data-bst-action="open-mood-preview"]');
         if (!preview) return false;
         const src = String(preview.getAttribute("data-bst-image-src") ?? "").trim();
         const alt = String(preview.getAttribute("data-bst-image-alt") ?? "").trim() || "Mood image";
@@ -5606,11 +5618,11 @@ export function renderTracker(
         return true;
       };
       root.addEventListener("click", event => {
-        const target = event.target as HTMLElement | null;
+        const target = event.target;
         if (openPreviewFromTarget(target)) {
           return;
         }
-        const thoughtToggle = target?.closest('[data-bst-action="toggle-thought"]') as HTMLElement | null;
+        const thoughtToggle = closestFromEventTarget(target, '[data-bst-action="toggle-thought"]');
         if (thoughtToggle) {
           const key = String(thoughtToggle.getAttribute("data-bst-thought-key") ?? "").trim();
           if (!key) return;
@@ -5633,7 +5645,7 @@ export function renderTracker(
           }
           return;
         }
-        const textShortToggle = target?.closest('[data-bst-action="toggle-text-short"]') as HTMLElement | null;
+        const textShortToggle = closestFromEventTarget(target, '[data-bst-action="toggle-text-short"]');
         if (textShortToggle) {
           const key = String(textShortToggle.getAttribute("data-bst-text-short-key") ?? "").trim();
           if (!key) return;
@@ -5656,7 +5668,7 @@ export function renderTracker(
           }
           return;
         }
-        const arrayToggle = target?.closest('[data-bst-action="toggle-array-values"]') as HTMLElement | null;
+        const arrayToggle = closestFromEventTarget(target, '[data-bst-action="toggle-array-values"]');
         if (arrayToggle) {
           const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
           if (!key) return;
@@ -5674,7 +5686,7 @@ export function renderTracker(
           }
           return;
         }
-        const button = target?.closest('[data-bst-action="graph"]') as HTMLElement | null;
+        const button = closestFromEventTarget(target, '[data-bst-action="graph"]');
         if (button) {
           const name = String(button.getAttribute("data-character") ?? "").trim();
           const entityId = String(button.getAttribute("data-entity-id") ?? "").trim();
@@ -5682,7 +5694,7 @@ export function renderTracker(
           onOpenGraph?.({ ownerName: name, entityId: entityId || null });
           return;
         }
-        const edit = target?.closest('[data-bst-action="edit-stats"]') as HTMLElement | null;
+        const edit = closestFromEventTarget(target, '[data-bst-action="edit-stats"]');
         if (edit) {
           const idx = Number(edit.getAttribute("data-bst-edit-message") ?? root.dataset.messageIndex);
           const character = String(edit.getAttribute("data-bst-edit-character") ?? "").trim();
@@ -5698,7 +5710,7 @@ export function renderTracker(
           });
           return;
         }
-        const sceneCollapse = target?.closest('[data-bst-action="toggle-scene-collapse"]') as HTMLElement | null;
+        const sceneCollapse = closestFromEventTarget(target, '[data-bst-action="toggle-scene-collapse"]');
         if (sceneCollapse) {
           const idx = Number(sceneRoot?.dataset.messageIndex ?? root.dataset.messageIndex);
           if (Number.isNaN(idx)) return;
@@ -5712,7 +5724,7 @@ export function renderTracker(
           onRequestRerender?.();
           return;
         }
-        const retrack = target?.closest('[data-bst-action="retrack"]') as HTMLElement | null;
+        const retrack = closestFromEventTarget(target, '[data-bst-action="retrack"]');
         if (retrack) {
           const idx = Number(root.dataset.messageIndex);
           if (!Number.isNaN(idx)) {
@@ -5720,7 +5732,7 @@ export function renderTracker(
           }
           return;
         }
-        const recover = target?.closest('[data-bst-action="recover-tracker"]') as HTMLElement | null;
+        const recover = closestFromEventTarget(target, '[data-bst-action="recover-tracker"]');
         if (recover) {
           const idx = Number(root.dataset.messageIndex);
           if (!Number.isNaN(idx)) {
@@ -5728,7 +5740,7 @@ export function renderTracker(
           }
           return;
         }
-        const sendSummary = target?.closest('[data-bst-action="send-summary"]') as HTMLButtonElement | null;
+        const sendSummary = closestFromEventTarget(target, '[data-bst-action="send-summary"]') as HTMLButtonElement | null;
         if (sendSummary) {
           if (sendSummary.disabled || sendSummary.dataset.loading === "true") {
             return;
@@ -5739,7 +5751,7 @@ export function renderTracker(
           }
           return;
         }
-        const collapse = target?.closest('[data-bst-action="toggle-all-collapse"]') as HTMLElement | null;
+        const collapse = closestFromEventTarget(target, '[data-bst-action="toggle-all-collapse"]');
         if (collapse) {
           const idx = Number(root.dataset.messageIndex);
           if (Number.isNaN(idx)) return;
@@ -5779,7 +5791,7 @@ export function renderTracker(
           onRequestRerender?.();
           return;
         }
-        const cardCollapse = target?.closest('[data-bst-action="toggle-card-collapse"]') as HTMLElement | null;
+        const cardCollapse = closestFromEventTarget(target, '[data-bst-action="toggle-card-collapse"]');
         if (cardCollapse) {
           const cardKey = String(cardCollapse.getAttribute("data-bst-card-key") ?? "").trim();
           const isActive = cardCollapse.getAttribute("data-bst-card-active") === "true";
@@ -5795,7 +5807,7 @@ export function renderTracker(
           onRequestRerender?.();
           return;
         }
-        const cancel = target?.closest('[data-bst-action="cancel-extraction"]') as HTMLElement | null;
+        const cancel = closestFromEventTarget(target, '[data-bst-action="cancel-extraction"]');
         if (cancel) {
           onCancelExtraction?.();
           return;
@@ -5812,8 +5824,8 @@ export function renderTracker(
     if (sceneRoot && !sceneRoot.dataset.bstBound) {
       sceneRoot.dataset.bstBound = "1";
       sceneRoot.addEventListener("click", event => {
-        const target = event.target as HTMLElement | null;
-        const preview = target?.closest('[data-bst-action="open-mood-preview"]') as HTMLElement | null;
+        const target = event.target;
+        const preview = closestFromEventTarget(target, '[data-bst-action="open-mood-preview"]');
         if (preview) {
           const src = String(preview.getAttribute("data-bst-image-src") ?? "").trim();
           const alt = String(preview.getAttribute("data-bst-image-alt") ?? "").trim() || "Mood image";
@@ -5824,7 +5836,7 @@ export function renderTracker(
           }
           return;
         }
-        const edit = target?.closest('[data-bst-action="edit-stats"]') as HTMLElement | null;
+        const edit = closestFromEventTarget(target, '[data-bst-action="edit-stats"]');
         if (edit) {
           const idx = Number(edit.getAttribute("data-bst-edit-message") ?? sceneRoot.dataset.messageIndex);
           const character = String(edit.getAttribute("data-bst-edit-character") ?? "").trim();
@@ -5840,7 +5852,7 @@ export function renderTracker(
           });
           return;
         }
-        const sceneCollapse = target?.closest('[data-bst-action="toggle-scene-collapse"]') as HTMLElement | null;
+        const sceneCollapse = closestFromEventTarget(target, '[data-bst-action="toggle-scene-collapse"]');
         if (sceneCollapse) {
           const idx = Number(sceneRoot.dataset.messageIndex);
           if (Number.isNaN(idx)) return;
@@ -5854,7 +5866,7 @@ export function renderTracker(
           onRequestRerender?.();
           return;
         }
-        const arrayToggle = target?.closest('[data-bst-action="toggle-array-values"]') as HTMLElement | null;
+        const arrayToggle = closestFromEventTarget(target, '[data-bst-action="toggle-array-values"]');
         if (arrayToggle) {
           const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
           if (!key) return;
@@ -5873,7 +5885,7 @@ export function renderTracker(
           }
           return;
         }
-        const textShortToggle = target?.closest('[data-bst-action="toggle-text-short"]') as HTMLElement | null;
+        const textShortToggle = closestFromEventTarget(target, '[data-bst-action="toggle-text-short"]');
         if (!textShortToggle) return;
         const key = String(textShortToggle.getAttribute("data-bst-text-short-key") ?? "").trim();
         if (!key) return;
