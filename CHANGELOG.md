@@ -2,9 +2,9 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.3.3-dev1] - 2026-04-14
+## [2.5.3.3-dev2] - 2026-04-14
 ### Fixed
-- Fixed tracker `More` / `+N more` controls on mobile by restoring an explicit touch-safe hit target and pointer-safe stacking for expandable card buttons.
+- Fixed tracker `More` / `+N more` controls so array-based card expansions no longer depend entirely on a full rerender and can still expand/collapse correctly through the local button flow.
 
 ## [2.5.3.3] - 2026-04-13
 ### Fixed

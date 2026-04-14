@@ -5320,6 +5320,22 @@ function shouldSkipIdleTrackerEntryRender(
   );
 }
 
+function rerenderArrayToggleInPlace(host: ParentNode, key: string, expanded: boolean): void {
+  const button = host.querySelector(`[data-bst-action="toggle-array-values"][data-bst-array-key="${CSS.escape(key)}"]`) as HTMLButtonElement | null;
+  if (!button) return;
+  const container = button.closest(".bst-array-items") as HTMLElement | null;
+  if (!container) return;
+  const allItems = Array.from(container.querySelectorAll<HTMLElement>(".bst-array-item-chip"));
+  if (allItems.length === 0) return;
+  const collapsedLimit = 4;
+  allItems.forEach((item, index) => {
+    item.hidden = !expanded && index >= collapsedLimit;
+  });
+  button.setAttribute("aria-expanded", expanded ? "true" : "false");
+  const hiddenCount = Math.max(0, allItems.length - collapsedLimit);
+  button.textContent = expanded ? "Show less" : `+${hiddenCount} more`;
+}
+
 export function renderTracker(
   entries: RenderEntry[],
   settings: BetterSimTrackerSettings,
@@ -5644,13 +5660,18 @@ export function renderTracker(
         if (arrayToggle) {
           const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
           if (!key) return;
-          if (expandedArrayValueKeys.has(key)) {
+          const wasExpanded = expandedArrayValueKeys.has(key);
+          if (wasExpanded) {
             expandedArrayValueKeys.delete(key);
           } else {
             expandedArrayValueKeys.add(key);
           }
           root.dataset.bstRenderSignature = "";
-          onRequestRerender?.();
+          if (onRequestRerender) {
+            onRequestRerender();
+          } else {
+            rerenderArrayToggleInPlace(root, key, !wasExpanded);
+          }
           return;
         }
         const button = target?.closest('[data-bst-action="graph"]') as HTMLElement | null;
@@ -5837,14 +5858,19 @@ export function renderTracker(
         if (arrayToggle) {
           const key = String(arrayToggle.getAttribute("data-bst-array-key") ?? "").trim();
           if (!key) return;
-          if (expandedArrayValueKeys.has(key)) {
+          const wasExpanded = expandedArrayValueKeys.has(key);
+          if (wasExpanded) {
             expandedArrayValueKeys.delete(key);
           } else {
             expandedArrayValueKeys.add(key);
           }
           root.dataset.bstRenderSignature = "";
           sceneRoot.dataset.bstRenderSignature = "";
-          onRequestRerender?.();
+          if (onRequestRerender) {
+            onRequestRerender();
+          } else {
+            rerenderArrayToggleInPlace(sceneRoot, key, !wasExpanded);
+          }
           return;
         }
         const textShortToggle = target?.closest('[data-bst-action="toggle-text-short"]') as HTMLElement | null;
@@ -6368,9 +6394,8 @@ export function renderTracker(
             const arrayKey = `arr:${entry.messageIndex}:${ownerUiKey}:${def.id}`;
             const expanded = expandedArrayValueKeys.has(arrayKey);
             const hasOverflow = items.length > 4;
-            const visibleItems = hasOverflow && !expanded ? items.slice(0, 4) : items;
-            const chips = visibleItems.length
-              ? visibleItems.map(item => `<span class="bst-array-item-chip" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(item)}">${escapeHtml(item)}</span>`).join("")
+            const chips = items.length
+              ? items.map((item, index) => `<span class="bst-array-item-chip" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(item)}"${hasOverflow && !expanded && index >= 4 ? " hidden" : ""}>${escapeHtml(item)}</span>`).join("")
               : `<span class="bst-array-item-empty">No items</span>`;
             return `
               <div class="bst-row bst-row-non-numeric">
@@ -6649,11 +6674,10 @@ export function renderTracker(
               const sceneArrayKey = `arrscene:${entry.messageIndex}:${def.id}`;
               const expanded = expandedArrayValueKeys.has(sceneArrayKey);
               const hasOverflow = items.length > arrayLimit;
-              const visibleItems = hasOverflow && !expanded ? items.slice(0, arrayLimit) : items;
-              const chips = visibleItems.length
-                ? visibleItems.map(itemValue => {
+              const chips = items.length
+                ? items.map((itemValue, index) => {
                   const value = truncateDisplayText(itemValue, textMaxLength);
-                  return `<span class="bst-array-item-chip" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(itemValue)}">${escapeHtml(value)}</span>`;
+                  return `<span class="bst-array-item-chip" style="--bst-stat-color:${escapeHtml(color)};" title="${escapeHtml(itemValue)}"${hasOverflow && !expanded && index >= arrayLimit ? " hidden" : ""}>${escapeHtml(value)}</span>`;
                 }).join("")
                 : `<span class="bst-array-item-empty">Not set</span>`;
               return `
