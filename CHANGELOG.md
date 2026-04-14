@@ -2,10 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.3.4-dev3] - 2026-04-14
+## [2.5.3.4-dev4] - 2026-04-14
 ### Fixed
 - Fixed model-resolved scene scopes so newly mentioned off-scene characters no longer become active just from being named, while genuinely present background participants can still stay in-scene without becoming current-message responders.
 - Fixed the follow-up resolver regression so model-resolved current-message participants are no longer dropped from extraction just because they were not already in the previous scene.
+- Fixed stale scene continuity on AI turns so third-party names mentioned in dialogue or reported speech are no longer treated as current in-scene participants, while recent real group-scene cues can still preserve legitimate silent participants.
 - Fixed custom `text_short` stat editors so tracker edit modals plus character/persona default editors now use textareas instead of single-line text inputs.
 
 ## [2.5.3.4] - 2026-04-14

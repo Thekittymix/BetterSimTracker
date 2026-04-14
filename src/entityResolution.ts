@@ -339,15 +339,48 @@ function hasDirectScenePresenceCue(text: string, name: string): boolean {
   if (!normalized || !name) return false;
   if (hasOffSceneMentionCue(normalized, name)) return false;
   const escaped = escapeRegex(name);
-  const actionPattern = String.raw`(?:answer(?:s|ed|ing)?|reply(?:s|ed|ing)?|say(?:s|ing)?|said|ask(?:s|ed|ing)?|watch(?:es|ed|ing)?|look(?:s|ed|ing)?|glanc(?:e|es|ed|ing)|hover(?:s|ed|ing)?|pace(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|remain(?:s|ed|ing)?|stay(?:s|ed|ing)?|enter(?:s|ed|ing)?|walk(?:s|ed|ing)?|come(?:s|ing)?|came|step(?:s|ped|ping)?|lean(?:s|ed|ing)?|smile(?:s|d|ing)?|laugh(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|move(?:s|d|ing)?)`;
+  const subjectActionPattern = String.raw`(?:answer(?:s|ed|ing)?|reply(?:s|ed|ing)?|say(?:s|ing)?|said|ask(?:s|ed|ing)?|watch(?:es|ed|ing)?|look(?:s|ed|ing)?|glanc(?:e|es|ed|ing)|hover(?:s|ed|ing)?|pace(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|remain(?:s|ed|ing)?|stay(?:s|ed|ing)?|enter(?:s|ed|ing)?|walk(?:s|ed|ing)?|come(?:s|ing)?|came|step(?:s|ped|ping)?|lean(?:s|ed|ing)?|smile(?:s|d|ing)?|laugh(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|move(?:s|d|ing)?)`;
+  const nearbyActionPattern = String.raw`(?:watch(?:es|ed|ing)?|look(?:s|ed|ing)?|glanc(?:e|es|ed|ing)|hover(?:s|ed|ing)?|pace(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|remain(?:s|ed|ing)?|stay(?:s|ed|ing)?|enter(?:s|ed|ing)?|walk(?:s|ed|ing)?|come(?:s|ing)?|came|step(?:s|ped|ping)?|lean(?:s|ed|ing)?|smile(?:s|d|ing)?|laugh(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|move(?:s|d|ing)?)`;
   const patterns = [
-    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\b${actionPattern}\\b`, "i"),
-    new RegExp(`\\b${actionPattern}\\b[^.!?\\n]{0,80}\\b${escaped}\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\b${subjectActionPattern}\\b`, "i"),
+    new RegExp(`\\b${nearbyActionPattern}\\b[^.!?\\n]{0,80}\\b${escaped}\\b`, "i"),
   ];
   return patterns.some(pattern => pattern.test(normalized));
 }
 
+function hasGroupSceneContinuityCue(text: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized) return false;
+  const patterns = [
+    /\bthe others\b[^.!?\n]{0,80}\b(?:stay|stayed|remain|remained|were|are)\b/i,
+    /\b(?:everyone|everybody|all of them|the rest)\b[^.!?\n]{0,80}\b(?:stay|stayed|remain|remained|were|are)\b/i,
+    /\b(?:in the room|beside|next to|with)\b[^.!?\n]{0,40}\b(?:her|him|them)\b/i,
+  ];
+  return patterns.some(pattern => pattern.test(normalized));
+}
+
+function hasRecentScenePresenceEvidence(
+  context: STContext | null,
+  message: ChatMessage | null | undefined,
+  name: string,
+  maxLookbackMessages = 6,
+): boolean {
+  if (!context || !Array.isArray(context.chat) || !name) return false;
+  const currentMessageIndex = resolveMessageIndex(context, message);
+  if (currentMessageIndex < 0) return false;
+  const startIndex = Math.max(0, currentMessageIndex - maxLookbackMessages);
+  for (let index = currentMessageIndex; index >= startIndex; index -= 1) {
+    const candidate = context.chat[index];
+    if (!candidate || candidate.is_system) continue;
+    const text = normalizeToken(candidate.mes);
+    if (!text) continue;
+    if (hasDirectScenePresenceCue(text, name)) return true;
+  }
+  return false;
+}
+
 function filterModelResolvedOwnerScopesByMessageEvidence(input: {
+  context: STContext | null;
   message: ChatMessage | null | undefined;
   previousSceneActiveCharacters: string[];
   resolvedSceneActiveCharacters: string[];
@@ -381,8 +414,10 @@ function filterModelResolvedOwnerScopesByMessageEvidence(input: {
     ...input.resolvedSceneActiveCharacters.filter(owner => {
       const ownerKey = normalizeKey(owner);
       if (!ownerKey) return false;
-      if (previousSceneKeys.has(ownerKey)) return true;
       if (allowedRequestKeys.has(ownerKey)) return true;
+      if (previousSceneKeys.has(ownerKey)) {
+        return hasRecentScenePresenceEvidence(input.context, input.message, owner);
+      }
       return hasDirectScenePresenceCue(messageText, owner);
     }),
     ...filteredRequestCharacters,
@@ -961,6 +996,7 @@ export function resolveModelExtractionOwnerScopes(input: {
     { includeUserOwner: false },
   );
   const filteredResolvedScopes = filterModelResolvedOwnerScopesByMessageEvidence({
+    context: input.context,
     message: input.message,
     previousSceneActiveCharacters,
     resolvedSceneActiveCharacters,
@@ -1019,6 +1055,7 @@ export function resolveModelExtractionOwnerScopes(input: {
       if (!ownerKey || sceneKeys.has(ownerKey)) return false;
       if (hasDepartureCue(currentMessageText, owner)) return false;
       if (exclusiveResolvedKeys.size && !exclusiveResolvedKeys.has(ownerKey)) return false;
+      if (!hasRecentScenePresenceEvidence(input.context, input.message, owner) && !hasGroupSceneContinuityCue(currentMessageText)) return false;
       return true;
     }),
   ]);
