@@ -366,7 +366,7 @@ export function openEditStatsModal(input: {
     return `
       <label class="bst-edit-field">
         <span>${escapeHtml(def.label)}</span>
-        <input type="text" maxlength="${def.textMaxLength}" data-bst-edit-non-numeric="${escapeHtml(def.id)}" data-bst-edit-kind="text_short" value="${escapeHtml(value)}" placeholder="Optional. Max ${def.textMaxLength} chars.">
+        <textarea rows="3" maxlength="${def.textMaxLength}" data-bst-edit-non-numeric="${escapeHtml(def.id)}" data-bst-edit-kind="text_short" placeholder="Optional. Max ${def.textMaxLength} chars.">${escapeHtml(value)}</textarea>
       </label>
     `;
   };
