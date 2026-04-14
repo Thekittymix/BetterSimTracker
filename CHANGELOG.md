@@ -2,7 +2,7 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.3.3-dev5] - 2026-04-14
+## [2.5.3.4] - 2026-04-14
 ### Fixed
 - Fixed tracker card `More` controls across thought, short-text, and array stat surfaces so they now expand and collapse with local in-place DOM updates instead of heavy tracker rerenders, while expanded text panels no longer self-reset during overflow recalculation and nested button clicks still resolve reliably.
 
