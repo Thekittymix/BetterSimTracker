@@ -1,5 +1,7 @@
 import { USER_TRACKER_KEY } from "./constants";
+import { buildTargetToEntityMap } from "./entityScopedBuckets";
 import { resolveTrackerSceneOwners } from "./entityRegistry";
+import type { EntityTrackingMode } from "./entityResolution";
 import type {
   ClearedCustomNonNumericStatistics,
   ClearedCustomStatistics,
@@ -142,17 +144,27 @@ export function buildEditedTrackerDataSnapshot(input: BuildEditedTrackerDataSnap
 export function syncEditedTrackerEntityState(
   data: TrackerData,
   ownerName: string,
+  options?: {
+    context?: Parameters<typeof buildTargetToEntityMap>[0];
+    entityTrackingMode?: EntityTrackingMode;
+  },
 ): TrackerData {
   const snapshot = resolveEditedOwnerSnapshot(data.entityOwnerMap, ownerName);
-  const entityId = normalizeToken(snapshot?.entityId);
-  if (!entityId) return data;
-
   const ownerCandidates = Array.from(new Set([
     normalizeToken(ownerName),
     normalizeToken(snapshot?.ownerName),
     normalizeToken(snapshot?.canonicalName),
     ...((snapshot?.aliases ?? []).map(alias => normalizeToken(alias))),
   ].filter(Boolean)));
+  const resolvedOwnerName = normalizeToken(snapshot?.ownerName) || normalizeToken(ownerName);
+  const targetToEntity = buildTargetToEntityMap(
+    options?.context ?? null,
+    [resolvedOwnerName],
+    snapshot?.entityId ? [snapshot.entityId] : null,
+    options?.entityTrackingMode ?? "standard",
+  );
+  const entityId = normalizeToken(targetToEntity[resolvedOwnerName]);
+  if (!entityId) return data;
 
   const resolveOwnerValue = <T>(byOwner: Record<string, T> | undefined): T | undefined => {
     if (!byOwner) return undefined;

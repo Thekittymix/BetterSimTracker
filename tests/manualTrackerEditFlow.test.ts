@@ -2,6 +2,7 @@ import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { buildEntityResolution } from "./helpers/entityResolution";
 
+import { USER_TRACKER_KEY } from "../src/constants";
 import { __testables as editModalTestables } from "../src/editStatsModal";
 import { readEntityRegistry } from "../src/entityRegistry";
 import { syncEntityRegistryFromTrackerData } from "../src/entityRegistrySync";
@@ -405,4 +406,59 @@ test("manual tracker edit save keeps inactive narrative entity continuity availa
   assert.equal(overlay.statistics.connection.Candy, 64);
   assert.equal(overlay.customNonNumericStatistics?.physicality?.Candy, "Warm and lively");
   assert.deepEqual(overlay.customNonNumericStatistics?.clothes?.Candy, ["too-small t-shirt", "panties"]);
+});
+
+test("manual tracker edit save keeps user owner and byEntityId buckets aligned through write and reread", () => {
+  const context = makeContext();
+  const current: TrackerData = {
+    timestamp: 1000,
+    activeCharacters: [USER_TRACKER_KEY],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { [USER_TRACKER_KEY]: "Content" },
+      lastThought: { [USER_TRACKER_KEY]: "Stay calm." },
+    },
+    statisticsByEntityId: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { "bst_owner:__bst_user__": "Neutral" },
+      lastThought: { "bst_owner:__bst_user__": "Old thought." },
+    },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: {
+      clothes: { [USER_TRACKER_KEY]: ["hoodie", "boots"] },
+      pose: { [USER_TRACKER_KEY]: "Leaning forward." },
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: { "bst_owner:__bst_user__": ["t-shirt", "jeans"] },
+      pose: { "bst_owner:__bst_user__": "Sitting back." },
+    },
+  };
+
+  const edited = buildEditedTrackerDataSnapshot({
+    current,
+    timestamp: 1001,
+    activeCharacters: [USER_TRACKER_KEY],
+    statistics: structuredClone(current.statistics),
+    customStatistics: {},
+    customNonNumericStatistics: structuredClone(current.customNonNumericStatistics),
+  });
+
+  const entitySynced = syncEditedTrackerEntityState(edited, USER_TRACKER_KEY, { context });
+  writeTrackerDataToMessage(context, entitySynced, 0, {
+    preserveExplicitActiveCharactersWhenConsistent: true,
+  });
+
+  const reread = getTrackerDataFromMessage(context.chat[0]);
+  assert.ok(reread);
+  assert.equal(reread.statisticsByEntityId?.mood?.["bst_owner:__bst_user__"], "Content");
+  assert.equal(reread.statisticsByEntityId?.lastThought?.["bst_owner:__bst_user__"], "Stay calm.");
+  assert.deepEqual(reread.customNonNumericStatisticsByEntityId?.clothes?.["bst_owner:__bst_user__"], ["hoodie", "boots"]);
+  assert.equal(reread.customNonNumericStatisticsByEntityId?.pose?.["bst_owner:__bst_user__"], "Leaning forward.");
 });

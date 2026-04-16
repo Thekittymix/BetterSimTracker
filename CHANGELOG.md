@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.4-dev8] - 2026-04-16
+### Fixed
+- Fixed manual user-tracker stat edits so saved user rows now keep owner-key and entity-scoped snapshot buckets aligned, preventing stale `ByEntityId` values from surviving after edit saves and later overwrite paths.
+
 ## [2.5.3.4-dev7] - 2026-04-16
 ### Changed
 - Reduced tracker refresh and scheduling overhead by deduping repeated bootstrap scheduling, narrowing local edit/settings refresh paths, and moving late-render plus user-turn replay orchestration onto smaller testable controllers.

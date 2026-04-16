@@ -3201,7 +3201,10 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
     setManualInactiveCharacter(context, character, !payload.active);
   }
 
-  const entitySynced = syncEditedTrackerEntityState(next, character);
+  const entitySynced = syncEditedTrackerEntityState(next, character, {
+    context,
+    entityTrackingMode: resolveEntityTrackingMode(settings!),
+  });
   next.statisticsByEntityId = entitySynced.statisticsByEntityId;
   next.customStatisticsByEntityId = entitySynced.customStatisticsByEntityId;
   next.customNonNumericStatisticsByEntityId = entitySynced.customNonNumericStatisticsByEntityId;

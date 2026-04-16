@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildEntityResolution } from "./helpers/entityResolution";
 
+import { USER_TRACKER_KEY } from "../src/constants";
 import { resolveTrackerMessageOwners, resolveTrackerSceneEntityIds, resolveTrackerSceneOwners } from "../src/entityRegistry";
 import { applyEditedTrackerActiveState, buildEditedTrackerDataSnapshot, syncEditedTrackerEntityState } from "../src/trackerEditState";
 import type { TrackerData } from "../src/types";
@@ -350,4 +351,44 @@ test("syncEditedTrackerEntityState removes stale byEntityId values when an edite
   assert.equal(next.statisticsByEntityId?.lastThought?.["bst_mc_alias:test:blake"], undefined);
   assert.equal(next.customStatisticsByEntityId?.tension?.["bst_mc_alias:test:blake"], undefined);
   assert.equal(next.customNonNumericStatisticsByEntityId?.clothes?.["bst_mc_alias:test:blake"], undefined);
+});
+
+test("syncEditedTrackerEntityState mirrors edited user values into byEntityId buckets", () => {
+  const current: TrackerData = {
+    timestamp: 1000,
+    activeCharacters: [USER_TRACKER_KEY],
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { [USER_TRACKER_KEY]: "Content" },
+      lastThought: { [USER_TRACKER_KEY]: "Stay calm." },
+    },
+    statisticsByEntityId: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { "bst_owner:__bst_user__": "Neutral" },
+      lastThought: { "bst_owner:__bst_user__": "Old thought." },
+    },
+    customStatistics: {},
+    customStatisticsByEntityId: {},
+    customNonNumericStatistics: {
+      clothes: { [USER_TRACKER_KEY]: ["hoodie", "boots"] },
+      pose: { [USER_TRACKER_KEY]: "Leaning forward." },
+    },
+    customNonNumericStatisticsByEntityId: {
+      clothes: { "bst_owner:__bst_user__": ["t-shirt", "jeans"] },
+      pose: { "bst_owner:__bst_user__": "Sitting back." },
+    },
+  };
+
+  const next = syncEditedTrackerEntityState(current, USER_TRACKER_KEY);
+
+  assert.equal(next.statisticsByEntityId?.mood?.["bst_owner:__bst_user__"], "Content");
+  assert.equal(next.statisticsByEntityId?.lastThought?.["bst_owner:__bst_user__"], "Stay calm.");
+  assert.deepEqual(next.customNonNumericStatisticsByEntityId?.clothes?.["bst_owner:__bst_user__"], ["hoodie", "boots"]);
+  assert.equal(next.customNonNumericStatisticsByEntityId?.pose?.["bst_owner:__bst_user__"], "Leaning forward.");
 });
