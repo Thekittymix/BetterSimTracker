@@ -360,6 +360,21 @@ function hasGroupSceneContinuityCue(text: string): boolean {
   return patterns.some(pattern => pattern.test(normalized));
 }
 
+function hasUserGroupAddressCue(text: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized) return false;
+  const patterns = [
+    /\bone rule\b/i,
+    /\bnobody\b/i,
+    /\beveryone\b/i,
+    /\beverybody\b/i,
+    /\ball of you\b/i,
+    /\byou all\b/i,
+    /\bthe rest of you\b/i,
+  ];
+  return patterns.some(pattern => pattern.test(normalized));
+}
+
 function hasRecentScenePresenceEvidence(
   context: STContext | null,
   message: ChatMessage | null | undefined,
@@ -386,6 +401,28 @@ function hasMentionOnlyReference(text: string, name: string): boolean {
   if (hasOffSceneMentionCue(normalized, name)) return false;
   if (hasDirectScenePresenceCue(normalized, name)) return false;
   return countAliasMentions(normalized.toLowerCase(), name.toLowerCase()) > 0;
+}
+
+function resolvePreviousUserBridgeSceneOwners(
+  context: STContext | null,
+  message: ChatMessage | null | undefined,
+  recentTrackerHistory: Array<TrackerData | null | undefined> | null | undefined,
+): string[] {
+  if (!context || !Array.isArray(context.chat) || !message) return [];
+  const currentMessageIndex = resolveMessageIndex(context, message);
+  if (currentMessageIndex <= 0) return [];
+  const previousMessage = context.chat[currentMessageIndex - 1];
+  if (!previousMessage || !previousMessage.is_user || previousMessage.is_system) return [];
+  const previousMessageText = normalizeToken(previousMessage.mes);
+  if (!previousMessageText) return [];
+  if (!hasUserGroupAddressCue(previousMessageText) && !hasGroupSceneContinuityCue(previousMessageText)) return [];
+
+  for (const entry of recentTrackerHistory ?? []) {
+    const sceneOwners = resolvePersistedActiveOwners(resolveTrackerSceneOwners(null, entry), { includeUserOwner: false });
+    if (sceneOwners.length) return sceneOwners;
+  }
+
+  return [];
 }
 
 function filterModelResolvedOwnerScopesByMessageEvidence(input: {
@@ -1022,7 +1059,6 @@ export function resolveModelExtractionOwnerScopes(input: {
   };
   if (!isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings))) return defaultScopes;
   if (!filteredResolvedSceneActiveCharacters.length) return defaultScopes;
-  if (!previousSceneActiveCharacters.length) return defaultScopes;
   const recentSceneMemoryOwners = (() => {
     const recentScenes = (input.recentTrackerHistory ?? [])
       .map(entry => resolvePersistedActiveOwners(resolveTrackerSceneOwners(null, entry), { includeUserOwner: false }))
@@ -1050,6 +1086,11 @@ export function resolveModelExtractionOwnerScopes(input: {
         .map(([, entry]) => entry.ownerName),
     ]);
   })();
+  const previousUserBridgeSceneOwners = resolvePreviousUserBridgeSceneOwners(
+    input.context,
+    input.message,
+    input.recentTrackerHistory ?? [],
+  );
 
   const currentMessageText = normalizeToken(input.message?.mes);
   const sceneKeys = new Set(filteredResolvedSceneActiveCharacters.map(normalizeKey));
@@ -1060,6 +1101,14 @@ export function resolveModelExtractionOwnerScopes(input: {
   );
   const mergedSceneActiveCharacters = uniqueStrings([
     ...filteredResolvedSceneActiveCharacters,
+    ...previousUserBridgeSceneOwners.filter(owner => {
+      const ownerKey = normalizeKey(owner);
+      if (!ownerKey || sceneKeys.has(ownerKey)) return false;
+      if (hasDepartureCue(currentMessageText, owner)) return false;
+      if (hasOffSceneMentionCue(currentMessageText, owner)) return false;
+      if (exclusiveResolvedKeys.size && !exclusiveResolvedKeys.has(ownerKey)) return false;
+      return true;
+    }),
     ...recentSceneMemoryOwners.filter(owner => {
       const ownerKey = normalizeKey(owner);
       if (!ownerKey || sceneKeys.has(ownerKey)) return false;
