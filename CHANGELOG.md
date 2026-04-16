@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.4-dev7] - 2026-04-16
+### Changed
+- Reduced tracker refresh and scheduling overhead by deduping repeated bootstrap scheduling, narrowing local edit/settings refresh paths, and moving late-render plus user-turn replay orchestration onto smaller testable controllers.
+
+### Fixed
+- Fixed more full-tracker rerender hotspots so scene collapse, extraction loading progress, and related local tracker UI updates avoid unnecessary heavy redraw paths.
+
 ## [2.5.3.4-dev6] - 2026-04-14
 ### Fixed
 - Fixed tracker card collapse and expand actions so both per-card toggles and root card collapse now update locally in place instead of triggering heavy full-tracker rerenders.

@@ -127,6 +127,7 @@ import type {
 } from "./types";
 import {
   removeTrackerUI,
+  rerenderExtractionLoadingInPlace,
   renderTracker,
   type TrackerRecoveryEntry,
   type TrackerUiState,
@@ -192,8 +193,15 @@ import {
   pruneProjectedTrackerDataCache,
   resolveDirtyRenderStart,
 } from "./renderQueueHelpers";
+import { shouldQueueRenderAfterRefresh, type RefreshRenderSnapshot } from "./refreshRenderPolicy";
 import { resolveGroupReplayTarget } from "./userTurnReplayTarget";
 import { normalizeRefreshTargetMessageIndex, type RefreshTargetInput } from "./windowApi";
+import { shouldRunDeferredInitRefresh } from "./initRefreshPolicy";
+import { createExtractionScheduler } from "./extractionScheduler";
+import { validateUserTurnReplayState } from "./userTurnReplayPolicy";
+import { createBootstrapScheduler } from "./bootstrapScheduler";
+import { createLateRenderRecoveryController } from "./lateRenderRecovery";
+import { executeUserTurnReplay } from "./userTurnReplayExecution";
 
 declare const __BST_VERSION__: string;
 
@@ -208,9 +216,9 @@ let lastExtractionBaselineDebugMeta: Record<string, unknown> | null = null;
 let trackerUiState: TrackerUiState = { phase: "idle", done: 0, total: 0, messageIndex: null, stepLabel: null };
 const renderProjectedTrackerDataCache = new Map<number, import("./renderQueueHelpers").ProjectedTrackerDataCacheEntry>();
 let previousRenderPassSnapshot: import("./renderQueueHelpers").RenderPassSnapshot | null = null;
+let previousRefreshRenderSnapshot: RefreshRenderSnapshot | null = null;
 const trackerRecoveryByMessage = new Map<number, TrackerRecoveryEntry>();
 let renderQueued = false;
-let extractionTimer: number | null = null;
 let swipeExtractionTimer: number | null = null;
 let pendingSwipeExtraction: { reason: string; messageIndex?: number; waitForGenerationEnd?: boolean } | null = null;
 let lastDebugRecord: DeltaDebugRecord | null = null;
@@ -231,8 +239,6 @@ let chatGenerationStartLastAiIndex: number | null = null;
 let swipeGenerationActive = false;
 let pendingLateRenderExtraction = false;
 let pendingLateRenderStartLastAiIndex: number | null = null;
-let lateRenderPollTimer: number | null = null;
-let autoBootstrapExtractionKey: string | null = null;
 let promptRefreshController: ReturnType<typeof createPromptRefreshController> | null = null;
 let dynamicCharactersPanelController: ReturnType<typeof initDynamicCharactersPanel> | null = null;
 const BOOTSTRAP_CONTINUE_REASON = "AUTO_BOOTSTRAP_MISSING_TRACKER_CONTINUE";
@@ -264,6 +270,43 @@ let activeExtractionRunId: number | null = null;
 const cancelledExtractionRuns = new Set<number>();
 const activeSummaryRuns = new Set<number>();
 let settingsModalModulePromise: Promise<typeof import("./settingsModal")> | null = null;
+
+type RefreshFromStoredDataOptions = {
+  allowBootstrapScheduling?: boolean;
+  syncDynamicCharactersPanel?: boolean;
+  syncSettingsPanel?: boolean;
+};
+
+const extractionScheduler = createExtractionScheduler({
+  timers: {
+    setTimeout: (fn, delay) => window.setTimeout(fn, delay),
+    clearTimeout: id => window.clearTimeout(id),
+  },
+  onFire: (reason, targetMessageIndex) => {
+    pushTrace("extract.schedule.fire", { reason, targetMessageIndex: targetMessageIndex ?? null });
+    void runExtraction(reason, targetMessageIndex ?? undefined);
+  },
+  onSkip: (reason, targetMessageIndex) => {
+    pushTrace("extract.schedule.skip", {
+      reason: "duplicate_pending_schedule",
+      trigger: reason,
+      targetMessageIndex: targetMessageIndex ?? null,
+    });
+  },
+});
+const bootstrapScheduler = createBootstrapScheduler({
+  getScopeKey: () => {
+    const activeContext = getSafeContext();
+    return activeContext ? getDebugScopeKey(activeContext) : "global";
+  },
+  onSchedule: ({ reason, targetMessageIndex }) => {
+    pushTrace("extract.bootstrap.schedule", {
+      reason,
+      targetMessageIndex,
+    });
+    scheduleExtraction("AUTO_BOOTSTRAP_MISSING_TRACKER", targetMessageIndex, 140);
+  },
+});
 
 function loadSettingsModalModule(): Promise<typeof import("./settingsModal")> {
   if (!settingsModalModulePromise) {
@@ -745,43 +788,42 @@ function getDebugScopeKey(context: STContext): string {
   return `bst-debug:${chatId}|${target}`;
 }
 
-function clearLateRenderPollTimer(): void {
-  if (lateRenderPollTimer !== null) {
-    window.clearTimeout(lateRenderPollTimer);
-    lateRenderPollTimer = null;
-  }
-}
-
-function scheduleLateRenderPoll(context: STContext): void {
-  clearLateRenderPollTimer();
-  lateRenderPollTimer = window.setTimeout(() => {
-    lateRenderPollTimer = null;
-    if (!pendingLateRenderExtraction || chatGenerationInFlight || isExtracting) return;
-    const currentLastAi = getLastAiMessageIndex(context);
-    const startLastAi = pendingLateRenderStartLastAiIndex;
-    const hasNewAiMessage =
-      currentLastAi != null &&
-      (startLastAi == null || currentLastAi > startLastAi);
-    const hasTrackableTarget =
-      hasNewAiMessage &&
-      currentLastAi != null &&
-      currentLastAi >= 0 &&
-      currentLastAi < context.chat.length &&
-      isTrackableAiMessage(context.chat[currentLastAi]) &&
-      !getTrackerDataFromMessage(context.chat[currentLastAi]);
-    pushTrace("extract.late_poll_check", {
+const lateRenderRecovery = createLateRenderRecoveryController({
+  timers: window,
+  getPendingState: () => ({
+    pending: pendingLateRenderExtraction,
+    startLastAiIndex: pendingLateRenderStartLastAiIndex,
+  }),
+  setPendingState: next => {
+    pendingLateRenderExtraction = next.pending;
+    pendingLateRenderStartLastAiIndex = next.startLastAiIndex;
+  },
+  isGenerationInFlight: () => chatGenerationInFlight,
+  isExtracting: () => isExtracting,
+  getCurrentLastAiIndex: () => {
+    const activeContext = getSafeContext();
+    return activeContext ? getLastAiMessageIndex(activeContext) : null;
+  },
+  hasTrackableTargetAt: messageIndex => {
+    const activeContext = getSafeContext();
+    return Boolean(
+      activeContext &&
+      messageIndex >= 0 &&
+      messageIndex < activeContext.chat.length &&
+      isTrackableAiMessage(activeContext.chat[messageIndex]) &&
+      !getTrackerDataFromMessage(activeContext.chat[messageIndex]),
+    );
+  },
+  onScheduleExtraction: (reason, messageIndex, delay) => {
+    pushTrace(reason === "GENERATION_ENDED_LATE_POLL" ? "extract.late_poll_check" : "extract.late_render_check", {
       pending: true,
-      currentLastAi: currentLastAi ?? null,
-      startLastAi: startLastAi ?? null,
-      hasTrackableTarget,
+      currentLastAi: messageIndex,
+      startLastAi: pendingLateRenderStartLastAiIndex,
+      hasTrackableTarget: true,
     });
-    if (hasTrackableTarget && currentLastAi != null) {
-      scheduleExtraction("GENERATION_ENDED_LATE_POLL", currentLastAi, 80);
-      pendingLateRenderExtraction = false;
-      pendingLateRenderStartLastAiIndex = null;
-    }
-  }, 700);
-}
+    scheduleExtraction(reason, messageIndex, delay);
+  },
+});
 
 function saveDebugRecord(context: STContext, record: DeltaDebugRecord | null): void {
   try {
@@ -1408,21 +1450,13 @@ function requestUserTurnGateStop(context: STContext, type: string): void {
 }
 
 function validateUserTurnGateReplay(context: STContext): { ok: boolean; reason: string } {
-  if (!userTurnGateActive) return { ok: false, reason: "gate_inactive" };
-  if (userTurnGateMessageIndex == null) return { ok: false, reason: "missing_message_index" };
-  const index = userTurnGateMessageIndex;
-  if (index < 0 || index >= context.chat.length) return { ok: false, reason: "message_index_out_of_range" };
-  const message = context.chat[index];
-  if (!isTrackableUserMessage(message)) return { ok: false, reason: "message_not_user" };
-  const currentUserIndex = getLastUserMessageIndex(context);
-  if (currentUserIndex !== index) return { ok: false, reason: "newer_user_message_present" };
-  const text = String(message.mes ?? "").trim();
-  if (userTurnGateMessageText && text !== userTurnGateMessageText) {
-    return { ok: false, reason: "user_message_changed" };
-  }
-  const hasAiReplyAfterUser = context.chat.slice(index + 1).some(item => isTrackableAiMessage(item));
-  if (hasAiReplyAfterUser) return { ok: false, reason: "ai_reply_already_present" };
-  return { ok: true, reason: "ok" };
+  return validateUserTurnReplayState({
+    context,
+    gateActive: userTurnGateActive,
+    gatedMessageIndex: userTurnGateMessageIndex,
+    gatedMessageText: userTurnGateMessageText,
+    getLastUserMessageIndex,
+  });
 }
 
 function finalizeUserTurnGateReplay(triggerReason: string): void {
@@ -1459,40 +1493,22 @@ function finalizeUserTurnGateReplay(triggerReason: string): void {
   }
 
   const replayValidation = validateUserTurnGateReplay(context);
-  if (!replayValidation.ok) {
-    pushTrace("user_gate.replay_skip", {
-      reason: replayValidation.reason,
-      triggerReason,
-      type: intent.type,
-    });
-    resetUserTurnGate(replayValidation.reason);
-    return;
-  }
-  if (typeof context.generate !== "function") {
-    pushTrace("user_gate.replay_skip", {
-      reason: "context_generate_unavailable",
-      triggerReason,
-      type: intent.type,
-    });
-    resetUserTurnGate("context_generate_unavailable");
-    return;
-  }
-
   const replay = intent;
   const normalizedReplay = normalizeReplayGenerationIntent(context, replay);
-  if (normalizedReplay.skipReplay) {
-    pushTrace("user_gate.replay_skip", {
-      reason: normalizedReplay.skipReason ?? "replay_guard",
-      triggerReason,
-      type: normalizedReplay.type,
-      optionKeys: Object.keys(normalizedReplay.options),
-      forcedAutomaticTrigger: normalizedReplay.forcedAutomaticTrigger,
-      forcedGroupCharacterId: normalizedReplay.forcedGroupCharacterId,
-    });
-    resetUserTurnGate(normalizedReplay.skipReason ?? "replay_guard");
-    return;
-  }
-  resetUserTurnGate("replay_start");
+  let shouldReplay = false;
+  executeUserTurnReplay({
+    triggerReason,
+    intent: replay,
+    replayValidation,
+    hasGenerate: typeof context.generate === "function",
+    normalizedReplay,
+    pushTrace,
+    resetGate: resetUserTurnGate,
+    onReplay: () => {
+      shouldReplay = true;
+    },
+  });
+  if (!shouldReplay) return;
   chatGenerationInFlight = false;
   chatGenerationIntent = null;
   chatGenerationSawCharacterRender = false;
@@ -1500,7 +1516,7 @@ function finalizeUserTurnGateReplay(triggerReason: string): void {
   swipeGenerationActive = false;
   pendingLateRenderExtraction = false;
   pendingLateRenderStartLastAiIndex = null;
-  clearLateRenderPollTimer();
+  lateRenderRecovery.clear();
   pushTrace("user_gate.replay_start", {
     triggerReason,
     type: normalizedReplay.type,
@@ -1779,6 +1795,41 @@ function scheduleRefresh(delay = 80): void {
   promptRefreshController?.scheduleRefresh(delay);
 }
 
+function scheduleDeferredInitRefresh(delay: number): void {
+  window.setTimeout(() => {
+    if (!settings) return;
+    const context = getSafeContext();
+    if (!context) return;
+    const lastTrackableIndex = getLastTrackableMessageIndex(context);
+    if (!shouldRunDeferredInitRefresh({
+      enabled: settings.enabled,
+      isExtracting,
+      chatGenerationInFlight,
+      pendingLateRenderExtraction,
+      latestDataMessageIndex,
+      lastTrackableIndex,
+      uiPhase: trackerUiState.phase,
+    })) {
+      pushTrace("refresh.init.skip", {
+        delay,
+        latestDataMessageIndex,
+        lastTrackableIndex,
+        uiPhase: trackerUiState.phase,
+        isExtracting,
+        chatGenerationInFlight,
+        pendingLateRenderExtraction,
+      });
+      return;
+    }
+    pushTrace("refresh.init.retry", {
+      delay,
+      latestDataMessageIndex,
+      lastTrackableIndex,
+    });
+    refreshFromStoredData();
+  }, delay);
+}
+
 function scheduleExtraction(reason: string, targetMessageIndex?: number, delay = 180): void {
   if (settings && !settings.autoGenerateTracker && !isManualExtractionReason(reason)) {
     pushTrace("extract.schedule.skip", {
@@ -1788,14 +1839,7 @@ function scheduleExtraction(reason: string, targetMessageIndex?: number, delay =
     });
     return;
   }
-  if (extractionTimer !== null) {
-    window.clearTimeout(extractionTimer);
-  }
-  extractionTimer = window.setTimeout(() => {
-    extractionTimer = null;
-    pushTrace("extract.schedule.fire", { reason, targetMessageIndex: targetMessageIndex ?? null });
-    void runExtraction(reason, targetMessageIndex);
-  }, delay);
+  extractionScheduler.schedule(reason, targetMessageIndex, delay);
 }
 
 function scheduleSwipeExtraction(reason: string, targetMessageIndex?: number): void {
@@ -3174,7 +3218,10 @@ function applyManualTrackerEdits(payload: ManualEditPayload): void {
   });
   void persistChatNowBestEffort(context);
   pushTrace("tracker.edit", { messageIndex, character, active: payload.active ?? null });
-  refreshFromStoredData();
+  refreshFromStoredData({
+    allowBootstrapScheduling: false,
+    syncSettingsPanel: false,
+  });
 }
 
 function summarizeGraphSeries(context: STContext, history: TrackerData[], target: TrackerGraphTarget): {
@@ -4048,7 +4095,9 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         }
         pushTrace("extract.progress", { runId, done, total, label: label ?? null });
         setTrackerUi(context, { phase: "extracting", done, total, messageIndex: lastIndex, stepLabel: label ?? null });
-        queueRender();
+        if (!rerenderExtractionLoadingInPlace(lastIndex, trackerUiState)) {
+          queueRender();
+        }
       }
     });
     const extracted = extractedResult.statistics;
@@ -4263,9 +4312,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
   }
 }
 
-function refreshFromStoredData(): void {
+function refreshFromStoredData(options: RefreshFromStoredDataOptions = {}): void {
   const context = getSafeContext();
   if (!context || !settings) return;
+  const {
+    allowBootstrapScheduling = true,
+    syncDynamicCharactersPanel = true,
+    syncSettingsPanel = true,
+  } = options;
   const activeSettings = settings;
   readPersistedTrackerRecoveries(context);
 
@@ -4296,46 +4350,38 @@ function refreshFromStoredData(): void {
   } else if (latestData && lastTrackableIndex == null) {
     scheduleRefresh(300);
   }
-  const bootstrapDecision = resolveAutoBootstrapTarget({
-    enabled: settings.enabled,
-    isExtracting,
-    chatGenerationInFlight,
-    pendingLateRenderExtraction,
-    latestTrackableIndex: lastTrackableIndex,
-    latestDataMessageIndex,
-    highestStoredMessageIndex: resolveHighestStoredTrackerMessageIndex(context),
-    generateOnGreetingMessages: settings.generateOnGreetingMessages,
-    chatLength: context.chat.length,
-    isTrackableAiAt: index => (
-      index >= 0 &&
-      index < context.chat.length &&
-      isTrackableAiMessage(context.chat[index])
-    ),
-    hasTrackerAt: index => (
-      index >= 0 &&
-      index < context.chat.length &&
-      Boolean(getTrackerDataFromMessage(context.chat[index]))
-    ),
-    hasPriorTrackableUserAt: index => hasTrackableUserMessageBeforeIndex(context, index),
-  });
-  if (bootstrapDecision.skippedGreetingBootstrap && lastTrackableIndex != null) {
-    pushTrace("extract.bootstrap.skip", {
-      reason: "greeting_generation_disabled",
-      targetMessageIndex: lastTrackableIndex,
+  if (allowBootstrapScheduling) {
+    const bootstrapDecision = resolveAutoBootstrapTarget({
+      enabled: settings.enabled,
+      isExtracting,
+      chatGenerationInFlight,
+      pendingLateRenderExtraction,
+      latestTrackableIndex: lastTrackableIndex,
+      latestDataMessageIndex,
+      highestStoredMessageIndex: resolveHighestStoredTrackerMessageIndex(context),
+      generateOnGreetingMessages: settings.generateOnGreetingMessages,
+      chatLength: context.chat.length,
+      isTrackableAiAt: index => (
+        index >= 0 &&
+        index < context.chat.length &&
+        isTrackableAiMessage(context.chat[index])
+      ),
+      hasTrackerAt: index => (
+        index >= 0 &&
+        index < context.chat.length &&
+        Boolean(getTrackerDataFromMessage(context.chat[index]))
+      ),
+      hasPriorTrackableUserAt: index => hasTrackableUserMessageBeforeIndex(context, index),
     });
-  }
-  if (bootstrapDecision.targetMessageIndex != null) {
-    const bootstrapKey = `${getDebugScopeKey(context)}|ai:${bootstrapDecision.targetMessageIndex}`;
-    if (autoBootstrapExtractionKey !== bootstrapKey) {
-      autoBootstrapExtractionKey = bootstrapKey;
-      pushTrace("extract.bootstrap.schedule", {
-        reason: bootstrapDecision.reason,
-        targetMessageIndex: bootstrapDecision.targetMessageIndex,
+    if (bootstrapDecision.skippedGreetingBootstrap && lastTrackableIndex != null) {
+      pushTrace("extract.bootstrap.skip", {
+        reason: "greeting_generation_disabled",
+        targetMessageIndex: lastTrackableIndex,
       });
-      scheduleExtraction("AUTO_BOOTSTRAP_MISSING_TRACKER", bootstrapDecision.targetMessageIndex, 140);
     }
+    bootstrapScheduler.applyDecision(bootstrapDecision);
   } else {
-    autoBootstrapExtractionKey = null;
+    pushTrace("extract.bootstrap.skip", { reason: "refresh_options_disabled" });
   }
   if (trackerUiState.phase === "idle") {
     trackerUiState = { ...trackerUiState, messageIndex: latestDataMessageIndex };
@@ -4356,19 +4402,45 @@ function refreshFromStoredData(): void {
     getLastInjectedPrompt,
   });
   queuePromptSync(context);
-  queueRender();
-  dynamicCharactersPanelController?.sync();
-  upsertSettingsPanel({
-    settings,
-    onSave: patch => {
-      if (!settings || !context) return;
-      settings = { ...settings, ...patch };
-      saveSettings(context, settings);
-      queueRender();
-      refreshFromStoredData();
-    },
-    onOpenModal: () => openSettings()
-  });
+  const recoveryKey = [...trackerRecoveryByMessage.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([messageIndex, recovery]) => `${messageIndex}:${recovery.kind}:${recovery.title}:${recovery.detail}:${recovery.actionLabel}`)
+    .join("|#|");
+  const nextRefreshRenderSnapshot: RefreshRenderSnapshot = {
+    settingsRef: settings as object | null,
+    latestDataRef: latestData as object | null,
+    latestDataMessageIndex,
+    lastTrackableIndex,
+    source,
+    recoveryKey,
+    uiPhase: trackerUiState.phase,
+    uiMessageIndex: trackerUiState.messageIndex,
+    allCharactersKey: allCharacterNames.join("|"),
+    chatLength: context.chat.length,
+    groupId: context.groupId != null ? String(context.groupId) : null,
+    characterId: context.characterId != null ? String(context.characterId) : null,
+  };
+  if (shouldQueueRenderAfterRefresh(previousRefreshRenderSnapshot, nextRefreshRenderSnapshot)) {
+    queueRender();
+  } else {
+    pushTrace("render.queue.skip", { reason: "refresh_signature_unchanged" });
+  }
+  previousRefreshRenderSnapshot = nextRefreshRenderSnapshot;
+  if (syncDynamicCharactersPanel) {
+    dynamicCharactersPanelController?.sync();
+  }
+  if (syncSettingsPanel) {
+    upsertSettingsPanel({
+      settings,
+      onSave: patch => {
+        if (!settings || !context) return;
+        settings = { ...settings, ...patch };
+        saveSettings(context, settings);
+        refreshFromStoredData({ allowBootstrapScheduling: false });
+      },
+      onOpenModal: () => openSettings()
+    });
+  }
 }
 
 function registerEvents(context: STContext): void {
@@ -4408,7 +4480,7 @@ function registerEvents(context: STContext): void {
       chatGenerationSawCharacterRender = false;
       pendingLateRenderExtraction = false;
       pendingLateRenderStartLastAiIndex = null;
-      clearLateRenderPollTimer();
+      lateRenderRecovery.clear();
       chatGenerationStartLastAiIndex = getLastAiMessageIndex(context);
       const baseTargetIndex = getGenerationTargetMessageIndex(context);
       const targetIndex = type === "swipe"
@@ -4456,7 +4528,7 @@ function registerEvents(context: STContext): void {
         swipeGenerationActive = false;
         pendingLateRenderExtraction = false;
         pendingLateRenderStartLastAiIndex = null;
-        clearLateRenderPollTimer();
+        lateRenderRecovery.clear();
         pendingGenerationInjectionSnapshot = null;
         pushTrace("event.generation_ended_user_gate", { reason: "tracker_extraction_in_progress" });
         return;
@@ -4470,7 +4542,7 @@ function registerEvents(context: STContext): void {
       if (pendingLateRenderExtraction) {
         pendingLateRenderExtraction = false;
         pendingLateRenderStartLastAiIndex = null;
-        clearLateRenderPollTimer();
+        lateRenderRecovery.clear();
       }
       pendingGenerationInjectionSnapshot = null;
       pushTrace("event.generation_ended_ignored", { reason: "non_chat_or_quiet_generation" });
@@ -4492,13 +4564,13 @@ function registerEvents(context: STContext): void {
       if (userTurnGateActive) {
         pendingLateRenderExtraction = false;
         pendingLateRenderStartLastAiIndex = null;
-        clearLateRenderPollTimer();
+        lateRenderRecovery.clear();
         chatGenerationStartLastAiIndex = null;
         pushTrace("event.generation_ended_ignored", { reason: "user_gate_no_ai_render" });
       } else {
         pendingLateRenderExtraction = true;
         pendingLateRenderStartLastAiIndex = chatGenerationStartLastAiIndex;
-        scheduleLateRenderPoll(context);
+        lateRenderRecovery.begin(chatGenerationStartLastAiIndex);
         chatGenerationStartLastAiIndex = null;
         pushTrace("event.generation_ended_ignored", { reason: "no_new_ai_message_rendered" });
       }
@@ -4511,7 +4583,7 @@ function registerEvents(context: STContext): void {
     chatGenerationStartLastAiIndex = null;
     pendingLateRenderExtraction = false;
     pendingLateRenderStartLastAiIndex = null;
-    clearLateRenderPollTimer();
+    lateRenderRecovery.clear();
     bindInjectionSnapshotToLatestAiMessage(context);
     pushTrace("event.generation_ended");
     if (swipeGenerationActive) {
@@ -4545,10 +4617,10 @@ function registerEvents(context: STContext): void {
     swipeGenerationActive = false;
     pendingLateRenderExtraction = false;
     pendingLateRenderStartLastAiIndex = null;
-    clearLateRenderPollTimer();
+    lateRenderRecovery.clear();
     pendingGenerationInjectionSnapshot = null;
     lastMessageInjectionSnapshot = null;
-    autoBootstrapExtractionKey = null;
+    bootstrapScheduler.reset();
     resetUserTurnGate("chat_changed");
     lastActivatedLorebookEntries = [];
     clearPendingSwipeExtraction();
@@ -4594,24 +4666,7 @@ function registerEvents(context: STContext): void {
         scheduleExtraction(pending.reason, pending.messageIndex);
       }
       if (pendingLateRenderExtraction && !chatGenerationInFlight) {
-        const currentLastAi = getLastAiMessageIndex(context);
-        const hasTrackableTarget =
-          currentLastAi != null &&
-          currentLastAi >= 0 &&
-          currentLastAi < context.chat.length &&
-          isTrackableAiMessage(context.chat[currentLastAi]) &&
-          !getTrackerDataFromMessage(context.chat[currentLastAi]);
-        pushTrace("extract.late_render_check", {
-          pending: true,
-          messageIndex: currentLastAi ?? null,
-          hasTrackableTarget,
-        });
-        if (hasTrackableTarget) {
-          scheduleExtraction("GENERATION_ENDED_LATE_RENDER", currentLastAi, 180);
-        }
-        pendingLateRenderExtraction = false;
-        pendingLateRenderStartLastAiIndex = null;
-        clearLateRenderPollTimer();
+        lateRenderRecovery.handleCharacterMessageRendered();
       }
       if (trackerUiState.phase === "generating") {
         const currentLastAi = getLastAiMessageIndex(context);
@@ -4668,10 +4723,10 @@ function registerEvents(context: STContext): void {
       swipeGenerationActive = false;
       pendingLateRenderExtraction = false;
       pendingLateRenderStartLastAiIndex = null;
-      clearLateRenderPollTimer();
+      lateRenderRecovery.clear();
       pendingGenerationInjectionSnapshot = null;
       lastMessageInjectionSnapshot = null;
-      autoBootstrapExtractionKey = null;
+      bootstrapScheduler.reset();
       resetUserTurnGate("chat_loaded");
       lastActivatedLorebookEntries = [];
       clearPendingSwipeExtraction();
@@ -4710,7 +4765,7 @@ function registerEvents(context: STContext): void {
       swipeGenerationActive = false;
       pendingLateRenderExtraction = false;
       pendingLateRenderStartLastAiIndex = null;
-      clearLateRenderPollTimer();
+      lateRenderRecovery.clear();
       pendingGenerationInjectionSnapshot = null;
       resetUserTurnGate("message_deleted");
       clearPendingSwipeExtraction();
@@ -4728,10 +4783,10 @@ function registerEvents(context: STContext): void {
       swipeGenerationActive = false;
       pendingLateRenderExtraction = false;
       pendingLateRenderStartLastAiIndex = null;
-      clearLateRenderPollTimer();
+      lateRenderRecovery.clear();
       pendingGenerationInjectionSnapshot = null;
       lastMessageInjectionSnapshot = null;
-      autoBootstrapExtractionKey = null;
+      bootstrapScheduler.reset();
       resetUserTurnGate("chat_deleted");
       lastActivatedLorebookEntries = [];
       clearPendingSwipeExtraction();
@@ -4807,7 +4862,7 @@ function registerEvents(context: STContext): void {
         swipeGenerationActive = false;
         pendingLateRenderExtraction = false;
         pendingLateRenderStartLastAiIndex = null;
-        clearLateRenderPollTimer();
+        lateRenderRecovery.clear();
         if (trackerUiState.phase === "generating") {
           pushTrace("ui.generating.clear", {
             reason: "swipe_event_force_idle",
@@ -4851,8 +4906,7 @@ async function openSettingsAsync(): Promise<void> {
       if (!activeContext) return;
       settings = next;
       saveSettings(activeContext, settings);
-      queueRender();
-      refreshFromStoredData();
+      refreshFromStoredData({ allowBootstrapScheduling: false });
     },
     onRetrack: () => {
       void runExtraction("manual_refresh");
@@ -4943,7 +4997,11 @@ async function openSettingsAsync(): Promise<void> {
       debugTrace = [];
       lastDebugRecord = null;
       pushTrace("diagnostics.cleared");
-      refreshFromStoredData();
+      refreshFromStoredData({
+        allowBootstrapScheduling: false,
+        syncDynamicCharactersPanel: false,
+        syncSettingsPanel: false,
+      });
     }
   });
 }
@@ -5074,28 +5132,40 @@ async function init(): Promise<void> {
   }
   registerEvents(context);
   refreshFromStoredData();
-  setTimeout(() => refreshFromStoredData(), 500);
-  setTimeout(() => refreshFromStoredData(), 1500);
-  setTimeout(() => refreshFromStoredData(), 3000);
-  setTimeout(() => refreshFromStoredData(), 6000);
+  scheduleDeferredInitRefresh(500);
+  scheduleDeferredInitRefresh(1500);
+  scheduleDeferredInitRefresh(3000);
+  scheduleDeferredInitRefresh(6000);
   initCharacterPanel({
     getContext: () => getSafeContext(),
     getSettings: () => settings,
     setSettings: next => { settings = next; },
     saveSettings: (ctx, next) => saveSettings(ctx, next),
-    onSettingsUpdated: () => refreshFromStoredData()
+    onSettingsUpdated: () => refreshFromStoredData({
+      allowBootstrapScheduling: false,
+      syncDynamicCharactersPanel: false,
+      syncSettingsPanel: false,
+    })
   });
   initPersonaPanel({
     getContext: () => getSafeContext(),
     getSettings: () => settings,
     setSettings: next => { settings = next; },
     saveSettings: (ctx, next) => saveSettings(ctx, next),
-    onSettingsUpdated: () => refreshFromStoredData(),
+    onSettingsUpdated: () => refreshFromStoredData({
+      allowBootstrapScheduling: false,
+      syncDynamicCharactersPanel: false,
+      syncSettingsPanel: false,
+    }),
   });
   dynamicCharactersPanelController = initDynamicCharactersPanel({
     getContext: () => getSafeContext(),
     getSettings: () => settings,
-    onStateChanged: () => refreshFromStoredData(),
+    onStateChanged: () => refreshFromStoredData({
+      allowBootstrapScheduling: false,
+      syncDynamicCharactersPanel: false,
+      syncSettingsPanel: false,
+    }),
   });
   dynamicCharactersPanelController.sync();
   exposeWindowApi();

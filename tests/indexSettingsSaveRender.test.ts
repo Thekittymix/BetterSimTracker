@@ -1,0 +1,21 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+
+test("settings save paths refresh from stored data without an immediate extra queueRender", () => {
+  const source = fs.readFileSync(path.resolve("src/index.ts"), "utf8");
+  assert.doesNotMatch(source, /onSave: patch => \{[\s\S]*?saveSettings\(context, settings\);[\s\S]*?queueRender\(\);[\s\S]*?refreshFromStoredData\(\);[\s\S]*?\}/);
+  assert.doesNotMatch(source, /onSave: next => \{[\s\S]*?saveSettings\(activeContext, settings\);[\s\S]*?queueRender\(\);[\s\S]*?refreshFromStoredData\(\);[\s\S]*?\}/);
+  assert.match(source, /onSave: patch => \{[\s\S]*?saveSettings\(context, settings\);[\s\S]*?refreshFromStoredData\(\{ allowBootstrapScheduling: false \}\);[\s\S]*?\}/);
+  assert.match(source, /onSave: next => \{[\s\S]*?saveSettings\(activeContext, settings\);[\s\S]*?refreshFromStoredData\(\{ allowBootstrapScheduling: false \}\);[\s\S]*?\}/);
+});
+
+test("settings-adjacent refresh callbacks suppress bootstrap scheduling side effects", () => {
+  const source = fs.readFileSync(path.resolve("src/index.ts"), "utf8");
+  assert.match(source, /onClearDiagnostics: \(\) => \{[\s\S]*?pushTrace\("diagnostics\.cleared"\);[\s\S]*?refreshFromStoredData\(\{\s*allowBootstrapScheduling: false,\s*syncDynamicCharactersPanel: false,\s*syncSettingsPanel: false,\s*\}\);[\s\S]*?\}/);
+  assert.match(source, /initCharacterPanel\(\{[\s\S]*?onSettingsUpdated: \(\) => refreshFromStoredData\(\{\s*allowBootstrapScheduling: false,\s*syncDynamicCharactersPanel: false,\s*syncSettingsPanel: false,\s*\}\)/);
+  assert.match(source, /initPersonaPanel\(\{[\s\S]*?onSettingsUpdated: \(\) => refreshFromStoredData\(\{\s*allowBootstrapScheduling: false,\s*syncDynamicCharactersPanel: false,\s*syncSettingsPanel: false,\s*\}\)/);
+  assert.match(source, /initDynamicCharactersPanel\(\{[\s\S]*?onStateChanged: \(\) => refreshFromStoredData\(\{\s*allowBootstrapScheduling: false,\s*syncDynamicCharactersPanel: false,\s*syncSettingsPanel: false,\s*\}\)/);
+  assert.match(source, /pushTrace\("tracker\.edit", \{[\s\S]*?refreshFromStoredData\(\{\s*allowBootstrapScheduling: false,\s*syncSettingsPanel: false,\s*\}\);/);
+});
