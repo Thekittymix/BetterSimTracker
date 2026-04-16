@@ -963,16 +963,16 @@ export function resolveUserExtractionOwnerScopes(input: {
     { includeUserOwner: false },
   );
   if (resolvedSceneActiveCharacters.length) {
-    let sceneActiveCharacters = resolvedSceneActiveCharacters;
+    let sceneActiveCharacters = filterShadowedSourceOwners(input.context, input.previousTrackerData ?? null, resolvedSceneActiveCharacters);
     if (isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings)) && previousSceneActiveCharacters.length) {
       const messageText = String(input.message?.mes ?? "");
-      const mergedSceneActiveCharacters = uniqueStrings([
+      const mergedSceneActiveCharacters = filterShadowedSourceOwners(input.context, input.previousTrackerData ?? null, uniqueStrings([
         ...sceneActiveCharacters,
         ...previousSceneActiveCharacters.filter(owner =>
           !sceneActiveCharacters.some(activeOwner => normalizeKey(activeOwner) === normalizeKey(owner))
           && !hasDepartureCue(messageText, owner),
         ),
-      ]);
+      ]));
       if (mergedSceneActiveCharacters.length) {
         sceneActiveCharacters = mergedSceneActiveCharacters;
       }
@@ -994,7 +994,7 @@ export function resolveUserExtractionOwnerScopes(input: {
     }
     if (previousSceneActiveCharacters.length) {
       return {
-        sceneActiveCharacters: previousSceneActiveCharacters,
+        sceneActiveCharacters: filterShadowedSourceOwners(input.context, input.previousTrackerData ?? null, previousSceneActiveCharacters),
         requestCharacters: [USER_TRACKER_KEY],
         source: "fallback",
       };
@@ -1012,7 +1012,7 @@ export function resolveUserExtractionOwnerScopes(input: {
   );
 
   return {
-    sceneActiveCharacters: fallbackSceneActiveCharacters,
+    sceneActiveCharacters: filterShadowedSourceOwners(input.context, input.previousTrackerData ?? null, fallbackSceneActiveCharacters),
     requestCharacters: [USER_TRACKER_KEY],
     source: "fallback",
   };
