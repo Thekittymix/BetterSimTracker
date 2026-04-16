@@ -6,6 +6,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed manual user-tracker stat edits so saved user rows now keep owner-key and entity-scoped snapshot buckets aligned, preventing stale `ByEntityId` values from surviving after edit saves and later overwrite paths.
 
+## [2.5.3.4-dev11] - 2026-04-16
+### Fixed
+- Fixed user-turn bridge continuity selection so retracking an older AI reply can recover the broader concrete scene from recent history even when intervening user rows only stored lossy generic or single-owner scene snapshots.
+
 ## [2.5.3.4-dev10] - 2026-04-16
 ### Fixed
 - Delivered the user-turn narrative continuity correction under a new extension version so ST can update to the build that preserves legitimate same-scene background participants after user-scoped rows.

@@ -403,6 +403,41 @@ function hasMentionOnlyReference(text: string, name: string): boolean {
   return countAliasMentions(normalized.toLowerCase(), name.toLowerCase()) > 0;
 }
 
+function selectPreferredBridgeSceneOwners(
+  context: STContext | null,
+  scenes: string[][],
+): string[] {
+  if (!scenes.length) return [];
+  const sourceOwnerKeys = new Set(
+    (context?.characters ?? [])
+      .map(character => normalizeKey(character?.name))
+      .filter(Boolean),
+  );
+  const score = (sceneOwners: string[]): { concreteOwners: number; totalOwners: number } => ({
+    concreteOwners: sceneOwners.filter(owner => !sourceOwnerKeys.has(normalizeKey(owner))).length,
+    totalOwners: sceneOwners.length,
+  });
+
+  let bestSceneOwners = scenes[0] ?? [];
+  let bestScore = score(bestSceneOwners);
+  for (const sceneOwners of scenes.slice(1)) {
+    const candidateScore = score(sceneOwners);
+    if (candidateScore.concreteOwners > bestScore.concreteOwners) {
+      bestSceneOwners = sceneOwners;
+      bestScore = candidateScore;
+      continue;
+    }
+    if (
+      candidateScore.concreteOwners === bestScore.concreteOwners
+      && candidateScore.totalOwners > bestScore.totalOwners
+    ) {
+      bestSceneOwners = sceneOwners;
+      bestScore = candidateScore;
+    }
+  }
+  return bestSceneOwners;
+}
+
 function resolvePreviousUserBridgeSceneOwners(
   context: STContext | null,
   message: ChatMessage | null | undefined,
@@ -417,12 +452,13 @@ function resolvePreviousUserBridgeSceneOwners(
   if (!previousMessageText) return [];
   if (!hasUserGroupAddressCue(previousMessageText) && !hasGroupSceneContinuityCue(previousMessageText)) return [];
 
+  const recentScenes: string[][] = [];
   for (const entry of recentTrackerHistory ?? []) {
     const sceneOwners = resolvePersistedActiveOwners(resolveTrackerSceneOwners(null, entry), { includeUserOwner: false });
-    if (sceneOwners.length) return sceneOwners;
+    if (sceneOwners.length) recentScenes.push(sceneOwners);
   }
 
-  return [];
+  return selectPreferredBridgeSceneOwners(context, recentScenes);
 }
 
 function filterModelResolvedOwnerScopesByMessageEvidence(input: {
