@@ -1,4 +1,7 @@
+import { USER_TRACKER_KEY } from "./constants";
+import { getEntityRegistryEntryByOwnerName, getEntityRegistryEntryForMessage } from "./entityRegistry";
 import { buildPromptCurrentTrackerData, enabledBuiltInAndTextStats } from "./extractorHelpers";
+import { resolveStableEntityIdForOwner } from "./entityResolution";
 import { buildJsonExtractionRecentHistoryEntries, resolveJsonExtractionMessageSpeaker } from "./jsonExtractionProtocolHistory";
 import { buildJsonExtractionRequestV1, type BuildJsonExtractionRequestInput } from "./jsonExtractionProtocolBuilder";
 import { materializeTrackerDataFromJsonExtractionResponseV1 } from "./jsonExtractionProtocolAdapter";
@@ -31,7 +34,7 @@ export interface BuildJsonExtractionShadowRequestFromContextInput {
   previousStatistics?: Statistics | null;
   previousCustomStatistics?: CustomStatistics | null;
   previousCustomNonNumericStatistics?: CustomNonNumericStatistics | null;
-  entityContext: BuildJsonExtractionRequestInput["entityContext"];
+  entityContext?: BuildJsonExtractionRequestInput["entityContext"];
   historyLimit?: number;
 }
 
@@ -41,6 +44,62 @@ function requireMessage(context: STContext, messageIndex: number): ChatMessage {
     throw new Error(`No chat message exists at index ${messageIndex}.`);
   }
   return message;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const value = String(raw ?? "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function mapRegistryKindToJsonKind(kind: string | null | undefined): "owner" | "multi_character_alias" | "narrative-entity" | "st-character" | "persona" {
+  if (kind === "multi_character_alias") return "multi_character_alias";
+  if (kind === "narrative-entity") return "narrative-entity";
+  if (kind === "owner") return "owner";
+  return "st-character";
+}
+
+export function buildJsonExtractionEntityContextFromContext(
+  input: Pick<BuildJsonExtractionShadowRequestFromContextInput, "context" | "messageIndex" | "settings" | "activeCharacters" | "previousTrackerData">,
+): BuildJsonExtractionRequestInput["entityContext"] {
+  const candidateOwners = uniqueStrings(input.activeCharacters);
+  const candidateEntities = candidateOwners.map(ownerName => {
+    if (ownerName === USER_TRACKER_KEY) {
+      return {
+        entityId: resolveStableEntityIdForOwner(input.context, ownerName, input.settings.entityTrackingMode),
+        ownerName,
+        kind: "persona" as const,
+        aliases: [ownerName],
+      };
+    }
+    const registryEntry = getEntityRegistryEntryForMessage(input.context, ownerName, input.messageIndex)
+      ?? getEntityRegistryEntryByOwnerName(input.context, ownerName);
+    return {
+      entityId: registryEntry?.id || resolveStableEntityIdForOwner(input.context, ownerName, input.settings.entityTrackingMode),
+      ownerName,
+      kind: mapRegistryKindToJsonKind(registryEntry?.kind),
+      aliases: uniqueStrings([
+        ownerName,
+        registryEntry?.canonicalName ?? "",
+        ...(registryEntry?.aliases ?? []),
+      ]),
+    };
+  });
+  return {
+    candidateOwners,
+    candidateEntities,
+    currentEntityOwnerMap: input.previousTrackerData?.entityOwnerMap
+      ? input.previousTrackerData.entityOwnerMap as unknown as Record<string, unknown>
+      : {},
+  };
 }
 
 export function buildJsonExtractionShadowRequest(
@@ -97,7 +156,7 @@ export function buildJsonExtractionShadowRequestFromContext(
       beforeMessageIndex: input.messageIndex,
       limit: input.historyLimit ?? 6,
     }),
-    entityContext: input.entityContext,
+    entityContext: input.entityContext ?? buildJsonExtractionEntityContextFromContext(input),
   });
 }
 

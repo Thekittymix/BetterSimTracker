@@ -4,7 +4,12 @@ import assert from "node:assert/strict";
 import { validateJsonExtractionRequestV1 } from "../src/jsonExtractionProtocol";
 import { defaultSettings } from "../src/settings";
 import { writeTrackerDataToMessage } from "../src/storage";
-import { buildJsonExtractionShadowRequest, buildJsonExtractionShadowRequestFromContext, runJsonExtractionShadowParity } from "../src/jsonExtractionProtocolShadow";
+import {
+  buildJsonExtractionEntityContextFromContext,
+  buildJsonExtractionShadowRequest,
+  buildJsonExtractionShadowRequestFromContext,
+  runJsonExtractionShadowParity,
+} from "../src/jsonExtractionProtocolShadow";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
 
 class MemoryStorage {
@@ -110,6 +115,32 @@ function makeContext(): STContext {
   return {
     name1: "Kuba",
     name2: "Your Family",
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "bst_narrative:candy": {
+            id: "bst_narrative:candy",
+            ownerName: "Candy",
+            canonicalName: "Candy",
+            aliases: ["Candace"],
+            sourceName: "Your Family",
+            sourceAvatar: "family.png",
+            sourceKey: "family.png|your family",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 2,
+            lastActiveMessageIndex: 2,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          candy: "bst_narrative:candy",
+          candace: "bst_narrative:candy",
+        },
+      },
+    },
     chat: [
       {
         name: "Your Family",
@@ -204,6 +235,42 @@ test("buildJsonExtractionShadowRequest builds a real extractor-shaped request wi
   assert.deepEqual(request.currentState.customNonNumericStats, makeExpectedTracker().customNonNumericStatistics);
 });
 
+test("buildJsonExtractionEntityContextFromContext derives candidate entities and prior owner map from runtime context", () => {
+  const context = makeContext();
+  const previousTrackerData: TrackerData = {
+    ...makeExpectedTracker(),
+    entityOwnerMap: {
+      Candy: {
+        entityId: "bst_narrative:candy",
+        ownerName: "Candy",
+        canonicalName: "Candy",
+        aliases: ["Candace"],
+        sourceKey: "family.png|your family",
+        kind: "narrative-entity",
+      },
+    },
+  };
+
+  const entityContext = buildJsonExtractionEntityContextFromContext({
+    context,
+    messageIndex: 2,
+    settings: makeSettings(),
+    activeCharacters: ["Candy", "__bst_user__"],
+    previousTrackerData,
+  });
+
+  assert.deepEqual(entityContext.candidateOwners, ["Candy", "__bst_user__"]);
+  assert.deepEqual(entityContext.candidateEntities[0], {
+    entityId: "bst_narrative:candy",
+    ownerName: "Candy",
+    kind: "narrative-entity",
+    aliases: ["Candy", "Candace"],
+  });
+  assert.equal(entityContext.candidateEntities[1]?.kind, "persona");
+  assert.ok(String(entityContext.candidateEntities[1]?.entityId).includes("__bst_user__"));
+  assert.deepEqual(entityContext.currentEntityOwnerMap, previousTrackerData.entityOwnerMap as unknown as Record<string, unknown>);
+});
+
 test("buildJsonExtractionShadowRequestFromContext builds message and history from real ST context rows", () => {
   const context = makeContext();
   writeTrackerDataToMessage(context, makeExpectedTracker(), 0);
@@ -252,18 +319,6 @@ test("buildJsonExtractionShadowRequestFromContext builds message and history fro
     previousStatistics: makeExpectedTracker().statistics,
     previousCustomStatistics: {},
     previousCustomNonNumericStatistics: makeExpectedTracker().customNonNumericStatistics,
-    entityContext: {
-      candidateOwners: ["Candy", "Lisa", "Marylyn", "Serena"],
-      candidateEntities: [
-        {
-          entityId: "bst_narrative:candy",
-          ownerName: "Candy",
-          kind: "narrative-entity",
-          aliases: [],
-        },
-      ],
-      currentEntityOwnerMap: {},
-    },
     historyLimit: 4,
   });
 
@@ -272,6 +327,9 @@ test("buildJsonExtractionShadowRequestFromContext builds message and history fro
   assert.deepEqual(request.recentHistory.map(entry => entry.messageIndex), [1, 0]);
   assert.equal(request.recentHistory[0]?.speaker, "Kuba");
   assert.deepEqual(request.recentHistory[0]?.trackerSnapshot?.sceneOwners, ["Candy", "Lisa"]);
+  assert.deepEqual(request.entityContext.candidateOwners, ["Candy", "Lisa", "Marylyn", "Serena"]);
+  assert.equal(request.entityContext.candidateEntities[0]?.ownerName, "Candy");
+  assert.equal(request.entityContext.candidateEntities[0]?.kind, "narrative-entity");
   const validated = validateJsonExtractionRequestV1(request);
   assert.equal(validated.ok, true);
 });
