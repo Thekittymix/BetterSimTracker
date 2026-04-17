@@ -76,6 +76,7 @@ function makeSettings(mode: BetterSimTrackerSettings["entityTrackingMode"]): Bet
     characterCardStatOrder: [],
     autoDetectActive: true,
     autoGenerateTracker: true,
+    extractionProtocolMode: "legacy",
     entityTrackingMode: mode,
     regenerateOnMessageEdit: false,
     generateOnGreetingMessages: false,

@@ -324,6 +324,7 @@ export function openSettingsModal(input: {
         <div class="bst-help-line bst-toggle-help">Controls when BST runs, how robust extraction should be, and how much it is allowed to smooth stat changes.</div>
         <div class="bst-check-grid">
           <label class="bst-check"><input data-k="autoGenerateTracker" type="checkbox">Auto-Generate Tracker</label>
+          <label>Extraction Protocol <select data-k="extractionProtocolMode"><option value="legacy">Legacy Extraction</option><option value="json">JSON Extraction</option></select></label>
           <label>Entity Tracking Mode <select data-k="entityTrackingMode"><option value="standard">Standard</option><option value="dynamic_characters">Dynamic Characters (Experimental)</option></select></label>
           <label class="bst-check"><input data-k="sequentialExtraction" type="checkbox">Sequential Extraction (per stat)</label>
           <label class="bst-check"><input data-k="enableSequentialStatGroups" type="checkbox">Enable Sequential Stat Groups</label>
@@ -1221,6 +1222,7 @@ export function openSettingsModal(input: {
   set("injectSummarizationNote", String(input.settings.injectSummarizationNote));
   set("autoDetectActive", String(input.settings.autoDetectActive));
   set("autoGenerateTracker", String(input.settings.autoGenerateTracker));
+  set("extractionProtocolMode", input.settings.extractionProtocolMode);
   set("entityTrackingMode", input.settings.entityTrackingMode);
   set("regenerateOnMessageEdit", String(input.settings.regenerateOnMessageEdit));
   set("generateOnGreetingMessages", String(input.settings.generateOnGreetingMessages));
@@ -4227,6 +4229,7 @@ export function openSettingsModal(input: {
       injectSummarizationNote: readBool("injectSummarizationNote", input.settings.injectSummarizationNote),
       autoDetectActive: readBool("autoDetectActive", input.settings.autoDetectActive),
       autoGenerateTracker: readBool("autoGenerateTracker", input.settings.autoGenerateTracker),
+      extractionProtocolMode: read("extractionProtocolMode") === "json" ? "json" : "legacy",
       entityTrackingMode: read("entityTrackingMode") === "dynamic_characters"
         ? "dynamic_characters"
         : "standard",
@@ -4592,6 +4595,7 @@ export function openSettingsModal(input: {
   const tooltips: Partial<Record<keyof BetterSimTrackerSettings, string>> = {
     connectionProfile: "Choose a specific SillyTavern connection profile for tracker extraction calls.",
     sequentialExtraction: "Run one extraction prompt per stat instead of one unified prompt. More robust but slower.",
+    extractionProtocolMode: "Choose between the current legacy extractor path and the new structured JSON protocol path.",
     enableSequentialStatGroups: "When enabled, custom stats with the same Sequential Group are extracted together in one sequential request.",
     maxConcurrentCalls: "When sequential mode is enabled, number of stat requests sent in parallel.",
     strictJsonRepair: "Enable strict retry prompts when model output is not valid or missing required fields.",

@@ -121,6 +121,7 @@ export const defaultSettings: BetterSimTrackerSettings = {
   characterCardStatOrder: [],
   autoDetectActive: true,
   autoGenerateTracker: true,
+  extractionProtocolMode: "legacy",
   entityTrackingMode: "standard",
   regenerateOnMessageEdit: true,
   generateOnGreetingMessages: true,
@@ -292,6 +293,13 @@ function asProfileIdCandidate(value: unknown): string | null {
     return null;
   }
   return trimmed;
+}
+
+function normalizeExtractionProtocolMode(
+  value: unknown,
+  fallback: BetterSimTrackerSettings["extractionProtocolMode"],
+): BetterSimTrackerSettings["extractionProtocolMode"] {
+  return value === "json" ? "json" : fallback;
 }
 
 function getLocalSelectedConnectionProfileId(): string | null {
@@ -645,6 +653,7 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
       : [...defaultSettings.characterCardStatOrder],
     autoDetectActive: asBool(input.autoDetectActive, defaultSettings.autoDetectActive),
     autoGenerateTracker: asBool(input.autoGenerateTracker, defaultSettings.autoGenerateTracker),
+    extractionProtocolMode: normalizeExtractionProtocolMode(input.extractionProtocolMode, defaultSettings.extractionProtocolMode),
     entityTrackingMode: normalizeEntityTrackingMode(input.entityTrackingMode),
     regenerateOnMessageEdit: asBool(input.regenerateOnMessageEdit, defaultSettings.regenerateOnMessageEdit),
     generateOnGreetingMessages: asBool(input.generateOnGreetingMessages, defaultSettings.generateOnGreetingMessages),

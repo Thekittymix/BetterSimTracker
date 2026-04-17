@@ -326,3 +326,18 @@ test("sanitizeSettings defaults lorebook scan fallback to enabled and accepts ex
   assert.equal(disabled.includeLorebookInExtraction, true);
   assert.equal(disabled.useInternalLorebookScanFallback, false);
 });
+
+test("sanitizeSettings defaults extractionProtocolMode to legacy and accepts explicit json override", () => {
+  const defaults = sanitizeSettings({});
+  assert.equal(defaults.extractionProtocolMode, "legacy");
+
+  const json = sanitizeSettings({
+    extractionProtocolMode: "json",
+  });
+  assert.equal(json.extractionProtocolMode, "json");
+
+  const fallback = sanitizeSettings({
+    extractionProtocolMode: "something-else",
+  } as never);
+  assert.equal(fallback.extractionProtocolMode, "legacy");
+});

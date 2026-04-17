@@ -89,6 +89,7 @@ function makeSettings(): BetterSimTrackerSettings {
     stExpressionImageZoom: 1.2,
     stExpressionImagePositionX: 50,
     stExpressionImagePositionY: 20,
+    extractionProtocolMode: "legacy",
     strictJsonRepair: true,
     maxRetriesPerStat: 2,
     lastThoughtPrivate: false,

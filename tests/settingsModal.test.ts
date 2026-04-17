@@ -83,6 +83,9 @@ test("settings modal exposes multi-character archive lifecycle controls in Extra
 
 test("settings modal exposes entity tracking mode control in Extraction", () => {
   const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Extraction Protocol/);
+  assert.match(source, /Legacy Extraction/);
+  assert.match(source, /JSON Extraction/);
   assert.match(source, /Entity Tracking Mode/);
   assert.match(source, /Dynamic Characters \(Experimental\)/);
 });

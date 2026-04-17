@@ -26,6 +26,7 @@ export type MoodLabel =
 export type MoodSource = "bst_images" | "st_expressions";
 export type MoodSymbolMap = Partial<Record<MoodLabel, string>>;
 export type EntityTrackingMode = "standard" | "dynamic_characters";
+export type ExtractionProtocolMode = "legacy" | "json";
 export type SceneCardPosition = "above_tracker_cards" | "above_message";
 export type SceneCardLayout = "chips" | "rows";
 export type SceneStatLayout = "auto" | "chips" | "rows";
@@ -235,6 +236,7 @@ export interface BetterSimTrackerSettings {
   characterCardStatOrder: string[];
   autoDetectActive: boolean;
   autoGenerateTracker: boolean;
+  extractionProtocolMode: ExtractionProtocolMode;
   entityTrackingMode: EntityTrackingMode;
   regenerateOnMessageEdit: boolean;
   generateOnGreetingMessages: boolean;

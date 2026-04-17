@@ -317,6 +317,7 @@ export function buildDiagnosticsReport(input: {
       debug: settings.debug,
       includeContextInDiagnostics: settings.includeContextInDiagnostics,
       includeGraphInDiagnostics: settings.includeGraphInDiagnostics,
+      extractionProtocolMode: settings.extractionProtocolMode,
       injectTrackerIntoPrompt: settings.injectTrackerIntoPrompt,
       injectPromptDepth: settings.injectPromptDepth,
       injectionPromptMaxChars: settings.injectionPromptMaxChars,
