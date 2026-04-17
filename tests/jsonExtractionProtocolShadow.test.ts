@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { validateJsonExtractionRequestV1 } from "../src/jsonExtractionProtocol";
 import { defaultSettings } from "../src/settings";
 import { writeTrackerDataToMessage } from "../src/storage";
 import { buildJsonExtractionShadowRequest, buildJsonExtractionShadowRequestFromContext, runJsonExtractionShadowParity } from "../src/jsonExtractionProtocolShadow";
@@ -271,6 +272,8 @@ test("buildJsonExtractionShadowRequestFromContext builds message and history fro
   assert.deepEqual(request.recentHistory.map(entry => entry.messageIndex), [1, 0]);
   assert.equal(request.recentHistory[0]?.speaker, "Kuba");
   assert.deepEqual(request.recentHistory[0]?.trackerSnapshot?.sceneOwners, ["Candy", "Lisa"]);
+  const validated = validateJsonExtractionRequestV1(request);
+  assert.equal(validated.ok, true);
 });
 
 test("runJsonExtractionShadowParity reports parity success for equivalent expected and JSON-derived tracker outputs", () => {
