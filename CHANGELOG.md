@@ -2,43 +2,16 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.3.4-dev8] - 2026-04-16
-### Fixed
-- Fixed manual user-tracker stat edits so saved user rows now keep owner-key and entity-scoped snapshot buckets aligned, preventing stale `ByEntityId` values from surviving after edit saves and later overwrite paths.
-
-## [2.5.3.4-dev11] - 2026-04-16
-### Fixed
-- Fixed user-turn bridge continuity selection so retracking an older AI reply can recover the broader concrete scene from recent history even when intervening user rows only stored lossy generic or single-owner scene snapshots.
-
-## [2.5.3.4-dev10] - 2026-04-16
-### Fixed
-- Delivered the user-turn narrative continuity correction under a new extension version so ST can update to the build that preserves legitimate same-scene background participants after user-scoped rows.
-
-## [2.5.3.4-dev9] - 2026-04-16
-### Fixed
-- Fixed AI-turn scene continuity after a user-only row so focused replies can keep legitimate prior same-scene background participants active instead of dropping them straight to `Inactive`, while stale mention-only continuity remains blocked.
-
-## [2.5.3.4-dev7] - 2026-04-16
+## [2.5.3.5] - 2026-04-17
 ### Changed
-- Reduced tracker refresh and scheduling overhead by deduping repeated bootstrap scheduling, narrowing local edit/settings refresh paths, and moving late-render plus user-turn replay orchestration onto smaller testable controllers.
+- Reduced tracker refresh and request overhead by deduping repeated bootstrap and extraction scheduling, narrowing local settings/edit refresh paths, and moving replay plus late-render recovery onto smaller, testable controllers.
 
 ### Fixed
-- Fixed more full-tracker rerender hotspots so scene collapse, extraction loading progress, and related local tracker UI updates avoid unnecessary heavy redraw paths.
-
-## [2.5.3.4-dev6] - 2026-04-14
-### Fixed
-- Fixed tracker card collapse and expand actions so both per-card toggles and root card collapse now update locally in place instead of triggering heavy full-tracker rerenders.
-
-## [2.5.3.4-dev5] - 2026-04-14
-### Fixed
-- Fixed model-backed scene-presence matching so characters who are only discussed by name no longer stay `inScene` from polluted continuity, while legitimate grouped background participants still remain in-scene when the latest message explicitly keeps them present.
-
-## [2.5.3.4-dev4] - 2026-04-14
-### Fixed
-- Fixed model-resolved scene scopes so newly mentioned off-scene characters no longer become active just from being named, while genuinely present background participants can still stay in-scene without becoming current-message responders.
-- Fixed the follow-up resolver regression so model-resolved current-message participants are no longer dropped from extraction just because they were not already in the previous scene.
-- Fixed stale scene continuity on AI turns so third-party names mentioned in dialogue or reported speech are no longer treated as current in-scene participants, while recent real group-scene cues can still preserve legitimate silent participants.
-- Fixed custom `text_short` stat editors so tracker edit modals plus character/persona default editors now use textareas instead of single-line text inputs.
+- Fixed bridge continuity across user rows so focused replies and retracks preserve legitimate same-scene background participants instead of collapsing the scene to a single active character.
+- Fixed mention-only continuity leakage so off-scene or dialogue-only names no longer become active or stay in-scene without real current-scene evidence, while valid grouped background continuity is still preserved.
+- Fixed manual user stat-edit persistence so saved user rows keep owner-key and entity-scoped snapshot buckets aligned instead of leaving stale `ByEntityId` values behind.
+- Fixed tracker card and scene collapse interactions plus extraction loading updates so they refresh locally in place instead of triggering heavy full-tracker rerenders.
+- Fixed custom `text_short` stat editors so tracker edit modals and character/persona default editors now use textareas instead of single-line inputs.
 
 ## [2.5.3.4] - 2026-04-14
 ### Fixed
