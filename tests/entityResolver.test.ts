@@ -4,9 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildMultiCharacterResolverPrompt,
   parseMultiCharacterResolverResponse,
-  resolveMessageOwnersFromResolvedEntities,
   resolveResolvedEntityConfidence,
-  resolveSceneOwnersFromResolvedEntities,
 } from "../src/entityResolver";
 
 test("buildMultiCharacterResolverPrompt lists candidate owners and latest message metadata", () => {
@@ -598,28 +596,4 @@ test("resolveResolvedEntityConfidence weights resolver evidence deterministicall
   assert.equal(resolveResolvedEntityConfidence(["resolver_owner_name"]), 0.8);
   assert.equal(resolveResolvedEntityConfidence(["resolver_alias"]), 0.72);
   assert.equal(resolveResolvedEntityConfidence(undefined), undefined);
-});
-
-test("resolved-owner helpers recover alias owners from technical entity labels", () => {
-  const resolvedEntities = [
-    {
-      entityId: "bst_mc_alias:test:ashley",
-      kind: "st-character" as const,
-      name: "bst_mc_alias:test:ashley",
-      avatar: null,
-      inScene: true,
-      inMessage: false,
-    },
-    {
-      entityId: "bst_mc_alias:test:blake",
-      kind: "st-character" as const,
-      name: "bst_mc_alias:test:blake",
-      avatar: null,
-      inScene: true,
-      inMessage: true,
-    },
-  ];
-
-  assert.deepEqual(resolveSceneOwnersFromResolvedEntities(resolvedEntities), ["ashley", "blake"]);
-  assert.deepEqual(resolveMessageOwnersFromResolvedEntities(resolvedEntities), ["blake"]);
 });

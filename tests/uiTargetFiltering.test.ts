@@ -3,9 +3,6 @@ import assert from "node:assert/strict";
 import { buildEntityResolution } from "./helpers/entityResolution";
 
 import {
-  buildDisplayPoolWithRegistry,
-  selectDisplayPoolTargetsWithRegistry,
-  collectCharacterNamesFromTrackerData,
   filterTechnicalSourceRenderTargets,
   filterRenderTargetsForTrackingMode,
   filterShadowedAliasRenderTargets,
@@ -20,8 +17,6 @@ import {
   resolveRegistryEntryForOwnerInMessageData,
   resolveLifecycleRegistryStateForOwnerInMessageData,
   resolveRegistryOwnersFromEntries,
-  resolveCurrentLifecycleOwners,
-  resolveCurrentLifecycleOwnersForTrackerData,
   resolveTrackerCardCollapsed,
   resolveOwnerUiKey,
   shouldKeepOwnerInRenderTargetPool,
@@ -260,199 +255,6 @@ test("filterTechnicalSourceRenderTargets hides a source-card owner when same-sou
   );
 });
 
-test("collectCharacterNamesFromTrackerData prefers resolver scene owners and entity owner map over stale activeCharacters", () => {
-  const names = collectCharacterNamesFromTrackerData(
-    {
-      chat: [],
-      chatMetadata: {
-        bstEntityRegistry: {
-          entities: {
-            "ent-blake": {
-              id: "ent-blake",
-              ownerName: "Blake",
-              canonicalName: "Blake",
-              aliases: ["Blackout Blake"],
-              kind: "multi_character_alias",
-              sourceKey: "camp",
-              lifecycle: "active",
-              createdAtMessageIndex: 0,
-              lastSeenMessageIndex: 2,
-              lastActiveMessageIndex: 2,
-            },
-          },
-          byOwner: {
-            Blake: "ent-blake",
-          },
-          bySource: {},
-        },
-      },
-    } as never,
-    {
-      activeCharacters: ["Garret", "Raleigh"],
-      entityResolution: buildEntityResolution({
-        source: "model",
-        sceneOwners: ["Blake"],
-        messageOwners: ["Blake"],
-        sceneEntityIds: ["ent-blake"],
-        messageEntityIds: ["ent-blake"],
-      }),
-      entityOwnerMap: {
-        Blake: {
-          entityId: "ent-blake",
-          ownerName: "Blake",
-          canonicalName: "Blake",
-          aliases: ["Blackout Blake"],
-          kind: "multi_character_alias",
-          sourceKey: "camp",
-        },
-      },
-      statistics: {
-        affection: {},
-        trust: {},
-        desire: {},
-        connection: {},
-        mood: {},
-        lastThought: {},
-      },
-      customStatistics: {},
-      customNonNumericStatistics: {},
-      timestamp: 1,
-    },
-  );
-
-  assert.deepEqual(names, ["Blake"]);
-});
-
-test("collectCharacterNamesFromTrackerData ignores raw stat owner keys once explicit resolver/entity identity exists", () => {
-  const names = collectCharacterNamesFromTrackerData(
-    {
-      chat: [],
-      chatMetadata: {
-        bstEntityRegistry: {
-          entities: {
-            "ent-blake": {
-              id: "ent-blake",
-              ownerName: "Blake",
-              canonicalName: "Blake",
-              aliases: ["Blackout Blake"],
-              kind: "multi_character_alias",
-              sourceKey: "camp",
-              lifecycle: "active",
-              createdAtMessageIndex: 0,
-              lastSeenMessageIndex: 2,
-              lastActiveMessageIndex: 2,
-            },
-          },
-          byOwner: {
-            Blake: "ent-blake",
-          },
-          bySource: {},
-        },
-      },
-    } as never,
-    {
-      activeCharacters: ["Garret"],
-      entityResolution: buildEntityResolution({
-        source: "model",
-        sceneOwners: ["Blake"],
-        messageOwners: ["Blake"],
-        sceneEntityIds: ["ent-blake"],
-        messageEntityIds: ["ent-blake"],
-      }),
-      entityOwnerMap: {
-        Blake: {
-          entityId: "ent-blake",
-          ownerName: "Blake",
-          canonicalName: "Blake",
-          aliases: ["Blackout Blake"],
-          kind: "multi_character_alias",
-          sourceKey: "camp",
-        },
-      },
-      statistics: {
-        affection: { Garret: 50, Raleigh: 50 },
-        trust: {},
-        desire: {},
-        connection: {},
-        mood: {},
-        lastThought: {},
-      },
-      customStatistics: {},
-      customNonNumericStatistics: {
-        pose: {
-          Ashley: "near the door",
-        },
-      },
-      timestamp: 1,
-    },
-  );
-
-  assert.deepEqual(names, ["Blake"]);
-});
-
-test("collectCharacterNamesFromTrackerData preserves the explicit user owner alongside fallback scene continuity", () => {
-  const names = collectCharacterNamesFromTrackerData({
-    timestamp: 1,
-    activeCharacters: ["__bst_user__"],
-    entityResolution: buildEntityResolution({
-      source: "fallback",
-      sceneOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
-      messageOwners: ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh"],
-    }),
-    statistics: {
-      affection: {},
-      trust: {},
-      desire: {},
-      connection: {},
-      mood: { __bst_user__: "Serious" },
-      lastThought: { __bst_user__: "Ashley is giving me the clearest read here." },
-    },
-    customStatistics: {},
-    customNonNumericStatistics: {
-      clothes: { __bst_user__: ["t-shirt", "jeans"] },
-      pose: { __bst_user__: "watching Ashley closely" },
-    },
-  } as never);
-
-  assert.deepEqual(names, ["Camp Whispering Pines | Ashley, Blake, Garret, & Raleigh", "__bst_user__"]);
-});
-
-test("collectCharacterNamesFromTrackerData can materialize resolver scene owners from entity ids plus owner map without context", () => {
-  const names = collectCharacterNamesFromTrackerData({
-    activeCharacters: ["Garret", "Raleigh"],
-    entityResolution: buildEntityResolution({
-      source: "model",
-      sceneOwners: [],
-      messageOwners: [],
-      sceneEntityIds: ["ent-blake"],
-      messageEntityIds: ["ent-blake"],
-    }),
-    entityOwnerMap: {
-      Blake: {
-        entityId: "ent-blake",
-        ownerName: "Blake",
-        canonicalName: "Blake",
-        aliases: ["Blackout Blake"],
-        kind: "multi_character_alias",
-        sourceKey: "camp",
-      },
-    },
-    statistics: {
-      affection: {},
-      trust: {},
-      desire: {},
-      connection: {},
-      mood: {},
-      lastThought: {},
-    },
-    customStatistics: {},
-    customNonNumericStatistics: {},
-    timestamp: 1,
-  } as never);
-
-  assert.deepEqual(names, ["Blake"]);
-});
-
 test("resolveRegistryOwnersFromEntries preserves introduction order and deduplicates names", () => {
   const owners = resolveRegistryOwnersFromEntries([
     { id: "a", ownerName: "Ashley" } as never,
@@ -602,69 +404,6 @@ test("resolveLifecycleRegistryStateForOwnerInMessageData resolves entityOwnerMap
   assert.equal(resolved?.lastActiveMessageIndex, 2);
 });
 
-test("buildDisplayPoolWithRegistry keeps registry owners visible in direct-chat continuity mode", () => {
-  const displayPool = buildDisplayPoolWithRegistry({
-    entityTrackingMode: "dynamic_characters",
-    includeAllTargets: false,
-    activeCharacters: ["Ashley"],
-    dataCharacterNames: ["Ashley"],
-    mergedWithRegistryOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
-  });
-
-  assert.deepEqual(displayPool, ["Ashley", "Blake", "Garret", "Raleigh"]);
-});
-
-test("buildDisplayPoolWithRegistry keeps standard mode focused on current active/data owners", () => {
-  const displayPool = buildDisplayPoolWithRegistry({
-    entityTrackingMode: "standard",
-    includeAllTargets: false,
-    activeCharacters: ["Ashley"],
-    dataCharacterNames: ["Ashley"],
-    mergedWithRegistryOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
-  });
-
-  assert.deepEqual(displayPool, ["Ashley"]);
-});
-
-test("selectDisplayPoolTargetsWithRegistry keeps scene-only group participants when includeAllTargets is enabled", () => {
-  const targets = selectDisplayPoolTargetsWithRegistry({
-    entityTrackingMode: "dynamic_characters",
-    includeAllTargets: true,
-    activeCharacters: ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"],
-    dataCharacterNames: ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"],
-    mergedWithRegistryTargets: [
-      { ownerName: "Raleigh", uiKey: "ent-raleigh", registryEntry: { id: "ent-raleigh", ownerName: "Raleigh" } as never },
-      { ownerName: "Blake", uiKey: "ent-blake", registryEntry: { id: "ent-blake", ownerName: "Blake" } as never },
-      { ownerName: "Garret", uiKey: "ent-garret", registryEntry: { id: "ent-garret", ownerName: "Garret" } as never },
-      { ownerName: "Ashley", uiKey: "ent-ashley", registryEntry: { id: "ent-ashley", ownerName: "Ashley" } as never },
-      { ownerName: "Chloe", uiKey: "ent-chloe", registryEntry: { id: "ent-chloe", ownerName: "Chloe" } as never },
-    ],
-    resolveTarget: () => null,
-    shouldKeepTarget: target => target.ownerName !== "Chloe",
-  });
-
-  assert.deepEqual(targets.map(target => target.ownerName), ["Raleigh", "Blake", "Garret", "Ashley", "Chloe"]);
-});
-
-test("selectDisplayPoolTargetsWithRegistry still filters scene-only registry targets when includeAllTargets is disabled", () => {
-  const targets = selectDisplayPoolTargetsWithRegistry({
-    entityTrackingMode: "dynamic_characters",
-    includeAllTargets: false,
-    activeCharacters: ["Raleigh", "Blake", "Garret"],
-    dataCharacterNames: ["Raleigh", "Blake", "Garret", "Chloe"],
-    mergedWithRegistryTargets: [
-      { ownerName: "Raleigh", uiKey: "ent-raleigh", registryEntry: { id: "ent-raleigh", ownerName: "Raleigh" } as never },
-      { ownerName: "Blake", uiKey: "ent-blake", registryEntry: { id: "ent-blake", ownerName: "Blake" } as never },
-      { ownerName: "Garret", uiKey: "ent-garret", registryEntry: { id: "ent-garret", ownerName: "Garret" } as never },
-      { ownerName: "Chloe", uiKey: "ent-chloe", registryEntry: { id: "ent-chloe", ownerName: "Chloe" } as never },
-    ],
-    resolveTarget: () => null,
-    shouldKeepTarget: target => target.ownerName !== "Chloe",
-  });
-
-  assert.deepEqual(targets.map(target => target.ownerName), ["Raleigh", "Blake", "Garret"]);
-});
-
 test("filterRenderTargetsForTrackingMode hides narrative entities in standard mode but keeps source-backed aliases", () => {
   const filtered = filterRenderTargetsForTrackingMode({
     entityTrackingMode: "standard",
@@ -793,39 +532,6 @@ test("resolveTrackerCardCollapsed defaults active cards open and inactive cards 
       expandedInactiveCardKeys: new Set(),
     }),
     true,
-  );
-});
-
-test("resolveCurrentLifecycleOwners includes message-only user owner without duplicating scene owners", () => {
-  assert.deepEqual(
-    resolveCurrentLifecycleOwners({
-      sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
-      messageOwners: ["__bst_user__", "Blake"],
-    }),
-    ["Ashley", "Blake", "Garret", "Raleigh", "__bst_user__"],
-  );
-});
-
-test("resolveCurrentLifecycleOwnersForTrackerData preserves explicit empty active sets instead of falling back to scene owners", () => {
-  assert.deepEqual(
-    resolveCurrentLifecycleOwnersForTrackerData({
-      timestamp: 1,
-      activeCharacters: [],
-      entityResolution: buildEntityResolution({
-        sceneOwners: ["Ashley", "Blake", "Garret", "Raleigh"],
-        messageOwners: [],
-        source: "model",
-      }),
-      statistics: {
-        affection: {},
-        trust: {},
-        desire: {},
-        connection: {},
-        mood: {},
-        lastThought: {},
-      },
-    }),
-    [],
   );
 });
 

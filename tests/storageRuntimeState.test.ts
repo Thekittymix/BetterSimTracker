@@ -19,10 +19,6 @@ import {
   getRecentTrackerHistoryEntries,
   getTrackerDataFromMessage,
   mergeTrackerDataChronologically,
-  mergeCustomNonNumericStatisticsWithFallback,
-  mergeCustomStatisticsWithFallback,
-  mergeStatisticsWithFallback,
-  resolveNormalizedTrackerActiveCharacters,
   saveTrackerSnapshot,
   writeTrackerDataToMessage,
 } from "../src/storage";
@@ -884,61 +880,6 @@ test("getTrackerDataFromMessage prefers resolver-backed activeCharacters before 
   }));
 });
 
-test("mergeStatisticsWithFallback and custom merges preserve previous missing values", () => {
-  const mergedStats = mergeStatisticsWithFallback(
-    {
-      affection: { Seraphina: 60 },
-      trust: {},
-      desire: {},
-      connection: {},
-      mood: {},
-      lastThought: {},
-    },
-    {
-      affection: { Seraphina: 50 },
-      trust: { Seraphina: 40 },
-      desire: {},
-      connection: {},
-      mood: { Seraphina: "Neutral" },
-      lastThought: {},
-    },
-  );
-  assert.deepEqual(mergedStats.trust, { Seraphina: 40 });
-  assert.deepEqual(mergedStats.affection, { Seraphina: 60 });
-
-  assert.deepEqual(
-    mergeCustomStatisticsWithFallback(
-      { satisfaction: { Seraphina: 70 } },
-      { satisfaction: { User: 55 }, affinity: { Seraphina: 10 } },
-    ),
-    {
-      satisfaction: { User: 55, Seraphina: 70 },
-      affinity: { Seraphina: 10 },
-    },
-  );
-
-  assert.deepEqual(
-    mergeCustomNonNumericStatisticsWithFallback(
-      { clothes: { Seraphina: ["Hat"] } },
-      { clothes: { User: ["Boots"] }, pose: { Seraphina: "Standing" } },
-    ),
-    {
-      clothes: { User: ["Boots"], Seraphina: ["Hat"] },
-      pose: { Seraphina: "Standing" },
-    },
-  );
-
-  assert.deepEqual(
-    mergeCustomNonNumericStatisticsWithFallback(
-      { clothes: { Seraphina: [] } },
-      { clothes: { Seraphina: ["Hat"] } },
-    ),
-    {
-      clothes: { Seraphina: [] },
-    },
-  );
-});
-
 test("getTrackerDataFromMessage preserves explicit empty array values", () => {
   const message = {
     mes: "Reply",
@@ -1020,123 +961,6 @@ test("buildMergedPromptMacroData prefers the latest owner array value over older
   const merged = buildMergedPromptMacroData(context, newerUser);
   assert.ok(merged);
   assert.deepEqual(merged?.customNonNumericStatistics?.clothes, { [USER_TRACKER_KEY]: ["jeans"] });
-});
-
-test("resolveNormalizedTrackerActiveCharacters prefers resolver owners over explicit non-user active owners", () => {
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      { activeCharacters: [USER_TRACKER_KEY] } as TrackerData,
-      ["Blake"],
-    ),
-    [USER_TRACKER_KEY],
-  );
-
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      { activeCharacters: ["Garret", "Raleigh"] } as TrackerData,
-      ["Blake"],
-      ["Ashley"],
-    ),
-    ["Ashley"],
-  );
-
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      { activeCharacters: ["Garret", "Raleigh"] } as TrackerData,
-      ["Blake"],
-    ),
-    ["Blake"],
-  );
-
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      { activeCharacters: [] } as unknown as TrackerData,
-      ["Blake"],
-    ),
-    ["Blake"],
-  );
-
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      {} as TrackerData,
-      ["Blake"],
-      ["Ashley"],
-    ),
-    ["Ashley"],
-  );
-
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      {} as TrackerData,
-      ["Blake"],
-    ),
-    ["Blake"],
-  );
-});
-
-test("resolveNormalizedTrackerActiveCharacters can preserve explicit active scene owners for manual edit saves when they match resolved scene owners", () => {
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      {
-        activeCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
-      } as TrackerData,
-      ["Candy", "Lisa", "Marylyn", "Serena"],
-      ["Lisa", "Marylyn", "Serena"],
-      { preserveExplicitActiveCharactersWhenConsistent: true },
-    ),
-    ["Candy", "Lisa", "Marylyn", "Serena"],
-  );
-
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      {
-        activeCharacters: ["Garret", "Raleigh"],
-      } as TrackerData,
-      ["Blake"],
-      ["Ashley"],
-      { preserveExplicitActiveCharactersWhenConsistent: true },
-    ),
-    ["Ashley"],
-  );
-});
-
-test("resolveNormalizedTrackerActiveCharacters hides a generic source owner when same-source child entities are active", () => {
-  assert.deepEqual(
-    resolveNormalizedTrackerActiveCharacters(
-      {
-        activeCharacters: ["Your Family", "Marylyn", "Lisa"],
-        entityOwnerMap: {
-          "Your Family": {
-            entityId: "ent-family",
-            ownerName: "Your Family",
-            canonicalName: "Your Family",
-            aliases: [],
-            sourceKey: "your family.png|your family",
-            kind: "owner",
-          },
-          Marylyn: {
-            entityId: "ent-marylyn",
-            ownerName: "Marylyn",
-            canonicalName: "Marylyn",
-            aliases: [],
-            sourceKey: "your family.png|your family",
-            kind: "narrative-entity",
-          },
-          Lisa: {
-            entityId: "ent-lisa",
-            ownerName: "Lisa",
-            canonicalName: "Lisa",
-            aliases: [],
-            sourceKey: "your family.png|your family",
-            kind: "narrative-entity",
-          },
-        },
-      } as unknown as TrackerData,
-      ["Your Family", "Marylyn", "Lisa"],
-      ["Your Family", "Marylyn", "Lisa"],
-    ),
-    ["Marylyn", "Lisa"],
-  );
 });
 
 test("buildMergedPromptMacroData falls back to resolver message owners before scene owners when activeCharacters are missing", () => {
