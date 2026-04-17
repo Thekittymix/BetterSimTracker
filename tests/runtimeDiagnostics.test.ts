@@ -258,9 +258,18 @@ test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
       moodFallbackApplied: [],
       requests: [],
       jsonShadow: {
-        status: "request_built",
+        status: "parity_ok",
         protocolVersion: "bst.extract.v1",
         requestText: "{\"protocolVersion\":\"bst.extract.v1\"}",
+        responseText: "{\"responseType\":\"tracker_extraction_result\"}",
+        responseMeta: {
+          profileId: "shadow-profile",
+          promptChars: 120,
+          maxTokens: 300,
+          durationMs: 456,
+          outputChars: 789,
+          timestamp: 1772800000001,
+        },
         task: {
           mode: "ai_turn",
           messageIndex: 2,
@@ -273,8 +282,9 @@ test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
   };
   const filtered = filterDebugRecordForDiagnostics(record, false);
   assert.deepEqual(filtered?.trace, ["x extract.start y"]);
-  assert.equal(filtered?.meta?.jsonShadow?.status, "request_built");
+  assert.equal(filtered?.meta?.jsonShadow?.status, "parity_ok");
   assert.equal(filtered?.meta?.jsonShadow?.task?.messageIndex, 2);
+  assert.equal(filtered?.meta?.jsonShadow?.responseMeta?.profileId, "shadow-profile");
 });
 
 test("buildDiagnosticsDebugDetails skips persisted trace reads and debug-only payloads when debug is off", () => {

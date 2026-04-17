@@ -4187,6 +4187,17 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           }
         }
         lastDebugRecord.meta.jsonShadow = jsonShadowDebug;
+        if (activeSettings.debug && jsonShadowDebug.status !== "request_built") {
+          pushTrace("json_shadow.result", {
+            runId,
+            messageIndex: lastIndex,
+            status: jsonShadowDebug.status,
+            mismatchPaths: jsonShadowDebug.parityMismatchPaths ?? [],
+            validationErrors: jsonShadowDebug.validationErrors?.length ?? 0,
+            responseChars: jsonShadowDebug.responseText?.length ?? 0,
+            profileId: jsonShadowDebug.responseMeta?.profileId ?? null,
+          });
+        }
       }
       if (lastDebugRecord) {
         const persistedTail = readTraceLines(context).slice(-200);

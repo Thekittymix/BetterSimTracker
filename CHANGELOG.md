@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev5] - 2026-04-17
+### Added
+- Added JSON shadow continuity contract coverage for real retrack failure shapes and a runtime trace summary for shadow transport outcomes so parity mismatches, invalid responses, and transport errors are visible directly in extraction diagnostics.
+
 ## [2.5.3.5-dev4] - 2026-04-17
 ### Added
 - Added a debug-gated JSON shadow transport run on real extraction passes so BST can issue the runtime-shaped JSON request in parallel, capture the shadow response plus generator metadata, and store transport/parity diagnostics without affecting the legacy extraction result.
