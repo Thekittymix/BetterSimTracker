@@ -84,6 +84,7 @@ function makeDebugRecord(): DeltaDebugRecord {
         status: "request_built",
         protocolVersion: "bst.extract.v1",
         requestText: "Q".repeat(12_000),
+        responseText: "R".repeat(12_000),
         task: {
           mode: "ai_turn",
           messageIndex: 4,
@@ -103,6 +104,7 @@ test("trimDebugRecordForStorage caps bulky debug text fields and trace payload",
   assert.ok(trimmed.promptText && trimmed.promptText.length < 3_200);
   assert.ok(trimmed.contextText && trimmed.contextText.length < 3_200);
   assert.ok((trimmed.meta?.jsonShadow?.requestText?.length ?? 0) < 3_200);
+  assert.ok((trimmed.meta?.jsonShadow?.responseText?.length ?? 0) < 3_200);
   assert.equal(trimmed.trace?.length, 80);
   assert.ok((trimmed.trace ?? [])[0].length <= 220);
 });

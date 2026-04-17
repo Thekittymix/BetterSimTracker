@@ -202,7 +202,11 @@ import { validateUserTurnReplayState } from "./userTurnReplayPolicy";
 import { createBootstrapScheduler } from "./bootstrapScheduler";
 import { createLateRenderRecoveryController } from "./lateRenderRecovery";
 import { executeUserTurnReplay } from "./userTurnReplayExecution";
-import { buildJsonExtractionShadowDebug } from "./jsonExtractionProtocolDebug";
+import {
+  buildJsonExtractionShadowDebug,
+  buildJsonExtractionShadowExpectedTrackerData,
+} from "./jsonExtractionProtocolDebug";
+import { runJsonExtractionProtocolShadowTransport } from "./jsonExtractionProtocolTransport";
 
 declare const __BST_VERSION__: string;
 
@@ -4109,7 +4113,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       const extractedCustomNonNumeric = extractedResult.customNonNumericStatistics;
       lastDebugRecord = extractedResult.debug;
       if (lastDebugRecord?.meta) {
-        lastDebugRecord.meta.jsonShadow = buildJsonExtractionShadowDebug({
+        const jsonShadowExpectedTrackerData = buildJsonExtractionShadowExpectedTrackerData({
+          activeCharacters,
+          entityResolution: resolvedEntityResolution,
+          statistics: extracted,
+          customStatistics: extractedCustom,
+          customNonNumericStatistics: extractedCustomNonNumeric,
+        });
+        let jsonShadowDebug = buildJsonExtractionShadowDebug({
           context,
           reason,
           messageIndex: lastIndex,
@@ -4120,7 +4131,62 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           previousStatistics: previousSeededStatistics,
           previousCustomStatistics: previousSeededCustomStatistics,
           previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
+          expectedTrackerData: jsonShadowExpectedTrackerData,
         });
+        if (activeSettings.debug) {
+          try {
+            const shadowTransport = await runJsonExtractionProtocolShadowTransport({
+              context,
+              reason,
+              messageIndex: lastIndex,
+              settings: extractionSettings,
+              activeCharacters,
+              entityResolution: resolvedEntityResolution,
+              previousTrackerData: previousEntry?.data ?? null,
+              previousStatistics: previousSeededStatistics,
+              previousCustomStatistics: previousSeededCustomStatistics,
+              previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
+              expectedTrackerData: jsonShadowExpectedTrackerData,
+            });
+            jsonShadowDebug = buildJsonExtractionShadowDebug({
+              context,
+              reason,
+              messageIndex: lastIndex,
+              settings: extractionSettings,
+              activeCharacters,
+              entityResolution: resolvedEntityResolution,
+              previousTrackerData: previousEntry?.data ?? null,
+              previousStatistics: previousSeededStatistics,
+              previousCustomStatistics: previousSeededCustomStatistics,
+              previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
+              expectedTrackerData: jsonShadowExpectedTrackerData,
+              requestTextOverride: shadowTransport.requestText,
+              rawJsonResponse: shadowTransport.responseText,
+              responseMeta: shadowTransport.responseMeta,
+            });
+          } catch (error) {
+            pushTrace("json_shadow.transport_error", {
+              runId,
+              messageIndex: lastIndex,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            jsonShadowDebug = buildJsonExtractionShadowDebug({
+              context,
+              reason,
+              messageIndex: lastIndex,
+              settings: extractionSettings,
+              activeCharacters,
+              entityResolution: resolvedEntityResolution,
+              previousTrackerData: previousEntry?.data ?? null,
+              previousStatistics: previousSeededStatistics,
+              previousCustomStatistics: previousSeededCustomStatistics,
+              previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
+              expectedTrackerData: jsonShadowExpectedTrackerData,
+              transportError: error,
+            });
+          }
+        }
+        lastDebugRecord.meta.jsonShadow = jsonShadowDebug;
       }
       if (lastDebugRecord) {
         const persistedTail = readTraceLines(context).slice(-200);

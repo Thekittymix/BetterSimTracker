@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildJsonExtractionShadowDebug } from "../src/jsonExtractionProtocolDebug";
+import {
+  buildJsonExtractionShadowDebug,
+  buildJsonExtractionShadowExpectedTrackerData,
+} from "../src/jsonExtractionProtocolDebug";
 import { defaultSettings } from "../src/settings";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
 
@@ -147,6 +150,21 @@ test("buildJsonExtractionShadowDebug captures request-built shadow data for a re
   assert.match(debug.requestText ?? "", /"requestType": "tracker_extraction"/);
 });
 
+test("buildJsonExtractionShadowExpectedTrackerData preserves extracted tracker fields for parity input", () => {
+  const expected = buildJsonExtractionShadowExpectedTrackerData({
+    timestamp: 123,
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: makeExpectedTracker().entityResolution,
+    statistics: makeExpectedTracker().statistics,
+    customStatistics: {},
+    customNonNumericStatistics: makeExpectedTracker().customNonNumericStatistics,
+  });
+
+  assert.deepEqual(expected.activeCharacters, ["Candy", "Lisa"]);
+  assert.equal(expected.timestamp, 123);
+  assert.deepEqual(expected.customNonNumericStatistics?.clothes?.Candy, ["t-shirt", "panties"]);
+});
+
 test("buildJsonExtractionShadowDebug reports parity_ok for matching JSON response", () => {
   const expected = makeExpectedTracker();
   const debug = buildJsonExtractionShadowDebug({
@@ -161,6 +179,14 @@ test("buildJsonExtractionShadowDebug reports parity_ok for matching JSON respons
     previousCustomStatistics: {},
     previousCustomNonNumericStatistics: expected.customNonNumericStatistics,
     expectedTrackerData: expected,
+    responseMeta: {
+      profileId: "shadow",
+      promptChars: 100,
+      maxTokens: 200,
+      durationMs: 321,
+      outputChars: 456,
+      timestamp: 789,
+    },
     rawJsonResponse: JSON.stringify({
       protocolVersion: "bst.extract.v1",
       responseType: "tracker_extraction_result",
@@ -204,6 +230,8 @@ test("buildJsonExtractionShadowDebug reports parity_ok for matching JSON respons
 
   assert.equal(debug.status, "parity_ok");
   assert.equal(debug.task?.retrack, true);
+  assert.equal(debug.responseMeta?.profileId, "shadow");
+  assert.match(debug.responseText ?? "", /"tracker_extraction_result"/);
 });
 
 test("buildJsonExtractionShadowDebug reports response_invalid for malformed JSON response", () => {
@@ -223,4 +251,23 @@ test("buildJsonExtractionShadowDebug reports response_invalid for malformed JSON
 
   assert.equal(debug.status, "response_invalid");
   assert.ok((debug.validationErrors?.length ?? 0) > 0);
+});
+
+test("buildJsonExtractionShadowDebug reports transport_error without changing main extraction state", () => {
+  const debug = buildJsonExtractionShadowDebug({
+    context: makeContext(),
+    reason: "GENERATION_ENDED",
+    messageIndex: 0,
+    settings: makeSettings(),
+    activeCharacters: ["Candy", "Lisa"],
+    previousTrackerData: makeExpectedTracker(),
+    previousStatistics: makeExpectedTracker().statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: makeExpectedTracker().customNonNumericStatistics,
+    expectedTrackerData: makeExpectedTracker(),
+    transportError: new Error("shadow transport failed"),
+  });
+
+  assert.equal(debug.status, "transport_error");
+  assert.match(debug.transportError ?? "", /shadow transport failed/);
 });

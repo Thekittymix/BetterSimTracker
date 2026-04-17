@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev4] - 2026-04-17
+### Added
+- Added a debug-gated JSON shadow transport run on real extraction passes so BST can issue the runtime-shaped JSON request in parallel, capture the shadow response plus generator metadata, and store transport/parity diagnostics without affecting the legacy extraction result.
+
 ## [2.5.3.5-dev3] - 2026-04-17
 ### Added
 - Added a JSON shadow transport helper that runs the runtime-shaped JSON request through the existing generator interface, returns transport metadata, and executes the new request/parse/materialize/parity path end to end without activating it as the main extractor.

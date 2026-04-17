@@ -536,9 +536,11 @@ export interface DeltaDebugRecord {
         }>;
       };
       jsonShadow?: {
-        status: "request_built" | "response_invalid" | "parity_ok" | "parity_mismatch";
+        status: "request_built" | "transport_error" | "response_invalid" | "parity_ok" | "parity_mismatch";
         protocolVersion: string;
         requestText?: string;
+        responseText?: string;
+        responseMeta?: GenerateRequestMeta;
         task?: {
           mode: "ai_turn" | "user_turn";
           messageIndex: number;
@@ -547,6 +549,7 @@ export interface DeltaDebugRecord {
         };
         parityMismatchPaths?: string[];
         validationErrors?: string[];
+        transportError?: string;
       };
     };
     trace?: string[];
