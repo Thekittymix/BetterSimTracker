@@ -103,6 +103,47 @@ const customStatDefinitions: CustomStatDefinition[] = [
     showInGraph: false,
     includeInInjection: true,
   },
+  {
+    id: "isrestrained",
+    kind: "boolean",
+    label: "Restrained",
+    defaultValue: false,
+    track: true,
+    trackCharacters: true,
+    trackUser: true,
+    globalScope: false,
+    showOnCard: true,
+    showInGraph: false,
+    includeInInjection: true,
+  },
+  {
+    id: "phase",
+    kind: "enum_single",
+    label: "Phase",
+    defaultValue: "calm",
+    enumOptions: ["calm", "tense", "playful"],
+    track: true,
+    trackCharacters: true,
+    trackUser: true,
+    globalScope: false,
+    showOnCard: true,
+    showInGraph: false,
+    includeInInjection: true,
+  },
+  {
+    id: "lastseen",
+    kind: "date_time",
+    label: "Last Seen",
+    defaultValue: "2026-04-17 18:30",
+    dateTimeMode: "timestamp",
+    track: true,
+    trackCharacters: true,
+    trackUser: true,
+    globalScope: false,
+    showOnCard: true,
+    showInGraph: false,
+    includeInInjection: true,
+  },
 ];
 
 test("materializeTrackerDataFromJsonExtractionResponseV1 builds tracker data with broad scene continuity and narrow message participation", () => {
@@ -141,4 +182,44 @@ test("materializeTrackerDataFromJsonExtractionResponseV1 preserves explicit empt
   });
 
   assert.deepEqual(tracker.customNonNumericStatistics?.clothes?.Candy, []);
+});
+
+test("materializeTrackerDataFromJsonExtractionResponseV1 preserves boolean, enum, and date_time custom stat semantics", () => {
+  const response = makeResponse();
+  response.customNonNumericStats.isrestrained = {
+    Candy: true,
+  };
+  response.customNonNumericStats.phase = {
+    Candy: "playful",
+  };
+  response.customNonNumericStats.lastseen = {
+    Candy: "2026-04-17 18:30",
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionResponseV1(response, {
+    customStatDefinitions,
+    timestamp: 9876,
+  });
+
+  assert.equal(tracker.timestamp, 9876);
+  assert.equal(tracker.customNonNumericStatistics?.isrestrained?.Candy, true);
+  assert.equal(tracker.customNonNumericStatistics?.phase?.Candy, "playful");
+  assert.equal(tracker.customNonNumericStatistics?.lastseen?.Candy, "2026-04-17 18:30");
+});
+
+test("materializeTrackerDataFromJsonExtractionResponseV1 drops invalid enum values but preserves explicit boolean false", () => {
+  const response = makeResponse();
+  response.customNonNumericStats.isrestrained = {
+    Candy: false,
+  };
+  response.customNonNumericStats.phase = {
+    Candy: "not-an-option",
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionResponseV1(response, {
+    customStatDefinitions,
+  });
+
+  assert.equal(tracker.customNonNumericStatistics?.isrestrained?.Candy, false);
+  assert.equal(Object.prototype.hasOwnProperty.call(tracker.customNonNumericStatistics?.phase ?? {}, "Candy"), false);
 });
