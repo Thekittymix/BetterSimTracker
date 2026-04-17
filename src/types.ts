@@ -513,8 +513,8 @@ export interface DeltaDebugRecord {
     };
     moodFallbackApplied?: string[];
     requests?: Array<GenerateRequestMeta & { statList: string[]; attempt: number; retryType: string }>;
-    scopeResolution?: {
-      current?: Record<string, Record<string, {
+      scopeResolution?: {
+        current?: Record<string, Record<string, {
         globalScope: boolean;
         resolvedFrom: "global" | "owner" | "legacy_fallback" | "global_fallback" | "entity_lookup" | "none";
         value: unknown;
@@ -532,12 +532,25 @@ export interface DeltaDebugRecord {
           ownerValue?: unknown;
           globalValue?: unknown;
           legacyFallbackOwner?: string;
-        }>>;
-      }>;
+          }>>;
+        }>;
+      };
+      jsonShadow?: {
+        status: "request_built" | "response_invalid" | "parity_ok" | "parity_mismatch";
+        protocolVersion: string;
+        requestText?: string;
+        task?: {
+          mode: "ai_turn" | "user_turn";
+          messageIndex: number;
+          retrack: boolean;
+          swipeRetrack: boolean;
+        };
+        parityMismatchPaths?: string[];
+        validationErrors?: string[];
+      };
     };
-  };
-  trace?: string[];
-}
+    trace?: string[];
+  }
 
 declare global {
   interface Window {

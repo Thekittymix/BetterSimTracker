@@ -202,6 +202,7 @@ import { validateUserTurnReplayState } from "./userTurnReplayPolicy";
 import { createBootstrapScheduler } from "./bootstrapScheduler";
 import { createLateRenderRecoveryController } from "./lateRenderRecovery";
 import { executeUserTurnReplay } from "./userTurnReplayExecution";
+import { buildJsonExtractionShadowDebug } from "./jsonExtractionProtocolDebug";
 
 declare const __BST_VERSION__: string;
 
@@ -4074,7 +4075,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       });
     }
 
-    const extractedResult = await extractStatisticsParallel({
+      const extractedResult = await extractStatisticsParallel({
       context,
       settings: extractionSettings,
       userName,
@@ -4102,15 +4103,29 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           queueRender();
         }
       }
-    });
-    const extracted = extractedResult.statistics;
-    const extractedCustom = extractedResult.customStatistics;
-    const extractedCustomNonNumeric = extractedResult.customNonNumericStatistics;
-    lastDebugRecord = extractedResult.debug;
-    if (lastDebugRecord) {
-      const persistedTail = readTraceLines(context).slice(-200);
-      lastDebugRecord.trace = persistedTail.length ? persistedTail : [...debugTrace];
-    }
+      });
+      const extracted = extractedResult.statistics;
+      const extractedCustom = extractedResult.customStatistics;
+      const extractedCustomNonNumeric = extractedResult.customNonNumericStatistics;
+      lastDebugRecord = extractedResult.debug;
+      if (lastDebugRecord?.meta) {
+        lastDebugRecord.meta.jsonShadow = buildJsonExtractionShadowDebug({
+          context,
+          reason,
+          messageIndex: lastIndex,
+          settings: extractionSettings,
+          activeCharacters,
+          entityResolution: resolvedEntityResolution,
+          previousTrackerData: previousEntry?.data ?? null,
+          previousStatistics: previousSeededStatistics,
+          previousCustomStatistics: previousSeededCustomStatistics,
+          previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
+        });
+      }
+      if (lastDebugRecord) {
+        const persistedTail = readTraceLines(context).slice(-200);
+        lastDebugRecord.trace = persistedTail.length ? persistedTail : [...debugTrace];
+      }
     saveDebugRecord(context, lastDebugRecord);
 
     if (runId !== runSequence) {

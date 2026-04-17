@@ -32,6 +32,17 @@ export function trimDebugRecordForStorage(record: DeltaDebugRecord): DeltaDebugR
     rawModelOutput: truncateText(record.rawModelOutput, MAX_DEBUG_TEXT_CHARS) ?? "",
     promptText: truncateText(record.promptText, MAX_DEBUG_TEXT_CHARS),
     contextText: truncateText(record.contextText, MAX_DEBUG_TEXT_CHARS),
+    meta: record.meta
+      ? {
+          ...record.meta,
+          jsonShadow: record.meta.jsonShadow
+            ? {
+                ...record.meta.jsonShadow,
+                requestText: truncateText(record.meta.jsonShadow.requestText, MAX_DEBUG_TEXT_CHARS),
+              }
+            : record.meta.jsonShadow,
+        }
+      : record.meta,
     trace: trimTraceLinesForStorage(record.trace ?? []),
   };
 }
