@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev3] - 2026-04-17
+### Added
+- Added a JSON shadow transport helper that runs the runtime-shaped JSON request through the existing generator interface, returns transport metadata, and executes the new request/parse/materialize/parity path end to end without activating it as the main extractor.
+
 ## [2.5.3.5-dev2] - 2026-04-17
 ### Added
 - Added an execution-side JSON extraction foundation that prepares runtime-shaped request transport, parses and validates structured JSON responses, materializes tracker data, compares parity, and exposes shadow diagnostics from real extraction runs without activating the new pipeline yet.
