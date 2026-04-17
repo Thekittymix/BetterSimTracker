@@ -2470,6 +2470,478 @@ test("resolveModelExtractionOwnerScopes keeps recent narrative scene continuity 
   assert.deepEqual(resolved.requestCharacters, ["Candy"]);
 });
 
+test("resolveModelExtractionOwnerScopes bridges prior group scene continuity across a user turn when the next AI reply narrows message focus", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Marylyn, Serena, Lisa, and Candy were all still in the living room as the conversation turned toward dinner.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        mes: "Kuba rubs the back of his neck and says, \"Okay. One rule: nobody starts anything weird before dinner. Can we manage that for five minutes?\"",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+      },
+      {
+        mes: "Candy bounces on the balls of her feet and beams at Kuba while she chatters about dinner and a timer.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const broadScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+    ],
+    source: "model",
+  });
+
+  const userOnly = {
+    activeCharacters: [USER_TRACKER_KEY],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[2],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: userOnly,
+    recentTrackerHistory: [
+      userOnly,
+      { activeCharacters: ["Marylyn", "Serena", "Lisa", "Candy"], entityResolution: broadScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Candy"],
+    resolvedRequestCharacters: ["Candy"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Candy", "Marylyn", "Serena", "Lisa"]);
+  assert.deepEqual(resolved.requestCharacters, ["Candy"]);
+});
+
+test("resolveModelExtractionOwnerScopes does not bridge prior continuity across a user turn without a group-address cue", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Marylyn, Serena, Lisa, and Candy were all still in the living room as the conversation turned toward dinner.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        mes: "Kuba quietly asks Candy about dinner.",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+      },
+      {
+        mes: "Candy smiles at Kuba and answers without looking at the others.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const broadScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+    ],
+    source: "model",
+  });
+
+  const userOnly = {
+    activeCharacters: [USER_TRACKER_KEY],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[2],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: userOnly,
+    recentTrackerHistory: [
+      userOnly,
+      { activeCharacters: ["Marylyn", "Serena", "Lisa", "Candy"], entityResolution: broadScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Candy"],
+    resolvedRequestCharacters: ["Candy"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Candy"]);
+  assert.deepEqual(resolved.requestCharacters, ["Candy"]);
+});
+
+test("resolveModelExtractionOwnerScopes does not activate a newly mentioned off-scene owner from model scene output alone", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Marylyn says Candy is resting in the guest room and does not enter the hallway scene.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Marylyn"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      ],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Marylyn", "Candy"],
+    resolvedRequestCharacters: ["Marylyn"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Marylyn"]);
+  assert.deepEqual(resolved.requestCharacters, ["Marylyn"]);
+});
+
+test("resolveModelExtractionOwnerScopes keeps a model-resolved in-message owner even when not in the previous scene", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Lisa laughed softly and leaned against the doorway.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Marylyn"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      ],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Lisa"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+  assert.ok(resolved.sceneActiveCharacters.includes("Lisa"));
+  assert.deepEqual(resolved.requestCharacters, ["Lisa"]);
+});
+
+test("resolveModelExtractionOwnerScopes drops stale mention-only continuity owners from a polluted previous scene", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Kuba says Candy and Serena were being weird again earlier.",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+      },
+      {
+        mes: "*Lisa freezes, then glances aside.* \"Why would I be jealous of Candy and Serena?\"",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const pollutedBroadScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: false },
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: false },
+    ],
+    source: "model",
+  });
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Lisa"],
+      entityResolution: pollutedBroadScene,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Lisa"], entityResolution: pollutedBroadScene } as any,
+      { activeCharacters: ["Lisa"], entityResolution: pollutedBroadScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Lisa", "Serena", "Candy"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Lisa"]);
+  assert.deepEqual(resolved.requestCharacters, ["Lisa"]);
+});
+
+test("resolveModelExtractionOwnerScopes drops prior scene owners when the current message only discusses them by name", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Lisa asked what Kuba thought about Candy.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        mes: "\"Candy? She's fine,\" Lisa said. \"Serena keeps trying to turn her into a sidekick.\"",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const pollutedBroadScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: false },
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: false },
+    ],
+    source: "model",
+  });
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Lisa"],
+      entityResolution: pollutedBroadScene,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Lisa"], entityResolution: pollutedBroadScene } as any,
+      { activeCharacters: ["Lisa"], entityResolution: pollutedBroadScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Lisa", "Candy", "Serena"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Lisa"]);
+  assert.deepEqual(resolved.requestCharacters, ["Lisa"]);
+});
+
+test("resolveModelExtractionOwnerScopes does not treat recent mention-only discussion as scene-presence evidence", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Kuba asked Lisa what she thought about Candy and Serena.",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+      },
+      {
+        mes: "\"Candy? She's fine,\" Lisa said. \"Serena keeps trying to turn her into a sidekick.\"",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        mes: "\"Jealous? Please,\" Lisa scoffed. \"Why would I be jealous of a bimbo and a weird aunt?\"",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const pollutedBroadScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: false },
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: false },
+    ],
+    source: "model",
+  });
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[2],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Lisa"],
+      entityResolution: pollutedBroadScene,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Lisa"], entityResolution: pollutedBroadScene } as any,
+      { activeCharacters: ["Lisa"], entityResolution: pollutedBroadScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Lisa", "Candy"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Lisa"]);
+  assert.deepEqual(resolved.requestCharacters, ["Lisa"]);
+});
+
+test("resolveModelExtractionOwnerScopes keeps a recent silent participant when recent raw chat still shows scene presence", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Lisa sat on the bed while Serena lounged beside her, quietly listening.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+      {
+        mes: "\"You're impossible,\" Lisa muttered, tugging the blanket higher.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const broadScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: false },
+    ],
+    source: "model",
+  });
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Lisa"],
+      entityResolution: broadScene,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Lisa"], entityResolution: broadScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Lisa", "Serena"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Lisa", "Serena"]);
+  assert.deepEqual(resolved.requestCharacters, ["Lisa"]);
+});
+
+test("resolveModelExtractionOwnerScopes keeps grouped silent participants when the message lists them as still present", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "\"Candy, answer first.\" Lisa, Marylyn, and Serena stay here and listen.",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+      },
+      {
+        mes: "Candy answered in a quick, breathless rush while Lisa, Marylyn, and Serena watched from the bed.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const broadScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      { entityId: "bst_narrative:serena", kind: "narrative-entity", name: "Serena", avatar: null, inScene: true, inMessage: true },
+    ],
+    source: "model",
+  });
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[1],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+      entityResolution: broadScene,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Candy", "Lisa", "Marylyn", "Serena"], entityResolution: broadScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Candy", "Lisa", "Marylyn", "Serena"],
+    resolvedRequestCharacters: ["Candy"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Candy", "Lisa", "Marylyn", "Serena"]);
+  assert.deepEqual(resolved.requestCharacters, ["Candy"]);
+});
+
+test("resolveModelExtractionOwnerScopes keeps a newly present background participant when the message gives real scene evidence", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Marylyn answered from the bed while Lisa watched from the doorway.",
+        name: "Narrator",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousTrackerData = {
+    activeCharacters: ["Marylyn"],
+    entityResolution: buildEntityResolution({
+      resolvedEntities: [
+        { entityId: "bst_narrative:marylyn", kind: "narrative-entity", name: "Marylyn", avatar: null, inScene: true, inMessage: true },
+      ],
+      source: "model",
+    }),
+  } as any;
+
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData,
+    resolvedSceneActiveCharacters: ["Marylyn", "Lisa"],
+    resolvedRequestCharacters: ["Marylyn"],
+  });
+
+  assert.deepEqual(resolved.sceneActiveCharacters, ["Marylyn", "Lisa"]);
+  assert.deepEqual(resolved.requestCharacters, ["Marylyn"]);
+});
+
 test("buildEntityResolverContinuitySnapshot summarizes recent scene owners, narratives, and source groups", () => {
   const snapshot = buildEntityResolverContinuitySnapshot({
     previousTrackerData: {

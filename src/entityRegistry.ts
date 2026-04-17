@@ -879,6 +879,29 @@ function resolveOwnerSourceSnapshot(
       kind: fromRegistry.kind,
     };
   }
+  const normalizedOwner = normalizeKey(ownerName);
+  if (normalizedOwner && Array.isArray(data?.entityResolution?.resolvedEntities)) {
+    const directResolved = data.entityResolution.resolvedEntities.find(entity =>
+      normalizeKey(entity?.name) === normalizedOwner && normalizeToken(entity?.sourceKey),
+    );
+    if (directResolved) {
+      return {
+        ownerName: normalizeToken(directResolved.name) || ownerName,
+        sourceKey: normalizeToken(directResolved.sourceKey)!,
+        kind: directResolved.kind === "narrative-entity" ? "narrative-entity" : "owner",
+      };
+    }
+  }
+  if (context && Array.isArray(context.characters)) {
+    const matchingCharacter = context.characters.find(character => normalizeKey(character?.name) === normalizedOwner);
+    if (matchingCharacter) {
+      return {
+        ownerName: normalizeToken(matchingCharacter.name) || ownerName,
+        sourceKey: buildEntitySourceKey(matchingCharacter.name, normalizeToken((matchingCharacter as { avatar?: string | null }).avatar)),
+        kind: "owner",
+      };
+    }
+  }
   return null;
 }
 
@@ -1226,11 +1249,14 @@ function resolveOwnerNameForResolvedEntity(
 ): string {
   const entityId = normalizeToken(entity.entityId);
   if (!entityId) return normalizeToken(entity.name);
+  const entityName = normalizeToken(entity.name);
+  if (entity.kind === "narrative-entity" && entityName && !isTechnicalResolvedEntityName(entityName, entityId)) {
+    return entityName;
+  }
   const fromContext = resolveTrackerOwnersForEntityIds(context, [entityId])[0];
   if (fromContext) return fromContext;
   const fromOwnerMap = resolveTrackerOwnersForEntityIdsFromOwnerMap(data, [entityId])[0];
   if (fromOwnerMap) return fromOwnerMap;
-  const entityName = normalizeToken(entity.name);
   if (!isTechnicalResolvedEntityName(entityName, entityId)) return entityName;
   return resolveOwnerNameFallbackFromEntityId(entityId) || entityName;
 }

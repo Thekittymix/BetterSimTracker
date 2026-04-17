@@ -5363,6 +5363,62 @@ function rerenderTextShortToggleInPlace(host: ParentNode, key: string, expanded:
   button.textContent = expanded ? "Less" : "More";
 }
 
+function rerenderCardCollapseInPlace(host: ParentNode, cardKey: string, collapsed: boolean): void {
+  const card = host.querySelector(`.bst-card[data-bst-card-key="${CSS.escape(cardKey)}"]`) as HTMLElement | null;
+  if (!card) return;
+  card.classList.toggle("bst-card-collapsed", collapsed);
+  const body = card.querySelector(".bst-body") as HTMLElement | null;
+  if (body) {
+    body.style.display = collapsed ? "none" : "";
+  }
+  const button = card.querySelector(`[data-bst-action="toggle-card-collapse"][data-bst-card-key="${CSS.escape(cardKey)}"]`) as HTMLButtonElement | null;
+  if (!button) return;
+  const displayName = String((card.querySelector(".bst-name") as HTMLElement | null)?.textContent ?? "").trim() || "card";
+  button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  button.setAttribute("title", collapsed ? `Expand ${displayName}` : `Collapse ${displayName}`);
+  button.innerHTML = `<span aria-hidden="true">${collapsed ? "&#9656;" : "&#9662;"}</span>`;
+}
+
+function rerenderSceneCollapseInPlace(host: ParentNode | null | undefined, collapsed: boolean, title: string): void {
+  if (!host) return;
+  const card = host.querySelector(".bst-scene-card") as HTMLElement | null;
+  if (!card) return;
+  card.classList.toggle("bst-card-collapsed", collapsed);
+  const body = card.querySelector(".bst-body") as HTMLElement | null;
+  if (body) {
+    body.style.display = collapsed ? "none" : "";
+  }
+  const button = card.querySelector('[data-bst-action="toggle-scene-collapse"]') as HTMLButtonElement | null;
+  if (!button) return;
+  button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  button.setAttribute("title", collapsed ? `Expand ${title}` : `Collapse ${title}`);
+  button.innerHTML = `<span aria-hidden="true">${collapsed ? "&#9656;" : "&#9662;"}</span>`;
+}
+
+export function rerenderExtractionLoadingInPlace(
+  messageIndex: number,
+  uiState: TrackerUiState,
+): boolean {
+  if (uiState.phase !== "extracting") return false;
+  const root = getRoot(messageIndex);
+  if (!root || root.dataset.bstRenderPhase !== "extracting") return false;
+  const loadingBox = root.querySelector(".bst-loading") as HTMLElement | null;
+  if (!loadingBox) return false;
+  const done = Math.max(0, Math.floor(Number(uiState.done) || 0));
+  const progress = resolveExtractionProgressDisplayWithLabel(uiState.done, uiState.total, uiState.stepLabel);
+  const copy = resolveExtractionLoadingCopy(done, uiState.stepLabel);
+  const titleNode = loadingBox.querySelector('[data-bst-loading-role="title"]') as HTMLElement | null;
+  const stageNode = loadingBox.querySelector('[data-bst-loading-role="stage"]') as HTMLElement | null;
+  const fillNode = loadingBox.querySelector('[data-bst-loading-role="fill"]') as HTMLElement | null;
+  const subtitleNode = loadingBox.querySelector('[data-bst-loading-role="subtitle"]') as HTMLElement | null;
+  if (!titleNode || !stageNode || !fillNode || !subtitleNode) return false;
+  titleNode.textContent = copy.title;
+  stageNode.textContent = `${progress.stageText}${progress.stageText === "preparing" ? "" : ` (${progress.percent}%)`}`;
+  fillNode.setAttribute("style", `width:${Math.round(progress.ratio * 100)}%`);
+  subtitleNode.textContent = copy.subtitle;
+  return true;
+}
+
 function closestFromEventTarget(target: EventTarget | null, selector: string): HTMLElement | null {
   if (!target || typeof target !== "object") return null;
   const direct = target as { closest?: (value: string) => Element | null };
@@ -5719,14 +5775,16 @@ export function renderTracker(
         if (sceneCollapse) {
           const idx = Number(sceneRoot?.dataset.messageIndex ?? root.dataset.messageIndex);
           if (Number.isNaN(idx)) return;
-          if (collapsedSceneMessages.has(idx)) {
-            collapsedSceneMessages.delete(idx);
-          } else {
+          const nextCollapsed = !collapsedSceneMessages.has(idx);
+          if (nextCollapsed) {
             collapsedSceneMessages.add(idx);
+          } else {
+            collapsedSceneMessages.delete(idx);
           }
           root.dataset.bstRenderSignature = "";
           sceneRoot?.setAttribute("data-bst-render-signature", "");
-          onRequestRerender?.();
+          rerenderSceneCollapseInPlace(root, nextCollapsed, settings.sceneCardTitle);
+          rerenderSceneCollapseInPlace(sceneRoot, nextCollapsed, settings.sceneCardTitle);
           return;
         }
         const retrack = closestFromEventTarget(target, '[data-bst-action="retrack"]');
@@ -5786,14 +5844,13 @@ export function renderTracker(
               collapsedActiveCardKeys,
               expandedInactiveCardKeys,
             });
+            rerenderCardCollapseInPlace(root, cardKey, nextCollapsed);
           });
           collapse.setAttribute("aria-expanded", String(!nextCollapsed));
           collapse.setAttribute("title", nextCollapsed ? "Expand cards" : "Collapse cards");
           collapse.innerHTML = nextCollapsed
             ? `<span class="bst-root-action-icon" aria-hidden="true">&#9656;</span><span class="bst-root-action-label">Expand cards</span>`
             : `<span class="bst-root-action-icon" aria-hidden="true">&#9662;</span><span class="bst-root-action-label">Collapse cards</span>`;
-          root.dataset.bstRenderSignature = "";
-          onRequestRerender?.();
           return;
         }
         const cardCollapse = closestFromEventTarget(target, '[data-bst-action="toggle-card-collapse"]');
@@ -5808,8 +5865,7 @@ export function renderTracker(
             collapsedActiveCardKeys,
             expandedInactiveCardKeys,
           });
-          root.dataset.bstRenderSignature = "";
-          onRequestRerender?.();
+          rerenderCardCollapseInPlace(root, cardKey, nextCollapsed);
           return;
         }
         const cancel = closestFromEventTarget(target, '[data-bst-action="cancel-extraction"]');
@@ -5861,14 +5917,16 @@ export function renderTracker(
         if (sceneCollapse) {
           const idx = Number(sceneRoot.dataset.messageIndex);
           if (Number.isNaN(idx)) return;
-          if (collapsedSceneMessages.has(idx)) {
-            collapsedSceneMessages.delete(idx);
-          } else {
+          const nextCollapsed = !collapsedSceneMessages.has(idx);
+          if (nextCollapsed) {
             collapsedSceneMessages.add(idx);
+          } else {
+            collapsedSceneMessages.delete(idx);
           }
           root.dataset.bstRenderSignature = "";
           sceneRoot.dataset.bstRenderSignature = "";
-          onRequestRerender?.();
+          rerenderSceneCollapseInPlace(root, nextCollapsed, settings.sceneCardTitle);
+          rerenderSceneCollapseInPlace(sceneRoot, nextCollapsed, settings.sceneCardTitle);
           return;
         }
         const arrayToggle = closestFromEventTarget(target, '[data-bst-action="toggle-array-values"]');
@@ -5945,11 +6003,11 @@ export function renderTracker(
       loadingBox.className = "bst-loading";
       loadingBox.innerHTML = `
         <div class="bst-loading-row">
-          <span>${title}</span>
-          <span>${progress.stageText}${progress.stageText === "preparing" ? "" : ` (${progress.percent}%)`}</span>
+          <span data-bst-loading-role="title">${title}</span>
+          <span data-bst-loading-role="stage">${progress.stageText}${progress.stageText === "preparing" ? "" : ` (${progress.percent}%)`}</span>
         </div>
-        <div class="bst-loading-track"><div class="bst-loading-fill" style="width:${Math.round(progress.ratio * 100)}%"></div></div>
-        <div class="bst-loading-sub">${subtitle}</div>
+        <div class="bst-loading-track"><div class="bst-loading-fill" data-bst-loading-role="fill" style="width:${Math.round(progress.ratio * 100)}%"></div></div>
+        <div class="bst-loading-sub" data-bst-loading-role="subtitle">${subtitle}</div>
         <div class="bst-loading-actions">
           <button class="bst-btn bst-btn-danger bst-loading-stop" data-bst-action="cancel-extraction">Stop</button>
         </div>

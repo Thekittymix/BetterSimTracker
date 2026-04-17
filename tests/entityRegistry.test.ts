@@ -162,6 +162,70 @@ test("readEntityRegistry preserves narrative-entity entries with derived narrati
   assert.equal(registry.ownerToEntityId.spirit, "ent-forest-spirit");
 });
 
+test("resolveTrackerSceneOwners preserves concrete narrative entities instead of collapsing them to a shared source owner", () => {
+  const context = {
+    chat: [],
+    chatMetadata: {},
+    characters: [
+      {
+        name: "Your Family",
+        avatar: "your family.png",
+      },
+    ],
+  } as unknown as STContext;
+
+  const tracker = makeTracker({
+    activeCharacters: ["Marylyn", "Serena", "Lisa", "Candy"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: [
+        {
+          entityId: "bst_narrative:marylyn",
+          kind: "narrative-entity",
+          name: "Marylyn",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: true,
+          created: true,
+        },
+        {
+          entityId: "bst_narrative:serena",
+          kind: "narrative-entity",
+          name: "Serena",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: true,
+          created: true,
+        },
+        {
+          entityId: "bst_narrative:lisa",
+          kind: "narrative-entity",
+          name: "Lisa",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: true,
+          created: true,
+        },
+        {
+          entityId: "bst_narrative:candy",
+          kind: "narrative-entity",
+          name: "Candy",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: true,
+          created: true,
+        },
+      ],
+    }),
+  });
+
+  assert.deepEqual(resolveTrackerSceneOwners(context, tracker), ["Marylyn", "Serena", "Lisa", "Candy"]);
+});
+
 test("syncEntityRegistryFromRender marks archived aliases without deleting them", () => {
   const context = makeContext();
   syncEntityRegistryFromRender({

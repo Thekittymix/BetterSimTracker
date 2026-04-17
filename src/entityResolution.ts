@@ -322,6 +322,198 @@ function hasExclusivePresenceCue(text: string, name: string): boolean {
   return buildExclusivePresencePatterns(name).some(pattern => pattern.test(normalized));
 }
 
+function hasOffSceneMentionCue(text: string, name: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized || !name) return false;
+  const escaped = escapeRegex(name);
+  const patterns = [
+    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,100}\\b(?:resting|asleep|sleeping|away|elsewhere|absent|off[-\\s]?screen|not\\s+here|not\\s+present|does\\s+not\\s+enter|did\\s+not\\s+enter|without\\s+entering)\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,100}\\b(?:in|inside|from)\\s+(?:another room|the guest room|the hallway|the kitchen|their room|her room|his room)\\b`, "i"),
+    new RegExp(`\\b(?:another room|the guest room|the hallway|the kitchen|their room|her room|his room)\\b[^.!?\\n]{0,100}\\b${escaped}\\b`, "i"),
+  ];
+  return patterns.some(pattern => pattern.test(normalized));
+}
+
+function hasDirectScenePresenceCue(text: string, name: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized || !name) return false;
+  if (hasOffSceneMentionCue(normalized, name)) return false;
+  const escaped = escapeRegex(name);
+  const subjectActionPattern = String.raw`(?:answer(?:s|ed|ing)?|reply(?:s|ed|ing)?|say(?:s|ing)?|said|ask(?:s|ed|ing)?|watch(?:es|ed|ing)?|look(?:s|ed|ing)?|glanc(?:e|es|ed|ing)|hover(?:s|ed|ing)?|pace(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|remain(?:s|ed|ing)?|stay(?:s|ed|ing)?|enter(?:s|ed|ing)?|walk(?:s|ed|ing)?|come(?:s|ing)?|came|step(?:s|ped|ping)?|lean(?:s|ed|ing)?|smile(?:s|d|ing)?|laugh(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|move(?:s|d|ing)?)`;
+  const patterns = [
+    new RegExp(`\\b${escaped}\\b[^.!?\\n,:;]{0,80}\\b${subjectActionPattern}\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b(?:\\s*,\\s*[^.!?\\n,:;]+){0,4}\\s*(?:,?\\s*and\\s+[^.!?\\n,:;]+)?[^.!?\\n]{0,24}\\b${subjectActionPattern}\\b`, "i"),
+    new RegExp(`\\b(?:with|beside|next\\s+to|near|alongside|behind|across\\s+from)\\s+${escaped}\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,40}\\b(?:with|beside|next\\s+to|near|alongside|behind|across\\s+from)\\b`, "i"),
+  ];
+  return patterns.some(pattern => pattern.test(normalized));
+}
+
+function hasGroupSceneContinuityCue(text: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized) return false;
+  const patterns = [
+    /\bthe others\b[^.!?\n]{0,80}\b(?:stay|stayed|remain|remained|were|are)\b/i,
+    /\b(?:everyone|everybody|all of them|the rest)\b[^.!?\n]{0,80}\b(?:stay|stayed|remain|remained|were|are)\b/i,
+    /\b(?:in the room|beside|next to|with)\b[^.!?\n]{0,40}\b(?:her|him|them)\b/i,
+  ];
+  return patterns.some(pattern => pattern.test(normalized));
+}
+
+function hasUserGroupAddressCue(text: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized) return false;
+  const patterns = [
+    /\bone rule\b/i,
+    /\bnobody\b/i,
+    /\beveryone\b/i,
+    /\beverybody\b/i,
+    /\ball of you\b/i,
+    /\byou all\b/i,
+    /\bthe rest of you\b/i,
+  ];
+  return patterns.some(pattern => pattern.test(normalized));
+}
+
+function hasRecentScenePresenceEvidence(
+  context: STContext | null,
+  message: ChatMessage | null | undefined,
+  name: string,
+  maxLookbackMessages = 6,
+): boolean {
+  if (!context || !Array.isArray(context.chat) || !name) return false;
+  const currentMessageIndex = resolveMessageIndex(context, message);
+  if (currentMessageIndex < 0) return false;
+  const startIndex = Math.max(0, currentMessageIndex - maxLookbackMessages);
+  for (let index = currentMessageIndex; index >= startIndex; index -= 1) {
+    const candidate = context.chat[index];
+    if (!candidate || candidate.is_system) continue;
+    const text = normalizeToken(candidate.mes);
+    if (!text) continue;
+    if (hasDirectScenePresenceCue(text, name)) return true;
+  }
+  return false;
+}
+
+function hasMentionOnlyReference(text: string, name: string): boolean {
+  const normalized = normalizeToken(text);
+  if (!normalized || !name) return false;
+  if (hasOffSceneMentionCue(normalized, name)) return false;
+  if (hasDirectScenePresenceCue(normalized, name)) return false;
+  return countAliasMentions(normalized.toLowerCase(), name.toLowerCase()) > 0;
+}
+
+function selectPreferredBridgeSceneOwners(
+  context: STContext | null,
+  scenes: string[][],
+): string[] {
+  if (!scenes.length) return [];
+  const sourceOwnerKeys = new Set(
+    (context?.characters ?? [])
+      .map(character => normalizeKey(character?.name))
+      .filter(Boolean),
+  );
+  const score = (sceneOwners: string[]): { concreteOwners: number; totalOwners: number } => ({
+    concreteOwners: sceneOwners.filter(owner => !sourceOwnerKeys.has(normalizeKey(owner))).length,
+    totalOwners: sceneOwners.length,
+  });
+
+  let bestSceneOwners = scenes[0] ?? [];
+  let bestScore = score(bestSceneOwners);
+  for (const sceneOwners of scenes.slice(1)) {
+    const candidateScore = score(sceneOwners);
+    if (candidateScore.concreteOwners > bestScore.concreteOwners) {
+      bestSceneOwners = sceneOwners;
+      bestScore = candidateScore;
+      continue;
+    }
+    if (
+      candidateScore.concreteOwners === bestScore.concreteOwners
+      && candidateScore.totalOwners > bestScore.totalOwners
+    ) {
+      bestSceneOwners = sceneOwners;
+      bestScore = candidateScore;
+    }
+  }
+  return bestSceneOwners;
+}
+
+function resolvePreviousUserBridgeSceneOwners(
+  context: STContext | null,
+  message: ChatMessage | null | undefined,
+  recentTrackerHistory: Array<TrackerData | null | undefined> | null | undefined,
+): string[] {
+  if (!context || !Array.isArray(context.chat) || !message) return [];
+  const currentMessageIndex = resolveMessageIndex(context, message);
+  if (currentMessageIndex <= 0) return [];
+  const previousMessage = context.chat[currentMessageIndex - 1];
+  if (!previousMessage || !previousMessage.is_user || previousMessage.is_system) return [];
+  const previousMessageText = normalizeToken(previousMessage.mes);
+  if (!previousMessageText) return [];
+  if (!hasUserGroupAddressCue(previousMessageText) && !hasGroupSceneContinuityCue(previousMessageText)) return [];
+
+  const recentScenes: string[][] = [];
+  for (const entry of recentTrackerHistory ?? []) {
+    const sceneOwners = resolvePersistedActiveOwners(resolveTrackerSceneOwners(null, entry), { includeUserOwner: false });
+    if (sceneOwners.length) recentScenes.push(sceneOwners);
+  }
+
+  return selectPreferredBridgeSceneOwners(context, recentScenes);
+}
+
+function filterModelResolvedOwnerScopesByMessageEvidence(input: {
+  context: STContext | null;
+  message: ChatMessage | null | undefined;
+  previousSceneActiveCharacters: string[];
+  resolvedSceneActiveCharacters: string[];
+  resolvedRequestCharacters: string[];
+}): {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+} {
+  const messageText = normalizeToken(input.message?.mes);
+  if (!messageText) {
+    return {
+      sceneActiveCharacters: [...input.resolvedSceneActiveCharacters],
+      requestCharacters: [...input.resolvedRequestCharacters],
+    };
+  }
+
+  const previousSceneKeys = new Set(input.previousSceneActiveCharacters.map(normalizeKey));
+  const resolvedRequestKeys = new Set(input.resolvedRequestCharacters.map(normalizeKey));
+  const normalizedMessageText = messageText.toLowerCase();
+
+  const filteredRequestCharacters = input.resolvedRequestCharacters.filter(owner => {
+    const ownerKey = normalizeKey(owner);
+    if (!ownerKey) return false;
+    if (previousSceneKeys.has(ownerKey)) return true;
+    if (hasOffSceneMentionCue(messageText, owner)) return false;
+    return true;
+  });
+  const allowedRequestKeys = new Set(filteredRequestCharacters.map(normalizeKey));
+
+  const filteredSceneActiveCharacters = uniqueStrings([
+    ...input.resolvedSceneActiveCharacters.filter(owner => {
+      const ownerKey = normalizeKey(owner);
+      if (!ownerKey) return false;
+      if (allowedRequestKeys.has(ownerKey)) return true;
+      if (previousSceneKeys.has(ownerKey)) {
+        if (hasMentionOnlyReference(messageText, owner)) return false;
+        return hasRecentScenePresenceEvidence(input.context, input.message, owner);
+      }
+      return hasDirectScenePresenceCue(messageText, owner);
+    }),
+    ...filteredRequestCharacters,
+  ]);
+
+  return {
+    sceneActiveCharacters: filteredSceneActiveCharacters,
+    requestCharacters: filteredRequestCharacters.filter(owner =>
+      filteredSceneActiveCharacters.some(sceneOwner => normalizeKey(sceneOwner) === normalizeKey(owner)),
+    ),
+  };
+}
+
 function resolveMessageIndex(context: STContext | null, message: ChatMessage | null | undefined): number {
   if (!context || !Array.isArray(context.chat) || !message) return -1;
   const directIndex = context.chat.lastIndexOf(message);
@@ -807,16 +999,16 @@ export function resolveUserExtractionOwnerScopes(input: {
     { includeUserOwner: false },
   );
   if (resolvedSceneActiveCharacters.length) {
-    let sceneActiveCharacters = resolvedSceneActiveCharacters;
+    let sceneActiveCharacters = filterShadowedSourceOwners(input.context, input.previousTrackerData ?? null, resolvedSceneActiveCharacters);
     if (isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings)) && previousSceneActiveCharacters.length) {
       const messageText = String(input.message?.mes ?? "");
-      const mergedSceneActiveCharacters = uniqueStrings([
-        ...resolvedSceneActiveCharacters,
+      const mergedSceneActiveCharacters = filterShadowedSourceOwners(input.context, input.previousTrackerData ?? null, uniqueStrings([
+        ...sceneActiveCharacters,
         ...previousSceneActiveCharacters.filter(owner =>
-          !resolvedSceneActiveCharacters.some(activeOwner => normalizeKey(activeOwner) === normalizeKey(owner))
+          !sceneActiveCharacters.some(activeOwner => normalizeKey(activeOwner) === normalizeKey(owner))
           && !hasDepartureCue(messageText, owner),
         ),
-      ]);
+      ]));
       if (mergedSceneActiveCharacters.length) {
         sceneActiveCharacters = mergedSceneActiveCharacters;
       }
@@ -838,7 +1030,7 @@ export function resolveUserExtractionOwnerScopes(input: {
     }
     if (previousSceneActiveCharacters.length) {
       return {
-        sceneActiveCharacters: previousSceneActiveCharacters,
+        sceneActiveCharacters: filterShadowedSourceOwners(input.context, input.previousTrackerData ?? null, previousSceneActiveCharacters),
         requestCharacters: [USER_TRACKER_KEY],
         source: "fallback",
       };
@@ -856,7 +1048,7 @@ export function resolveUserExtractionOwnerScopes(input: {
   );
 
   return {
-    sceneActiveCharacters: fallbackSceneActiveCharacters,
+    sceneActiveCharacters: filterShadowedSourceOwners(input.context, input.previousTrackerData ?? null, fallbackSceneActiveCharacters),
     requestCharacters: [USER_TRACKER_KEY],
     source: "fallback",
   };
@@ -882,20 +1074,27 @@ export function resolveModelExtractionOwnerScopes(input: {
     input.resolvedRequestCharacters,
     { includeUserOwner: false },
   );
-  const defaultScopes = {
-    sceneActiveCharacters: resolvedSceneActiveCharacters,
-    requestCharacters: resolvedRequestCharacters.length
-      ? resolvedRequestCharacters
-      : resolvedSceneActiveCharacters,
-  };
-  if (!isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings))) return defaultScopes;
-  if (!resolvedSceneActiveCharacters.length) return defaultScopes;
-
   const previousSceneActiveCharacters = resolvePersistedActiveOwners(
     resolveTrackerSceneOwners(null, input.previousTrackerData),
     { includeUserOwner: false },
   );
-  if (!previousSceneActiveCharacters.length) return defaultScopes;
+  const filteredResolvedScopes = filterModelResolvedOwnerScopesByMessageEvidence({
+    context: input.context,
+    message: input.message,
+    previousSceneActiveCharacters,
+    resolvedSceneActiveCharacters,
+    resolvedRequestCharacters,
+  });
+  const filteredResolvedSceneActiveCharacters = filteredResolvedScopes.sceneActiveCharacters;
+  const filteredResolvedRequestCharacters = filteredResolvedScopes.requestCharacters;
+  const defaultScopes = {
+    sceneActiveCharacters: filteredResolvedSceneActiveCharacters,
+    requestCharacters: filteredResolvedRequestCharacters.length
+      ? filteredResolvedRequestCharacters
+      : filteredResolvedSceneActiveCharacters,
+  };
+  if (!isMultiCharacterEntityTrackingMode(resolveEntityTrackingMode(input.settings))) return defaultScopes;
+  if (!filteredResolvedSceneActiveCharacters.length) return defaultScopes;
   const recentSceneMemoryOwners = (() => {
     const recentScenes = (input.recentTrackerHistory ?? [])
       .map(entry => resolvePersistedActiveOwners(resolveTrackerSceneOwners(null, entry), { includeUserOwner: false }))
@@ -923,26 +1122,41 @@ export function resolveModelExtractionOwnerScopes(input: {
         .map(([, entry]) => entry.ownerName),
     ]);
   })();
+  const previousUserBridgeSceneOwners = resolvePreviousUserBridgeSceneOwners(
+    input.context,
+    input.message,
+    input.recentTrackerHistory ?? [],
+  );
 
   const currentMessageText = normalizeToken(input.message?.mes);
-  const sceneKeys = new Set(resolvedSceneActiveCharacters.map(normalizeKey));
+  const sceneKeys = new Set(filteredResolvedSceneActiveCharacters.map(normalizeKey));
   const exclusiveResolvedKeys = new Set(
-    resolvedSceneActiveCharacters
+    filteredResolvedSceneActiveCharacters
       .filter(owner => hasExclusivePresenceCue(currentMessageText, owner))
       .map(normalizeKey),
   );
   const mergedSceneActiveCharacters = uniqueStrings([
-    ...resolvedSceneActiveCharacters,
+    ...filteredResolvedSceneActiveCharacters,
+    ...previousUserBridgeSceneOwners.filter(owner => {
+      const ownerKey = normalizeKey(owner);
+      if (!ownerKey || sceneKeys.has(ownerKey)) return false;
+      if (hasDepartureCue(currentMessageText, owner)) return false;
+      if (hasOffSceneMentionCue(currentMessageText, owner)) return false;
+      if (exclusiveResolvedKeys.size && !exclusiveResolvedKeys.has(ownerKey)) return false;
+      return true;
+    }),
     ...recentSceneMemoryOwners.filter(owner => {
       const ownerKey = normalizeKey(owner);
       if (!ownerKey || sceneKeys.has(ownerKey)) return false;
       if (hasDepartureCue(currentMessageText, owner)) return false;
       if (exclusiveResolvedKeys.size && !exclusiveResolvedKeys.has(ownerKey)) return false;
+      if (hasMentionOnlyReference(currentMessageText, owner)) return false;
+      if (!hasRecentScenePresenceEvidence(input.context, input.message, owner) && !hasGroupSceneContinuityCue(currentMessageText)) return false;
       return true;
     }),
   ]);
-  const derivedRequestCharacters = resolvedRequestCharacters.length
-    ? resolvedRequestCharacters
+  const derivedRequestCharacters = filteredResolvedRequestCharacters.length
+    ? filteredResolvedRequestCharacters
     : resolveMessageScopedParticipants(
         input.context,
         mergedSceneActiveCharacters,

@@ -14,6 +14,10 @@ const selectors = [
   "#extensions-menu"
 ];
 
+function buildPanelSignature(settings: BetterSimTrackerSettings): string {
+  return `enabled:${settings.enabled ? "1" : "0"}`;
+}
+
 function findContainer(): HTMLElement | null {
   for (const selector of selectors) {
     const found = document.querySelector(selector);
@@ -63,6 +67,12 @@ export function upsertSettingsPanel(input: {
     panel.className = "extension_block";
     container.appendChild(panel);
   }
+
+  const signature = buildPanelSignature(input.settings);
+  if (panel.dataset.bstSignature === signature) {
+    return;
+  }
+  panel.dataset.bstSignature = signature;
 
   panel.innerHTML = `
     <div class="inline-drawer">

@@ -562,7 +562,7 @@ function renderPanel(input: InitInput, force = false): void {
     const rawValue = String(customNonNumericDefaultsRaw[id] ?? "").trim().replace(/\s+/g, " ");
     return `
       <label>${escapeHtml(label)} Default
-        <input type="text" maxlength="${maxLength}" data-bst-persona-custom-default-text="${escapeHtml(id)}" value="${escapeHtml(rawValue)}" placeholder="Use stat default" ${disabledAttr}>
+        <textarea rows="3" maxlength="${maxLength}" data-bst-persona-custom-default-text="${escapeHtml(id)}" placeholder="Use stat default" ${disabledAttr}>${escapeHtml(rawValue)}</textarea>
       </label>
     `;
   }).filter(Boolean).join("");
@@ -1016,7 +1016,7 @@ function renderPanel(input: InitInput, force = false): void {
     });
   });
 
-  panel.querySelectorAll<HTMLInputElement>("[data-bst-persona-custom-default-text]").forEach(node => {
+  panel.querySelectorAll<HTMLTextAreaElement>("[data-bst-persona-custom-default-text]").forEach(node => {
     node.addEventListener("change", () => {
       const id = String(node.dataset.bstPersonaCustomDefaultText ?? "").trim().toLowerCase();
       if (!id) return;
