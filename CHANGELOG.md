@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev1] - 2026-04-17
+### Added
+- Added a JSON extraction protocol foundation alongside the legacy extractor path, including typed request/response schemas, validators, adapter/parity helpers, runtime-shaped history and entity-context builders, and shadow debug artifacts for real extraction runs.
+
 ## [2.5.3.5] - 2026-04-17
 ### Changed
 - Reduced tracker refresh and request overhead by deduping repeated bootstrap and extraction scheduling, narrowing local settings/edit refresh paths, and moving replay plus late-render recovery onto smaller, testable controllers.
