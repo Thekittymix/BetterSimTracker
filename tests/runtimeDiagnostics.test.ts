@@ -257,11 +257,24 @@ test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
       },
       moodFallbackApplied: [],
       requests: [],
+      jsonShadow: {
+        status: "request_built",
+        protocolVersion: "bst.extract.v1",
+        requestText: "{\"protocolVersion\":\"bst.extract.v1\"}",
+        task: {
+          mode: "ai_turn",
+          messageIndex: 2,
+          retrack: true,
+          swipeRetrack: false,
+        },
+      },
     },
     trace: ["x graph.open y", "x extract.start y"],
   };
   const filtered = filterDebugRecordForDiagnostics(record, false);
   assert.deepEqual(filtered?.trace, ["x extract.start y"]);
+  assert.equal(filtered?.meta?.jsonShadow?.status, "request_built");
+  assert.equal(filtered?.meta?.jsonShadow?.task?.messageIndex, 2);
 });
 
 test("buildDiagnosticsDebugDetails skips persisted trace reads and debug-only payloads when debug is off", () => {
@@ -383,7 +396,66 @@ test("buildDiagnosticsReport produces expected core fields", () => {
     baselineDebugMeta: { baselineBeforeIndex: 4, previousEntryMessageIndex: 3, currentMessageWasUsedAsBaseline: false },
     traceTailMemory: ["a"],
     traceTailPersisted: ["b"],
-    debugRecord: null,
+    debugRecord: {
+      rawModelOutput: "{}",
+      parsed: {
+        confidence: {},
+        deltas: { affection: {}, trust: {}, desire: {}, connection: {}, custom: {}, customNonNumeric: {} },
+        mood: {},
+        lastThought: {},
+      },
+      applied: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+        customStatistics: {},
+        customNonNumericStatistics: {},
+      },
+      meta: {
+        promptChars: 0,
+        contextChars: 0,
+        historySnapshots: 0,
+        activeCharacters: [],
+        statsRequested: [],
+        attempts: 1,
+        extractionMode: "unified",
+        retryUsed: false,
+        firstParseHadValues: true,
+        rawLength: 0,
+        parsedCounts: {
+          confidence: 0,
+          affection: 0,
+          trust: 0,
+          desire: 0,
+          connection: 0,
+          mood: 0,
+          lastThought: 0,
+        },
+        appliedCounts: {
+          affection: 0,
+          trust: 0,
+          desire: 0,
+          connection: 0,
+          mood: 0,
+          lastThought: 0,
+        },
+        jsonShadow: {
+          status: "request_built",
+          protocolVersion: "bst.extract.v1",
+          requestText: "{\"protocolVersion\":\"bst.extract.v1\"}",
+          task: {
+            mode: "ai_turn",
+            messageIndex: 2,
+            retrack: true,
+            swipeRetrack: false,
+          },
+        },
+      },
+      trace: [],
+    },
   });
   assert.equal(report.scope, "char:1");
   assert.equal(report.chatLength, 2);
@@ -436,6 +508,10 @@ test("buildDiagnosticsReport produces expected core fields", () => {
       usedCachedActivatedLorebookEntries: false,
       cachedActivatedLorebookEntryCount: 0,
     },
+  );
+  assert.equal(
+    ((report.lastDebugRecord as DeltaDebugRecord).meta?.jsonShadow?.protocolVersion),
+    "bst.extract.v1",
   );
 });
 

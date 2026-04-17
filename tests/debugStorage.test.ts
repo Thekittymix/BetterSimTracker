@@ -52,6 +52,46 @@ function makeDebugRecord(): DeltaDebugRecord {
       mood: {},
       lastThought: {},
     },
+    meta: {
+      promptChars: 0,
+      contextChars: 0,
+      historySnapshots: 0,
+      activeCharacters: [],
+      statsRequested: [],
+      attempts: 1,
+      extractionMode: "unified",
+      retryUsed: false,
+      firstParseHadValues: false,
+      rawLength: 0,
+      parsedCounts: {
+        confidence: 0,
+        affection: 0,
+        trust: 0,
+        desire: 0,
+        connection: 0,
+        mood: 0,
+        lastThought: 0,
+      },
+      appliedCounts: {
+        affection: 0,
+        trust: 0,
+        desire: 0,
+        connection: 0,
+        mood: 0,
+        lastThought: 0,
+      },
+      jsonShadow: {
+        status: "request_built",
+        protocolVersion: "bst.extract.v1",
+        requestText: "Q".repeat(12_000),
+        task: {
+          mode: "ai_turn",
+          messageIndex: 4,
+          retrack: true,
+          swipeRetrack: false,
+        },
+      },
+    },
     trace: Array.from({ length: 220 }, (_, index) => `trace-${index}-${"x".repeat(400)}`),
   };
 }
@@ -62,6 +102,7 @@ test("trimDebugRecordForStorage caps bulky debug text fields and trace payload",
   assert.ok(trimmed.rawModelOutput.length < 3_200);
   assert.ok(trimmed.promptText && trimmed.promptText.length < 3_200);
   assert.ok(trimmed.contextText && trimmed.contextText.length < 3_200);
+  assert.ok((trimmed.meta?.jsonShadow?.requestText?.length ?? 0) < 3_200);
   assert.equal(trimmed.trace?.length, 80);
   assert.ok((trimmed.trace ?? [])[0].length <= 220);
 });
