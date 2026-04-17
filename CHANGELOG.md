@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev2] - 2026-04-17
+### Added
+- Added an execution-side JSON extraction foundation that prepares runtime-shaped request transport, parses and validates structured JSON responses, materializes tracker data, compares parity, and exposes shadow diagnostics from real extraction runs without activating the new pipeline yet.
+
 ## [2.5.3.5-dev1] - 2026-04-17
 ### Added
 - Added a JSON extraction protocol foundation alongside the legacy extractor path, including typed request/response schemas, validators, adapter/parity helpers, runtime-shaped history and entity-context builders, and shadow debug artifacts for real extraction runs.
