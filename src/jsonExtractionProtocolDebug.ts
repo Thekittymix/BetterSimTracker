@@ -67,8 +67,14 @@ export function buildJsonExtractionShadowDebug(
     };
   }
 
-  if (!input.rawJsonResponse || !input.expectedTrackerData) {
+  if (!input.rawJsonResponse) {
     return base;
+  }
+  if (!input.expectedTrackerData) {
+    return {
+      ...base,
+      status: "response_valid",
+    };
   }
 
   const executed = executeJsonExtractionProtocol({

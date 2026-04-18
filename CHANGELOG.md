@@ -2,6 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev7] - 2026-04-18
+### Added
+- Added the active `JSON extraction` runtime path behind the new extraction-protocol setting, with hard fallback to the legacy extractor whenever the structured JSON response fails validation or transport.
+
+### Changed
+- Changed extraction diagnostics so active JSON runs now emit direct protocol outcomes in the main debug record while legacy-mode shadow tracing stays internal and non-user-facing.
+
 ## [2.5.3.5-dev6] - 2026-04-17
 ### Added
 - Added the final two-mode extraction protocol setting foundation in BST options and diagnostics, exposing `Legacy extraction` and `JSON extraction` as the only user-facing protocol choices while keeping the active extractor path on legacy until cutover parity is complete.

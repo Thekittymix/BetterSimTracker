@@ -25,6 +25,7 @@ import {
   resolveMoodWithConfidence,
   shouldBypassConfidenceControls,
 } from "./extractorHelpers";
+import { tryExtractStatisticsViaJsonProtocol } from "./extractorJsonProtocol";
 import {
   buildProgressApply,
   buildProgressBaseline,
@@ -280,6 +281,8 @@ function resolveLegacyNonNumericFallback(
 
 export async function extractStatisticsParallel(input: {
   context?: STContext | null;
+  reason?: string;
+  messageIndex?: number;
   settings: BetterSimTrackerSettings;
   userName: string;
   activeCharacters: string[];
@@ -347,6 +350,7 @@ export async function extractStatisticsParallel(input: {
     previousCustomNonNumericStatistics,
   });
   let debugRecord: DeltaDebugRecord | null = null;
+  let jsonProtocolFallbackDebug: NonNullable<NonNullable<DeltaDebugRecord["meta"]>["jsonShadow"]> | null = null;
   let cancelled = false;
   let terminalError: unknown = null;
   const normalizedUserName = String(userName ?? "").trim();
@@ -438,6 +442,34 @@ export async function extractStatisticsParallel(input: {
     ? Math.max(1, sequentialStatPasses * 3)
     : Math.max(1, unifiedBatchCount * 3);
   onProgress?.(0, progressTotal, buildProgressBaseline());
+
+  const jsonProtocolAttempt = await tryExtractStatisticsViaJsonProtocol({
+    context,
+    reason: input.reason,
+    messageIndex: input.messageIndex,
+    settings,
+    activeCharacters,
+    entityResolution,
+    previousTrackerData,
+    previousStatistics,
+    previousCustomStatistics,
+    previousCustomNonNumericStatistics,
+    contextText,
+    history,
+    isCancelled: input.isCancelled,
+    onProgress,
+  });
+  if (jsonProtocolAttempt.mode === "success") {
+    return {
+      statistics: jsonProtocolAttempt.statistics,
+      customStatistics: jsonProtocolAttempt.customStatistics,
+      customNonNumericStatistics: jsonProtocolAttempt.customNonNumericStatistics,
+      debug: jsonProtocolAttempt.debug,
+    };
+  }
+  if (jsonProtocolAttempt.mode === "fallback") {
+    jsonProtocolFallbackDebug = jsonProtocolAttempt.jsonShadowDebug;
+  }
 
   try {
     const applyDelta = (prev: number, delta: number, confidence: number, maxDeltaOverride?: number): number => {
@@ -1899,6 +1931,7 @@ export async function extractStatisticsParallel(input: {
         moodFallbackApplied: Array.from(moodFallbackApplied),
         requests: requestMetas,
         scopeResolution: buildScopeResolutionDebug(),
+        jsonShadow: jsonProtocolFallbackDebug ?? undefined,
       }
     };
   } catch (error) {

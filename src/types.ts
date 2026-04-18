@@ -538,7 +538,7 @@ export interface DeltaDebugRecord {
         }>;
       };
       jsonShadow?: {
-        status: "request_built" | "transport_error" | "response_invalid" | "parity_ok" | "parity_mismatch";
+        status: "request_built" | "response_valid" | "transport_error" | "response_invalid" | "parity_ok" | "parity_mismatch";
         protocolVersion: string;
         requestText?: string;
         responseText?: string;

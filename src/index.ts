@@ -4081,6 +4081,8 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
 
       const extractedResult = await extractStatisticsParallel({
       context,
+      reason,
+      messageIndex: lastIndex,
       settings: extractionSettings,
       userName,
       activeCharacters,
@@ -4112,7 +4114,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       const extractedCustom = extractedResult.customStatistics;
       const extractedCustomNonNumeric = extractedResult.customNonNumericStatistics;
       lastDebugRecord = extractedResult.debug;
-      if (lastDebugRecord?.meta) {
+      if (lastDebugRecord?.meta && extractionSettings.extractionProtocolMode !== "json") {
         const jsonShadowExpectedTrackerData = buildJsonExtractionShadowExpectedTrackerData({
           activeCharacters,
           entityResolution: resolvedEntityResolution,
@@ -4198,6 +4200,16 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             profileId: jsonShadowDebug.responseMeta?.profileId ?? null,
           });
         }
+      } else if (lastDebugRecord?.meta?.jsonShadow && activeSettings.debug && lastDebugRecord.meta.jsonShadow.status !== "request_built") {
+        pushTrace("json_shadow.result", {
+          runId,
+          messageIndex: lastIndex,
+          status: lastDebugRecord.meta.jsonShadow.status,
+          mismatchPaths: lastDebugRecord.meta.jsonShadow.parityMismatchPaths ?? [],
+          validationErrors: lastDebugRecord.meta.jsonShadow.validationErrors?.length ?? 0,
+          responseChars: lastDebugRecord.meta.jsonShadow.responseText?.length ?? 0,
+          profileId: lastDebugRecord.meta.jsonShadow.responseMeta?.profileId ?? null,
+        });
       }
       if (lastDebugRecord) {
         const persistedTail = readTraceLines(context).slice(-200);
