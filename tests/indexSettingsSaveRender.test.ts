@@ -3,12 +3,24 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
+function extractAround(source: string, marker: string, radius = 300): string {
+  const start = source.indexOf(marker);
+  assert.notEqual(start, -1, `missing marker: ${marker}`);
+  return source.slice(start, Math.min(source.length, start + radius));
+}
+
 test("settings save paths refresh from stored data without an immediate extra queueRender", () => {
   const source = fs.readFileSync(path.resolve("src/index.ts"), "utf8");
-  assert.doesNotMatch(source, /onSave: patch => \{[\s\S]*?saveSettings\(context, settings\);[\s\S]*?queueRender\(\);[\s\S]*?refreshFromStoredData\(\);[\s\S]*?\}/);
-  assert.doesNotMatch(source, /onSave: next => \{[\s\S]*?saveSettings\(activeContext, settings\);[\s\S]*?queueRender\(\);[\s\S]*?refreshFromStoredData\(\);[\s\S]*?\}/);
-  assert.match(source, /onSave: patch => \{[\s\S]*?saveSettings\(context, settings\);[\s\S]*?refreshFromStoredData\(\{ allowBootstrapScheduling: false \}\);[\s\S]*?\}/);
-  assert.match(source, /onSave: next => \{[\s\S]*?saveSettings\(activeContext, settings\);[\s\S]*?refreshFromStoredData\(\{ allowBootstrapScheduling: false \}\);[\s\S]*?\}/);
+  const panelSaveSegment = extractAround(source, "onSave: patch => {");
+  const modalSaveSegment = extractAround(source, "onSave: next => {");
+
+  assert.match(panelSaveSegment, /saveSettings\(context, settings\);/);
+  assert.match(panelSaveSegment, /refreshFromStoredData\(\{ allowBootstrapScheduling: false \}\);/);
+  assert.doesNotMatch(panelSaveSegment, /queueRender\(\);/);
+
+  assert.match(modalSaveSegment, /saveSettings\(activeContext, settings\);/);
+  assert.match(modalSaveSegment, /refreshFromStoredData\(\{ allowBootstrapScheduling: false \}\);/);
+  assert.doesNotMatch(modalSaveSegment, /queueRender\(\);/);
 });
 
 test("settings-adjacent refresh callbacks suppress bootstrap scheduling side effects", () => {
