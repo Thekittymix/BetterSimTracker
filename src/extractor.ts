@@ -443,32 +443,34 @@ export async function extractStatisticsParallel(input: {
     : Math.max(1, unifiedBatchCount * 3);
   onProgress?.(0, progressTotal, buildProgressBaseline());
 
-  const jsonProtocolAttempt = await tryExtractStatisticsViaJsonProtocol({
-    context,
-    reason: input.reason,
-    messageIndex: input.messageIndex,
-    settings,
-    activeCharacters,
-    entityResolution,
-    previousTrackerData,
-    previousStatistics,
-    previousCustomStatistics,
-    previousCustomNonNumericStatistics,
-    contextText,
-    history,
-    isCancelled: input.isCancelled,
-    onProgress,
-  });
-  if (jsonProtocolAttempt.mode === "success") {
-    return {
-      statistics: jsonProtocolAttempt.statistics,
-      customStatistics: jsonProtocolAttempt.customStatistics,
-      customNonNumericStatistics: jsonProtocolAttempt.customNonNumericStatistics,
-      debug: jsonProtocolAttempt.debug,
-    };
-  }
-  if (jsonProtocolAttempt.mode === "fallback") {
-    jsonProtocolFallbackDebug = jsonProtocolAttempt.jsonShadowDebug;
+  if (settings.extractionProtocolMode === "json") {
+    const jsonProtocolAttempt = await tryExtractStatisticsViaJsonProtocol({
+      context,
+      reason: input.reason,
+      messageIndex: input.messageIndex,
+      settings,
+      activeCharacters,
+      entityResolution,
+      previousTrackerData,
+      previousStatistics,
+      previousCustomStatistics,
+      previousCustomNonNumericStatistics,
+      contextText,
+      history,
+      isCancelled: input.isCancelled,
+      onProgress,
+    });
+    if (jsonProtocolAttempt.mode === "success") {
+      return {
+        statistics: jsonProtocolAttempt.statistics,
+        customStatistics: jsonProtocolAttempt.customStatistics,
+        customNonNumericStatistics: jsonProtocolAttempt.customNonNumericStatistics,
+        debug: jsonProtocolAttempt.debug,
+      };
+    }
+    if (jsonProtocolAttempt.mode === "fallback") {
+      jsonProtocolFallbackDebug = jsonProtocolAttempt.jsonShadowDebug;
+    }
   }
 
   try {

@@ -270,6 +270,83 @@ test("extractStatisticsParallel returns JSON-mode output directly and skips lega
   assert.equal(result.debug?.meta?.jsonShadow?.status, "response_valid");
 });
 
+test("extractStatisticsParallel in legacy mode skips the JSON protocol helper and uses the legacy generator path", async () => {
+  let legacyGeneratorCalls = 0;
+  let jsonCalls = 0;
+  const context = makeBaseContext(async () => ({ choices: [] }));
+  const globalBag = globalThis as any;
+  const previousWindow = globalBag.window;
+  globalBag.window = globalThis;
+  const { extractStatisticsParallel } = loadExtractorWithMocks({
+    generateJson: async (prompt: string) => {
+      legacyGeneratorCalls += 1;
+      if (/affection/i.test(prompt)) {
+        return {
+          text: JSON.stringify({
+            characters: [
+              {
+                name: "Ash",
+                confidence: 1,
+                delta: { affection: 3 },
+              },
+            ],
+          }),
+          meta: {
+            profileId: "legacy-profile",
+            promptChars: prompt.length,
+            maxTokens: 128,
+            durationMs: 10,
+            outputChars: 64,
+            timestamp: 100,
+          },
+        };
+      }
+      throw new Error(`unexpected legacy prompt: ${prompt}`);
+    },
+    tryExtractStatisticsViaJsonProtocol: async () => {
+      jsonCalls += 1;
+      return { mode: "inactive" };
+    },
+  });
+
+  try {
+    const result = await withSillyTavernContext(context, () => extractStatisticsParallel({
+      context,
+      settings: makeSettings({
+        extractionProtocolMode: "legacy",
+        trackAffection: true,
+      }),
+      reason: "GENERATION_ENDED",
+      messageIndex: 0,
+      userName: "User",
+      activeCharacters: ["Ash"],
+      contextText: "Ash watches in silence.",
+      previousTrackerData: makeTracker(),
+      previousStatistics: {
+        affection: { Ash: 61 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      previousCustomStatistics: {},
+      previousCustomStatisticsRaw: {},
+      previousCustomNonNumericStatistics: {},
+      hasPriorTrackerData: true,
+      history: [makeTracker()],
+    }));
+
+    assert.equal(jsonCalls, 0);
+    assert.equal(legacyGeneratorCalls, 1);
+    assert.equal(result.statistics.affection.Ash, 64);
+    assert.equal(result.debug?.meta?.jsonShadow, undefined);
+  } finally {
+    if (previousWindow === undefined) delete globalBag.window;
+    else globalBag.window = previousWindow;
+  }
+});
+
 test("extractStatisticsParallel falls back to legacy extraction and preserves JSON failure debug when active JSON mode fails", async () => {
   let legacyGeneratorCalls = 0;
   const context = makeBaseContext(async () => ({ choices: [] }));
