@@ -112,6 +112,7 @@ function makeMeta(): GenerateRequestMeta {
 }
 
 test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output and debug record on success", async () => {
+  const progressLabels: string[] = [];
   const result = await tryExtractStatisticsViaJsonProtocol(
     {
       context: makeContext(),
@@ -126,6 +127,9 @@ test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output 
       previousCustomNonNumericStatistics: makeTrackerData().customNonNumericStatistics,
       contextText: "Recent scene context",
       history: [makeTrackerData()],
+      onProgress: (_done, _total, label) => {
+        if (label) progressLabels.push(label);
+      },
     },
     async () => ({
       ok: true,
@@ -145,6 +149,12 @@ test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output 
   assert.deepEqual(result.customNonNumericStatistics.clothes.Candy, ["t-shirt", "panties"]);
   assert.equal(result.debug.meta?.jsonShadow?.status, "response_valid");
   assert.equal(result.debug.meta?.requests?.[0]?.retryType, "json_protocol");
+  assert.deepEqual(progressLabels, [
+    "Requesting extraction",
+    "Parsing extraction",
+    "Applying extraction",
+    "Finalizing",
+  ]);
 });
 
 test("tryExtractStatisticsViaJsonProtocol returns fallback with response_invalid debug when JSON response fails validation", async () => {

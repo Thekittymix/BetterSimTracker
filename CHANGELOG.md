@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev9] - 2026-04-19
+### Changed
+- Changed active JSON extraction progress labels to the same plain `Requesting/Parsing/Applying extraction` wording used by normal extraction flow, so the UI no longer suggests a separate extra protocol stage.
+
 ## [2.5.3.5-dev8] - 2026-04-19
 ### Changed
 - Changed the extractor toggle boundary so `Legacy extraction` now bypasses the JSON protocol helper entirely, while new contract tests cover all three runtime paths: legacy-only, active JSON success, and active JSON fallback to legacy.

@@ -186,7 +186,7 @@ export async function tryExtractStatisticsViaJsonProtocol(
     ...enabledBuiltInAndTextStats(input.settings),
     ...enabledCustomStats(input.settings).map(stat => stat.id),
   ];
-  input.onProgress?.(0, 3, buildProgressRequest("JSON Protocol"));
+  input.onProgress?.(0, 3, buildProgressRequest("extraction"));
 
   try {
     const transportResult = await runTransport({
@@ -230,8 +230,8 @@ export async function tryExtractStatisticsViaJsonProtocol(
       };
     }
 
-    input.onProgress?.(1, 3, buildProgressParse("JSON Protocol"));
-    input.onProgress?.(2, 3, buildProgressApply("JSON Protocol"));
+    input.onProgress?.(1, 3, buildProgressParse("extraction"));
+    input.onProgress?.(2, 3, buildProgressApply("extraction"));
     const statistics = transportResult.trackerData.statistics;
     const customStatistics = transportResult.trackerData.customStatistics ?? {};
     const customNonNumericStatistics = transportResult.trackerData.customNonNumericStatistics ?? {};
