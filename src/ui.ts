@@ -659,6 +659,18 @@ export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | 
       subtitle: "Collecting recent messages, tracker history, and owner context for extraction.",
     };
   }
+  if (/^Requesting extraction$/i.test(normalizedLabel)) {
+    return {
+      title: "Requesting extraction",
+      subtitle: "Waiting for the JSON tracker response from the selected AI backend.",
+    };
+  }
+  if (/^Requesting /i.test(normalizedLabel)) {
+    return {
+      title: normalizedLabel,
+      subtitle: "Waiting for the tracker response from the selected AI backend.",
+    };
+  }
   if (done === 1) {
     return {
       title: normalizedLabel || "Requesting relationship analysis",

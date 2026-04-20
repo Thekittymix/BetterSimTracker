@@ -2,6 +2,12 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev16] - 2026-04-20
+### Fixed
+- Changed JSON extraction so `sequentialExtraction` now splits JSON tracker requests by stat/group instead of always sending one full-tracker request.
+- Clarified JSON extraction loading copy so the request stage says it is waiting for the AI backend, not collecting context.
+- Tightened first-message dynamic resolver instructions to request the complete non-user character universe from the greeting message while still omitting the user persona.
+
 ## [2.5.3.5-dev15] - 2026-04-20
 ### Fixed
 - Fixed first-message JSON bootstrap extraction so the continue pass reuses the entity resolver result saved by the default bootstrap pass instead of sending an identical second resolver request.

@@ -202,9 +202,12 @@ test("buildBootstrapEntityUniverseResolverPrompt asks for first-message actors w
   });
 
   assert.match(prompt, /first-message entity resolver/i);
+  assert.match(prompt, /complete first-message entity universe/i);
   assert.match(prompt, /Use only the latest message and recent chat context/i);
   assert.match(prompt, /Do not use character card/i);
   assert.match(prompt, /source owner candidate may be a speaker\/source label/i);
+  assert.match(prompt, /Do not stop after the most recently mentioned actor/i);
+  assert.match(prompt, /Omit the user persona/i);
   assert.match(prompt, /Avery, Blake, and Casey enter the studio together\./);
   assert.doesNotMatch(prompt, /Character card context:/);
 });
