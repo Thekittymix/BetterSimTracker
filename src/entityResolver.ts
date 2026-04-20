@@ -145,7 +145,6 @@ export type MultiCharacterResolutionResult = {
 export function shouldAuditCollapsedSourceOwnerResult(input: {
   candidateEntities: MultiCharacterResolverCandidate[];
   result: MultiCharacterResolutionResult | null;
-  characterCardContext?: string;
   message: ChatMessage;
   allowNarrativeEntityCreation?: boolean;
 }): boolean {
@@ -154,7 +153,6 @@ export function shouldAuditCollapsedSourceOwnerResult(input: {
   const candidateEntities = input.candidateEntities
     .filter(candidate => normalizeToken(candidate.entityRef) && normalizeToken(candidate.ownerName));
   if (candidateEntities.length !== 1) return false;
-  if (!normalizeToken(input.characterCardContext)) return false;
   if (!normalizeToken(input.message?.mes)) return false;
   const sourceCandidate = candidateEntities[0];
   const sourceEntityId = normalizeToken(sourceCandidate.entityId);
@@ -187,20 +185,71 @@ export function buildCollapsedSourceOwnerAuditPrompt(input: {
   return [
     "SYSTEM:",
     "You are auditing a BetterSimTracker entity resolver response.",
-    "The prior response may have collapsed a source-card owner into a concrete actor without deciding whether that owner is a real single character or a container for multiple concrete actors.",
+    "The prior response may have collapsed a source owner into a concrete actor without deciding whether that owner is a real single character or a source label for concrete actors in the latest message.",
     "Use the original resolver request below as the source of truth.",
-    "First decide from the latest message and character card context whether the source-card owner is a real single character or only a container/source label.",
-    "If the source-card owner is a real single character, return the same resolver JSON unless another concrete non-user actor is clearly missing.",
-    "If the source-card owner is only a container/source label and the provided context clearly identifies multiple concrete non-user character-like actors under it, return the complete corrected resolver JSON with those concrete actors represented and do not keep the source-card owner as an active concrete actor.",
+    "First decide from the latest message and recent chat context whether the source owner is a real single character or only a source label.",
+    "If the source owner is a real single character, return the same resolver JSON unless another concrete non-user actor is clearly missing from the latest message.",
+    "If the source owner is only a source label and the latest message clearly identifies multiple concrete non-user character-like actors, return the complete corrected resolver JSON with those concrete actors represented and do not keep the source owner as an active concrete actor.",
     "If the prior response was already complete, return the same resolver JSON.",
     "Do not invent names. Do not infer from outside the provided request. Do not include the user as a resolved or created entity.",
     "Return strict JSON only with `resolved`, `created`, and `unresolvedMentions`.",
     "",
-    "Prior resolver response:",
-    normalizeToken(input.previousResponseText) || "(empty)",
-    "",
     "Original resolver request:",
     normalizeToken(input.originalPrompt) || "(empty)",
+    "",
+    "Prior resolver response to audit:",
+    normalizeToken(input.previousResponseText) || "(empty)",
+  ].join("\n");
+}
+
+export function buildBootstrapEntityUniverseResolverPrompt(input: {
+  candidateEntities: MultiCharacterResolverCandidate[];
+  contextText: string;
+  message: ChatMessage;
+}): string {
+  const candidateEntities = input.candidateEntities
+    .map(candidate => ({
+      entityRef: normalizeToken(candidate.entityRef),
+      ownerName: normalizeToken(candidate.ownerName),
+      kind: candidate.kind === "narrative-entity" || candidate.kind === "persona" ? candidate.kind : "st-character",
+      aliases: Array.isArray(candidate.aliases)
+        ? candidate.aliases.map(alias => normalizeToken(alias)).filter(Boolean)
+        : [],
+    }))
+    .filter(candidate => candidate.entityRef && candidate.ownerName);
+  const contextText = normalizeToken(input.contextText);
+  const messageName = normalizeToken(input.message?.name);
+  const messageText = normalizeToken(input.message?.mes);
+  const messageRole = input.message?.is_user ? "user" : "ai";
+
+  return [
+    "SYSTEM:",
+    "You are the BetterSimTracker first-message entity resolver.",
+    "Resolve the concrete non-user character-like actors explicitly introduced or physically present in the latest chat message.",
+    "Use only the latest message and recent chat context below. Do not use character card, lorebook, or outside knowledge.",
+    "The source owner candidate may be a speaker/source label. Return it in `resolved` only if the latest message clearly presents that owner as one real single character.",
+    "If the latest message clearly introduces or places concrete non-user actors in the scene, return those actors in `created`.",
+    "Do not include the user. Do not create locations, groups, props, roles without names, or vague mentions.",
+    "Return strict JSON only with `resolved`, `created`, and `unresolvedMentions`.",
+    "",
+    "Candidate source owner:",
+    JSON.stringify(candidateEntities, null, 2),
+    "",
+    "Recent chat context:",
+    contextText || "(none)",
+    "",
+    "Latest message metadata:",
+    `role: ${messageRole}`,
+    `speaker: ${messageName || "(unknown)"}`,
+    "Latest message:",
+    messageText || "(empty)",
+    "",
+    "Return STRICT JSON only:",
+    "{",
+    '  "resolved": [],',
+    '  "created": [{ "name": "Character Name", "aliases": [], "inScene": true, "inMessage": true }],',
+    '  "unresolvedMentions": []',
+    "}",
   ].join("\n");
 }
 
@@ -269,7 +318,6 @@ function normalizeBoolean(value: unknown): boolean {
 export function buildMultiCharacterResolverPrompt(input: {
   candidateEntities: MultiCharacterResolverCandidate[];
   contextText: string;
-  characterCardContext?: string;
   message: ChatMessage;
   previousMessage?: ChatMessage | null;
   allowNarrativeEntityCreation?: boolean;
@@ -301,7 +349,6 @@ export function buildMultiCharacterResolverPrompt(input: {
     }))
     .filter(candidate => candidate.entityRef && candidate.ownerName);
   const contextText = normalizeToken(input.contextText);
-  const characterCardContext = normalizeToken(input.characterCardContext);
   const previousMessage = input.previousMessage;
   const messageName = normalizeToken(input.message?.name);
   const messageText = normalizeToken(input.message?.mes);
@@ -385,8 +432,7 @@ export function buildMultiCharacterResolverPrompt(input: {
     ...(allowNarrativeEntityCreation
       ? [
           "- Use `created` only for clearly new non-user characters, beings, or scene actors that are distinct, scene-relevant, and not already covered by the known candidate list.",
-          "- A source/group character card can describe multiple concrete character-like actors under one card owner. When the latest message or card context clearly names those concrete actors and they are not already separate candidates, return them in `created` instead of leaving the whole group collapsed under the source card owner.",
-          "- Use character card context as entity-resolution evidence only; do not copy card/default flavor into tracker state.",
+          "- If the latest message clearly names concrete character-like actors under a source owner label and they are not already separate candidates, return them in `created` instead of leaving the scene collapsed under the source owner.",
           "- `created` entries must use human-readable `name` and optional `aliases` only. Never invent stable IDs.",
           "- Do not create props, objects, containers, furniture, locations, groups, body parts, narrator/user references, pronouns, or ambiguous mentions.",
         ]
@@ -415,9 +461,6 @@ export function buildMultiCharacterResolverPrompt(input: {
     "",
     "Recent context:",
     contextText || "(none)",
-    "",
-    "Character card context:",
-    characterCardContext || "(none)",
     "",
     "Previous message metadata:",
     previousMessage

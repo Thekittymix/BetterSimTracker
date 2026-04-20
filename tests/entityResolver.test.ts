@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildBootstrapEntityUniverseResolverPrompt,
   buildCollapsedSourceOwnerAuditPrompt,
   buildMultiCharacterResolverPrompt,
   parseMultiCharacterResolverResponse,
@@ -136,7 +137,7 @@ test("buildMultiCharacterResolverPrompt enables conservative created entities on
   assert.match(prompt, /"created": \[\{ "name": "Forest Spirit"/);
 });
 
-test("buildMultiCharacterResolverPrompt gives source-card context to resolver for group cards", () => {
+test("buildMultiCharacterResolverPrompt does not include character card context", () => {
   const prompt = buildMultiCharacterResolverPrompt({
     candidateEntities: [
       {
@@ -148,12 +149,6 @@ test("buildMultiCharacterResolverPrompt gives source-card context to resolver fo
       },
     ],
     contextText: "Shared Card: The studio door opens and the ensemble steps inside.",
-    characterCardContext: [
-      "Target character card context (highest priority card context for Shared Card; do not use any other card as this target's state source):",
-      "Character Card - Shared Card",
-      "Description: Avery coordinates the group. Blake and Casey are separate performers.",
-      "Personality: Warm, chaotic, and prone to teasing.",
-    ].join("\n"),
     message: {
       name: "Shared Card",
       mes: "Avery, Blake, and Casey settle into the studio together.",
@@ -163,11 +158,37 @@ test("buildMultiCharacterResolverPrompt gives source-card context to resolver fo
     allowNarrativeEntityCreation: true,
   });
 
-  assert.match(prompt, /Character card context:/);
-  assert.match(prompt, /Character Card - Shared Card/);
-  assert.match(prompt, /Avery coordinates the group\. Blake and Casey are separate performers\./);
-  assert.match(prompt, /source\/group character card can describe multiple concrete character-like actors/i);
-  assert.match(prompt, /return them in `created` instead of leaving the whole group collapsed/i);
+  assert.doesNotMatch(prompt, /Character card context:/);
+  assert.doesNotMatch(prompt, /Character Card - Shared Card/);
+  assert.match(prompt, /return them in `created` instead of leaving the scene collapsed under the source owner/i);
+});
+
+test("buildBootstrapEntityUniverseResolverPrompt asks for first-message actors without card context", () => {
+  const prompt = buildBootstrapEntityUniverseResolverPrompt({
+    candidateEntities: [
+      {
+        entityRef: "ent1",
+        ownerName: "Shared Card",
+        entityId: "bst_owner:shared.png|shared card",
+        kind: "st-character",
+        aliases: ["Shared Card"],
+      },
+    ],
+    contextText: "Shared Card: Avery, Blake, and Casey enter the studio together.",
+    message: {
+      name: "Shared Card",
+      mes: "Avery, Blake, and Casey enter the studio together.",
+      is_user: false,
+      is_system: false,
+    } as any,
+  });
+
+  assert.match(prompt, /first-message entity resolver/i);
+  assert.match(prompt, /Use only the latest message and recent chat context/i);
+  assert.match(prompt, /Do not use character card/i);
+  assert.match(prompt, /source owner candidate may be a speaker\/source label/i);
+  assert.match(prompt, /Avery, Blake, and Casey enter the studio together\./);
+  assert.doesNotMatch(prompt, /Character card context:/);
 });
 
 test("shouldAuditCollapsedSourceOwnerResult only flags possibly collapsed source-owner model results", () => {
@@ -203,7 +224,6 @@ test("shouldAuditCollapsedSourceOwnerResult only flags possibly collapsed source
       createdEntities: [{ name: "Avery", inScene: true, inMessage: true }],
       unresolvedMentions: [],
     },
-    characterCardContext: "Character Card - Shared Card\nDescription: Avery, Blake, and Casey are separate actors.",
     message,
     allowNarrativeEntityCreation: true,
   }), true);
@@ -218,7 +238,6 @@ test("shouldAuditCollapsedSourceOwnerResult only flags possibly collapsed source
       ],
       unresolvedMentions: [],
     },
-    characterCardContext: "Character Card - Shared Card\nDescription: Avery, Blake, and Casey are separate actors.",
     message,
     allowNarrativeEntityCreation: true,
   }), false);
@@ -234,21 +253,19 @@ test("buildCollapsedSourceOwnerAuditPrompt keeps character resolution with the m
     originalPrompt: [
       "Candidate entities:",
       JSON.stringify([{ entityRef: "ent1", ownerName: "Shared Card" }]),
-      "Character card context:",
-      "Character Card - Shared Card",
-      "Description: Avery, Blake, and Casey are separate actors.",
       "Latest message:",
       "Avery, Blake, and Casey enter the studio together.",
     ].join("\n"),
   });
 
   assert.match(prompt, /auditing a BetterSimTracker entity resolver response/i);
-  assert.match(prompt, /whether the source-card owner is a real single character or only a container\/source label/i);
-  assert.match(prompt, /do not keep the source-card owner as an active concrete actor/i);
+  assert.match(prompt, /whether the source owner is a real single character or only a source label/i);
+  assert.match(prompt, /do not keep the source owner as an active concrete actor/i);
   assert.match(prompt, /return the complete corrected resolver JSON/i);
   assert.match(prompt, /Do not invent names/i);
-  assert.match(prompt, /Prior resolver response:/);
   assert.match(prompt, /Original resolver request:/);
+  assert.match(prompt, /Prior resolver response to audit:/);
+  assert.ok(prompt.indexOf("Original resolver request:") < prompt.indexOf("Prior resolver response to audit:"));
 });
 
 test("buildMultiCharacterResolverPrompt forbids props and objects in created entities", () => {

@@ -29,6 +29,7 @@ import {
   resolveUserExtractionOwnerScopes,
 } from "./entityResolution";
 import {
+  buildBootstrapEntityUniverseResolverPrompt,
   buildCollapsedSourceOwnerAuditPrompt,
   buildMultiCharacterResolverPrompt,
   parseMultiCharacterResolverResponse,
@@ -3524,42 +3525,41 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             4,
           );
           const resolverContextText = buildResolverContextUpToMessageIndex(context, lastIndex);
-          const resolverPreferredCharacterName = !lastMessage.is_user
-            ? (String(lastMessage.name ?? "").trim() || undefined)
-            : undefined;
-          const resolverCharacterCardContext = activeSettings.includeCharacterCardsInPrompt
-            ? getCachedCharacterCardsContext(context, {
-                activeCharacters: candidateOwners,
-                activeEntityIds: [],
-                entityTrackingMode: resolveEntityTrackingMode(activeSettings),
-                preferredCharacterName: resolverPreferredCharacterName,
-                build: () => buildCharacterCardsContext(
-                  context,
-                  candidateOwners,
-                  [],
-                  resolveEntityTrackingMode(activeSettings),
-                  resolverPreferredCharacterName,
-                ),
+          const useBootstrapEntityUniverseResolver = Boolean(
+            activeSettings.entityTrackingMode === "dynamic_characters"
+            && !previousMessageTrackerData
+            && recentTrackerHistory.length === 0
+            && candidateEntities.length === 1
+            && String(lastMessage.mes ?? "").trim(),
+          );
+          const resolverPrompt = useBootstrapEntityUniverseResolver
+            ? buildBootstrapEntityUniverseResolverPrompt({
+                candidateEntities,
+                contextText: resolverContextText,
+                message: lastMessage,
               })
-            : "";
-          const resolverPrompt = buildMultiCharacterResolverPrompt({
-            candidateEntities,
-            contextText: resolverContextText,
-            characterCardContext: resolverCharacterCardContext,
-            message: lastMessage,
-            previousMessage,
-            allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
-            continuitySnapshot: buildEntityResolverContinuitySnapshot({
-              previousTrackerData: previousMessageTrackerData,
-              recentTrackerHistory,
-            }),
-          });
+            : buildMultiCharacterResolverPrompt({
+                candidateEntities,
+                contextText: resolverContextText,
+                message: lastMessage,
+                previousMessage,
+                allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
+                continuitySnapshot: buildEntityResolverContinuitySnapshot({
+                  previousTrackerData: previousMessageTrackerData,
+                  recentTrackerHistory,
+                }),
+              });
+          if (useBootstrapEntityUniverseResolver) {
+            pushTrace("entity.resolve.bootstrap", {
+              reason: "first_tracker_no_history",
+              candidateOwners,
+            });
+          }
           let resolverResponse = await generateJson(resolverPrompt, activeSettings);
           let parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
           if (shouldAuditCollapsedSourceOwnerResult({
             candidateEntities,
             result: parsedResolver,
-            characterCardContext: resolverCharacterCardContext,
             message: lastMessage,
             allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
           })) {

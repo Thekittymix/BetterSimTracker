@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev13] - 2026-04-20
+### Fixed
+- Changed entity resolution so resolver prompts no longer receive character card context; first-message dynamic chats now use a short model resolver prompt based only on chat context/latest message.
+- Changed collapsed source-owner audits to use chat evidence first and place prior model output after the original resolver request.
+
 ## [2.5.3.5-dev12] - 2026-04-20
 ### Fixed
 - Fixed the collapsed source-owner audit gate so a model output containing the source-card owner plus only one concrete actor gets a model audit pass instead of assuming the source owner is already a concrete character.
