@@ -142,7 +142,7 @@ export type MultiCharacterResolutionResult = {
   unresolvedMentions: string[];
 };
 
-export function shouldRepairSourceGroupResolverResult(input: {
+export function shouldAuditCollapsedSourceOwnerResult(input: {
   candidateEntities: MultiCharacterResolverCandidate[];
   result: MultiCharacterResolutionResult | null;
   characterCardContext?: string;
@@ -156,25 +156,42 @@ export function shouldRepairSourceGroupResolverResult(input: {
   if (candidateEntities.length !== 1) return false;
   if (!normalizeToken(input.characterCardContext)) return false;
   if (!normalizeToken(input.message?.mes)) return false;
-  const resolvedSceneCount = input.result.resolvedEntities
+  const sourceCandidate = candidateEntities[0];
+  const sourceEntityId = normalizeToken(sourceCandidate.entityId);
+  const sourceOwnerKey = normalizeLooseKey(sourceCandidate.ownerName);
+  const sourceAliasKeys = new Set(
+    [sourceCandidate.ownerName, ...(sourceCandidate.aliases ?? [])]
+      .map(alias => normalizeLooseKey(alias))
+      .filter(Boolean),
+  );
+  const concreteResolvedSceneCount = input.result.resolvedEntities
     .filter(entity => entity.inScene || entity.inMessage)
+    .filter(entity => {
+      const entityId = normalizeToken(entity.entityId);
+      const entityNameKey = normalizeLooseKey(entity.name);
+      if (sourceEntityId && entityId === sourceEntityId) return false;
+      if (sourceOwnerKey && entityNameKey === sourceOwnerKey) return false;
+      return !sourceAliasKeys.has(entityNameKey);
+    })
     .length;
   const createdSceneCount = input.result.createdEntities
     .filter(entity => entity.inScene || entity.inMessage)
     .length;
-  return resolvedSceneCount + createdSceneCount <= 1;
+  return concreteResolvedSceneCount + createdSceneCount <= 1;
 }
 
-export function buildSourceGroupResolverRepairPrompt(input: {
+export function buildCollapsedSourceOwnerAuditPrompt(input: {
   originalPrompt: string;
   previousResponseText: string;
 }): string {
   return [
     "SYSTEM:",
     "You are auditing a BetterSimTracker entity resolver response.",
-    "The prior response may have under-resolved a source/group character card by keeping the result collapsed to one actor.",
+    "The prior response may have collapsed a source-card owner into a concrete actor without deciding whether that owner is a real single character or a container for multiple concrete actors.",
     "Use the original resolver request below as the source of truth.",
-    "If the latest message and character card context clearly identify multiple concrete non-user character-like actors under the source/group card, return the complete corrected resolver JSON with each concrete actor represented.",
+    "First decide from the latest message and character card context whether the source-card owner is a real single character or only a container/source label.",
+    "If the source-card owner is a real single character, return the same resolver JSON unless another concrete non-user actor is clearly missing.",
+    "If the source-card owner is only a container/source label and the provided context clearly identifies multiple concrete non-user character-like actors under it, return the complete corrected resolver JSON with those concrete actors represented and do not keep the source-card owner as an active concrete actor.",
     "If the prior response was already complete, return the same resolver JSON.",
     "Do not invent names. Do not infer from outside the provided request. Do not include the user as a resolved or created entity.",
     "Return strict JSON only with `resolved`, `created`, and `unresolvedMentions`.",

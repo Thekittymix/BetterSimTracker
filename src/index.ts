@@ -29,14 +29,14 @@ import {
   resolveUserExtractionOwnerScopes,
 } from "./entityResolution";
 import {
-  buildSourceGroupResolverRepairPrompt,
+  buildCollapsedSourceOwnerAuditPrompt,
   buildMultiCharacterResolverPrompt,
   parseMultiCharacterResolverResponse,
   resolveMessageEntityIdsFromResolvedEntities,
   resolveMessageOwnersFromResolvedEntities,
   resolveSceneEntityIdsFromResolvedEntities,
   resolveSceneOwnersFromResolvedEntities,
-  shouldRepairSourceGroupResolverResult,
+  shouldAuditCollapsedSourceOwnerResult,
 } from "./entityResolver";
 import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
 import {
@@ -3556,26 +3556,30 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           });
           let resolverResponse = await generateJson(resolverPrompt, activeSettings);
           let parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
-          if (shouldRepairSourceGroupResolverResult({
+          if (shouldAuditCollapsedSourceOwnerResult({
             candidateEntities,
             result: parsedResolver,
             characterCardContext: resolverCharacterCardContext,
             message: lastMessage,
             allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
           })) {
-            const repairPrompt = buildSourceGroupResolverRepairPrompt({
+            const auditPrompt = buildCollapsedSourceOwnerAuditPrompt({
               originalPrompt: resolverPrompt,
               previousResponseText: resolverResponse.text,
             });
-            const repairResponse = await generateJson(repairPrompt, activeSettings);
-            const repairedResolver = parseMultiCharacterResolverResponse(repairResponse.text, candidateEntities);
-            if (repairedResolver) {
-              resolverResponse = repairResponse;
-              parsedResolver = repairedResolver;
-              pushTrace("entity.resolve.repair", {
+            pushTrace("entity.resolve.audit.start", {
+              reason: "possible_collapsed_source_owner",
+              candidateOwners,
+            });
+            const auditResponse = await generateJson(auditPrompt, activeSettings);
+            const auditedResolver = parseMultiCharacterResolverResponse(auditResponse.text, candidateEntities);
+            if (auditedResolver) {
+              resolverResponse = auditResponse;
+              parsedResolver = auditedResolver;
+              pushTrace("entity.resolve.audit.result", {
                 source: "model",
                 candidateOwners,
-                createdEntities: repairedResolver.createdEntities.map(entity => entity.name),
+                createdEntities: auditedResolver.createdEntities.map(entity => entity.name),
               });
             }
           }

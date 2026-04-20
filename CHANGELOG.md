@@ -2,9 +2,13 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev12] - 2026-04-20
+### Fixed
+- Fixed the collapsed source-owner audit gate so a model output containing the source-card owner plus only one concrete actor gets a model audit pass instead of assuming the source owner is already a concrete character.
+
 ## [2.5.3.5-dev11] - 2026-04-20
 ### Fixed
-- Fixed source/group card entity resolution so under-expanded model resolver outputs get a model-based repair pass instead of relying on provider-specific first-pass behavior.
+- Fixed source-card entity resolution so possibly collapsed model resolver outputs get a model-based audit pass instead of relying on provider-specific first-pass behavior.
 - Fixed legacy extraction mode so it no longer sends JSON protocol shadow requests from the runtime extraction flow.
 
 ## [2.5.3.5-dev10] - 2026-04-20

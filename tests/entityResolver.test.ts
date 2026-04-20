@@ -2,11 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  buildSourceGroupResolverRepairPrompt,
+  buildCollapsedSourceOwnerAuditPrompt,
   buildMultiCharacterResolverPrompt,
   parseMultiCharacterResolverResponse,
   resolveResolvedEntityConfidence,
-  shouldRepairSourceGroupResolverResult,
+  shouldAuditCollapsedSourceOwnerResult,
 } from "../src/entityResolver";
 
 test("buildMultiCharacterResolverPrompt lists candidate owners and latest message metadata", () => {
@@ -170,7 +170,7 @@ test("buildMultiCharacterResolverPrompt gives source-card context to resolver fo
   assert.match(prompt, /return them in `created` instead of leaving the whole group collapsed/i);
 });
 
-test("shouldRepairSourceGroupResolverResult only flags under-expanded source-card model results", () => {
+test("shouldAuditCollapsedSourceOwnerResult only flags possibly collapsed source-owner model results", () => {
   const candidateEntities = [
     {
       entityRef: "ent1",
@@ -187,10 +187,19 @@ test("shouldRepairSourceGroupResolverResult only flags under-expanded source-car
     is_system: false,
   } as any;
 
-  assert.equal(shouldRepairSourceGroupResolverResult({
+  assert.equal(shouldAuditCollapsedSourceOwnerResult({
     candidateEntities,
     result: {
-      resolvedEntities: [],
+      resolvedEntities: [
+        {
+          entityId: "bst_owner:shared.png|shared card",
+          kind: "st-character",
+          name: "Shared Card",
+          avatar: null,
+          inScene: true,
+          inMessage: true,
+        },
+      ],
       createdEntities: [{ name: "Avery", inScene: true, inMessage: true }],
       unresolvedMentions: [],
     },
@@ -199,7 +208,7 @@ test("shouldRepairSourceGroupResolverResult only flags under-expanded source-car
     allowNarrativeEntityCreation: true,
   }), true);
 
-  assert.equal(shouldRepairSourceGroupResolverResult({
+  assert.equal(shouldAuditCollapsedSourceOwnerResult({
     candidateEntities,
     result: {
       resolvedEntities: [],
@@ -215,8 +224,8 @@ test("shouldRepairSourceGroupResolverResult only flags under-expanded source-car
   }), false);
 });
 
-test("buildSourceGroupResolverRepairPrompt keeps character resolution with the model", () => {
-  const prompt = buildSourceGroupResolverRepairPrompt({
+test("buildCollapsedSourceOwnerAuditPrompt keeps character resolution with the model", () => {
+  const prompt = buildCollapsedSourceOwnerAuditPrompt({
     previousResponseText: JSON.stringify({
       resolved: [],
       created: [{ name: "Avery", inScene: true, inMessage: true }],
@@ -234,7 +243,8 @@ test("buildSourceGroupResolverRepairPrompt keeps character resolution with the m
   });
 
   assert.match(prompt, /auditing a BetterSimTracker entity resolver response/i);
-  assert.match(prompt, /source\/group character card/i);
+  assert.match(prompt, /whether the source-card owner is a real single character or only a container\/source label/i);
+  assert.match(prompt, /do not keep the source-card owner as an active concrete actor/i);
   assert.match(prompt, /return the complete corrected resolver JSON/i);
   assert.match(prompt, /Do not invent names/i);
   assert.match(prompt, /Prior resolver response:/);
