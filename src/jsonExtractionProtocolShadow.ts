@@ -22,6 +22,8 @@ export interface BuildJsonExtractionShadowRequestInput {
   previousCustomNonNumericStatistics?: CustomNonNumericStatistics | null;
   recentHistory: JsonExtractionRequestHistoryEntry[];
   entityContext: BuildJsonExtractionRequestInput["entityContext"];
+  responseMode?: "tracker" | "stat";
+  statId?: string;
 }
 
 export interface BuildJsonExtractionShadowRequestFromContextInput {
@@ -37,6 +39,8 @@ export interface BuildJsonExtractionShadowRequestFromContextInput {
   previousCustomNonNumericStatistics?: CustomNonNumericStatistics | null;
   entityContext?: BuildJsonExtractionRequestInput["entityContext"];
   historyLimit?: number;
+  responseMode?: "tracker" | "stat";
+  statId?: string;
 }
 
 function requireMessage(context: STContext, messageIndex: number): ChatMessage {
@@ -109,6 +113,27 @@ function scopeCurrentStateDataForJsonRequest(input: {
   };
 }
 
+function buildStatStageOutputContract(statId: string): BuildJsonExtractionRequestInput["outputContract"] {
+  return {
+    requiredSections: [
+      "result",
+      "statId",
+      "values",
+    ],
+    responseSchema: {
+      protocolVersion: "bst.extract.v1",
+      responseType: "stat_extraction_result",
+      result: {
+        status: "ok",
+      },
+      statId,
+      values: {
+        "Owner display name": "value for this stat only",
+      },
+    },
+  };
+}
+
 export function buildJsonExtractionEntityContextFromContext(
   input: Pick<BuildJsonExtractionShadowRequestFromContextInput, "context" | "messageIndex" | "settings" | "activeCharacters" | "previousTrackerData">,
 ): BuildJsonExtractionRequestInput["entityContext"] {
@@ -174,6 +199,9 @@ export function buildJsonExtractionShadowRequest(
     settings: {
       customStats: input.settings.customStats,
     },
+    outputContract: input.responseMode === "stat" && input.statId
+      ? buildStatStageOutputContract(input.statId)
+      : undefined,
   });
 }
 
@@ -202,6 +230,8 @@ export function buildJsonExtractionShadowRequestFromContext(
       limit: input.historyLimit ?? 6,
     }),
     entityContext: input.entityContext ?? buildJsonExtractionEntityContextFromContext(input),
+    responseMode: input.responseMode,
+    statId: input.statId,
   });
 }
 

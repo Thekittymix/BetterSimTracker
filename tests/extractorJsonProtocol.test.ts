@@ -158,7 +158,7 @@ test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output 
 });
 
 test("tryExtractStatisticsViaJsonProtocol splits JSON requests by stat when sequential extraction is enabled", async () => {
-  const calls: BetterSimTrackerSettings[] = [];
+  const calls: Array<{ settings: BetterSimTrackerSettings; responseMode?: string; statId?: string }> = [];
   const progressLabels: string[] = [];
   const settings = {
     ...makeSettings(),
@@ -189,7 +189,11 @@ test("tryExtractStatisticsViaJsonProtocol splits JSON requests by stat when sequ
       },
     },
     async input => {
-      calls.push(input.settings);
+      calls.push({
+        settings: input.settings,
+        responseMode: input.responseMode,
+        statId: input.statId,
+      });
       const callIndex = calls.length;
       const trackerData: TrackerData = {
         ...makeTrackerData(),
@@ -248,15 +252,20 @@ test("tryExtractStatisticsViaJsonProtocol splits JSON requests by stat when sequ
   assert.equal(result.mode, "success");
   if (result.mode !== "success") return;
   assert.equal(calls.length, 3);
-  assert.equal(calls[0].trackAffection, true);
-  assert.equal(calls[0].trackMood, false);
-  assert.equal(calls[0].customStats.length, 0);
-  assert.equal(calls[1].trackAffection, false);
-  assert.equal(calls[1].trackMood, true);
-  assert.equal(calls[1].customStats.length, 0);
-  assert.equal(calls[2].trackAffection, false);
-  assert.equal(calls[2].trackMood, false);
-  assert.deepEqual(calls[2].customStats.map(stat => stat.id), ["clothes"]);
+  assert.deepEqual(calls.map(call => [call.responseMode, call.statId]), [
+    ["stat", "affection"],
+    ["stat", "mood"],
+    ["stat", "clothes"],
+  ]);
+  assert.equal(calls[0].settings.trackAffection, true);
+  assert.equal(calls[0].settings.trackMood, false);
+  assert.equal(calls[0].settings.customStats.length, 0);
+  assert.equal(calls[1].settings.trackAffection, false);
+  assert.equal(calls[1].settings.trackMood, true);
+  assert.equal(calls[1].settings.customStats.length, 0);
+  assert.equal(calls[2].settings.trackAffection, false);
+  assert.equal(calls[2].settings.trackMood, false);
+  assert.deepEqual(calls[2].settings.customStats.map(stat => stat.id), ["clothes"]);
   assert.equal(result.statistics.affection.Candy, 61);
   assert.equal(result.statistics.mood.Candy, "Playful");
   assert.deepEqual(result.customNonNumericStatistics.clothes.Candy, ["t-shirt", "panties"]);

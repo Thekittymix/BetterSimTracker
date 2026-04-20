@@ -7,6 +7,7 @@ import {
   JSON_EXTRACTION_REQUEST_TYPE,
   JSON_EXTRACTION_RESPONSE_TYPE,
   parseAndValidateJsonExtractionResponseV1,
+  parseAndValidateJsonExtractionStatResponseV1,
   validateJsonExtractionRequestV1,
   validateJsonExtractionResponseV1,
   type JsonExtractionRequestV1,
@@ -241,6 +242,23 @@ test("parseAndValidateJsonExtractionResponseV1 parses wrapped JSON responses and
   const raw = `<think></think>\n\`\`\`json\n${JSON.stringify(makeResponse(), null, 2)}\n\`\`\``;
   const result = parseAndValidateJsonExtractionResponseV1(raw);
   assert.equal(result.ok, true);
+});
+
+test("parseAndValidateJsonExtractionStatResponseV1 accepts wrapped sequential stat responses", () => {
+  const raw = "```json\n" + JSON.stringify({
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: { status: "ok" },
+    statId: "pose",
+    values: {
+      Candy: "Standing by the bed.",
+    },
+  }) + "\n```";
+  const result = parseAndValidateJsonExtractionStatResponseV1(raw);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.statId, "pose");
+  assert.equal(result.value.values.Candy, "Standing by the bed.");
 });
 
 test("parseAndValidateJsonExtractionResponseV1 rejects non-JSON text", () => {

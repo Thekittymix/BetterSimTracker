@@ -1,6 +1,7 @@
 export const JSON_EXTRACTION_PROTOCOL_VERSION = "bst.extract.v1" as const;
 export const JSON_EXTRACTION_REQUEST_TYPE = "tracker_extraction" as const;
 export const JSON_EXTRACTION_RESPONSE_TYPE = "tracker_extraction_result" as const;
+export const JSON_EXTRACTION_STAT_RESPONSE_TYPE = "stat_extraction_result" as const;
 
 export type JsonExtractionTaskMode = "ai_turn" | "user_turn";
 export type JsonExtractionEntityTrackingMode = "standard" | "dynamic_characters";
@@ -122,6 +123,16 @@ export interface JsonExtractionResponseV1 {
   builtInStats: Record<string, Record<string, unknown>>;
   customStats: Record<string, Record<string, unknown>>;
   customNonNumericStats: Record<string, Record<string, unknown>>;
+}
+
+export interface JsonExtractionStatResponseV1 {
+  protocolVersion: typeof JSON_EXTRACTION_PROTOCOL_VERSION;
+  responseType: typeof JSON_EXTRACTION_STAT_RESPONSE_TYPE;
+  result: {
+    status: "ok";
+  };
+  statId: string;
+  values: Record<string, unknown>;
 }
 
 export interface JsonExtractionProtocolValidationError {
@@ -532,6 +543,31 @@ export function validateJsonExtractionResponseV1(payload: unknown): JsonExtracti
   return ok(payload as unknown as JsonExtractionResponseV1);
 }
 
+export function validateJsonExtractionStatResponseV1(payload: unknown): JsonExtractionProtocolValidationResult<JsonExtractionStatResponseV1> {
+  const errors = validateRootObject(
+    payload,
+    JSON_EXTRACTION_PROTOCOL_VERSION,
+    "responseType",
+    JSON_EXTRACTION_STAT_RESPONSE_TYPE,
+  );
+  if (!isRecord(payload)) return fail(errors);
+
+  if (!isRecord(payload.result)) {
+    pushError(errors, "result", "invalid_type", "result must be an object.");
+  } else if (payload.result.status !== "ok") {
+    pushError(errors, "result.status", "invalid_value", "result.status must be ok.");
+  }
+  if (!isNonEmptyString(payload.statId)) {
+    pushError(errors, "statId", "invalid_type", "statId must be a non-empty string.");
+  }
+  if (!isRecord(payload.values)) {
+    pushError(errors, "values", "invalid_type", "values must be an object keyed by owner name.");
+  }
+
+  if (errors.length) return fail(errors);
+  return ok(payload as unknown as JsonExtractionStatResponseV1);
+}
+
 export function extractFirstJsonObjectBlock(raw: string): string | null {
   const trimmed = String(raw ?? "").trim();
   if (!trimmed) return null;
@@ -594,4 +630,30 @@ export function parseAndValidateJsonExtractionResponseV1(raw: string): JsonExtra
     ]);
   }
   return validateJsonExtractionResponseV1(parsed);
+}
+
+export function parseAndValidateJsonExtractionStatResponseV1(raw: string): JsonExtractionProtocolValidationResult<JsonExtractionStatResponseV1> {
+  const jsonBlock = extractFirstJsonObjectBlock(raw);
+  if (!jsonBlock) {
+    return fail([
+      {
+        path: "",
+        code: "invalid_type",
+        message: "Response does not contain a JSON object.",
+      },
+    ]);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonBlock);
+  } catch {
+    return fail([
+      {
+        path: "",
+        code: "invalid_type",
+        message: "Response JSON block could not be parsed.",
+      },
+    ]);
+  }
+  return validateJsonExtractionStatResponseV1(parsed);
 }

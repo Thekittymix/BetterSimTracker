@@ -7,6 +7,7 @@ import type {
   TrackerDataEntityResolution,
 } from "./types";
 import type { JsonExtractionResponseV1 } from "./jsonExtractionProtocol";
+import type { JsonExtractionStatResponseV1 } from "./jsonExtractionProtocol";
 
 function emptyStatistics(): Statistics {
   return {
@@ -124,6 +125,80 @@ export function materializeTrackerDataFromJsonExtractionResponseV1(
     entityResolution: buildEntityResolution(response),
     statistics: buildBuiltInStatistics(response),
     customStatistics: buildCustomStatistics(response),
+    customNonNumericStatistics,
+  };
+}
+
+export function materializeTrackerDataFromJsonExtractionStatResponseV1(
+  response: JsonExtractionStatResponseV1,
+  options: {
+    activeCharacters: string[];
+    entityResolution?: TrackerDataEntityResolution | null;
+    customStatDefinitions?: CustomStatDefinition[];
+    timestamp?: number;
+  },
+): TrackerData {
+  const statistics = emptyStatistics();
+  const customStatistics: CustomStatistics = {};
+  const customNonNumericStatistics: NonNullable<TrackerData["customNonNumericStatistics"]> = {};
+  const statId = response.statId;
+
+  const putNumeric = (bucket: Record<string, unknown>): void => {
+    for (const [ownerName, rawValue] of Object.entries(response.values)) {
+      const value = coerceNumeric(rawValue);
+      if (value !== undefined) bucket[ownerName] = value;
+    }
+  };
+  const putText = (bucket: Record<string, unknown>): void => {
+    for (const [ownerName, rawValue] of Object.entries(response.values)) {
+      const value = coerceText(rawValue);
+      if (value !== undefined) bucket[ownerName] = value;
+    }
+  };
+
+  if (statId === "affection") {
+    putNumeric(statistics.affection);
+  } else if (statId === "trust") {
+    putNumeric(statistics.trust);
+  } else if (statId === "desire") {
+    putNumeric(statistics.desire);
+  } else if (statId === "connection") {
+    putNumeric(statistics.connection);
+  } else if (statId === "mood") {
+    putText(statistics.mood);
+  } else if (statId === "lastThought") {
+    putText(statistics.lastThought);
+  } else {
+    const definition = (options.customStatDefinitions ?? []).find(candidate => candidate.id === statId);
+    if (normalizeCustomStatKind(definition?.kind) === "numeric") {
+      const bucket: Record<string, number> = {};
+      putNumeric(bucket);
+      customStatistics[statId] = bucket;
+    } else {
+      const bucket: Record<string, string | boolean | string[]> = {};
+      for (const [ownerName, rawValue] of Object.entries(response.values)) {
+        const normalized = normalizeCustomNonNumericValue(
+          normalizeCustomStatKind(definition?.kind),
+          rawValue,
+          {
+            enumOptions: definition?.enumOptions,
+            textMaxLength: definition?.textMaxLength,
+            dateTimeMode: definition?.dateTimeMode,
+            preserveExplicitEmptyArray: true,
+          },
+        );
+        if (normalized !== undefined) bucket[ownerName] = normalized;
+      }
+      customNonNumericStatistics[statId] = bucket;
+    }
+  }
+
+  return {
+    timestamp: options.timestamp ?? Date.now(),
+    activeCharacters: [...options.activeCharacters],
+    entityResolution: options.entityResolution ?? undefined,
+    statistics,
+    customStatistics,
     customNonNumericStatistics,
   };
 }

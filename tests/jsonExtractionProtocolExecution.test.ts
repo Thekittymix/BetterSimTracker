@@ -200,6 +200,81 @@ test("executeJsonExtractionProtocol materializes tracker data and parity for mat
   assert.equal(result.trackerData.statistics.mood.Candy, "Playful");
 });
 
+test("executeJsonExtractionProtocol materializes a sequential stat-only JSON response", () => {
+  const expected = makeExpectedTracker();
+  const result = executeJsonExtractionProtocol({
+    context: makeContext(),
+    reason: "GENERATION_ENDED",
+    messageIndex: 0,
+    settings: {
+      ...makeSettings(),
+      trackAffection: false,
+      trackTrust: false,
+      trackDesire: true,
+      trackConnection: false,
+      trackMood: false,
+      trackLastThought: false,
+      customStats: [],
+    },
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: expected.entityResolution,
+    previousTrackerData: expected,
+    previousStatistics: expected.statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: expected.customNonNumericStatistics,
+    responseMode: "stat",
+    statId: "desire",
+    rawJsonResponse: JSON.stringify({
+      protocolVersion: "bst.extract.v1",
+      responseType: "stat_extraction_result",
+      result: { status: "ok" },
+      statId: "desire",
+      values: {
+        Candy: 35,
+        Lisa: 30,
+      },
+    }),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.trackerData.statistics.desire, { Candy: 35, Lisa: 30 });
+  assert.deepEqual(result.trackerData.statistics.affection, {});
+  assert.deepEqual(result.trackerData.customNonNumericStatistics, {});
+  assert.deepEqual(result.trackerData.activeCharacters, ["Candy", "Lisa"]);
+});
+
+test("executeJsonExtractionProtocol rejects a stat-only response for the wrong sequential stat", () => {
+  const expected = makeExpectedTracker();
+  const result = executeJsonExtractionProtocol({
+    context: makeContext(),
+    reason: "GENERATION_ENDED",
+    messageIndex: 0,
+    settings: makeSettings(),
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: expected.entityResolution,
+    previousTrackerData: expected,
+    previousStatistics: expected.statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: expected.customNonNumericStatistics,
+    responseMode: "stat",
+    statId: "pose",
+    rawJsonResponse: JSON.stringify({
+      protocolVersion: "bst.extract.v1",
+      responseType: "stat_extraction_result",
+      result: { status: "ok" },
+      statId: "scene_date_time",
+      values: {
+        Candy: "2026-03-07 20:00",
+      },
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.deepEqual(result.errors, ["statId: Expected pose, got scene_date_time."]);
+});
+
 test("executeJsonExtractionProtocol returns request context together with parse errors", () => {
   const result = executeJsonExtractionProtocol({
     context: makeContext(),

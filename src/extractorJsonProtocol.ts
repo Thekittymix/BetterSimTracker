@@ -247,6 +247,8 @@ type JsonProtocolRequestPlanItem = {
   label: string;
   statsRequested: string[];
   settings: BetterSimTrackerSettings;
+  responseMode: "tracker" | "stat";
+  statId?: string;
 };
 
 function buildJsonProtocolRequestPlan(settings: BetterSimTrackerSettings): JsonProtocolRequestPlanItem[] {
@@ -258,6 +260,7 @@ function buildJsonProtocolRequestPlan(settings: BetterSimTrackerSettings): JsonP
         ...enabledCustomStats(settings).map(stat => stat.id),
       ],
       settings,
+      responseMode: "tracker",
     }];
   }
 
@@ -268,6 +271,8 @@ function buildJsonProtocolRequestPlan(settings: BetterSimTrackerSettings): JsonP
       base: settings,
       builtInStats: [stat],
     }),
+    responseMode: "stat" as const,
+    statId: stat,
   }));
   const customItems = groupCustomStatsForSequential(
     enabledCustomStats(settings),
@@ -281,6 +286,8 @@ function buildJsonProtocolRequestPlan(settings: BetterSimTrackerSettings): JsonP
       base: settings,
       customStats: group,
     }),
+    responseMode: group.length === 1 ? "stat" as const : "tracker" as const,
+    statId: group.length === 1 ? group[0]?.id : undefined,
   }));
   return [...builtInItems, ...customItems];
 }
@@ -330,6 +337,8 @@ export async function tryExtractStatisticsViaJsonProtocol(
         previousStatistics: input.previousStatistics,
         previousCustomStatistics: input.previousCustomStatistics,
         previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
+        responseMode: planItem.responseMode,
+        statId: planItem.statId,
       });
       if (input.isCancelled?.()) {
         throw new DOMException("Request aborted by user", "AbortError");
@@ -346,6 +355,8 @@ export async function tryExtractStatisticsViaJsonProtocol(
           previousStatistics: input.previousStatistics,
           previousCustomStatistics: input.previousCustomStatistics,
           previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
+          responseMode: planItem.responseMode,
+          statId: planItem.statId,
           requestTextOverride: transportResult.requestText,
           rawJsonResponse: transportResult.responseText,
           responseMeta: transportResult.responseMeta,
@@ -385,6 +396,8 @@ export async function tryExtractStatisticsViaJsonProtocol(
         previousStatistics: input.previousStatistics,
         previousCustomStatistics: input.previousCustomStatistics,
         previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
+        responseMode: planItem.responseMode,
+        statId: planItem.statId,
         requestTextOverride: transportResult.requestText,
         rawJsonResponse: transportResult.responseText,
         responseMeta: transportResult.responseMeta,

@@ -13,6 +13,8 @@ export interface BuildJsonExtractionShadowRequestForRunInput {
   previousCustomStatistics?: CustomStatistics | null;
   previousCustomNonNumericStatistics?: CustomNonNumericStatistics | null;
   historyLimit?: number;
+  responseMode?: "tracker" | "stat";
+  statId?: string;
 }
 
 function isRetrackReason(reason: string): boolean {
@@ -53,5 +55,7 @@ export function buildJsonExtractionShadowRequestForExtractionRun(
     previousCustomStatistics: input.previousCustomStatistics,
     previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
     historyLimit: input.historyLimit,
+    responseMode: input.responseMode,
+    statId: input.statId,
   });
 }

@@ -167,6 +167,8 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes sequential JSON re
     previousStatistics: makePreviousTracker().statistics,
     previousCustomStatistics: makePreviousTracker().customStatistics,
     previousCustomNonNumericStatistics: makePreviousTracker().customNonNumericStatistics,
+    responseMode: "stat",
+    statId: "desire",
   });
 
   assert.deepEqual(request.statDefinitions.builtIn.map(stat => stat.id), ["desire"]);
@@ -194,7 +196,16 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes sequential JSON re
   assert.deepEqual(latestSnapshot.statistics.desire, { Candy: 35, Lisa: 30 });
   assert.deepEqual(latestSnapshot.customNonNumericStatistics, {});
 
-  assert.deepEqual(Object.keys(request.outputContract.responseSchema?.builtInStats as Record<string, unknown>), ["desire"]);
-  assert.deepEqual(request.outputContract.responseSchema?.customStats, {});
-  assert.deepEqual(request.outputContract.responseSchema?.customNonNumericStats, {});
+  assert.deepEqual(request.outputContract.requiredSections, ["result", "statId", "values"]);
+  assert.deepEqual(request.outputContract.responseSchema, {
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: {
+      status: "ok",
+    },
+    statId: "desire",
+    values: {
+      "Owner display name": "value for this stat only",
+    },
+  });
 });

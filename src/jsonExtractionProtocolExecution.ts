@@ -1,7 +1,7 @@
-import { materializeTrackerDataFromJsonExtractionResponseV1 } from "./jsonExtractionProtocolAdapter";
+import { materializeTrackerDataFromJsonExtractionResponseV1, materializeTrackerDataFromJsonExtractionStatResponseV1 } from "./jsonExtractionProtocolAdapter";
 import { serializeJsonExtractionRequestV1 } from "./jsonExtractionProtocolBuilder";
 import { compareTrackerDataParity, type JsonExtractionParityReport } from "./jsonExtractionProtocolParity";
-import { parseAndValidateJsonExtractionResponseV1, type JsonExtractionResponseV1 } from "./jsonExtractionProtocol";
+import { parseAndValidateJsonExtractionResponseV1, parseAndValidateJsonExtractionStatResponseV1, type JsonExtractionResponseV1, type JsonExtractionStatResponseV1 } from "./jsonExtractionProtocol";
 import { buildJsonExtractionShadowRequestForExtractionRun, type BuildJsonExtractionShadowRequestForRunInput } from "./jsonExtractionProtocolRuntimeBridge";
 import type { JsonExtractionRequestV1 } from "./jsonExtractionProtocol";
 import type { TrackerData } from "./types";
@@ -32,7 +32,7 @@ export function executeJsonExtractionProtocol(
   ok: true;
   request: JsonExtractionRequestV1;
   requestText: string;
-  response: JsonExtractionResponseV1;
+  response: JsonExtractionResponseV1 | JsonExtractionStatResponseV1;
   trackerData: TrackerData;
   parity: JsonExtractionParityReport | null;
 } | {
@@ -42,7 +42,9 @@ export function executeJsonExtractionProtocol(
   errors: string[];
 } {
   const prepared = prepareJsonExtractionProtocolRequest(input);
-  const parsed = parseAndValidateJsonExtractionResponseV1(input.rawJsonResponse);
+  const parsed = input.responseMode === "stat"
+    ? parseAndValidateJsonExtractionStatResponseV1(input.rawJsonResponse)
+    : parseAndValidateJsonExtractionResponseV1(input.rawJsonResponse);
   if (!parsed.ok) {
     return {
       ok: false,
@@ -51,11 +53,30 @@ export function executeJsonExtractionProtocol(
       errors: parsed.errors.map(error => `${error.path}: ${error.message}`),
     };
   }
+  if (
+    input.responseMode === "stat"
+    && input.statId
+    && (parsed.value as JsonExtractionStatResponseV1).statId !== input.statId
+  ) {
+    return {
+      ok: false,
+      request: prepared.request,
+      requestText: prepared.requestText,
+      errors: [`statId: Expected ${input.statId}, got ${(parsed.value as JsonExtractionStatResponseV1).statId}.`],
+    };
+  }
 
-  const trackerData = materializeTrackerDataFromJsonExtractionResponseV1(parsed.value, {
-    customStatDefinitions: input.settings.customStats,
-    timestamp: input.expectedTrackerData?.timestamp,
-  });
+  const trackerData = input.responseMode === "stat"
+    ? materializeTrackerDataFromJsonExtractionStatResponseV1(parsed.value as JsonExtractionStatResponseV1, {
+        activeCharacters: input.activeCharacters,
+        entityResolution: input.entityResolution,
+        customStatDefinitions: input.settings.customStats,
+        timestamp: input.expectedTrackerData?.timestamp,
+      })
+    : materializeTrackerDataFromJsonExtractionResponseV1(parsed.value as JsonExtractionResponseV1, {
+        customStatDefinitions: input.settings.customStats,
+        timestamp: input.expectedTrackerData?.timestamp,
+      });
 
   return {
     ok: true,

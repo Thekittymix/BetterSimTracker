@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev18] - 2026-04-20
+### Fixed
+- Changed sequential JSON extraction stages to request and parse stat-only JSON responses instead of requiring each stage to return a full tracker-shaped response.
+
 ## [2.5.3.5-dev17] - 2026-04-20
 ### Fixed
 - Fixed sequential JSON extraction requests so each stat-scoped request also scopes the previous-state payload and response schema to that stat instead of showing the model full-tracker examples.
