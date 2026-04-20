@@ -142,6 +142,51 @@ export type MultiCharacterResolutionResult = {
   unresolvedMentions: string[];
 };
 
+export function shouldRepairSourceGroupResolverResult(input: {
+  candidateEntities: MultiCharacterResolverCandidate[];
+  result: MultiCharacterResolutionResult | null;
+  characterCardContext?: string;
+  message: ChatMessage;
+  allowNarrativeEntityCreation?: boolean;
+}): boolean {
+  if (input.allowNarrativeEntityCreation !== true) return false;
+  if (!input.result) return false;
+  const candidateEntities = input.candidateEntities
+    .filter(candidate => normalizeToken(candidate.entityRef) && normalizeToken(candidate.ownerName));
+  if (candidateEntities.length !== 1) return false;
+  if (!normalizeToken(input.characterCardContext)) return false;
+  if (!normalizeToken(input.message?.mes)) return false;
+  const resolvedSceneCount = input.result.resolvedEntities
+    .filter(entity => entity.inScene || entity.inMessage)
+    .length;
+  const createdSceneCount = input.result.createdEntities
+    .filter(entity => entity.inScene || entity.inMessage)
+    .length;
+  return resolvedSceneCount + createdSceneCount <= 1;
+}
+
+export function buildSourceGroupResolverRepairPrompt(input: {
+  originalPrompt: string;
+  previousResponseText: string;
+}): string {
+  return [
+    "SYSTEM:",
+    "You are auditing a BetterSimTracker entity resolver response.",
+    "The prior response may have under-resolved a source/group character card by keeping the result collapsed to one actor.",
+    "Use the original resolver request below as the source of truth.",
+    "If the latest message and character card context clearly identify multiple concrete non-user character-like actors under the source/group card, return the complete corrected resolver JSON with each concrete actor represented.",
+    "If the prior response was already complete, return the same resolver JSON.",
+    "Do not invent names. Do not infer from outside the provided request. Do not include the user as a resolved or created entity.",
+    "Return strict JSON only with `resolved`, `created`, and `unresolvedMentions`.",
+    "",
+    "Prior resolver response:",
+    normalizeToken(input.previousResponseText) || "(empty)",
+    "",
+    "Original resolver request:",
+    normalizeToken(input.originalPrompt) || "(empty)",
+  ].join("\n");
+}
+
 type CandidateMatchKind = "entity_ref" | "entity_id" | "owner_name" | "alias";
 
 type CandidateMatch = {

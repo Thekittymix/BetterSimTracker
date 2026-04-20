@@ -29,12 +29,14 @@ import {
   resolveUserExtractionOwnerScopes,
 } from "./entityResolution";
 import {
+  buildSourceGroupResolverRepairPrompt,
   buildMultiCharacterResolverPrompt,
   parseMultiCharacterResolverResponse,
   resolveMessageEntityIdsFromResolvedEntities,
   resolveMessageOwnersFromResolvedEntities,
   resolveSceneEntityIdsFromResolvedEntities,
   resolveSceneOwnersFromResolvedEntities,
+  shouldRepairSourceGroupResolverResult,
 } from "./entityResolver";
 import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
 import {
@@ -202,11 +204,6 @@ import { validateUserTurnReplayState } from "./userTurnReplayPolicy";
 import { createBootstrapScheduler } from "./bootstrapScheduler";
 import { createLateRenderRecoveryController } from "./lateRenderRecovery";
 import { executeUserTurnReplay } from "./userTurnReplayExecution";
-import {
-  buildJsonExtractionShadowDebug,
-  buildJsonExtractionShadowExpectedTrackerData,
-} from "./jsonExtractionProtocolDebug";
-import { runJsonExtractionProtocolShadowTransport } from "./jsonExtractionProtocolTransport";
 
 declare const __BST_VERSION__: string;
 
@@ -3557,8 +3554,31 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               recentTrackerHistory,
             }),
           });
-          const resolverResponse = await generateJson(resolverPrompt, activeSettings);
-          const parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
+          let resolverResponse = await generateJson(resolverPrompt, activeSettings);
+          let parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
+          if (shouldRepairSourceGroupResolverResult({
+            candidateEntities,
+            result: parsedResolver,
+            characterCardContext: resolverCharacterCardContext,
+            message: lastMessage,
+            allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
+          })) {
+            const repairPrompt = buildSourceGroupResolverRepairPrompt({
+              originalPrompt: resolverPrompt,
+              previousResponseText: resolverResponse.text,
+            });
+            const repairResponse = await generateJson(repairPrompt, activeSettings);
+            const repairedResolver = parseMultiCharacterResolverResponse(repairResponse.text, candidateEntities);
+            if (repairedResolver) {
+              resolverResponse = repairResponse;
+              parsedResolver = repairedResolver;
+              pushTrace("entity.resolve.repair", {
+                source: "model",
+                candidateOwners,
+                createdEntities: repairedResolver.createdEntities.map(entity => entity.name),
+              });
+            }
+          }
           const materializedResolution = parsedResolver
             ? materializeNarrativeEntityCreations({
                 context,
@@ -4133,93 +4153,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       const extractedCustom = extractedResult.customStatistics;
       const extractedCustomNonNumeric = extractedResult.customNonNumericStatistics;
       lastDebugRecord = extractedResult.debug;
-      if (lastDebugRecord?.meta && extractionSettings.extractionProtocolMode !== "json") {
-        const jsonShadowExpectedTrackerData = buildJsonExtractionShadowExpectedTrackerData({
-          activeCharacters,
-          entityResolution: resolvedEntityResolution,
-          statistics: extracted,
-          customStatistics: extractedCustom,
-          customNonNumericStatistics: extractedCustomNonNumeric,
-        });
-        let jsonShadowDebug = buildJsonExtractionShadowDebug({
-          context,
-          reason,
-          messageIndex: lastIndex,
-          settings: extractionSettings,
-          activeCharacters,
-          entityResolution: resolvedEntityResolution,
-          previousTrackerData: previousEntry?.data ?? null,
-          previousStatistics: previousSeededStatistics,
-          previousCustomStatistics: previousSeededCustomStatistics,
-          previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
-          expectedTrackerData: jsonShadowExpectedTrackerData,
-        });
-        if (activeSettings.debug) {
-          try {
-            const shadowTransport = await runJsonExtractionProtocolShadowTransport({
-              context,
-              reason,
-              messageIndex: lastIndex,
-              settings: extractionSettings,
-              activeCharacters,
-              entityResolution: resolvedEntityResolution,
-              previousTrackerData: previousEntry?.data ?? null,
-              previousStatistics: previousSeededStatistics,
-              previousCustomStatistics: previousSeededCustomStatistics,
-              previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
-              expectedTrackerData: jsonShadowExpectedTrackerData,
-            });
-            jsonShadowDebug = buildJsonExtractionShadowDebug({
-              context,
-              reason,
-              messageIndex: lastIndex,
-              settings: extractionSettings,
-              activeCharacters,
-              entityResolution: resolvedEntityResolution,
-              previousTrackerData: previousEntry?.data ?? null,
-              previousStatistics: previousSeededStatistics,
-              previousCustomStatistics: previousSeededCustomStatistics,
-              previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
-              expectedTrackerData: jsonShadowExpectedTrackerData,
-              requestTextOverride: shadowTransport.requestText,
-              rawJsonResponse: shadowTransport.responseText,
-              responseMeta: shadowTransport.responseMeta,
-            });
-          } catch (error) {
-            pushTrace("json_shadow.transport_error", {
-              runId,
-              messageIndex: lastIndex,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            jsonShadowDebug = buildJsonExtractionShadowDebug({
-              context,
-              reason,
-              messageIndex: lastIndex,
-              settings: extractionSettings,
-              activeCharacters,
-              entityResolution: resolvedEntityResolution,
-              previousTrackerData: previousEntry?.data ?? null,
-              previousStatistics: previousSeededStatistics,
-              previousCustomStatistics: previousSeededCustomStatistics,
-              previousCustomNonNumericStatistics: previousSeededCustomNonNumericStatistics,
-              expectedTrackerData: jsonShadowExpectedTrackerData,
-              transportError: error,
-            });
-          }
-        }
-        lastDebugRecord.meta.jsonShadow = jsonShadowDebug;
-        if (activeSettings.debug && jsonShadowDebug.status !== "request_built") {
-          pushTrace("json_shadow.result", {
-            runId,
-            messageIndex: lastIndex,
-            status: jsonShadowDebug.status,
-            mismatchPaths: jsonShadowDebug.parityMismatchPaths ?? [],
-            validationErrors: jsonShadowDebug.validationErrors?.length ?? 0,
-            responseChars: jsonShadowDebug.responseText?.length ?? 0,
-            profileId: jsonShadowDebug.responseMeta?.profileId ?? null,
-          });
-        }
-      } else if (lastDebugRecord?.meta?.jsonShadow && activeSettings.debug && lastDebugRecord.meta.jsonShadow.status !== "request_built") {
+      if (lastDebugRecord?.meta?.jsonShadow && activeSettings.debug && lastDebugRecord.meta.jsonShadow.status !== "request_built") {
         pushTrace("json_shadow.result", {
           runId,
           messageIndex: lastIndex,

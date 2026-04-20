@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev11] - 2026-04-20
+### Fixed
+- Fixed source/group card entity resolution so under-expanded model resolver outputs get a model-based repair pass instead of relying on provider-specific first-pass behavior.
+- Fixed legacy extraction mode so it no longer sends JSON protocol shadow requests from the runtime extraction flow.
+
 ## [2.5.3.5-dev10] - 2026-04-20
 ### Fixed
 - Fixed dynamic entity resolution for source/group character cards so the resolver receives source card context before extraction and can materialize concrete named characters instead of collapsing the run to the source owner plus whichever names the provider happens to create.

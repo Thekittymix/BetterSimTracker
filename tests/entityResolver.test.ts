@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildSourceGroupResolverRepairPrompt,
   buildMultiCharacterResolverPrompt,
   parseMultiCharacterResolverResponse,
   resolveResolvedEntityConfidence,
+  shouldRepairSourceGroupResolverResult,
 } from "../src/entityResolver";
 
 test("buildMultiCharacterResolverPrompt lists candidate owners and latest message metadata", () => {
@@ -139,22 +141,22 @@ test("buildMultiCharacterResolverPrompt gives source-card context to resolver fo
     candidateEntities: [
       {
         entityRef: "ent1",
-        ownerName: "Your Family",
-        entityId: "bst_owner:your family.png|your family",
+        ownerName: "Shared Card",
+        entityId: "bst_owner:shared.png|shared card",
         kind: "st-character",
-        aliases: ["Your Family"],
+        aliases: ["Shared Card"],
       },
     ],
-    contextText: "Your Family: The front door opens and the family steps into the house.",
+    contextText: "Shared Card: The studio door opens and the ensemble steps inside.",
     characterCardContext: [
-      "Target character card context (highest priority card context for Your Family; do not use any other card as this target's state source):",
-      "Character Card - Your Family",
-      "Description: Marylyn is the mother. Serena, Lisa, and Candy are her daughters.",
+      "Target character card context (highest priority card context for Shared Card; do not use any other card as this target's state source):",
+      "Character Card - Shared Card",
+      "Description: Avery coordinates the group. Blake and Casey are separate performers.",
       "Personality: Warm, chaotic, and prone to teasing.",
     ].join("\n"),
     message: {
-      name: "Your Family",
-      mes: "Marylyn, Serena, Lisa, and Candy settle into the living room together.",
+      name: "Shared Card",
+      mes: "Avery, Blake, and Casey settle into the studio together.",
       is_user: false,
       is_system: false,
     } as any,
@@ -162,10 +164,81 @@ test("buildMultiCharacterResolverPrompt gives source-card context to resolver fo
   });
 
   assert.match(prompt, /Character card context:/);
-  assert.match(prompt, /Character Card - Your Family/);
-  assert.match(prompt, /Marylyn is the mother\. Serena, Lisa, and Candy are her daughters\./);
+  assert.match(prompt, /Character Card - Shared Card/);
+  assert.match(prompt, /Avery coordinates the group\. Blake and Casey are separate performers\./);
   assert.match(prompt, /source\/group character card can describe multiple concrete character-like actors/i);
   assert.match(prompt, /return them in `created` instead of leaving the whole group collapsed/i);
+});
+
+test("shouldRepairSourceGroupResolverResult only flags under-expanded source-card model results", () => {
+  const candidateEntities = [
+    {
+      entityRef: "ent1",
+      ownerName: "Shared Card",
+      entityId: "bst_owner:shared.png|shared card",
+      kind: "st-character" as const,
+      aliases: ["Shared Card"],
+    },
+  ];
+  const message = {
+    name: "Shared Card",
+    mes: "Avery, Blake, and Casey enter the studio together.",
+    is_user: false,
+    is_system: false,
+  } as any;
+
+  assert.equal(shouldRepairSourceGroupResolverResult({
+    candidateEntities,
+    result: {
+      resolvedEntities: [],
+      createdEntities: [{ name: "Avery", inScene: true, inMessage: true }],
+      unresolvedMentions: [],
+    },
+    characterCardContext: "Character Card - Shared Card\nDescription: Avery, Blake, and Casey are separate actors.",
+    message,
+    allowNarrativeEntityCreation: true,
+  }), true);
+
+  assert.equal(shouldRepairSourceGroupResolverResult({
+    candidateEntities,
+    result: {
+      resolvedEntities: [],
+      createdEntities: [
+        { name: "Avery", inScene: true, inMessage: true },
+        { name: "Blake", inScene: true, inMessage: true },
+      ],
+      unresolvedMentions: [],
+    },
+    characterCardContext: "Character Card - Shared Card\nDescription: Avery, Blake, and Casey are separate actors.",
+    message,
+    allowNarrativeEntityCreation: true,
+  }), false);
+});
+
+test("buildSourceGroupResolverRepairPrompt keeps character resolution with the model", () => {
+  const prompt = buildSourceGroupResolverRepairPrompt({
+    previousResponseText: JSON.stringify({
+      resolved: [],
+      created: [{ name: "Avery", inScene: true, inMessage: true }],
+      unresolvedMentions: [],
+    }),
+    originalPrompt: [
+      "Candidate entities:",
+      JSON.stringify([{ entityRef: "ent1", ownerName: "Shared Card" }]),
+      "Character card context:",
+      "Character Card - Shared Card",
+      "Description: Avery, Blake, and Casey are separate actors.",
+      "Latest message:",
+      "Avery, Blake, and Casey enter the studio together.",
+    ].join("\n"),
+  });
+
+  assert.match(prompt, /auditing a BetterSimTracker entity resolver response/i);
+  assert.match(prompt, /source\/group character card/i);
+  assert.match(prompt, /return the complete corrected resolver JSON/i);
+  assert.match(prompt, /Do not invent names/i);
+  assert.match(prompt, /Prior resolver response:/);
+  assert.match(prompt, /Original resolver request:/);
 });
 
 test("buildMultiCharacterResolverPrompt forbids props and objects in created entities", () => {
