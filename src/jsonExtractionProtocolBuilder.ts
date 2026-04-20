@@ -133,6 +133,57 @@ function splitCustomStatDefinitions(definitions: CustomStatDefinition[] | undefi
   return { customNumeric, customNonNumeric };
 }
 
+function exampleValueForStat(definition: JsonExtractionRequestStatDefinition): unknown {
+  if (definition.kind === "numeric") return 45;
+  if (definition.kind === "boolean") return true;
+  if (definition.kind === "array") return ["value"];
+  if (definition.kind === "date_time") return "2026-03-07 20:00";
+  if (definition.id === "mood") return "calm";
+  if (definition.id === "lastThought") return "short thought";
+  return "value";
+}
+
+function buildStatResponseSchema(definitions: JsonExtractionRequestStatDefinition[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const definition of definitions) {
+    out[definition.id] = {
+      "Owner display name": exampleValueForStat(definition),
+    };
+  }
+  return out;
+}
+
+function buildResponseSchema(input: {
+  builtIn: JsonExtractionRequestStatDefinition[];
+  customNumeric: JsonExtractionRequestStatDefinition[];
+  customNonNumeric: JsonExtractionRequestStatDefinition[];
+}): Record<string, unknown> {
+  return {
+    protocolVersion: JSON_EXTRACTION_PROTOCOL_VERSION,
+    responseType: "tracker_extraction_result",
+    result: {
+      status: "ok",
+    },
+    entityResolution: {
+      sceneOwners: ["Owner still in the active scene"],
+      messageOwners: ["Owner directly advanced by the current message"],
+      resolvedEntities: [
+        {
+          entityId: "stable entity id or empty when unavailable",
+          ownerName: "Owner display name",
+          kind: "owner | multi_character_alias | narrative-entity | st-character | persona",
+          aliases: ["optional alias"],
+          inScene: true,
+          inMessage: true,
+        },
+      ],
+    },
+    builtInStats: buildStatResponseSchema(input.builtIn),
+    customStats: buildStatResponseSchema(input.customNumeric),
+    customNonNumericStats: buildStatResponseSchema(input.customNonNumeric),
+  };
+}
+
 export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestInput): JsonExtractionRequestV1 {
   const builtIn = buildBuiltInStatDefinitions(input.enabledBuiltInStats);
   const { customNumeric, customNonNumeric } = splitCustomStatDefinitions(input.settings.customStats);
@@ -182,41 +233,7 @@ export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestIn
         "customStats",
         "customNonNumericStats",
       ],
-      responseSchema: input.outputContract?.responseSchema ?? {
-        protocolVersion: JSON_EXTRACTION_PROTOCOL_VERSION,
-        responseType: "tracker_extraction_result",
-        result: {
-          status: "ok",
-        },
-        entityResolution: {
-          sceneOwners: ["Owner still in the active scene"],
-          messageOwners: ["Owner directly advanced by the current message"],
-          resolvedEntities: [
-            {
-              entityId: "stable entity id or empty when unavailable",
-              ownerName: "Owner display name",
-              kind: "owner | multi_character_alias | narrative-entity | st-character | persona",
-              aliases: ["optional alias"],
-              inScene: true,
-              inMessage: true,
-            },
-          ],
-        },
-        builtInStats: {
-          affection: { "Owner display name": 45 },
-          trust: { "Owner display name": 45 },
-          desire: { "Owner display name": 35 },
-          connection: { "Owner display name": 48 },
-          mood: { "Owner display name": "calm" },
-          lastThought: { "Owner display name": "short thought" },
-        },
-        customStats: {
-          custom_numeric_stat_id: { "Owner display name": 1 },
-        },
-        customNonNumericStats: {
-          custom_text_or_array_stat_id: { "Owner display name": "value or array" },
-        },
-      },
+      responseSchema: input.outputContract?.responseSchema ?? buildResponseSchema({ builtIn, customNumeric, customNonNumeric }),
     },
   };
 }

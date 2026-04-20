@@ -1,6 +1,7 @@
 import { USER_TRACKER_KEY } from "./constants";
+import { normalizeCustomStatKind } from "./customStatRuntime";
 import { getEntityRegistryEntryByOwnerName, getEntityRegistryEntryForMessage } from "./entityRegistry";
-import { buildPromptCurrentTrackerData, enabledBuiltInAndTextStats } from "./extractorHelpers";
+import { buildPromptCurrentTrackerData, enabledBuiltInAndTextStats, enabledCustomStats } from "./extractorHelpers";
 import { resolveStableEntityIdForOwner } from "./entityResolution";
 import { buildJsonExtractionRecentHistoryEntries, resolveJsonExtractionMessageSpeaker } from "./jsonExtractionProtocolHistory";
 import { buildJsonExtractionRequestV1, type BuildJsonExtractionRequestInput } from "./jsonExtractionProtocolBuilder";
@@ -67,6 +68,47 @@ function mapRegistryKindToJsonKind(kind: string | null | undefined): "owner" | "
   return "st-character";
 }
 
+function pickRecordKeys<T>(source: Record<string, T> | null | undefined, keys: string[]): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const key of keys) {
+    if (source && Object.prototype.hasOwnProperty.call(source, key)) {
+      out[key] = source[key];
+    }
+  }
+  return out;
+}
+
+function scopeCurrentStateDataForJsonRequest(input: {
+  currentStateData: TrackerData;
+  settings: BetterSimTrackerSettings;
+}): TrackerData {
+  const builtInStats = enabledBuiltInAndTextStats(input.settings);
+  const customNumericStats: string[] = [];
+  const customNonNumericStats: string[] = [];
+  for (const stat of enabledCustomStats(input.settings)) {
+    const kind = normalizeCustomStatKind(stat.kind);
+    if (kind === "numeric") {
+      customNumericStats.push(stat.id);
+    } else {
+      customNonNumericStats.push(stat.id);
+    }
+  }
+
+  return {
+    ...input.currentStateData,
+    statistics: {
+      affection: builtInStats.includes("affection") ? { ...(input.currentStateData.statistics?.affection ?? {}) } : {},
+      trust: builtInStats.includes("trust") ? { ...(input.currentStateData.statistics?.trust ?? {}) } : {},
+      desire: builtInStats.includes("desire") ? { ...(input.currentStateData.statistics?.desire ?? {}) } : {},
+      connection: builtInStats.includes("connection") ? { ...(input.currentStateData.statistics?.connection ?? {}) } : {},
+      mood: builtInStats.includes("mood") ? { ...(input.currentStateData.statistics?.mood ?? {}) } : {},
+      lastThought: builtInStats.includes("lastThought") ? { ...(input.currentStateData.statistics?.lastThought ?? {}) } : {},
+    },
+    customStatistics: pickRecordKeys(input.currentStateData.customStatistics, customNumericStats),
+    customNonNumericStatistics: pickRecordKeys(input.currentStateData.customNonNumericStatistics, customNonNumericStats),
+  };
+}
+
 export function buildJsonExtractionEntityContextFromContext(
   input: Pick<BuildJsonExtractionShadowRequestFromContextInput, "context" | "messageIndex" | "settings" | "activeCharacters" | "previousTrackerData">,
 ): BuildJsonExtractionRequestInput["entityContext"] {
@@ -105,13 +147,16 @@ export function buildJsonExtractionEntityContextFromContext(
 export function buildJsonExtractionShadowRequest(
   input: BuildJsonExtractionShadowRequestInput,
 ): ReturnType<typeof buildJsonExtractionRequestV1> {
-  const currentStateData = buildPromptCurrentTrackerData({
-    activeCharacters: input.activeCharacters,
-    entityResolution: input.entityResolution,
-    previousTrackerData: input.previousTrackerData,
-    previousStatistics: input.previousStatistics,
-    previousCustomStatistics: input.previousCustomStatistics,
-    previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
+  const currentStateData = scopeCurrentStateDataForJsonRequest({
+    settings: input.settings,
+    currentStateData: buildPromptCurrentTrackerData({
+      activeCharacters: input.activeCharacters,
+      entityResolution: input.entityResolution,
+      previousTrackerData: input.previousTrackerData,
+      previousStatistics: input.previousStatistics,
+      previousCustomStatistics: input.previousCustomStatistics,
+      previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
+    }),
   });
 
   return buildJsonExtractionRequestV1({

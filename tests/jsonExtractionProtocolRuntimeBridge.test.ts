@@ -17,6 +17,21 @@ function makeSettings(): BetterSimTrackerSettings {
     trackConnection: true,
     trackMood: true,
     trackLastThought: true,
+    customStats: [
+      {
+        id: "pose",
+        kind: "text_short",
+        label: "Pose",
+        defaultValue: "Unknown",
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
   };
 }
 
@@ -67,15 +82,20 @@ function makePreviousTracker(): TrackerData {
       ],
     },
     statistics: {
-      affection: {},
-      trust: {},
-      desire: {},
-      connection: {},
-      mood: {},
-      lastThought: {},
+      affection: { Candy: 45, Lisa: 42 },
+      trust: { Candy: 45, Lisa: 42 },
+      desire: { Candy: 35, Lisa: 30 },
+      connection: { Candy: 48, Lisa: 41 },
+      mood: { Candy: "Playful", Lisa: "Watching" },
+      lastThought: { Candy: "She is trying to help.", Lisa: "She wants to tease him." },
     },
     customStatistics: {},
-    customNonNumericStatistics: {},
+    customNonNumericStatistics: {
+      pose: {
+        Candy: "Standing by the bed.",
+        Lisa: "Watching from nearby.",
+      },
+    },
   };
 }
 
@@ -121,4 +141,60 @@ test("buildJsonExtractionShadowRequestForExtractionRun derives user-turn mode an
   assert.equal(request.task.swipeRetrack, false);
   assert.equal(request.message.isUser, true);
   assert.equal(request.message.speaker, "Kuba");
+});
+
+test("buildJsonExtractionShadowRequestForExtractionRun scopes sequential JSON request state and schema to the requested stat", () => {
+  const context = makeContext();
+  const scopedSettings: BetterSimTrackerSettings = {
+    ...makeSettings(),
+    trackAffection: false,
+    trackTrust: false,
+    trackDesire: true,
+    trackConnection: false,
+    trackMood: false,
+    trackLastThought: false,
+    customStats: [],
+  };
+
+  const request = buildJsonExtractionShadowRequestForExtractionRun({
+    context,
+    reason: "GENERATION_ENDED",
+    messageIndex: 0,
+    settings: scopedSettings,
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: makePreviousTracker().entityResolution,
+    previousTrackerData: makePreviousTracker(),
+    previousStatistics: makePreviousTracker().statistics,
+    previousCustomStatistics: makePreviousTracker().customStatistics,
+    previousCustomNonNumericStatistics: makePreviousTracker().customNonNumericStatistics,
+  });
+
+  assert.deepEqual(request.statDefinitions.builtIn.map(stat => stat.id), ["desire"]);
+  assert.deepEqual(Object.keys(request.currentState.builtInStats), [
+    "affection",
+    "trust",
+    "desire",
+    "connection",
+    "mood",
+    "lastThought",
+  ]);
+  assert.deepEqual(request.currentState.builtInStats.affection, {});
+  assert.deepEqual(request.currentState.builtInStats.trust, {});
+  assert.deepEqual(request.currentState.builtInStats.desire, { Candy: 35, Lisa: 30 });
+  assert.deepEqual(request.currentState.builtInStats.connection, {});
+  assert.deepEqual(request.currentState.builtInStats.mood, {});
+  assert.deepEqual(request.currentState.builtInStats.lastThought, {});
+  assert.deepEqual(request.currentState.customNonNumericStats, {});
+
+  const latestSnapshot = request.currentState.latestRelevantSnapshot as {
+    statistics: Record<string, unknown>;
+    customNonNumericStatistics: Record<string, unknown>;
+  };
+  assert.deepEqual(latestSnapshot.statistics.affection, {});
+  assert.deepEqual(latestSnapshot.statistics.desire, { Candy: 35, Lisa: 30 });
+  assert.deepEqual(latestSnapshot.customNonNumericStatistics, {});
+
+  assert.deepEqual(Object.keys(request.outputContract.responseSchema?.builtInStats as Record<string, unknown>), ["desire"]);
+  assert.deepEqual(request.outputContract.responseSchema?.customStats, {});
+  assert.deepEqual(request.outputContract.responseSchema?.customNonNumericStats, {});
 });
