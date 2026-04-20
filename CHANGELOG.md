@@ -2,6 +2,12 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev14] - 2026-04-20
+### Fixed
+- Fixed JSON extraction mode so invalid structured responses no longer silently fall back to legacy per-stat extraction requests.
+- Changed JSON-mode entity resolver calls to send a JSON-shaped resolver request and added an explicit top-level response schema to JSON extraction requests.
+- Preserved JSON failure diagnostics in debug output when JSON-only extraction fails validation.
+
 ## [2.5.3.5-dev13] - 2026-04-20
 ### Fixed
 - Changed entity resolution so resolver prompts no longer receive character card context; first-message dynamic chats now use a short model resolver prompt based only on chat context/latest message.

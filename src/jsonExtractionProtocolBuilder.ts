@@ -182,6 +182,41 @@ export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestIn
         "customStats",
         "customNonNumericStats",
       ],
+      responseSchema: input.outputContract?.responseSchema ?? {
+        protocolVersion: JSON_EXTRACTION_PROTOCOL_VERSION,
+        responseType: "tracker_extraction_result",
+        result: {
+          status: "ok",
+        },
+        entityResolution: {
+          sceneOwners: ["Owner still in the active scene"],
+          messageOwners: ["Owner directly advanced by the current message"],
+          resolvedEntities: [
+            {
+              entityId: "stable entity id or empty when unavailable",
+              ownerName: "Owner display name",
+              kind: "owner | multi_character_alias | narrative-entity | st-character | persona",
+              aliases: ["optional alias"],
+              inScene: true,
+              inMessage: true,
+            },
+          ],
+        },
+        builtInStats: {
+          affection: { "Owner display name": 45 },
+          trust: { "Owner display name": 45 },
+          desire: { "Owner display name": 35 },
+          connection: { "Owner display name": 48 },
+          mood: { "Owner display name": "calm" },
+          lastThought: { "Owner display name": "short thought" },
+        },
+        customStats: {
+          custom_numeric_stat_id: { "Owner display name": 1 },
+        },
+        customNonNumericStats: {
+          custom_text_or_array_stat_id: { "Owner display name": "value or array" },
+        },
+      },
     },
   };
 }

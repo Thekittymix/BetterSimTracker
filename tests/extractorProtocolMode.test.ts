@@ -347,7 +347,7 @@ test("extractStatisticsParallel in legacy mode skips the JSON protocol helper an
   }
 });
 
-test("extractStatisticsParallel falls back to legacy extraction and preserves JSON failure debug when active JSON mode fails", async () => {
+test("extractStatisticsParallel in JSON mode rejects invalid JSON output without calling legacy extraction", async () => {
   let legacyGeneratorCalls = 0;
   const context = makeBaseContext(async () => ({ choices: [] }));
   const globalBag = globalThis as any;
@@ -391,7 +391,7 @@ test("extractStatisticsParallel falls back to legacy extraction and preserves JS
   });
 
   try {
-    const result = await withSillyTavernContext(context, () => extractStatisticsParallel({
+    await assert.rejects(() => withSillyTavernContext(context, () => extractStatisticsParallel({
       context,
       settings: makeSettings({ trackAffection: true }),
       reason: "GENERATION_ENDED",
@@ -413,12 +413,9 @@ test("extractStatisticsParallel falls back to legacy extraction and preserves JS
       previousCustomNonNumericStatistics: {},
       hasPriorTrackerData: true,
       history: [makeTracker()],
-    }));
+    })), /JSON extraction failed/i);
 
-    assert.equal(legacyGeneratorCalls, 1);
-    assert.equal(result.statistics.affection.Ash, 63);
-    assert.equal(result.debug?.meta?.jsonShadow?.status, "response_invalid");
-    assert.deepEqual(result.debug?.meta?.jsonShadow?.validationErrors, ["result.status: invalid"]);
+    assert.equal(legacyGeneratorCalls, 0);
   } finally {
     if (previousWindow === undefined) delete globalBag.window;
     else globalBag.window = previousWindow;

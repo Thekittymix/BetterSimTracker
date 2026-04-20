@@ -8,6 +8,7 @@ import {
   parseMultiCharacterResolverResponse,
   resolveResolvedEntityConfidence,
   shouldAuditCollapsedSourceOwnerResult,
+  wrapEntityResolverPromptAsJsonRequest,
 } from "../src/entityResolver";
 
 test("buildMultiCharacterResolverPrompt lists candidate owners and latest message metadata", () => {
@@ -135,6 +136,23 @@ test("buildMultiCharacterResolverPrompt enables conservative created entities on
   assert.match(prompt, /Never invent stable IDs/i);
   assert.match(prompt, /"kind": "narrative-entity"/);
   assert.match(prompt, /"created": \[\{ "name": "Forest Spirit"/);
+});
+
+test("wrapEntityResolverPromptAsJsonRequest serializes resolver prompts as JSON request objects", () => {
+  const prompt = wrapEntityResolverPromptAsJsonRequest({
+    requestType: "entity_resolution",
+    prompt: "Resolve Ashley and Blake. Return strict JSON only.",
+  });
+
+  const parsed = JSON.parse(prompt) as Record<string, unknown>;
+  assert.equal(parsed.protocolVersion, "bst.entity.resolve.v1");
+  assert.equal(parsed.requestType, "entity_resolution");
+  assert.equal(parsed.resolverRequest, "Resolve Ashley and Blake. Return strict JSON only.");
+  assert.deepEqual((parsed.outputContract as { requiredSections: string[] }).requiredSections, [
+    "resolved",
+    "created",
+    "unresolvedMentions",
+  ]);
 });
 
 test("buildMultiCharacterResolverPrompt does not include character card context", () => {

@@ -54,6 +54,32 @@ import type {
   TrackerData
 } from "./types";
 
+type JsonShadowDebug = NonNullable<NonNullable<DeltaDebugRecord["meta"]>["jsonShadow"]>;
+
+export interface JsonExtractionProtocolFailureError extends Error {
+  jsonShadowDebug: JsonShadowDebug;
+}
+
+export function isJsonExtractionProtocolFailure(error: unknown): error is JsonExtractionProtocolFailureError {
+  return Boolean(
+    error &&
+    typeof error === "object" &&
+    "jsonShadowDebug" in error &&
+    (error as { jsonShadowDebug?: unknown }).jsonShadowDebug,
+  );
+}
+
+function buildJsonExtractionFailure(errorDebug: JsonShadowDebug): JsonExtractionProtocolFailureError {
+  const firstValidationError = errorDebug.validationErrors?.[0]?.trim();
+  const transportError = errorDebug.transportError?.trim();
+  const detail = firstValidationError || transportError || errorDebug.status;
+  const message = `JSON extraction failed; legacy fallback is disabled in JSON Extraction mode.${detail ? ` ${detail}` : ""}`;
+  return Object.assign(new Error(message), {
+    name: "JsonExtractionProtocolFailure",
+    jsonShadowDebug: errorDebug,
+  });
+}
+
 function emptyStatistics(): Statistics {
   return {
     affection: {},
@@ -469,7 +495,7 @@ export async function extractStatisticsParallel(input: {
       };
     }
     if (jsonProtocolAttempt.mode === "fallback") {
-      jsonProtocolFallbackDebug = jsonProtocolAttempt.jsonShadowDebug;
+      throw buildJsonExtractionFailure(jsonProtocolAttempt.jsonShadowDebug);
     }
   }
 

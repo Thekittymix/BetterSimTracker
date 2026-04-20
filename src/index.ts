@@ -38,6 +38,7 @@ import {
   resolveSceneEntityIdsFromResolvedEntities,
   resolveSceneOwnersFromResolvedEntities,
   shouldAuditCollapsedSourceOwnerResult,
+  wrapEntityResolverPromptAsJsonRequest,
 } from "./entityResolver";
 import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
 import {
@@ -77,7 +78,7 @@ import {
   collectSummaryCharacters as collectSummaryCharactersHelper,
 } from "./trackerSummary";
 import type { Character } from "./types";
-import { extractStatisticsParallel } from "./extractor";
+import { extractStatisticsParallel, isJsonExtractionProtocolFailure } from "./extractor";
 import { buildProgressResolveActive } from "./extractorProgress";
 import {
   buildNoActiveContinuityTrackerData,
@@ -3453,6 +3454,10 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
   });
   queueRender();
 
+  let extractionDebugContextText = "";
+  let extractionDebugHistorySnapshots = 0;
+  let extractionDebugActiveCharacters: string[] = [];
+
   try {
     const activity = resolveActiveCharacterAnalysis(context, activeSettings, {
       targetMessageIndex: lastIndex,
@@ -3532,7 +3537,10 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             && candidateEntities.length === 1
             && String(lastMessage.mes ?? "").trim(),
           );
-          const resolverPrompt = useBootstrapEntityUniverseResolver
+          const resolverPromptRequestType = useBootstrapEntityUniverseResolver
+            ? "entity_resolution_bootstrap"
+            : "entity_resolution";
+          const baseResolverPrompt = useBootstrapEntityUniverseResolver
             ? buildBootstrapEntityUniverseResolverPrompt({
                 candidateEntities,
                 contextText: resolverContextText,
@@ -3549,6 +3557,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
                   recentTrackerHistory,
                 }),
               });
+          const resolverPrompt = activeSettings.extractionProtocolMode === "json"
+            ? wrapEntityResolverPromptAsJsonRequest({
+                requestType: resolverPromptRequestType,
+                prompt: baseResolverPrompt,
+              })
+            : baseResolverPrompt;
           if (useBootstrapEntityUniverseResolver) {
             pushTrace("entity.resolve.bootstrap", {
               reason: "first_tracker_no_history",
@@ -3567,11 +3581,17 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               originalPrompt: resolverPrompt,
               previousResponseText: resolverResponse.text,
             });
+            const auditRequestPrompt = activeSettings.extractionProtocolMode === "json"
+              ? wrapEntityResolverPromptAsJsonRequest({
+                  requestType: "entity_resolution_audit",
+                  prompt: auditPrompt,
+                })
+              : auditPrompt;
             pushTrace("entity.resolve.audit.start", {
               reason: "possible_collapsed_source_owner",
               candidateOwners,
             });
-            const auditResponse = await generateJson(auditPrompt, activeSettings);
+            const auditResponse = await generateJson(auditRequestPrompt, activeSettings);
             const auditedResolver = parseMultiCharacterResolverResponse(auditResponse.text, candidateEntities);
             if (auditedResolver) {
               resolverResponse = auditResponse;
@@ -3745,6 +3765,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       : resolveTrackerEntityIdsForOwners(context, requestCharacters);
     const activeCharacters = [...requestCharacters];
     const activeEntityIds = [...requestEntityIds];
+    extractionDebugActiveCharacters = [...activeCharacters];
     pushTrace("activity.resolve", {
       allCharacterNames,
       activeCharacters,
@@ -4024,6 +4045,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     if (activeSettings.includeLorebookInExtraction) {
       contextText = `${contextText}${buildLorebookExtractionContext(context, activeSettings.lorebookExtractionMaxChars)}`.trim();
     }
+    extractionDebugContextText = contextText;
     const previousSeededStatistics = buildSeededStatisticsForActiveCharacters(
       previous?.statistics ?? null,
       activeCharacters,
@@ -4077,6 +4099,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       runScopedSettings,
       context,
     );
+    extractionDebugHistorySnapshots = seededHistory.length;
 
     logDebug(activeSettings, "extraction", `Extraction started (${reason})`, {
       activeCharacters,
@@ -4326,6 +4349,91 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       return;
     }
     const message = getErrorMessage(error);
+    if (isJsonExtractionProtocolFailure(error)) {
+      const jsonShadow = error.jsonShadowDebug;
+      pushTrace("json_shadow.result", {
+        runId,
+        messageIndex: lastIndex,
+        status: jsonShadow.status,
+        mismatchPaths: jsonShadow.parityMismatchPaths ?? [],
+        validationErrors: jsonShadow.validationErrors?.length ?? 0,
+        responseChars: jsonShadow.responseText?.length ?? 0,
+        profileId: jsonShadow.responseMeta?.profileId ?? null,
+      });
+      lastDebugRecord = {
+        rawModelOutput: jsonShadow.responseText ?? "",
+        promptText: activeSettings.includeContextInDiagnostics ? jsonShadow.requestText : undefined,
+        contextText: activeSettings.includeContextInDiagnostics ? extractionDebugContextText : undefined,
+        parsed: {
+          confidence: {},
+          deltas: {
+            affection: {},
+            trust: {},
+            desire: {},
+            connection: {},
+            custom: {},
+            customNonNumeric: {},
+          },
+          mood: {},
+          lastThought: {},
+        },
+        applied: {
+          affection: {},
+          trust: {},
+          desire: {},
+          connection: {},
+          mood: {},
+          lastThought: {},
+          customStatistics: {},
+          customNonNumericStatistics: {},
+        },
+        meta: {
+          promptChars: jsonShadow.requestText?.length ?? 0,
+          contextChars: extractionDebugContextText.length,
+          historySnapshots: extractionDebugHistorySnapshots,
+          activeCharacters: [...extractionDebugActiveCharacters],
+          statsRequested: [],
+          attempts: 1,
+          extractionMode: "unified",
+          retryUsed: false,
+          firstParseHadValues: false,
+          rawLength: jsonShadow.responseText?.length ?? 0,
+          parsedCounts: {
+            confidence: 0,
+            affection: 0,
+            trust: 0,
+            desire: 0,
+            connection: 0,
+            mood: 0,
+            lastThought: 0,
+            customByStat: {},
+            customNonNumericByStat: {},
+          },
+          appliedCounts: {
+            affection: 0,
+            trust: 0,
+            desire: 0,
+            connection: 0,
+            mood: 0,
+            lastThought: 0,
+            customByStat: {},
+            customNonNumericByStat: {},
+          },
+          moodFallbackApplied: [],
+          requests: jsonShadow.responseMeta
+            ? [{
+                ...jsonShadow.responseMeta,
+                statList: ["json_protocol"],
+                attempt: 1,
+                retryType: "json_protocol",
+              }]
+            : [],
+          jsonShadow,
+        },
+        trace: [...debugTrace],
+      };
+      saveDebugRecord(context, lastDebugRecord);
+    }
     const failurePolicy = resolveExtractionFailurePolicy({
       reason,
       message,

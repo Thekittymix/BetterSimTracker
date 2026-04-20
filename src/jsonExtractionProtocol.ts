@@ -64,6 +64,7 @@ export interface JsonExtractionRequestOutputContract {
   allowMarkdownFences: boolean;
   allowProse: boolean;
   requiredSections: string[];
+  responseSchema?: Record<string, unknown>;
 }
 
 export interface JsonExtractionRequestV1 {

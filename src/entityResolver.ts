@@ -142,6 +142,31 @@ export type MultiCharacterResolutionResult = {
   unresolvedMentions: string[];
 };
 
+export function wrapEntityResolverPromptAsJsonRequest(input: {
+  requestType: "entity_resolution" | "entity_resolution_bootstrap" | "entity_resolution_audit";
+  prompt: string;
+}): string {
+  return JSON.stringify(
+    {
+      protocolVersion: "bst.entity.resolve.v1",
+      requestType: input.requestType,
+      task: {
+        instruction: "Resolve BetterSimTracker entity scene/message presence from the supplied resolver request.",
+        output: "Return the resolver response JSON only.",
+      },
+      resolverRequest: normalizeToken(input.prompt),
+      outputContract: {
+        format: "json_only",
+        allowMarkdownFences: false,
+        allowProse: false,
+        requiredSections: ["resolved", "created", "unresolvedMentions"],
+      },
+    },
+    null,
+    2,
+  );
+}
+
 export function shouldAuditCollapsedSourceOwnerResult(input: {
   candidateEntities: MultiCharacterResolverCandidate[];
   result: MultiCharacterResolutionResult | null;

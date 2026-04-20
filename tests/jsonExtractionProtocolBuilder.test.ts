@@ -168,6 +168,8 @@ test("buildJsonExtractionRequestV1 preserves structured rule sections instead of
   assert.deepEqual(request.rules.continuityRules, ["Keep the broad scene unless the user explicitly sends someone away."]);
   assert.deepEqual(request.rules.entityRules, ["Mention-only names are not enough for inScene."]);
   assert.deepEqual(request.rules.emptyValueRules, ["Explicit empty arrays are known empty values."]);
+  assert.deepEqual(request.outputContract.responseSchema?.result, { status: "ok" });
+  assert.ok(request.outputContract.responseSchema?.entityResolution);
 });
 
 test("serializeJsonExtractionRequestV1 returns transport JSON for the built request", () => {
