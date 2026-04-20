@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev19] - 2026-04-20
+### Fixed
+- Fixed full JSON extraction materialization so active scene owners include both `sceneOwners` and resolved entities marked `inScene`, preventing dropped characters when model owner arrays and entity flags disagree.
+
 ## [2.5.3.5-dev18] - 2026-04-20
 ### Fixed
 - Changed sequential JSON extraction stages to request and parse stat-only JSON responses instead of requiring each stage to return a full tracker-shaped response.

@@ -158,6 +158,42 @@ test("materializeTrackerDataFromJsonExtractionResponseV1 builds tracker data wit
   assert.equal(tracker.entityResolution?.resolvedEntities?.[1]?.inMessage, false);
 });
 
+test("materializeTrackerDataFromJsonExtractionResponseV1 derives active owners from resolved inScene flags when sceneOwners is incomplete", () => {
+  const response = makeResponse();
+  response.entityResolution.sceneOwners = ["Lisa"];
+  response.entityResolution.messageOwners = [];
+  response.entityResolution.resolvedEntities = [
+    {
+      entityId: "bst_narrative:candy",
+      ownerName: "Candy",
+      kind: "narrative-entity",
+      aliases: [],
+      inScene: true,
+      inMessage: true,
+    },
+    {
+      entityId: "bst_narrative:lisa",
+      ownerName: "Lisa",
+      kind: "narrative-entity",
+      aliases: [],
+      inScene: true,
+      inMessage: false,
+    },
+  ];
+
+  const tracker = materializeTrackerDataFromJsonExtractionResponseV1(response, {
+    customStatDefinitions,
+  });
+
+  assert.deepEqual(tracker.activeCharacters, ["Lisa", "Candy"]);
+  assert.deepEqual(
+    (tracker.entityResolution?.resolvedEntities ?? [])
+      .filter(entity => entity.inMessage)
+      .map(entity => entity.name),
+    ["Candy"],
+  );
+});
+
 test("materializeTrackerDataFromJsonExtractionResponseV1 maps built-in, numeric custom, and non-numeric custom values into BST tracker buckets", () => {
   const tracker = materializeTrackerDataFromJsonExtractionResponseV1(makeResponse(), {
     customStatDefinitions,

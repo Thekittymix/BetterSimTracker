@@ -48,6 +48,27 @@ function buildEntityResolution(response: JsonExtractionResponseV1): TrackerDataE
   };
 }
 
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const value = String(raw ?? "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function buildActiveCharacters(response: JsonExtractionResponseV1): string[] {
+  const fromResolved = response.entityResolution.resolvedEntities
+    .filter(entity => entity.inScene)
+    .map(entity => entity.ownerName);
+  return uniqueStrings([...response.entityResolution.sceneOwners, ...fromResolved]);
+}
+
 function buildBuiltInStatistics(response: JsonExtractionResponseV1): Statistics {
   const statistics = emptyStatistics();
   for (const [ownerName, rawValue] of Object.entries(response.builtInStats.affection ?? {})) {
@@ -121,7 +142,7 @@ export function materializeTrackerDataFromJsonExtractionResponseV1(
 
   return {
     timestamp: options?.timestamp ?? Date.now(),
-    activeCharacters: [...response.entityResolution.sceneOwners],
+    activeCharacters: buildActiveCharacters(response),
     entityResolution: buildEntityResolution(response),
     statistics: buildBuiltInStatistics(response),
     customStatistics: buildCustomStatistics(response),
