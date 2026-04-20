@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev15] - 2026-04-20
+### Fixed
+- Fixed first-message JSON bootstrap extraction so the continue pass reuses the entity resolver result saved by the default bootstrap pass instead of sending an identical second resolver request.
+
 ## [2.5.3.5-dev14] - 2026-04-20
 ### Fixed
 - Fixed JSON extraction mode so invalid structured responses no longer silently fall back to legacy per-stat extraction requests.

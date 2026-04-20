@@ -7,6 +7,10 @@ import {
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
 import { resolveAutoBootstrapTarget } from "./bootstrapTargets";
 import {
+  buildGreetingBootstrapDefaultTrackerData,
+  resolveBootstrapContinueEntityResolution,
+} from "./bootstrapEntityResolution";
+import {
   isAliasResolvedOwner,
   projectTrackerDataToMessageScopedOwners,
   resolveCharacterIdentity,
@@ -3486,6 +3490,38 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       | null = null;
     let resolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> | null = null;
     if (resolveEntityTrackingMode(activeSettings) !== "standard" && lastMessage && !lastMessage.is_system) {
+      const reusableBootstrapResolution = resolveBootstrapContinueEntityResolution({
+        isBootstrapContinue: reason === BOOTSTRAP_CONTINUE_REASON,
+        existingTrackerData,
+      });
+      if (reusableBootstrapResolution?.resolvedEntities?.length) {
+        const reusedResolvedEntities = reusableBootstrapResolution.resolvedEntities.map(entity => ({
+          ...entity,
+          aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+          created: Boolean(entity.created),
+        }));
+        const reusedSceneOwners = resolveSceneOwnersFromResolvedEntities(reusedResolvedEntities);
+        const reusedMessageOwners = resolveMessageOwnersFromResolvedEntities(reusedResolvedEntities);
+        resolvedOwnerScopes = {
+          sceneActiveCharacters: reusedSceneOwners,
+          requestCharacters: reusedMessageOwners.length ? reusedMessageOwners : reusedSceneOwners,
+          source: reusableBootstrapResolution.source === "model" ? "model" : "fallback",
+        };
+        resolvedEntityResolution = {
+          ...reusableBootstrapResolution,
+          resolvedEntities: reusedResolvedEntities,
+          unresolvedMentions: reusableBootstrapResolution.unresolvedMentions?.length
+            ? [...reusableBootstrapResolution.unresolvedMentions]
+            : undefined,
+        };
+        pushTrace("entity.resolve.reuse", {
+          source: "bootstrap_defaults",
+          sceneActiveCharacters: resolvedOwnerScopes.sceneActiveCharacters,
+          requestCharacters: resolvedOwnerScopes.requestCharacters,
+          sceneEntityIds: resolveSceneEntityIdsFromResolvedEntities(reusedResolvedEntities),
+          messageEntityIds: resolveMessageEntityIdsFromResolvedEntities(reusedResolvedEntities),
+        });
+      } else {
       const candidateOwners = resolveEntityResolverCandidateOwners(
         context,
         allCharacterNames.filter(name => name !== USER_TRACKER_KEY),
@@ -3672,6 +3708,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             error: error instanceof Error ? error.message : String(error ?? "unknown"),
           });
         }
+      }
       }
     }
     const fallbackInitialActiveCharacters = resolveInitialExtractionOwners({
@@ -3971,19 +4008,16 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       !hasPriorUserMessage,
     );
     if (shouldSeedDefaultsForGreetingBootstrap) {
-      latestData = {
+      const bootstrapData = buildGreetingBootstrapDefaultTrackerData({
         timestamp: Date.now(),
         activeCharacters,
-        statistics: previous.statistics,
-        statisticsByEntityId: previous.statisticsByEntityId,
-        customStatistics: previous.customStatistics,
-        customStatisticsByEntityId: previous.customStatisticsByEntityId,
-        customNonNumericStatistics: previous.customNonNumericStatistics,
-        customNonNumericStatisticsByEntityId: previous.customNonNumericStatisticsByEntityId,
-      };
+        previous,
+        entityResolution: resolvedEntityResolution,
+      });
+      latestData = bootstrapData;
       latestDataMessageIndex = lastIndex;
       refreshPromptMacroData(context);
-      writeTrackerDataToMessage(context, latestData, lastIndex);
+      writeTrackerDataToMessage(context, bootstrapData, lastIndex);
       await persistChatNow(context);
       queuePromptSync(context);
       queueRender();
