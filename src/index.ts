@@ -3527,9 +3527,28 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             4,
           );
           const resolverContextText = buildResolverContextUpToMessageIndex(context, lastIndex);
+          const resolverPreferredCharacterName = !lastMessage.is_user
+            ? (String(lastMessage.name ?? "").trim() || undefined)
+            : undefined;
+          const resolverCharacterCardContext = activeSettings.includeCharacterCardsInPrompt
+            ? getCachedCharacterCardsContext(context, {
+                activeCharacters: candidateOwners,
+                activeEntityIds: [],
+                entityTrackingMode: resolveEntityTrackingMode(activeSettings),
+                preferredCharacterName: resolverPreferredCharacterName,
+                build: () => buildCharacterCardsContext(
+                  context,
+                  candidateOwners,
+                  [],
+                  resolveEntityTrackingMode(activeSettings),
+                  resolverPreferredCharacterName,
+                ),
+              })
+            : "";
           const resolverPrompt = buildMultiCharacterResolverPrompt({
             candidateEntities,
             contextText: resolverContextText,
+            characterCardContext: resolverCharacterCardContext,
             message: lastMessage,
             previousMessage,
             allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",

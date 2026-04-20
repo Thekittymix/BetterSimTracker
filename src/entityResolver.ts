@@ -207,6 +207,7 @@ function normalizeBoolean(value: unknown): boolean {
 export function buildMultiCharacterResolverPrompt(input: {
   candidateEntities: MultiCharacterResolverCandidate[];
   contextText: string;
+  characterCardContext?: string;
   message: ChatMessage;
   previousMessage?: ChatMessage | null;
   allowNarrativeEntityCreation?: boolean;
@@ -238,6 +239,7 @@ export function buildMultiCharacterResolverPrompt(input: {
     }))
     .filter(candidate => candidate.entityRef && candidate.ownerName);
   const contextText = normalizeToken(input.contextText);
+  const characterCardContext = normalizeToken(input.characterCardContext);
   const previousMessage = input.previousMessage;
   const messageName = normalizeToken(input.message?.name);
   const messageText = normalizeToken(input.message?.mes);
@@ -321,6 +323,8 @@ export function buildMultiCharacterResolverPrompt(input: {
     ...(allowNarrativeEntityCreation
       ? [
           "- Use `created` only for clearly new non-user characters, beings, or scene actors that are distinct, scene-relevant, and not already covered by the known candidate list.",
+          "- A source/group character card can describe multiple concrete character-like actors under one card owner. When the latest message or card context clearly names those concrete actors and they are not already separate candidates, return them in `created` instead of leaving the whole group collapsed under the source card owner.",
+          "- Use character card context as entity-resolution evidence only; do not copy card/default flavor into tracker state.",
           "- `created` entries must use human-readable `name` and optional `aliases` only. Never invent stable IDs.",
           "- Do not create props, objects, containers, furniture, locations, groups, body parts, narrator/user references, pronouns, or ambiguous mentions.",
         ]
@@ -349,6 +353,9 @@ export function buildMultiCharacterResolverPrompt(input: {
     "",
     "Recent context:",
     contextText || "(none)",
+    "",
+    "Character card context:",
+    characterCardContext || "(none)",
     "",
     "Previous message metadata:",
     previousMessage

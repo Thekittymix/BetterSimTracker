@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev10] - 2026-04-20
+### Fixed
+- Fixed dynamic entity resolution for source/group character cards so the resolver receives source card context before extraction and can materialize concrete named characters instead of collapsing the run to the source owner plus whichever names the provider happens to create.
+
 ## [2.5.3.5-dev9] - 2026-04-19
 ### Changed
 - Changed active JSON extraction progress labels to the same plain `Requesting/Parsing/Applying extraction` wording used by normal extraction flow, so the UI no longer suggests a separate extra protocol stage.

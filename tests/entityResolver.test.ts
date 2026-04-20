@@ -134,6 +134,40 @@ test("buildMultiCharacterResolverPrompt enables conservative created entities on
   assert.match(prompt, /"created": \[\{ "name": "Forest Spirit"/);
 });
 
+test("buildMultiCharacterResolverPrompt gives source-card context to resolver for group cards", () => {
+  const prompt = buildMultiCharacterResolverPrompt({
+    candidateEntities: [
+      {
+        entityRef: "ent1",
+        ownerName: "Your Family",
+        entityId: "bst_owner:your family.png|your family",
+        kind: "st-character",
+        aliases: ["Your Family"],
+      },
+    ],
+    contextText: "Your Family: The front door opens and the family steps into the house.",
+    characterCardContext: [
+      "Target character card context (highest priority card context for Your Family; do not use any other card as this target's state source):",
+      "Character Card - Your Family",
+      "Description: Marylyn is the mother. Serena, Lisa, and Candy are her daughters.",
+      "Personality: Warm, chaotic, and prone to teasing.",
+    ].join("\n"),
+    message: {
+      name: "Your Family",
+      mes: "Marylyn, Serena, Lisa, and Candy settle into the living room together.",
+      is_user: false,
+      is_system: false,
+    } as any,
+    allowNarrativeEntityCreation: true,
+  });
+
+  assert.match(prompt, /Character card context:/);
+  assert.match(prompt, /Character Card - Your Family/);
+  assert.match(prompt, /Marylyn is the mother\. Serena, Lisa, and Candy are her daughters\./);
+  assert.match(prompt, /source\/group character card can describe multiple concrete character-like actors/i);
+  assert.match(prompt, /return them in `created` instead of leaving the whole group collapsed/i);
+});
+
 test("buildMultiCharacterResolverPrompt forbids props and objects in created entities", () => {
   const prompt = buildMultiCharacterResolverPrompt({
     candidateEntities: [
