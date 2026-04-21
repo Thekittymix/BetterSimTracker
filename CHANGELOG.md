@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev23] - 2026-04-21
+### Changed
+- Changed extraction loading cards so named phases such as `requesting`, `parsing`, `applying`, and `finalizing` no longer display misleading percent suffixes.
+
 ## [2.5.3.5-dev22] - 2026-04-21
 ### Changed
 - Changed extraction loading progress so labeled request, parse, apply, and finalizing phases display the real phase name instead of a generic `stage N/M` counter.

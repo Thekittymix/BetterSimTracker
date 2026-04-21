@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  formatExtractionProgressStageText,
   resolveExtractionLoadingCopy,
   resolveExtractionProgressDisplay,
   resolveExtractionProgressDisplayWithLabel,
@@ -104,4 +105,31 @@ test("resolveExtractionProgressDisplayWithLabel uses real extraction phase names
     percent: 40,
     ratio: 0.4,
   });
+});
+
+test("formatExtractionProgressStageText only appends percentages to generic stage counters", () => {
+  assert.equal(formatExtractionProgressStageText({
+    stageText: "stage 1/3",
+    percent: 0,
+  }), "stage 1/3 (0%)");
+  assert.equal(formatExtractionProgressStageText({
+    stageText: "requesting",
+    percent: 33,
+  }), "requesting");
+  assert.equal(formatExtractionProgressStageText({
+    stageText: "parsing",
+    percent: 67,
+  }), "parsing");
+  assert.equal(formatExtractionProgressStageText({
+    stageText: "applying",
+    percent: 100,
+  }), "applying");
+  assert.equal(formatExtractionProgressStageText({
+    stageText: "finalizing",
+    percent: 100,
+  }), "finalizing");
+  assert.equal(formatExtractionProgressStageText({
+    stageText: "preparing",
+    percent: 0,
+  }), "preparing");
 });

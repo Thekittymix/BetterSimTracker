@@ -760,6 +760,13 @@ export function resolveExtractionProgressDisplay(done: number, total: number): {
   return resolveExtractionProgressDisplayWithLabel(done, total, null);
 }
 
+export function formatExtractionProgressStageText(progress: { stageText: string; percent: number }): string {
+  const stageText = String(progress.stageText ?? "").trim();
+  if (!stageText || stageText === "preparing") return stageText || "preparing";
+  if (!/^stage\b/i.test(stageText)) return stageText;
+  return `${stageText} (${Math.max(0, Math.min(100, Math.round(Number(progress.percent) || 0)))}%)`;
+}
+
 export function filterTechnicalSourceOwnersFromTargets(
   targets: string[],
   resolveOwnerRenderIdentity?: (ownerName: string) => OwnerRenderIdentity | null,
@@ -5444,7 +5451,7 @@ export function rerenderExtractionLoadingInPlace(
   const subtitleNode = loadingBox.querySelector('[data-bst-loading-role="subtitle"]') as HTMLElement | null;
   if (!titleNode || !stageNode || !fillNode || !subtitleNode) return false;
   titleNode.textContent = copy.title;
-  stageNode.textContent = `${progress.stageText}${progress.stageText === "preparing" ? "" : ` (${progress.percent}%)`}`;
+  stageNode.textContent = formatExtractionProgressStageText(progress);
   fillNode.setAttribute("style", `width:${Math.round(progress.ratio * 100)}%`);
   subtitleNode.textContent = copy.subtitle;
   return true;
@@ -6035,7 +6042,7 @@ export function renderTracker(
       loadingBox.innerHTML = `
         <div class="bst-loading-row">
           <span data-bst-loading-role="title">${title}</span>
-          <span data-bst-loading-role="stage">${progress.stageText}${progress.stageText === "preparing" ? "" : ` (${progress.percent}%)`}</span>
+          <span data-bst-loading-role="stage">${formatExtractionProgressStageText(progress)}</span>
         </div>
         <div class="bst-loading-track"><div class="bst-loading-fill" data-bst-loading-role="fill" style="width:${Math.round(progress.ratio * 100)}%"></div></div>
         <div class="bst-loading-sub" data-bst-loading-role="subtitle">${subtitle}</div>
