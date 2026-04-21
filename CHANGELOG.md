@@ -4,21 +4,15 @@ All notable changes to BetterSimTracker are documented here.
 
 ## [2.5.4] - 2026-04-21
 ### Added
-- Added a two-mode extraction protocol setting with `Legacy extraction` and `JSON extraction`, allowing tracker extraction to use structured JSON requests and responses while preserving the original legacy mode as a stable option.
-- Added structured JSON extraction diagnostics so debug dumps show JSON request/response payloads, validation status, parsed deltas, confidence values, applied tracker output, and transport metadata.
+- Added optional `JSON extraction` alongside the existing legacy extractor. JSON mode uses structured tracker requests and responses, supports sequential per-stat extraction and non-sequential stats-only extraction, preserves legacy confidence/max-delta behavior, keeps global custom stats scoped correctly, and records structured diagnostics for request/response validation, parsed deltas, confidence values, and applied tracker output.
 
 ### Changed
-- Changed JSON extraction to use stat-scoped sequential requests and stats-only non-sequential requests, keeping entity resolving separate from stat extraction and reducing unnecessary full-tracker payloads.
-- Changed JSON extraction prompts so numeric stats return signed deltas with confidence, while text, array, boolean, enum, and date/time stats return values with confidence.
 - Changed extraction loading labels to show the real request, parse, apply, and finalizing phases instead of generic stage/percent text.
 
 ### Fixed
-- Fixed JSON extraction parity with legacy extraction so numeric built-in and custom stats honor confidence dampening and `maxDeltaPerTurn` instead of applying absolute model values directly.
 - Fixed low-confidence final-value stat updates so existing tracker values are preserved when the model is uncertain.
-- Fixed JSON extraction global custom stats so scene/global values are stored under the global owner in both sequential and non-sequential JSON extraction.
-- Fixed JSON extraction requests so enabled character-card context is included where extraction needs it, while resolver prompts no longer rely on card context to infer active entities.
 - Fixed first-message and collapsed-source dynamic resolver behavior so model-resolved multi-character scenes are less likely to collapse to the source card owner or a single mentioned character.
-- Fixed JSON extraction diagnostics and prompt snapshot naming so dumps distinguish parsed model output, applied tracker state, current injection prompt, and prompts used for already-written messages.
+- Fixed extraction diagnostics so dumps distinguish parsed model output, applied tracker state, the current injection prompt, and prompts used for already-written messages.
 
 ## [2.5.3.5] - 2026-04-17
 ### Changed
