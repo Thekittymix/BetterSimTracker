@@ -49,7 +49,7 @@ type DiagnosticsDebugDetails = {
   promptInjectionCurrentPrompt: string | undefined;
   promptInjectionLastMessage: PromptInjectionLastMessageSnapshot;
   promptInjectionPreviousMessage: PromptInjectionLastMessageSnapshot;
-  promptInjectionLatestDataMessage: string | null;
+  promptInjectionPromptUsedForGeneratedMessage: string | null;
   promptInjectionDebugMeta: Record<string, unknown> | null;
   macroDebugMeta: Record<string, unknown> | null;
   baselineDebugMeta: Record<string, unknown> | null;
@@ -116,7 +116,7 @@ function buildPromptInjectionSummary(input: {
   latestDataMessageIndex: number | null;
   currentPrompt: string | undefined;
   previousMessage: PromptInjectionLastMessageSnapshot;
-  latestDataMessagePrompt: string | null;
+  promptUsedForGeneratedMessage: string | null;
   promptInjectionDebugMeta: Record<string, unknown> | null;
   latestData: TrackerData | null;
   latestPromptMacroData: TrackerData | null;
@@ -124,16 +124,20 @@ function buildPromptInjectionSummary(input: {
 }): Record<string, unknown> {
   const previousMessageIndex = input.previousMessage?.messageIndex ?? null;
   const currentPrompt = input.currentPrompt ?? "";
-  const latestDataPrompt = input.latestDataMessagePrompt ?? "";
+  const generatedMessagePrompt = input.promptUsedForGeneratedMessage ?? "";
   const previousPrompt = input.previousMessage?.prompt ?? "";
   return {
     latestDataMessageIndex: input.latestDataMessageIndex,
     previousGeneratedMessageIndex: previousMessageIndex,
     currentPromptChars: currentPrompt.length,
+    promptUsedForGeneratedMessageChars: generatedMessagePrompt.length,
     previousPromptChars: previousPrompt.length,
-    latestDataPromptChars: latestDataPrompt.length,
-    currentPromptMatchesLatestDataMessage: Boolean(currentPrompt && latestDataPrompt && currentPrompt === latestDataPrompt),
-    previousPromptMatchesLatestDataMessage: Boolean(previousPrompt && latestDataPrompt && previousPrompt === latestDataPrompt),
+    currentPromptMatchesPromptUsedForGeneratedMessage: Boolean(
+      currentPrompt && generatedMessagePrompt && currentPrompt === generatedMessagePrompt,
+    ),
+    previousPromptMatchesPromptUsedForGeneratedMessage: Boolean(
+      previousPrompt && generatedMessagePrompt && previousPrompt === generatedMessagePrompt,
+    ),
     previousPromptTargetsLatestDataMessage:
       input.latestDataMessageIndex != null &&
       previousMessageIndex != null &&
@@ -230,7 +234,7 @@ export function buildDiagnosticsDebugDetails(input: {
   includeGraphInDiagnostics: boolean;
   currentPrompt: string | undefined;
   lastMessageSnapshot: PromptInjectionLastMessageSnapshot;
-  latestDataMessagePrompt: string | null;
+  promptUsedForGeneratedMessage: string | null;
   promptInjectionDebugMeta: Record<string, unknown> | null;
   macroDebugMeta: Record<string, unknown> | null;
   baselineDebugMeta: Record<string, unknown> | null;
@@ -243,7 +247,7 @@ export function buildDiagnosticsDebugDetails(input: {
       promptInjectionCurrentPrompt: undefined,
       promptInjectionLastMessage: null,
       promptInjectionPreviousMessage: null,
-      promptInjectionLatestDataMessage: null,
+      promptInjectionPromptUsedForGeneratedMessage: null,
       promptInjectionDebugMeta: null,
       macroDebugMeta: null,
       baselineDebugMeta: null,
@@ -257,7 +261,7 @@ export function buildDiagnosticsDebugDetails(input: {
     promptInjectionCurrentPrompt: input.currentPrompt,
     promptInjectionLastMessage: input.lastMessageSnapshot,
     promptInjectionPreviousMessage: input.lastMessageSnapshot,
-    promptInjectionLatestDataMessage: input.latestDataMessagePrompt,
+    promptInjectionPromptUsedForGeneratedMessage: input.promptUsedForGeneratedMessage,
     promptInjectionDebugMeta: input.promptInjectionDebugMeta,
     macroDebugMeta: input.macroDebugMeta,
     baselineDebugMeta: input.baselineDebugMeta,
@@ -287,7 +291,7 @@ export function buildDiagnosticsReport(input: {
   promptInjectionCurrentPrompt: string | undefined;
   promptInjectionLastMessage: PromptInjectionLastMessageSnapshot;
   promptInjectionPreviousMessage: PromptInjectionLastMessageSnapshot;
-  promptInjectionLatestDataMessage: string | null;
+  promptInjectionPromptUsedForGeneratedMessage: string | null;
   promptInjectionDebugMeta: Record<string, unknown> | null;
   macroDebugMeta: Record<string, unknown> | null;
   baselineDebugMeta: Record<string, unknown> | null;
@@ -350,7 +354,7 @@ export function buildDiagnosticsReport(input: {
       latestDataMessageIndex: input.latestDataMessageIndex,
       currentPrompt: input.promptInjectionCurrentPrompt,
       previousMessage: input.promptInjectionLastMessage,
-      latestDataMessagePrompt: input.promptInjectionLatestDataMessage,
+      promptUsedForGeneratedMessage: input.promptInjectionPromptUsedForGeneratedMessage,
       promptInjectionDebugMeta: input.promptInjectionDebugMeta,
       latestData: input.latestData,
       latestPromptMacroData: input.latestPromptMacroData,
@@ -360,7 +364,7 @@ export function buildDiagnosticsReport(input: {
     promptInjectionCurrentPrompt: input.promptInjectionCurrentPrompt,
     promptInjectionLastMessage: input.promptInjectionLastMessage,
     promptInjectionPreviousMessage: input.promptInjectionPreviousMessage,
-    promptInjectionLatestDataMessage: input.promptInjectionLatestDataMessage,
+    promptInjectionPromptUsedForGeneratedMessage: input.promptInjectionPromptUsedForGeneratedMessage,
     promptInjectionDebugMeta: input.promptInjectionDebugMeta,
     lorebook: summarizeLorebookContext({
       context,

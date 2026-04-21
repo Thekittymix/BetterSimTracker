@@ -5138,7 +5138,7 @@ async function openSettingsAsync(): Promise<void> {
         lastMessageInjectionSnapshot.messageIndex < activeContext.chat.length
           ? lastMessageInjectionSnapshot
           : null;
-      const latestDataPrompt =
+      const promptUsedForGeneratedMessage =
         lastMessagePromptSnapshot &&
         latestDataMessageIndex != null &&
         lastMessagePromptSnapshot.messageIndex === latestDataMessageIndex
@@ -5149,7 +5149,7 @@ async function openSettingsAsync(): Promise<void> {
         includeGraphInDiagnostics: currentSettings.includeGraphInDiagnostics,
         currentPrompt: getLastInjectedPrompt(),
         lastMessageSnapshot: lastMessagePromptSnapshot,
-        latestDataMessagePrompt: latestDataPrompt,
+        promptUsedForGeneratedMessage,
         promptInjectionDebugMeta: getLastInjectedPromptDebug(),
         macroDebugMeta: getBstMacroDebugSnapshot(),
         baselineDebugMeta: lastExtractionBaselineDebugMeta,
@@ -5181,7 +5181,7 @@ async function openSettingsAsync(): Promise<void> {
         promptInjectionCurrentPrompt: debugDetails.promptInjectionCurrentPrompt,
         promptInjectionLastMessage: debugDetails.promptInjectionLastMessage,
         promptInjectionPreviousMessage: debugDetails.promptInjectionPreviousMessage,
-        promptInjectionLatestDataMessage: debugDetails.promptInjectionLatestDataMessage,
+        promptInjectionPromptUsedForGeneratedMessage: debugDetails.promptInjectionPromptUsedForGeneratedMessage,
         promptInjectionDebugMeta: debugDetails.promptInjectionDebugMeta,
         macroDebugMeta: debugDetails.macroDebugMeta,
         baselineDebugMeta: debugDetails.baselineDebugMeta,

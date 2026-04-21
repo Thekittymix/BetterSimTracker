@@ -302,7 +302,7 @@ test("buildDiagnosticsDebugDetails skips persisted trace reads and debug-only pa
       targetIndex: 2,
       generationType: "normal",
     },
-    latestDataMessagePrompt: "<bst_inject_block>...</bst_inject_block>",
+    promptUsedForGeneratedMessage: "<bst_inject_block>...</bst_inject_block>",
     promptInjectionDebugMeta: { targetOwner: "Seraphina" },
     macroDebugMeta: { characterTargets: [{ ownerName: "Seraphina" }] },
     baselineDebugMeta: { baselineBeforeIndex: 4 },
@@ -318,7 +318,7 @@ test("buildDiagnosticsDebugDetails skips persisted trace reads and debug-only pa
   assert.equal(details.promptInjectionCurrentPrompt, undefined);
   assert.equal(details.promptInjectionLastMessage, null);
   assert.equal(details.promptInjectionPreviousMessage, null);
-  assert.equal(details.promptInjectionLatestDataMessage, null);
+  assert.equal(details.promptInjectionPromptUsedForGeneratedMessage, null);
   assert.equal(details.promptInjectionDebugMeta, null);
   assert.equal(details.macroDebugMeta, null);
   assert.equal(details.baselineDebugMeta, null);
@@ -340,7 +340,7 @@ test("buildDiagnosticsDebugDetails preserves trace and prompt debug details when
       targetIndex: 2,
       generationType: "normal",
     },
-    latestDataMessagePrompt: "<bst_inject_block>...</bst_inject_block>",
+    promptUsedForGeneratedMessage: "<bst_inject_block>...</bst_inject_block>",
     promptInjectionDebugMeta: { targetOwner: "Seraphina" },
     macroDebugMeta: { characterTargets: [{ ownerName: "Seraphina" }] },
     baselineDebugMeta: { baselineBeforeIndex: 4 },
@@ -356,7 +356,7 @@ test("buildDiagnosticsDebugDetails preserves trace and prompt debug details when
   assert.equal(details.promptInjectionCurrentPrompt, "preview");
   assert.equal(details.promptInjectionLastMessage?.messageIndex, 2);
   assert.equal(details.promptInjectionPreviousMessage?.messageIndex, 2);
-  assert.equal(details.promptInjectionLatestDataMessage, "<bst_inject_block>...</bst_inject_block>");
+  assert.equal(details.promptInjectionPromptUsedForGeneratedMessage, "<bst_inject_block>...</bst_inject_block>");
   assert.deepEqual(details.promptInjectionDebugMeta, { targetOwner: "Seraphina" });
   assert.deepEqual(details.traceTailMemory, ["2026 extract.start y"]);
   assert.deepEqual(details.traceTailPersisted, ["2026 extract.persisted"]);
@@ -401,7 +401,7 @@ test("buildDiagnosticsReport produces expected core fields", () => {
       targetIndex: 2,
       generationType: "normal",
     },
-    promptInjectionLatestDataMessage: "<bst_inject_block>...</bst_inject_block>",
+    promptInjectionPromptUsedForGeneratedMessage: "<bst_inject_block>...</bst_inject_block>",
     promptInjectionDebugMeta: { targetOwner: "Seraphina" },
     macroDebugMeta: { characterTargets: [{ ownerName: "Seraphina", macroSlug: "seraphina" }] },
     baselineDebugMeta: { baselineBeforeIndex: 4, previousEntryMessageIndex: 3, currentMessageWasUsedAsBaseline: false },
@@ -476,7 +476,7 @@ test("buildDiagnosticsReport produces expected core fields", () => {
     2,
   );
   assert.equal(
-    report.promptInjectionLatestDataMessage,
+    report.promptInjectionPromptUsedForGeneratedMessage,
     "<bst_inject_block>...</bst_inject_block>",
   );
   assert.equal(report.promptInjectionCurrentPrompt, "preview");
@@ -502,7 +502,9 @@ test("buildDiagnosticsReport produces expected core fields", () => {
     }),
   );
   assert.equal(
-    (report.promptInjection as { currentPromptMatchesLatestDataMessage: boolean }).currentPromptMatchesLatestDataMessage,
+    (report.promptInjection as {
+      currentPromptMatchesPromptUsedForGeneratedMessage: boolean;
+    }).currentPromptMatchesPromptUsedForGeneratedMessage,
     false,
   );
   assert.deepEqual(
@@ -569,7 +571,7 @@ test("buildDiagnosticsReport prefers resolver-backed activeCharacters in tracker
     promptInjectionCurrentPrompt: "preview",
     promptInjectionLastMessage: null,
     promptInjectionPreviousMessage: null,
-    promptInjectionLatestDataMessage: null,
+    promptInjectionPromptUsedForGeneratedMessage: null,
     promptInjectionDebugMeta: null,
     macroDebugMeta: null,
     baselineDebugMeta: null,
@@ -629,7 +631,7 @@ test("buildDiagnosticsReport includes entity registry lifecycle summary", () => 
     promptInjectionCurrentPrompt: "preview",
     promptInjectionLastMessage: null,
     promptInjectionPreviousMessage: null,
-    promptInjectionLatestDataMessage: null,
+    promptInjectionPromptUsedForGeneratedMessage: null,
     promptInjectionDebugMeta: null,
     macroDebugMeta: null,
     baselineDebugMeta: null,
