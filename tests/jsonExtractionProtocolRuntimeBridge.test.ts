@@ -232,7 +232,7 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes sequential JSON re
   assert.deepEqual(latestSnapshot.statistics.desire, { Candy: 35, Lisa: 30 });
   assert.deepEqual(latestSnapshot.customNonNumericStatistics, {});
 
-  assert.deepEqual(request.outputContract.requiredSections, ["result", "statId", "values"]);
+  assert.deepEqual(request.outputContract.requiredSections, ["protocolVersion", "responseType", "result", "statId", "values"]);
   assert.deepEqual(request.outputContract.responseSchema, {
     protocolVersion: "bst.extract.v1",
     responseType: "stat_extraction_result",
@@ -241,7 +241,11 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes sequential JSON re
     },
     statId: "desire",
     values: {
-      "Owner display name": {
+      Candy: {
+        delta: "numeric change from the previous tracker value, not the final value",
+        confidence: 0.8,
+      },
+      Lisa: {
         delta: "numeric change from the previous tracker value, not the final value",
         confidence: 0.8,
       },
@@ -306,6 +310,51 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes non-sequential JSO
   assert.deepEqual(request.entityContext.candidateOwners, ["Candy", "Lisa"]);
 });
 
+test("buildJsonExtractionShadowRequestForExtractionRun uses text values and real owner keys for sequential built-in text stats", () => {
+  for (const statId of ["mood", "lastThought"] as const) {
+    const request = buildJsonExtractionShadowRequestForExtractionRun({
+      context: makeContext(),
+      reason: "USER_MESSAGE_RENDERED",
+      messageIndex: 1,
+      settings: {
+        ...makeSettings(),
+        trackAffection: false,
+        trackTrust: false,
+        trackDesire: false,
+        trackConnection: false,
+        trackMood: statId === "mood",
+        trackLastThought: statId === "lastThought",
+        customStats: [],
+      },
+      activeCharacters: ["__bst_user__"],
+      previousTrackerData: makePreviousTracker(),
+      previousStatistics: makePreviousTracker().statistics,
+      previousCustomStatistics: {},
+      previousCustomNonNumericStatistics: {},
+      responseMode: "stat",
+      statId,
+    });
+
+    assert.deepEqual(request.outputContract.requiredSections, ["protocolVersion", "responseType", "result", "statId", "values"]);
+    assert.deepEqual(request.outputContract.responseSchema, {
+      protocolVersion: "bst.extract.v1",
+      responseType: "stat_extraction_result",
+      result: {
+        status: "ok",
+      },
+      statId,
+      values: {
+        __bst_user__: {
+          value: "value for this stat only",
+          confidence: 0.8,
+        },
+      },
+    });
+    assert.equal(JSON.stringify(request.outputContract.responseSchema).includes("Owner display name"), false);
+    assert.equal(JSON.stringify(request.outputContract.responseSchema).includes("\"delta\""), false);
+  }
+});
+
 test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global custom stat output as global", () => {
   const request = buildJsonExtractionShadowRequestForExtractionRun({
     context: makeContext(),
@@ -349,7 +398,7 @@ test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global c
     statId: "scene_date_time",
   });
 
-  assert.deepEqual(request.outputContract.requiredSections, ["result", "statId", "values"]);
+  assert.deepEqual(request.outputContract.requiredSections, ["protocolVersion", "responseType", "result", "statId", "values"]);
   assert.deepEqual(request.outputContract.responseSchema, {
     protocolVersion: "bst.extract.v1",
     responseType: "stat_extraction_result",

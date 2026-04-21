@@ -119,13 +119,34 @@ function scopeCurrentStateDataForJsonRequest(input: {
 function buildStatStageOutputContract(
   statId: string,
   settings: BetterSimTrackerSettings,
+  candidateOwners: string[],
 ): BuildJsonExtractionRequestInput["outputContract"] {
   const customStat = (settings.customStats ?? []).find(stat => stat.id === statId);
-  const valueOwnerLabel = customStat?.globalScope === true ? "__bst_global__" : "Owner display name";
-  const isNumericStat = ["affection", "trust", "desire", "connection"].includes(statId)
-    || (customStat?.kind ?? "numeric") === "numeric";
+  const isNumericBuiltInStat = ["affection", "trust", "desire", "connection"].includes(statId);
+  const isNumericCustomStat = customStat !== undefined && (customStat.kind ?? "numeric") === "numeric";
+  const isNumericStat = isNumericBuiltInStat || isNumericCustomStat;
+  const valueOwners = customStat?.globalScope === true
+    ? ["__bst_global__"]
+    : uniqueStrings(candidateOwners);
+  const valueSchema = isNumericStat
+    ? {
+        delta: "numeric change from the previous tracker value, not the final value",
+        confidence: 0.8,
+      }
+    : {
+        value: customStat?.globalScope === true
+          ? "single global scene value for this stat only"
+          : "value for this stat only",
+        confidence: 0.8,
+      };
+  const values: Record<string, unknown> = {};
+  for (const owner of valueOwners) {
+    values[owner] = valueSchema;
+  }
   return {
     requiredSections: [
+      "protocolVersion",
+      "responseType",
       "result",
       "statId",
       "values",
@@ -137,19 +158,7 @@ function buildStatStageOutputContract(
         status: "ok",
       },
       statId,
-      values: {
-        [valueOwnerLabel]: isNumericStat
-          ? {
-              delta: "numeric change from the previous tracker value, not the final value",
-              confidence: 0.8,
-            }
-          : {
-              value: customStat?.globalScope === true
-                ? "single global scene value for this stat only"
-                : "value for this stat only",
-              confidence: 0.8,
-            },
-      },
+      values,
     },
   };
 }
@@ -243,7 +252,7 @@ export function buildJsonExtractionShadowRequest(
       customStats: input.settings.customStats,
     },
     outputContract: input.responseMode === "stat" && input.statId
-      ? buildStatStageOutputContract(input.statId, input.settings)
+      ? buildStatStageOutputContract(input.statId, input.settings, input.entityContext.candidateOwners)
       : undefined,
     responseContractMode: input.responseMode === "stats" ? "stats" : "tracker",
   });

@@ -123,6 +123,17 @@ test("buildJsonExtractionRequestV1 builds a schema-valid request with built-ins 
     request.statDefinitions.customNonNumeric.map(definition => definition.id),
     ["clothes", "scene_date_time"],
   );
+  assert.equal(JSON.stringify(request.outputContract.responseSchema).includes("Owner display name"), false);
+  assert.deepEqual((request.outputContract.responseSchema?.builtInStats as Record<string, Record<string, unknown>>).mood, {
+    Candy: {
+      value: "calm",
+      confidence: 0.8,
+    },
+    Lisa: {
+      value: "calm",
+      confidence: 0.8,
+    },
+  });
 });
 
 test("buildJsonExtractionRequestV1 preserves structured rule sections instead of collapsing into one prompt blob", () => {

@@ -156,12 +156,34 @@ function exampleValueForStat(definition: JsonExtractionRequestStatDefinition): u
   return withConfidence("value");
 }
 
-function buildStatResponseSchema(definitions: JsonExtractionRequestStatDefinition[]): Record<string, unknown> {
+function uniqueOwnerKeys(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of values) {
+    const value = String(raw ?? "").trim();
+    if (!value) continue;
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(value);
+  }
+  return out;
+}
+
+function buildStatResponseSchema(
+  definitions: JsonExtractionRequestStatDefinition[],
+  candidateOwners: string[],
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+  const ownerKeys = uniqueOwnerKeys(candidateOwners);
   for (const definition of definitions) {
-    const ownerLabel = definition.globalScope ? GLOBAL_TRACKER_KEY : "Owner display name";
+    const valueOwners = definition.globalScope ? [GLOBAL_TRACKER_KEY] : ownerKeys;
+    const values: Record<string, unknown> = {};
+    for (const owner of valueOwners) {
+      values[owner] = exampleValueForStat(definition);
+    }
     out[definition.id] = {
-      [ownerLabel]: exampleValueForStat(definition),
+      ...values,
     };
   }
   return out;
@@ -171,7 +193,9 @@ function buildResponseSchema(input: {
   builtIn: JsonExtractionRequestStatDefinition[];
   customNumeric: JsonExtractionRequestStatDefinition[];
   customNonNumeric: JsonExtractionRequestStatDefinition[];
+  candidateOwners: string[];
 }): Record<string, unknown> {
+  const exampleOwnerName = uniqueOwnerKeys(input.candidateOwners)[0] ?? "";
   return {
     protocolVersion: JSON_EXTRACTION_PROTOCOL_VERSION,
     responseType: "tracker_extraction_result",
@@ -184,17 +208,17 @@ function buildResponseSchema(input: {
       resolvedEntities: [
         {
           entityId: "stable entity id or empty when unavailable",
-          ownerName: "Owner display name",
+          ownerName: exampleOwnerName,
           kind: "owner | multi_character_alias | narrative-entity | st-character | persona",
-          aliases: ["optional alias"],
+          aliases: exampleOwnerName ? [exampleOwnerName] : [],
           inScene: true,
           inMessage: true,
         },
       ],
     },
-    builtInStats: buildStatResponseSchema(input.builtIn),
-    customStats: buildStatResponseSchema(input.customNumeric),
-    customNonNumericStats: buildStatResponseSchema(input.customNonNumeric),
+    builtInStats: buildStatResponseSchema(input.builtIn, input.candidateOwners),
+    customStats: buildStatResponseSchema(input.customNumeric, input.candidateOwners),
+    customNonNumericStats: buildStatResponseSchema(input.customNonNumeric, input.candidateOwners),
   };
 }
 
@@ -202,6 +226,7 @@ function buildStatsResponseSchema(input: {
   builtIn: JsonExtractionRequestStatDefinition[];
   customNumeric: JsonExtractionRequestStatDefinition[];
   customNonNumeric: JsonExtractionRequestStatDefinition[];
+  candidateOwners: string[];
 }): Record<string, unknown> {
   return {
     protocolVersion: JSON_EXTRACTION_PROTOCOL_VERSION,
@@ -209,9 +234,9 @@ function buildStatsResponseSchema(input: {
     result: {
       status: "ok",
     },
-    builtInStats: buildStatResponseSchema(input.builtIn),
-    customStats: buildStatResponseSchema(input.customNumeric),
-    customNonNumericStats: buildStatResponseSchema(input.customNonNumeric),
+    builtInStats: buildStatResponseSchema(input.builtIn, input.candidateOwners),
+    customStats: buildStatResponseSchema(input.customNumeric, input.candidateOwners),
+    customNonNumericStats: buildStatResponseSchema(input.customNonNumeric, input.candidateOwners),
   };
 }
 
@@ -219,8 +244,8 @@ export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestIn
   const builtIn = buildBuiltInStatDefinitions(input.enabledBuiltInStats);
   const { customNumeric, customNonNumeric } = splitCustomStatDefinitions(input.settings.customStats);
   const defaultResponseSchema = input.responseContractMode === "stats"
-    ? buildStatsResponseSchema({ builtIn, customNumeric, customNonNumeric })
-    : buildResponseSchema({ builtIn, customNumeric, customNonNumeric });
+    ? buildStatsResponseSchema({ builtIn, customNumeric, customNonNumeric, candidateOwners: input.entityContext.candidateOwners })
+    : buildResponseSchema({ builtIn, customNumeric, customNonNumeric, candidateOwners: input.entityContext.candidateOwners });
   const defaultRequiredSections = input.responseContractMode === "stats"
     ? [
         "result",
@@ -290,6 +315,7 @@ export function buildJsonExtractionStatsOutputContract(input: {
   builtIn: JsonExtractionRequestStatDefinition[];
   customNumeric: JsonExtractionRequestStatDefinition[];
   customNonNumeric: JsonExtractionRequestStatDefinition[];
+  candidateOwners?: string[];
 }): JsonExtractionRequestOutputContract {
   return {
     format: "json_only",
@@ -301,7 +327,7 @@ export function buildJsonExtractionStatsOutputContract(input: {
       "customStats",
       "customNonNumericStats",
     ],
-    responseSchema: buildStatsResponseSchema(input),
+    responseSchema: buildStatsResponseSchema({ ...input, candidateOwners: input.candidateOwners ?? [] }),
   };
 }
 

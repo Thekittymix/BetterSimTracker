@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4-dev1] - 2026-04-21
+### Fixed
+- Fixed JSON extraction response contracts so built-in text stat stages request `value + confidence` with real owner keys instead of numeric deltas and copyable placeholder owner names.
+
 ## [2.5.4] - 2026-04-21
 ### Added
 - Added optional `JSON extraction` alongside the existing legacy extractor. JSON mode uses structured tracker requests and responses, supports sequential per-stat extraction and non-sequential stats-only extraction, preserves legacy confidence/max-delta behavior, keeps global custom stats scoped correctly, and records structured diagnostics for request/response validation, parsed deltas, confidence values, and applied tracker output.
