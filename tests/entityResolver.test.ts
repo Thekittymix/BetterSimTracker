@@ -5,6 +5,7 @@ import {
   buildBootstrapEntityUniverseResolverPrompt,
   buildCollapsedSourceOwnerAuditPrompt,
   buildMultiCharacterResolverPrompt,
+  filterResolverCreatedEntitiesToGroundedText,
   parseMultiCharacterResolverResponse,
   resolveResolvedEntityConfidence,
   shouldAuditCollapsedSourceOwnerResult,
@@ -135,7 +136,8 @@ test("buildMultiCharacterResolverPrompt enables conservative created entities on
   assert.match(prompt, /Use `created` only for clearly new non-user characters, beings, or scene actors/i);
   assert.match(prompt, /Never invent stable IDs/i);
   assert.match(prompt, /"kind": "narrative-entity"/);
-  assert.match(prompt, /"created": \[\{ "name": "Forest Spirit"/);
+  assert.match(prompt, /"created": \[\]/);
+  assert.doesNotMatch(prompt, /"name": "Forest Spirit"/);
 });
 
 test("wrapEntityResolverPromptAsJsonRequest serializes resolver prompts as JSON request objects", () => {
@@ -210,6 +212,51 @@ test("buildBootstrapEntityUniverseResolverPrompt asks for first-message actors w
   assert.match(prompt, /Omit the user persona/i);
   assert.match(prompt, /Avery, Blake, and Casey enter the studio together\./);
   assert.doesNotMatch(prompt, /Character card context:/);
+  assert.doesNotMatch(prompt, /"name": "Character Name"/);
+});
+
+test("filterResolverCreatedEntitiesToGroundedText removes copied created examples without real text evidence", () => {
+  const result = filterResolverCreatedEntitiesToGroundedText({
+    result: {
+      resolvedEntities: [],
+      createdEntities: [
+        { name: "Forest Spirit", aliases: ["Spirit"], inScene: true, inMessage: true },
+        { name: "Candy", inScene: true, inMessage: true },
+      ],
+      unresolvedMentions: [],
+    },
+    contextText: "Candy smiles from the bed.",
+    message: {
+      name: "Kuba",
+      mes: "You look amazing. When do we start movie night?",
+      is_user: true,
+    } as any,
+  });
+
+  assert.deepEqual(result?.createdEntities, [
+    { name: "Candy", inScene: true, inMessage: true },
+  ]);
+});
+
+test("filterResolverCreatedEntitiesToGroundedText preserves created entities grounded in the latest text", () => {
+  const result = filterResolverCreatedEntitiesToGroundedText({
+    result: {
+      resolvedEntities: [],
+      createdEntities: [
+        { name: "Forest Spirit", aliases: ["Spirit"], inScene: true, inMessage: true },
+      ],
+      unresolvedMentions: [],
+    },
+    message: {
+      name: "Narrator",
+      mes: "A forest spirit stepped out of the fog and watched Blake closely.",
+      is_user: false,
+    } as any,
+  });
+
+  assert.deepEqual(result?.createdEntities, [
+    { name: "Forest Spirit", aliases: ["Spirit"], inScene: true, inMessage: true },
+  ]);
 });
 
 test("shouldAuditCollapsedSourceOwnerResult only flags possibly collapsed source-owner model results", () => {

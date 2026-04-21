@@ -36,6 +36,7 @@ import {
   buildBootstrapEntityUniverseResolverPrompt,
   buildCollapsedSourceOwnerAuditPrompt,
   buildMultiCharacterResolverPrompt,
+  filterResolverCreatedEntitiesToGroundedText,
   parseMultiCharacterResolverResponse,
   resolveMessageEntityIdsFromResolvedEntities,
   resolveMessageOwnersFromResolvedEntities,
@@ -3606,7 +3607,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             });
           }
           let resolverResponse = await generateJson(resolverPrompt, activeSettings);
-          let parsedResolver = parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities);
+          let parsedResolver = filterResolverCreatedEntitiesToGroundedText({
+            result: parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities),
+            contextText: resolverContextText,
+            message: lastMessage,
+            previousMessage,
+          });
           if (shouldAuditCollapsedSourceOwnerResult({
             candidateEntities,
             result: parsedResolver,
@@ -3628,7 +3634,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
               candidateOwners,
             });
             const auditResponse = await generateJson(auditRequestPrompt, activeSettings);
-            const auditedResolver = parseMultiCharacterResolverResponse(auditResponse.text, candidateEntities);
+            const auditedResolver = filterResolverCreatedEntitiesToGroundedText({
+              result: parseMultiCharacterResolverResponse(auditResponse.text, candidateEntities),
+              contextText: resolverContextText,
+              message: lastMessage,
+              previousMessage,
+            });
             if (auditedResolver) {
               resolverResponse = auditResponse;
               parsedResolver = auditedResolver;

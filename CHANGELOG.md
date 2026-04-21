@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4-dev2] - 2026-04-21
+### Fixed
+- Fixed dynamic entity resolver prompts and post-processing so copied example `created` entities cannot become real tracker characters without text evidence in the current resolver context.
+
 ## [2.5.4-dev1] - 2026-04-21
 ### Fixed
 - Fixed JSON extraction response contracts so built-in text stat stages request `value + confidence` with real owner keys instead of numeric deltas and copyable placeholder owner names.

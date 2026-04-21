@@ -274,7 +274,7 @@ export function buildBootstrapEntityUniverseResolverPrompt(input: {
     "Return STRICT JSON only:",
     "{",
     '  "resolved": [],',
-    '  "created": [{ "name": "Character Name", "aliases": [], "inScene": true, "inMessage": true }],',
+    '  "created": [],',
     '  "unresolvedMentions": []',
     "}",
   ].join("\n");
@@ -531,12 +531,40 @@ export function buildMultiCharacterResolverPrompt(input: {
     '  "resolved": [',
     '    { "entityRef": "ent1", "inScene": true, "inMessage": true }',
     "  ],",
-    allowNarrativeEntityCreation
-      ? '  "created": [{ "name": "Forest Spirit", "aliases": ["Spirit"], "inScene": true, "inMessage": true }],'
-      : '  "created": [],',
+    '  "created": [],',
     '  "unresolvedMentions": []',
     "}",
   ].join("\n");
+}
+
+export function filterResolverCreatedEntitiesToGroundedText(input: {
+  result: MultiCharacterResolutionResult | null;
+  contextText?: string | null;
+  message?: ChatMessage | null;
+  previousMessage?: ChatMessage | null;
+}): MultiCharacterResolutionResult | null {
+  if (!input.result?.createdEntities.length) return input.result;
+  const groundingText = [
+    input.contextText,
+    input.previousMessage?.mes,
+    input.message?.mes,
+  ].map(value => normalizeToken(value)).filter(Boolean).join("\n");
+  if (!groundingText) {
+    return {
+      ...input.result,
+      createdEntities: [],
+    };
+  }
+  const createdEntities = input.result.createdEntities.filter(entity => {
+    const aliases = [entity.name, ...(entity.aliases ?? [])];
+    return collectMentionedAliases(groundingText, aliases).length > 0;
+  });
+  return createdEntities.length === input.result.createdEntities.length
+    ? input.result
+    : {
+        ...input.result,
+        createdEntities,
+      };
 }
 
 export function parseMultiCharacterResolverResponse(
