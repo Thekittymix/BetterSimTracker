@@ -1368,6 +1368,30 @@ export function resolvePersistedSnapshotActiveEntityIds(input: {
   );
 }
 
+export function resolveExtractionTargetOwners(input: {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+  userExtraction: boolean;
+}): string[] {
+  return uniqueStrings(
+    input.userExtraction
+      ? input.requestCharacters
+      : (input.sceneActiveCharacters.length ? input.sceneActiveCharacters : input.requestCharacters),
+  );
+}
+
+export function resolveExtractionTargetEntityIds(input: {
+  sceneActiveEntityIds: string[];
+  requestEntityIds: string[];
+  userExtraction: boolean;
+}): string[] {
+  return uniqueStrings(
+    input.userExtraction
+      ? input.requestEntityIds
+      : (input.sceneActiveEntityIds.length ? input.sceneActiveEntityIds : input.requestEntityIds),
+  );
+}
+
 export function resolvePersistedSnapshotEntityOwners(input: {
   sceneActiveCharacters: string[];
   requestCharacters?: string[];

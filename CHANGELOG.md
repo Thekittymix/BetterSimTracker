@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev1] - 2026-04-21
+### Fixed
+- Fixed AI-turn stat extraction scope so scene-present background characters are included in tracker extraction targets even when only one character is the direct message/request owner, while persisted `inMessage` ownership remains request-scoped.
+
 ## [2.5.4.1] - 2026-04-21
 ### Fixed
 - Fixed JSON extraction and dynamic resolver response contracts so small/local models no longer receive copyable placeholder owner/entity examples or numeric-delta schemas for text stats. Built-in text stat stages now request `value + confidence` with real owner keys, and resolver-created entities now require matching text evidence before they can become tracker characters.

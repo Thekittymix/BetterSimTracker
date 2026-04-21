@@ -25,6 +25,8 @@ import {
   filterResolvedEntitiesToTrackedOwners,
   resolveInitialExtractionOwners,
   resolveModelExtractionOwnerScopes,
+  resolveExtractionTargetEntityIds,
+  resolveExtractionTargetOwners,
   resolvePersistedSnapshotResolvedEntities,
   resolvePersistedSnapshotActiveEntityIds,
   resolvePersistedSnapshotActiveOwners,
@@ -3811,8 +3813,16 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const requestEntityIds = resolvedEntityResolution?.resolvedEntities?.length
       ? resolveMessageEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
       : resolveTrackerEntityIdsForOwners(context, requestCharacters);
-    const activeCharacters = [...requestCharacters];
-    const activeEntityIds = [...requestEntityIds];
+    const activeCharacters = resolveExtractionTargetOwners({
+      sceneActiveCharacters,
+      requestCharacters,
+      userExtraction,
+    });
+    const activeEntityIds = resolveExtractionTargetEntityIds({
+      sceneActiveEntityIds,
+      requestEntityIds,
+      userExtraction,
+    });
     extractionDebugActiveCharacters = [...activeCharacters];
     pushTrace("activity.resolve", {
       allCharacterNames,
@@ -4276,10 +4286,10 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       mergedCustomNonNumeric = filterCustomNonNumericStatisticsToCharacters(mergedCustomNonNumeric, [USER_TRACKER_KEY], globalNonNumericStatIds);
     } else {
       const sceneOnlyCharacters = sceneActiveCharacters.filter(ownerName =>
-        !requestCharacters.some(requestOwner => String(requestOwner).trim().toLowerCase() === String(ownerName).trim().toLowerCase()),
+        !activeCharacters.some(activeOwner => String(activeOwner).trim().toLowerCase() === String(ownerName).trim().toLowerCase()),
       );
-      const requestEntityIdSet = new Set(requestEntityIds);
-      const sceneOnlyEntityIds = sceneActiveEntityIds.filter(entityId => !requestEntityIdSet.has(entityId));
+      const activeEntityIdSet = new Set(activeEntityIds);
+      const sceneOnlyEntityIds = sceneActiveEntityIds.filter(entityId => !activeEntityIdSet.has(entityId));
       if (sceneOnlyCharacters.length) {
         const latestSceneScopedEntry = getLatestCharacterOwnedTrackerDataWithIndexBefore(
           context,
@@ -4311,7 +4321,7 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
 
     const persistedSceneActiveCharacters = resolvePersistedSnapshotActiveOwners({
       sceneActiveCharacters,
-      requestCharacters: activeCharacters,
+      requestCharacters,
       userExtraction,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const persistedSceneActiveEntityIds = resolvePersistedSnapshotActiveEntityIds({
@@ -4322,14 +4332,14 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
     const persistedResolvedEntities = resolvePersistedSnapshotResolvedEntities({
       context,
       sceneActiveCharacters,
-      requestCharacters: activeCharacters,
+      requestCharacters,
       resolvedEntities: resolvedEntityResolution?.resolvedEntities ?? [],
       userExtraction,
       entityTrackingMode: resolveEntityTrackingMode(activeSettings),
     });
     const persistedResolvedEntityOwners = resolvePersistedSnapshotEntityOwners({
       sceneActiveCharacters,
-      requestCharacters: activeCharacters,
+      requestCharacters,
     }).filter(name => isTrackerEnabledForOwner(context, activeSettings, name));
     const filteredPersistedResolvedEntities = filterResolvedEntitiesToTrackedOwners({
       context,
