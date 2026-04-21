@@ -205,6 +205,36 @@ test("buildHistorySample prefers resolver-backed activeCharacters over stale non
   assert.deepEqual(sample[0].activeCharacters, ["Blake"]);
 });
 
+test("buildHistorySample preserves explicit scene active owners when message owners are narrower", () => {
+  const tracker = makeTracker(1234);
+  tracker.activeCharacters = ["Lisa", "Candy"];
+  tracker.entityResolution = buildEntityResolution({
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:lisa",
+        kind: "narrative-entity",
+        name: "Lisa",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+      },
+      {
+        entityId: "bst_narrative:candy",
+        kind: "st-character",
+        name: "Candy",
+        avatar: null,
+        inScene: true,
+        inMessage: false,
+      },
+    ],
+    source: "model",
+  });
+
+  const sample = buildHistorySample([{ messageIndex: 34, timestamp: 1234, data: tracker }]);
+
+  assert.deepEqual(sample[0].activeCharacters, ["Lisa", "Candy"]);
+});
+
 test("filterDebugRecordForDiagnostics strips graph entries from trace", () => {
   const record: DeltaDebugRecord = {
     rawModelOutput: "{}",

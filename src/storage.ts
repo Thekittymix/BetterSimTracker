@@ -203,6 +203,7 @@ export function resolveNormalizedTrackerActiveCharacters(
   resolvedMessageOwners: string[] = [],
   options?: { preserveExplicitActiveCharactersWhenConsistent?: boolean },
 ): string[] {
+  const preserveExplicitActiveCharactersWhenConsistent = options?.preserveExplicitActiveCharactersWhenConsistent ?? true;
   const rawActiveCharacters = Array.isArray(data.activeCharacters)
     ? Array.from(new Set((data.activeCharacters ?? []).map(item => String(item ?? "").trim()).filter(Boolean)))
     : [];
@@ -220,7 +221,7 @@ export function resolveNormalizedTrackerActiveCharacters(
     [...resolvedSceneOwners],
   );
   if (
-    options?.preserveExplicitActiveCharactersWhenConsistent
+    preserveExplicitActiveCharactersWhenConsistent
     && filteredRawActiveCharacters.length
     && filteredResolvedSceneOwners.length
   ) {

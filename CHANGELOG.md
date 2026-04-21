@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev2] - 2026-04-21
+### Fixed
+- Fixed runtime and diagnostics active-owner normalization so scene-present owners remain active in summaries when only one of them is the direct message owner.
+
 ## [2.5.4.1-dev1] - 2026-04-21
 ### Fixed
 - Fixed AI-turn stat extraction scope so scene-present background characters are included in tracker extraction targets even when only one character is the direct message/request owner, while persisted `inMessage` ownership remains request-scoped.
