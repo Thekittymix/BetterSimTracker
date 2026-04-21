@@ -2,131 +2,23 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.3.5-dev29] - 2026-04-21
-### Fixed
-- Fixed JSON extraction debug counts so parsed confidence counts reflect the model response instead of reporting zero after valid JSON confidence output.
-
-## [2.5.3.5-dev28] - 2026-04-21
-### Fixed
-- Fixed confidence handling so final-value tracker stats preserve previous values on low-confidence updates instead of overwriting them blindly.
-- Fixed JSON extraction numeric stats so JSON mode returns deltas with confidence and applies the same max-delta/confidence controls as legacy extraction.
-
-## [2.5.3.5-dev27] - 2026-04-21
-### Changed
-- Renamed the diagnostics prompt snapshot field so dumps distinguish the current tracker injection prompt from the prompt that was used to generate an already-written message.
-
-## [2.5.3.5-dev26] - 2026-04-21
-### Fixed
-- Fixed JSON extraction global custom stats so sequential and non-sequential JSON contracts store global values under the scene/global owner instead of the current message owner.
-
-## [2.5.3.5-dev25] - 2026-04-21
-### Changed
-- Renamed non-sequential JSON extraction progress labels to describe stats-only extraction, matching the separate resolver/extractor runtime contract.
-
-## [2.5.3.5-dev24] - 2026-04-21
-### Changed
-- Split non-sequential JSON extraction output from entity resolving: the resolver owns character/entity selection, while the JSON extractor now returns stats-only payloads without `entityResolution`.
-
-## [2.5.3.5-dev23] - 2026-04-21
-### Changed
-- Changed extraction loading cards so named phases such as `requesting`, `parsing`, `applying`, and `finalizing` no longer display misleading percent suffixes.
-
-## [2.5.3.5-dev22] - 2026-04-21
-### Changed
-- Changed extraction loading progress so labeled request, parse, apply, and finalizing phases display the real phase name instead of a generic `stage N/M` counter.
-
-## [2.5.3.5-dev21] - 2026-04-21
-### Changed
-- Clarified non-sequential JSON extraction progress copy so the loading card says it is requesting, parsing, and applying one full JSON extraction instead of showing generic extraction wording.
-
-## [2.5.3.5-dev20] - 2026-04-21
-### Fixed
-- Fixed JSON extraction requests so enabled character-card context is included in the structured payload for both sequential and non-sequential JSON extraction.
-
-## [2.5.3.5-dev19] - 2026-04-20
-### Fixed
-- Fixed full JSON extraction materialization so active scene owners include both `sceneOwners` and resolved entities marked `inScene`, preventing dropped characters when model owner arrays and entity flags disagree.
-
-## [2.5.3.5-dev18] - 2026-04-20
-### Fixed
-- Changed sequential JSON extraction stages to request and parse stat-only JSON responses instead of requiring each stage to return a full tracker-shaped response.
-
-## [2.5.3.5-dev17] - 2026-04-20
-### Fixed
-- Fixed sequential JSON extraction requests so each stat-scoped request also scopes the previous-state payload and response schema to that stat instead of showing the model full-tracker examples.
-
-## [2.5.3.5-dev16] - 2026-04-20
-### Fixed
-- Changed JSON extraction so `sequentialExtraction` now splits JSON tracker requests by stat/group instead of always sending one full-tracker request.
-- Clarified JSON extraction loading copy so the request stage says it is waiting for the AI backend, not collecting context.
-- Tightened first-message dynamic resolver instructions to request the complete non-user character universe from the greeting message while still omitting the user persona.
-
-## [2.5.3.5-dev15] - 2026-04-20
-### Fixed
-- Fixed first-message JSON bootstrap extraction so the continue pass reuses the entity resolver result saved by the default bootstrap pass instead of sending an identical second resolver request.
-
-## [2.5.3.5-dev14] - 2026-04-20
-### Fixed
-- Fixed JSON extraction mode so invalid structured responses no longer silently fall back to legacy per-stat extraction requests.
-- Changed JSON-mode entity resolver calls to send a JSON-shaped resolver request and added an explicit top-level response schema to JSON extraction requests.
-- Preserved JSON failure diagnostics in debug output when JSON-only extraction fails validation.
-
-## [2.5.3.5-dev13] - 2026-04-20
-### Fixed
-- Changed entity resolution so resolver prompts no longer receive character card context; first-message dynamic chats now use a short model resolver prompt based only on chat context/latest message.
-- Changed collapsed source-owner audits to use chat evidence first and place prior model output after the original resolver request.
-
-## [2.5.3.5-dev12] - 2026-04-20
-### Fixed
-- Fixed the collapsed source-owner audit gate so a model output containing the source-card owner plus only one concrete actor gets a model audit pass instead of assuming the source owner is already a concrete character.
-
-## [2.5.3.5-dev11] - 2026-04-20
-### Fixed
-- Fixed source-card entity resolution so possibly collapsed model resolver outputs get a model-based audit pass instead of relying on provider-specific first-pass behavior.
-- Fixed legacy extraction mode so it no longer sends JSON protocol shadow requests from the runtime extraction flow.
-
-## [2.5.3.5-dev10] - 2026-04-20
-### Fixed
-- Fixed dynamic entity resolution for source/group character cards so the resolver receives source card context before extraction and can materialize concrete named characters instead of collapsing the run to the source owner plus whichever names the provider happens to create.
-
-## [2.5.3.5-dev9] - 2026-04-19
-### Changed
-- Changed active JSON extraction progress labels to the same plain `Requesting/Parsing/Applying extraction` wording used by normal extraction flow, so the UI no longer suggests a separate extra protocol stage.
-
-## [2.5.3.5-dev8] - 2026-04-19
-### Changed
-- Changed the extractor toggle boundary so `Legacy extraction` now bypasses the JSON protocol helper entirely, while new contract tests cover all three runtime paths: legacy-only, active JSON success, and active JSON fallback to legacy.
-
-## [2.5.3.5-dev7] - 2026-04-18
+## [2.5.4] - 2026-04-21
 ### Added
-- Added the active `JSON extraction` runtime path behind the new extraction-protocol setting, with hard fallback to the legacy extractor whenever the structured JSON response fails validation or transport.
+- Added a two-mode extraction protocol setting with `Legacy extraction` and `JSON extraction`, allowing tracker extraction to use structured JSON requests and responses while preserving the original legacy mode as a stable option.
+- Added structured JSON extraction diagnostics so debug dumps show JSON request/response payloads, validation status, parsed deltas, confidence values, applied tracker output, and transport metadata.
 
 ### Changed
-- Changed extraction diagnostics so active JSON runs now emit direct protocol outcomes in the main debug record while legacy-mode shadow tracing stays internal and non-user-facing.
+- Changed JSON extraction to use stat-scoped sequential requests and stats-only non-sequential requests, keeping entity resolving separate from stat extraction and reducing unnecessary full-tracker payloads.
+- Changed JSON extraction prompts so numeric stats return signed deltas with confidence, while text, array, boolean, enum, and date/time stats return values with confidence.
+- Changed extraction loading labels to show the real request, parse, apply, and finalizing phases instead of generic stage/percent text.
 
-## [2.5.3.5-dev6] - 2026-04-17
-### Added
-- Added the final two-mode extraction protocol setting foundation in BST options and diagnostics, exposing `Legacy extraction` and `JSON extraction` as the only user-facing protocol choices while keeping the active extractor path on legacy until cutover parity is complete.
-
-## [2.5.3.5-dev5] - 2026-04-17
-### Added
-- Added JSON shadow continuity contract coverage for real retrack failure shapes and a runtime trace summary for shadow transport outcomes so parity mismatches, invalid responses, and transport errors are visible directly in extraction diagnostics.
-
-## [2.5.3.5-dev4] - 2026-04-17
-### Added
-- Added a debug-gated JSON shadow transport run on real extraction passes so BST can issue the runtime-shaped JSON request in parallel, capture the shadow response plus generator metadata, and store transport/parity diagnostics without affecting the legacy extraction result.
-
-## [2.5.3.5-dev3] - 2026-04-17
-### Added
-- Added a JSON shadow transport helper that runs the runtime-shaped JSON request through the existing generator interface, returns transport metadata, and executes the new request/parse/materialize/parity path end to end without activating it as the main extractor.
-
-## [2.5.3.5-dev2] - 2026-04-17
-### Added
-- Added an execution-side JSON extraction foundation that prepares runtime-shaped request transport, parses and validates structured JSON responses, materializes tracker data, compares parity, and exposes shadow diagnostics from real extraction runs without activating the new pipeline yet.
-
-## [2.5.3.5-dev1] - 2026-04-17
-### Added
-- Added a JSON extraction protocol foundation alongside the legacy extractor path, including typed request/response schemas, validators, adapter/parity helpers, runtime-shaped history and entity-context builders, and shadow debug artifacts for real extraction runs.
+### Fixed
+- Fixed JSON extraction parity with legacy extraction so numeric built-in and custom stats honor confidence dampening and `maxDeltaPerTurn` instead of applying absolute model values directly.
+- Fixed low-confidence final-value stat updates so existing tracker values are preserved when the model is uncertain.
+- Fixed JSON extraction global custom stats so scene/global values are stored under the global owner in both sequential and non-sequential JSON extraction.
+- Fixed JSON extraction requests so enabled character-card context is included where extraction needs it, while resolver prompts no longer rely on card context to infer active entities.
+- Fixed first-message and collapsed-source dynamic resolver behavior so model-resolved multi-character scenes are less likely to collapse to the source card owner or a single mentioned character.
+- Fixed JSON extraction diagnostics and prompt snapshot naming so dumps distinguish parsed model output, applied tracker state, current injection prompt, and prompts used for already-written messages.
 
 ## [2.5.3.5] - 2026-04-17
 ### Changed

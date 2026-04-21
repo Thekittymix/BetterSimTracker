@@ -270,6 +270,7 @@ Numeric scaling formula used by runtime:
 ### Extraction
 
 - `Connection Profile`: use a specific SillyTavern connection profile for tracker extraction. Empty = active profile.
+- `Extraction Protocol`: choose `Legacy extraction` for the original prompt/parser flow or `JSON extraction` for structured JSON tracker extraction. JSON mode keeps entity resolving separate from stat extraction and uses the same confidence/max-delta runtime rules as legacy mode.
 - `Sequential Extraction (per stat)`: one prompt per requested public stat (`affection`, `trust`, `desire`, `connection`, `mood`, `lastThought`, plus eligible custom stats), with owner-private stats processed in owner-scoped passes. Slower, usually more robust parsing.
 - `Max Concurrent Requests`: only used in sequential mode. Controls parallel request count.
 - `Strict JSON Repair`: retry/repair logic when model output is malformed or missing required fields.
@@ -307,6 +308,7 @@ Model confidence behavior:
   - `0` dampening = ignore confidence.
   - `1` dampening = fully trust confidence scaling.
 - `Mood Stickiness` uses confidence as a gate: low confidence keeps previous mood.
+- Text, array, boolean, enum, and date/time stats also use confidence as a preservation gate: low confidence keeps the previous value when one exists.
 - If confidence is missing for a character, runtime fallback is `0.8`.
 
 ### How Stat Updates Are Applied (Exact Runtime Logic)
@@ -332,7 +334,9 @@ Behavior notes:
 - Mood is not delta-based:
   - if `confidence < MoodStickiness`, keep previous mood;
   - otherwise apply parsed mood.
-- `lastThought` is direct text replacement when present.
+- `lastThought` and custom non-numeric stats are not delta-based:
+  - if confidence is low, keep the previous value;
+  - otherwise apply the parsed value.
 - Missing parsed fields keep prior values via merge fallback.
 
 ### Extraction Priority (Actual Runtime Logic)
