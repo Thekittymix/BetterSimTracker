@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev25] - 2026-04-21
+### Changed
+- Renamed non-sequential JSON extraction progress labels to describe stats-only extraction, matching the separate resolver/extractor runtime contract.
+
 ## [2.5.3.5-dev24] - 2026-04-21
 ### Changed
 - Split non-sequential JSON extraction output from entity resolving: the resolver owns character/entity selection, while the JSON extractor now returns stats-only payloads without `entityResolution`.

@@ -28,17 +28,17 @@ test("resolveExtractionLoadingCopy explains baseline and later request phases", 
     title: "Requesting Custom: Clothes",
     subtitle: "Waiting for the tracker response from the selected AI backend.",
   });
-  assert.deepEqual(resolveExtractionLoadingCopy(0, "Requesting full JSON extraction"), {
-    title: "Requesting full JSON extraction",
-    subtitle: "Waiting for one JSON response containing all enabled stats and active owners.",
+  assert.deepEqual(resolveExtractionLoadingCopy(0, "Requesting JSON stats extraction"), {
+    title: "Requesting JSON stats extraction",
+    subtitle: "Waiting for the JSON stats response from the selected AI backend.",
   });
-  assert.deepEqual(resolveExtractionLoadingCopy(1, "Parsing full JSON extraction"), {
-    title: "Parsing full JSON extraction",
-    subtitle: "Validating the structured JSON tracker response.",
+  assert.deepEqual(resolveExtractionLoadingCopy(1, "Parsing JSON stats extraction"), {
+    title: "Parsing JSON stats extraction",
+    subtitle: "Validating the structured JSON stats response.",
   });
-  assert.deepEqual(resolveExtractionLoadingCopy(2, "Applying full JSON extraction"), {
-    title: "Applying full JSON extraction",
-    subtitle: "Applying the parsed JSON tracker values to the current message.",
+  assert.deepEqual(resolveExtractionLoadingCopy(2, "Applying JSON stats extraction"), {
+    title: "Applying JSON stats extraction",
+    subtitle: "Applying the parsed JSON stat values to the current message.",
   });
   assert.deepEqual(resolveExtractionLoadingCopy(2, "Parsing Built-in: mood"), {
     title: "Parsing Built-in: mood",
@@ -80,17 +80,17 @@ test("resolveExtractionProgressDisplay keeps resolver preflight out of fake 1/1 
 });
 
 test("resolveExtractionProgressDisplayWithLabel uses real extraction phase names instead of fake stage labels", () => {
-  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(0, 3, "Requesting full JSON extraction"), {
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(0, 3, "Requesting JSON stats extraction"), {
     stageText: "requesting",
     percent: 0,
     ratio: 0,
   });
-  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(1, 3, "Parsing full JSON extraction"), {
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(1, 3, "Parsing JSON stats extraction"), {
     stageText: "parsing",
     percent: 33,
     ratio: 1 / 3,
   });
-  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(2, 3, "Applying full JSON extraction"), {
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(2, 3, "Applying JSON stats extraction"), {
     stageText: "applying",
     percent: 67,
     ratio: 2 / 3,

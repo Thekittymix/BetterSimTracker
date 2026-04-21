@@ -659,22 +659,22 @@ export function resolveExtractionLoadingCopy(done: number, stepLabel?: string | 
       subtitle: "Collecting recent messages, tracker history, and owner context for extraction.",
     };
   }
-  if (/^Requesting full JSON extraction$/i.test(normalizedLabel)) {
+  if (/^Requesting JSON stats extraction$/i.test(normalizedLabel)) {
     return {
-      title: "Requesting full JSON extraction",
-      subtitle: "Waiting for one JSON response containing all enabled stats and active owners.",
+      title: "Requesting JSON stats extraction",
+      subtitle: "Waiting for the JSON stats response from the selected AI backend.",
     };
   }
-  if (/^Parsing full JSON extraction$/i.test(normalizedLabel)) {
+  if (/^Parsing JSON stats extraction$/i.test(normalizedLabel)) {
     return {
-      title: "Parsing full JSON extraction",
-      subtitle: "Validating the structured JSON tracker response.",
+      title: "Parsing JSON stats extraction",
+      subtitle: "Validating the structured JSON stats response.",
     };
   }
-  if (/^Applying full JSON extraction$/i.test(normalizedLabel)) {
+  if (/^Applying JSON stats extraction$/i.test(normalizedLabel)) {
     return {
-      title: "Applying full JSON extraction",
-      subtitle: "Applying the parsed JSON tracker values to the current message.",
+      title: "Applying JSON stats extraction",
+      subtitle: "Applying the parsed JSON stat values to the current message.",
     };
   }
   if (/^Requesting /i.test(normalizedLabel)) {
