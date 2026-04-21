@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev29] - 2026-04-21
+### Fixed
+- Fixed JSON extraction debug counts so parsed confidence counts reflect the model response instead of reporting zero after valid JSON confidence output.
+
 ## [2.5.3.5-dev28] - 2026-04-21
 ### Fixed
 - Fixed confidence handling so final-value tracker stats preserve previous values on low-confidence updates instead of overwriting them blindly.

@@ -182,6 +182,8 @@ test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output 
   assert.equal(result.debug.meta?.requests?.[0]?.retryType, "json_protocol");
   assert.equal(result.debug.parsed.deltas.affection.Candy, 2);
   assert.equal(result.debug.parsed.confidence.Candy, 0.9);
+  assert.equal(result.debug.meta?.parsedCounts.confidence, 1);
+  assert.equal(result.debug.meta?.parsedCounts.affection, 1);
   assert.deepEqual(result.debug.parsed.deltas.customNonNumeric?.clothes?.Candy, ["t-shirt", "panties"]);
   assert.deepEqual(progressLabels, [
     "Requesting JSON stats extraction",
