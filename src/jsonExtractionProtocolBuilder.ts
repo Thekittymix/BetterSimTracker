@@ -138,13 +138,22 @@ function splitCustomStatDefinitions(definitions: CustomStatDefinition[] | undefi
 }
 
 function exampleValueForStat(definition: JsonExtractionRequestStatDefinition): unknown {
-  if (definition.kind === "numeric") return 45;
-  if (definition.kind === "boolean") return true;
-  if (definition.kind === "array") return ["value"];
-  if (definition.kind === "date_time") return "2026-03-07 20:00";
-  if (definition.id === "mood") return "calm";
-  if (definition.id === "lastThought") return "short thought";
-  return "value";
+  if (definition.kind === "numeric") {
+    return {
+      delta: 3,
+      confidence: 0.8,
+    };
+  }
+  const withConfidence = (value: unknown): Record<string, unknown> => ({
+    value,
+    confidence: 0.8,
+  });
+  if (definition.kind === "boolean") return withConfidence(true);
+  if (definition.kind === "array") return withConfidence(["value"]);
+  if (definition.kind === "date_time") return withConfidence("2026-03-07 20:00");
+  if (definition.id === "mood") return withConfidence("calm");
+  if (definition.id === "lastThought") return withConfidence("short thought");
+  return withConfidence("value");
 }
 
 function buildStatResponseSchema(definitions: JsonExtractionRequestStatDefinition[]): Record<string, unknown> {
@@ -254,6 +263,8 @@ export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestIn
       continuityRules: input.rules?.continuityRules ?? [
         "Preserve current scene continuity unless recent evidence shows a real change.",
         "Keep background participants inScene when recent context says they remain present.",
+        "For every numeric stat, return delta plus confidence. Delta is the signed change from the previous tracker value, not the final absolute value.",
+        "For every non-numeric stat, return value plus confidence. If evidence is weak, lower confidence instead of inventing a change.",
       ],
       entityRules: input.rules?.entityRules ?? [
         "inScene and inMessage are distinct.",

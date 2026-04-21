@@ -18,8 +18,10 @@ import type {
   Statistics,
   TrackerData,
 } from "./types";
+import type { JsonExtractionResponseV1, JsonExtractionStatResponseV1, JsonExtractionStatsResponseV1 } from "./jsonExtractionProtocol";
 
 type JsonShadowMeta = NonNullable<NonNullable<DeltaDebugRecord["meta"]>["jsonShadow"]>;
+type JsonParsedDebug = DeltaDebugRecord["parsed"];
 
 export interface TryExtractStatisticsViaJsonProtocolInput {
   context?: STContext | null;
@@ -77,6 +79,134 @@ function cloneTextBucket(value: Statistics["mood"] | Statistics["lastThought"]):
   return out;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readCellConfidence(value: unknown): number | undefined {
+  if (!isRecord(value)) return undefined;
+  const raw = value.confidence;
+  const confidence = typeof raw === "number" ? raw : (typeof raw === "string" ? Number(raw) : NaN);
+  return Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : undefined;
+}
+
+function readCellDelta(value: unknown): number | undefined {
+  if (!isRecord(value)) return typeof value === "number" ? value : undefined;
+  const raw = value.delta;
+  const delta = typeof raw === "number" ? raw : (typeof raw === "string" ? Number(raw) : NaN);
+  return Number.isFinite(delta) ? delta : undefined;
+}
+
+function readCellValue(value: unknown): unknown {
+  return isRecord(value) && Object.prototype.hasOwnProperty.call(value, "value") ? value.value : value;
+}
+
+function emptyJsonParsedDebug(): JsonParsedDebug {
+  return {
+    confidence: {},
+    deltas: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      custom: {},
+      customNonNumeric: {},
+    },
+    mood: {},
+    lastThought: {},
+  };
+}
+
+function mergeJsonParsedDebug(target: JsonParsedDebug, source: JsonParsedDebug): void {
+  Object.assign(target.confidence, source.confidence);
+  for (const stat of ["affection", "trust", "desire", "connection"] as const) {
+    Object.assign(target.deltas[stat], source.deltas[stat]);
+  }
+  Object.assign(target.mood, source.mood);
+  Object.assign(target.lastThought, source.lastThought);
+  target.deltas.custom = target.deltas.custom ?? {};
+  target.deltas.customNonNumeric = target.deltas.customNonNumeric ?? {};
+  for (const [statId, bucket] of Object.entries(source.deltas.custom ?? {})) {
+    target.deltas.custom[statId] = {
+      ...(target.deltas.custom[statId] ?? {}),
+      ...bucket,
+    };
+  }
+  for (const [statId, bucket] of Object.entries(source.deltas.customNonNumeric ?? {})) {
+    target.deltas.customNonNumeric[statId] = {
+      ...(target.deltas.customNonNumeric[statId] ?? {}),
+      ...bucket,
+    };
+  }
+}
+
+function collectJsonParsedDebugFromResponse(
+  response: JsonExtractionResponseV1 | JsonExtractionStatResponseV1 | JsonExtractionStatsResponseV1,
+  settings: BetterSimTrackerSettings,
+): JsonParsedDebug {
+  const parsed = emptyJsonParsedDebug();
+  const recordConfidence = (ownerName: string, cell: unknown): void => {
+    const confidence = readCellConfidence(cell);
+    if (confidence !== undefined) parsed.confidence[ownerName] = confidence;
+  };
+  const recordBuiltInBucket = (statId: string, bucket: Record<string, unknown>): void => {
+    for (const [ownerName, cell] of Object.entries(bucket ?? {})) {
+      recordConfidence(ownerName, cell);
+      if (statId === "affection" || statId === "trust" || statId === "desire" || statId === "connection") {
+        const delta = readCellDelta(cell);
+        if (delta !== undefined) parsed.deltas[statId][ownerName] = delta;
+      } else if (statId === "mood") {
+        const value = readCellValue(cell);
+        if (typeof value === "string") parsed.mood[ownerName] = value;
+      } else if (statId === "lastThought") {
+        const value = readCellValue(cell);
+        if (typeof value === "string") parsed.lastThought[ownerName] = value;
+      }
+    }
+  };
+  const recordCustomNumericBucket = (statId: string, bucket: Record<string, unknown>): void => {
+    parsed.deltas.custom = parsed.deltas.custom ?? {};
+    parsed.deltas.custom[statId] = parsed.deltas.custom[statId] ?? {};
+    for (const [ownerName, cell] of Object.entries(bucket ?? {})) {
+      recordConfidence(ownerName, cell);
+      const delta = readCellDelta(cell);
+      if (delta !== undefined) parsed.deltas.custom[statId][ownerName] = delta;
+    }
+  };
+  const recordCustomNonNumericBucket = (statId: string, bucket: Record<string, unknown>): void => {
+    parsed.deltas.customNonNumeric = parsed.deltas.customNonNumeric ?? {};
+    parsed.deltas.customNonNumeric[statId] = parsed.deltas.customNonNumeric[statId] ?? {};
+    for (const [ownerName, cell] of Object.entries(bucket ?? {})) {
+      recordConfidence(ownerName, cell);
+      const value = readCellValue(cell);
+      if (value !== undefined) parsed.deltas.customNonNumeric[statId][ownerName] = value as never;
+    }
+  };
+
+  if (response.responseType === "stat_extraction_result") {
+    const customStat = (settings.customStats ?? []).find(stat => stat.id === response.statId);
+    if (["affection", "trust", "desire", "connection", "mood", "lastThought"].includes(response.statId)) {
+      recordBuiltInBucket(response.statId, response.values);
+    } else if ((customStat?.kind ?? "numeric") === "numeric") {
+      recordCustomNumericBucket(response.statId, response.values);
+    } else {
+      recordCustomNonNumericBucket(response.statId, response.values);
+    }
+    return parsed;
+  }
+
+  for (const [statId, bucket] of Object.entries(response.builtInStats ?? {})) {
+    recordBuiltInBucket(statId, bucket);
+  }
+  for (const [statId, bucket] of Object.entries(response.customStats ?? {})) {
+    recordCustomNumericBucket(statId, bucket);
+  }
+  for (const [statId, bucket] of Object.entries(response.customNonNumericStats ?? {})) {
+    recordCustomNonNumericBucket(statId, bucket);
+  }
+  return parsed;
+}
+
 function buildRequestMeta(
   responseMeta: GenerateRequestMeta,
   statsRequested: string[],
@@ -102,6 +232,7 @@ function buildDebugRecordFromJsonProtocolSuccess(input: {
   statistics: Statistics;
   customStatistics: CustomStatistics;
   customNonNumericStatistics: CustomNonNumericStatistics;
+  parsedDebug?: JsonParsedDebug;
   statsRequested: string[];
   jsonShadowDebug: JsonShadowMeta;
   settingsIncludeContext: boolean;
@@ -114,17 +245,17 @@ function buildDebugRecordFromJsonProtocolSuccess(input: {
     promptText: input.settingsIncludeContext ? input.requestText : undefined,
     contextText: input.settingsIncludeContext ? input.contextText : undefined,
     parsed: {
-      confidence: {},
+      confidence: input.parsedDebug?.confidence ?? {},
       deltas: {
-        affection: cloneNumericBucket(input.statistics.affection),
-        trust: cloneNumericBucket(input.statistics.trust),
-        desire: cloneNumericBucket(input.statistics.desire),
-        connection: cloneNumericBucket(input.statistics.connection),
-        custom: { ...(input.customStatistics ?? {}) },
-        customNonNumeric: { ...(input.customNonNumericStatistics ?? {}) },
+        affection: input.parsedDebug?.deltas.affection ?? cloneNumericBucket(input.statistics.affection),
+        trust: input.parsedDebug?.deltas.trust ?? cloneNumericBucket(input.statistics.trust),
+        desire: input.parsedDebug?.deltas.desire ?? cloneNumericBucket(input.statistics.desire),
+        connection: input.parsedDebug?.deltas.connection ?? cloneNumericBucket(input.statistics.connection),
+        custom: input.parsedDebug?.deltas.custom ?? { ...(input.customStatistics ?? {}) },
+        customNonNumeric: input.parsedDebug?.deltas.customNonNumeric ?? { ...(input.customNonNumericStatistics ?? {}) },
       },
-      mood: cloneTextBucket(input.statistics.mood),
-      lastThought: cloneTextBucket(input.statistics.lastThought),
+      mood: input.parsedDebug?.mood ?? cloneTextBucket(input.statistics.mood),
+      lastThought: input.parsedDebug?.lastThought ?? cloneTextBucket(input.statistics.lastThought),
     },
     applied: {
       affection: cloneNumericBucket(input.statistics.affection),
@@ -319,6 +450,7 @@ export async function tryExtractStatisticsViaJsonProtocol(
     const requestTexts: string[] = [];
     const responseTexts: string[] = [];
     const requestMetas: Array<GenerateRequestMeta & { statList: string[]; attempt: number; retryType: string }> = [];
+    const parsedDebug = emptyJsonParsedDebug();
     let lastJsonShadowDebug: JsonShadowMeta | null = null;
     let lastResponseMeta: GenerateRequestMeta | null = null;
 
@@ -375,6 +507,10 @@ export async function tryExtractStatisticsViaJsonProtocol(
       mergeStatistics(statistics, transportResult.trackerData.statistics);
       mergeCustomStatistics(customStatistics, transportResult.trackerData.customStatistics ?? {});
       mergeCustomNonNumericStatistics(customNonNumericStatistics, transportResult.trackerData.customNonNumericStatistics ?? {});
+      mergeJsonParsedDebug(
+        parsedDebug,
+        collectJsonParsedDebugFromResponse(transportResult.response, planItem.settings),
+      );
       input.onProgress?.(progressBase + 2, progressTotal, buildProgressApply(planItem.label));
       requestTexts.push(transportResult.requestText);
       responseTexts.push(transportResult.responseText);
@@ -432,6 +568,7 @@ export async function tryExtractStatisticsViaJsonProtocol(
         statistics,
         customStatistics,
         customNonNumericStatistics,
+        parsedDebug,
         statsRequested,
         jsonShadowDebug,
         settingsIncludeContext: input.settings.includeContextInDiagnostics,

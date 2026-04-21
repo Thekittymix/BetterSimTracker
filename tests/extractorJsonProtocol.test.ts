@@ -141,7 +141,30 @@ test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output 
         ok: true,
         request: {} as never,
         requestText: "{\"protocolVersion\":\"bst.extract.v1\"}",
-        response: {} as never,
+        response: {
+          protocolVersion: "bst.extract.v1",
+          responseType: "stats_extraction_result",
+          result: {
+            status: "ok",
+          },
+          builtInStats: {
+            affection: {
+              Candy: {
+                delta: 2,
+                confidence: 0.7,
+              },
+            },
+          },
+          customStats: {},
+          customNonNumericStats: {
+            clothes: {
+              Candy: {
+                value: ["t-shirt", "panties"],
+                confidence: 0.9,
+              },
+            },
+          },
+        },
         responseText: "{\"responseType\":\"stats_extraction_result\"}",
         responseMeta: makeMeta(),
         trackerData: makeTrackerData(),
@@ -157,6 +180,9 @@ test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output 
   assert.deepEqual(result.customNonNumericStatistics.clothes.Candy, ["t-shirt", "panties"]);
   assert.equal(result.debug.meta?.jsonShadow?.status, "response_valid");
   assert.equal(result.debug.meta?.requests?.[0]?.retryType, "json_protocol");
+  assert.equal(result.debug.parsed.deltas.affection.Candy, 2);
+  assert.equal(result.debug.parsed.confidence.Candy, 0.9);
+  assert.deepEqual(result.debug.parsed.deltas.customNonNumeric?.clothes?.Candy, ["t-shirt", "panties"]);
   assert.deepEqual(progressLabels, [
     "Requesting JSON stats extraction",
     "Parsing JSON stats extraction",

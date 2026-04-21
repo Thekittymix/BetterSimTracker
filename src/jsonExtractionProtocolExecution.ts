@@ -3,6 +3,7 @@ import { serializeJsonExtractionRequestV1 } from "./jsonExtractionProtocolBuilde
 import { compareTrackerDataParity, type JsonExtractionParityReport } from "./jsonExtractionProtocolParity";
 import { parseAndValidateJsonExtractionResponseV1, parseAndValidateJsonExtractionStatResponseV1, parseAndValidateJsonExtractionStatsResponseV1, type JsonExtractionResponseV1, type JsonExtractionStatResponseV1, type JsonExtractionStatsResponseV1 } from "./jsonExtractionProtocol";
 import { buildJsonExtractionShadowRequestForExtractionRun, type BuildJsonExtractionShadowRequestForRunInput } from "./jsonExtractionProtocolRuntimeBridge";
+import { shouldBypassConfidenceControls } from "./extractorHelpers";
 import type { JsonExtractionRequestV1 } from "./jsonExtractionProtocol";
 import type { TrackerData } from "./types";
 
@@ -70,20 +71,41 @@ export function executeJsonExtractionProtocol(
 
   const trackerData = input.responseMode === "stat"
     ? materializeTrackerDataFromJsonExtractionStatResponseV1(parsed.value as JsonExtractionStatResponseV1, {
+        context: input.context,
         activeCharacters: input.activeCharacters,
         entityResolution: input.entityResolution,
         customStatDefinitions: input.settings.customStats,
+        settings: input.settings,
+        previousTrackerData: input.previousTrackerData,
+        previousStatistics: input.previousStatistics,
+        previousCustomStatistics: input.previousCustomStatistics,
+        previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
+        bypassConfidenceControls: shouldBypassConfidenceControls(input.reason),
         timestamp: input.expectedTrackerData?.timestamp,
       })
     : input.responseMode === "stats"
       ? materializeTrackerDataFromJsonExtractionStatsResponseV1(parsed.value as JsonExtractionStatsResponseV1, {
+          context: input.context,
           activeCharacters: input.activeCharacters,
           entityResolution: input.entityResolution,
           customStatDefinitions: input.settings.customStats,
+          settings: input.settings,
+          previousTrackerData: input.previousTrackerData,
+          previousStatistics: input.previousStatistics,
+          previousCustomStatistics: input.previousCustomStatistics,
+          previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
+          bypassConfidenceControls: shouldBypassConfidenceControls(input.reason),
           timestamp: input.expectedTrackerData?.timestamp,
         })
       : materializeTrackerDataFromJsonExtractionResponseV1(parsed.value as JsonExtractionResponseV1, {
+          context: input.context,
           customStatDefinitions: input.settings.customStats,
+          settings: input.settings,
+          previousTrackerData: input.previousTrackerData,
+          previousStatistics: input.previousStatistics,
+          previousCustomStatistics: input.previousCustomStatistics,
+          previousCustomNonNumericStatistics: input.previousCustomNonNumericStatistics,
+          bypassConfidenceControls: shouldBypassConfidenceControls(input.reason),
           timestamp: input.expectedTrackerData?.timestamp,
         });
 

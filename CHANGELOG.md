@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev28] - 2026-04-21
+### Fixed
+- Fixed confidence handling so final-value tracker stats preserve previous values on low-confidence updates instead of overwriting them blindly.
+- Fixed JSON extraction numeric stats so JSON mode returns deltas with confidence and applies the same max-delta/confidence controls as legacy extraction.
+
 ## [2.5.3.5-dev27] - 2026-04-21
 ### Changed
 - Renamed the diagnostics prompt snapshot field so dumps distinguish the current tracker injection prompt from the prompt that was used to generate an already-written message.

@@ -241,7 +241,10 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes sequential JSON re
     },
     statId: "desire",
     values: {
-      "Owner display name": "value for this stat only",
+      "Owner display name": {
+        delta: "numeric change from the previous tracker value, not the final value",
+        confidence: 0.8,
+      },
     },
   });
 });
@@ -289,10 +292,16 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes non-sequential JSO
   assert.equal(request.outputContract.responseSchema?.responseType, "stats_extraction_result");
   assert.equal(Object.prototype.hasOwnProperty.call(request.outputContract.responseSchema ?? {}, "entityResolution"), false);
   assert.deepEqual((request.outputContract.responseSchema?.customStats as Record<string, unknown>).scene_score, {
-    __bst_global__: 45,
+    __bst_global__: {
+      delta: 3,
+      confidence: 0.8,
+    },
   });
   assert.deepEqual((request.outputContract.responseSchema?.customNonNumericStats as Record<string, unknown>).scene_date_time, {
-    __bst_global__: "2026-03-07 20:00",
+    __bst_global__: {
+      value: "2026-03-07 20:00",
+      confidence: 0.8,
+    },
   });
   assert.deepEqual(request.entityContext.candidateOwners, ["Candy", "Lisa"]);
 });
@@ -349,7 +358,10 @@ test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global c
     },
     statId: "scene_date_time",
     values: {
-      __bst_global__: "single global scene value for this stat only",
+      __bst_global__: {
+        value: "single global scene value for this stat only",
+        confidence: 0.8,
+      },
     },
   });
 });

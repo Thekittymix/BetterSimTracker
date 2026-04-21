@@ -24,6 +24,7 @@ import {
   groupCustomStatsForSequential,
   resolveMoodWithConfidence,
   shouldBypassConfidenceControls,
+  shouldPreserveFinalValueByConfidence,
 } from "./extractorHelpers";
 import { tryExtractStatisticsViaJsonProtocol } from "./extractorJsonProtocol";
 import {
@@ -538,6 +539,15 @@ export async function extractStatisticsParallel(input: {
       lastThought: {} as Record<string, string>,
     };
 
+    const shouldPreserveFinalValue = (confidence: number, previousValue: unknown): boolean => {
+      return shouldPreserveFinalValueByConfidence({
+        confidence,
+        previousValue,
+        confidenceThreshold: settings.moodStickiness,
+        bypassConfidenceControls,
+      });
+    };
+
     const applyParsedForBuiltInOrTextStat = (
       stat: StatKey,
       parsedOne: ReturnType<typeof parseUnifiedDeltaResponse>,
@@ -635,8 +645,18 @@ export async function extractStatisticsParallel(input: {
         }
         if (stat === "lastThought" && parsedOne.lastThought[name] !== undefined) {
           parsed.lastThought[name] = parsedOne.lastThought[name];
-          output.lastThought[name] = parsedOne.lastThought[name];
-          applied.lastThought[name] = parsedOne.lastThought[name];
+          const previousThought = resolvePreviousTrackerLookupValue(
+            registryContext,
+            previousTrackerData,
+            previousStatistics?.lastThought,
+            previousTrackerData?.statisticsByEntityId?.lastThought,
+            name,
+          );
+          const nextThought = shouldPreserveFinalValue(confidence, previousThought)
+            ? String(previousThought)
+            : parsedOne.lastThought[name];
+          output.lastThought[name] = nextThought;
+          applied.lastThought[name] = nextThought;
         }
       }
       if (stat === "mood") {
@@ -731,18 +751,38 @@ export async function extractStatisticsParallel(input: {
         if (!sourceName) return;
         const value = parsedOne.value[sourceName];
         if (value === undefined) return;
-        parsed.deltas.customNonNumeric[statId][GLOBAL_TRACKER_KEY] = value;
-        outputCustomNonNumeric[statId][GLOBAL_TRACKER_KEY] = value;
-        applied.customNonNumericStatistics[statId][GLOBAL_TRACKER_KEY] = value;
+        const previousByOwner = previousCustomNonNumericStatistics?.[statId];
+        const previousValue = (previousByOwner?.[GLOBAL_TRACKER_KEY] ?? previousByOwner?.[sourceName]) as CustomNonNumericValue | undefined;
+        const confidence = parsedOne.confidence[sourceName] ?? 0.8;
+        const next: CustomNonNumericValue | undefined = shouldPreserveFinalValue(confidence, previousValue)
+          ? previousValue
+          : value;
+        if (next === undefined) return;
+        parsed.deltas.customNonNumeric[statId][GLOBAL_TRACKER_KEY] = next;
+        outputCustomNonNumeric[statId][GLOBAL_TRACKER_KEY] = next;
+        applied.customNonNumericStatistics[statId][GLOBAL_TRACKER_KEY] = next;
         return;
       }
       for (const name of requestCharacters) {
         if (isOwnerStatEnabled?.(name, statId) === false) continue;
         const value = parsedOne.value[name];
         if (value === undefined) continue;
-        parsed.deltas.customNonNumeric[statId][name] = value;
-        outputCustomNonNumeric[statId][name] = value;
-        applied.customNonNumericStatistics[statId][name] = value;
+        const previousValue = resolvePreviousCustomNonNumericValue(
+          registryContext,
+          previousCustomNonNumericStatistics?.[statId] ?? null,
+          previousTrackerData,
+          previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId] ?? null,
+          name,
+          false,
+        ) as CustomNonNumericValue | undefined;
+        const confidence = parsedOne.confidence[name] ?? 0.8;
+        const next: CustomNonNumericValue | undefined = shouldPreserveFinalValue(confidence, previousValue)
+          ? previousValue
+          : value;
+        if (next === undefined) continue;
+        parsed.deltas.customNonNumeric[statId][name] = next;
+        outputCustomNonNumeric[statId][name] = next;
+        applied.customNonNumericStatistics[statId][name] = next;
       }
     };
 

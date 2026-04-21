@@ -393,3 +393,16 @@ export function resolveMoodWithConfidence(input: {
   const stick = Math.max(0, Math.min(1, Number(input.moodStickiness) || 0));
   return conf < stick ? input.previousMood : input.nextMood;
 }
+
+export function shouldPreserveFinalValueByConfidence(input: {
+  previousValue: unknown;
+  confidence: number;
+  confidenceThreshold: number;
+  bypassConfidenceControls?: boolean;
+}): boolean {
+  if (input.bypassConfidenceControls) return false;
+  if (input.previousValue === undefined || input.previousValue === null || input.previousValue === "") return false;
+  const confidence = Math.max(0, Math.min(1, Number(input.confidence) || 0));
+  const threshold = Math.max(0, Math.min(1, Number(input.confidenceThreshold) || 0));
+  return confidence < threshold;
+}

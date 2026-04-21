@@ -4,8 +4,9 @@ import assert from "node:assert/strict";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
 import { materializeTrackerDataFromJsonExtractionResponseV1, materializeTrackerDataFromJsonExtractionStatResponseV1 } from "../src/jsonExtractionProtocolAdapter";
 import { resolveScopedCustomNonNumericValue } from "../src/promptInjectionHelpers";
+import { defaultSettings } from "../src/settings";
 import type { JsonExtractionResponseV1, JsonExtractionStatResponseV1 } from "../src/jsonExtractionProtocol";
-import type { CustomStatDefinition } from "../src/types";
+import type { CustomStatDefinition, TrackerData } from "../src/types";
 
 function makeResponse(): JsonExtractionResponseV1 {
   return {
@@ -178,6 +179,30 @@ const customStatDefinitions: CustomStatDefinition[] = [
   },
 ];
 
+function makePreviousTracker(): TrackerData {
+  return {
+    timestamp: 111,
+    activeCharacters: ["Candy"],
+    statistics: {
+      affection: { Candy: 50 },
+      trust: { Candy: 50 },
+      desire: { Candy: 50 },
+      connection: { Candy: 50 },
+      mood: { Candy: "Calm" },
+      lastThought: { Candy: "Keep watching him." },
+    },
+    customStatistics: {
+      stress: { Candy: 50 },
+      scene_score: { [GLOBAL_TRACKER_KEY]: 50 },
+    },
+    customNonNumericStatistics: {
+      pose: { Candy: "standing by the couch" },
+      clothes: { Candy: ["dress"] },
+      scene_date_time: { [GLOBAL_TRACKER_KEY]: "2024-06-15 14:00" },
+    },
+  };
+}
+
 test("materializeTrackerDataFromJsonExtractionResponseV1 builds tracker data with broad scene continuity and narrow message participation", () => {
   const tracker = materializeTrackerDataFromJsonExtractionResponseV1(makeResponse(), {
     customStatDefinitions,
@@ -239,6 +264,92 @@ test("materializeTrackerDataFromJsonExtractionResponseV1 maps built-in, numeric 
   assert.equal(tracker.customStatistics?.scene_score?.Candy, undefined);
   assert.deepEqual(tracker.customNonNumericStatistics?.clothes?.Candy, ["t-shirt", "panties"]);
   assert.equal(tracker.customNonNumericStatistics?.pose?.Candy, "sitting on the couch and grinning at Kuba");
+});
+
+test("materializeTrackerDataFromJsonExtractionResponseV1 applies JSON numeric deltas through legacy confidence and max-delta controls", () => {
+  const response = makeResponse();
+  response.builtInStats.affection = {
+    Candy: {
+      delta: 20,
+      confidence: 0.5,
+    },
+  };
+  response.customStats.stress = {
+    Candy: {
+      delta: 20,
+      confidence: 0.5,
+    },
+  };
+  response.customStats.scene_score = {
+    Candy: {
+      delta: 20,
+      confidence: 0.5,
+    },
+  };
+  const definitions = customStatDefinitions.map(definition => definition.id === "scene_score"
+    ? { ...definition, maxDeltaPerTurn: 6 }
+    : definition);
+
+  const tracker = materializeTrackerDataFromJsonExtractionResponseV1(response, {
+    customStatDefinitions: definitions,
+    settings: {
+      ...defaultSettings,
+      maxDeltaPerTurn: 10,
+      confidenceDampening: 0.5,
+    },
+    previousTrackerData: makePreviousTracker(),
+    previousStatistics: makePreviousTracker().statistics,
+    previousCustomStatistics: makePreviousTracker().customStatistics,
+  });
+
+  assert.equal(tracker.statistics.affection.Candy, 58);
+  assert.equal(tracker.customStatistics?.stress?.Candy, 58);
+  assert.equal(tracker.customStatistics?.scene_score?.[GLOBAL_TRACKER_KEY], 55);
+});
+
+test("materializeTrackerDataFromJsonExtractionResponseV1 applies confidence gates to final-value JSON stats", () => {
+  const response = makeResponse();
+  response.builtInStats.mood = {
+    Candy: {
+      value: "Excited",
+      confidence: 0.2,
+    },
+  };
+  response.builtInStats.lastThought = {
+    Candy: {
+      value: "This is probably wrong.",
+      confidence: 0.2,
+    },
+  };
+  response.customNonNumericStats.pose = {
+    Candy: {
+      value: "running through the doorway",
+      confidence: 0.2,
+    },
+  };
+  response.customNonNumericStats.clothes = {
+    Candy: {
+      value: ["coat"],
+      confidence: 0.9,
+    },
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionResponseV1(response, {
+    customStatDefinitions,
+    settings: {
+      ...defaultSettings,
+      moodStickiness: 0.6,
+    },
+    previousTrackerData: makePreviousTracker(),
+    previousStatistics: makePreviousTracker().statistics,
+    previousCustomStatistics: makePreviousTracker().customStatistics,
+    previousCustomNonNumericStatistics: makePreviousTracker().customNonNumericStatistics,
+  });
+
+  assert.equal(tracker.statistics.mood.Candy, "Calm");
+  assert.equal(tracker.statistics.lastThought.Candy, "Keep watching him.");
+  assert.equal(tracker.customNonNumericStatistics?.pose?.Candy, "standing by the couch");
+  assert.deepEqual(tracker.customNonNumericStatistics?.clothes?.Candy, ["coat"]);
 });
 
 test("materializeTrackerDataFromJsonExtractionResponseV1 preserves explicit empty arrays for non-numeric custom stats", () => {
@@ -343,4 +454,35 @@ test("materializeTrackerDataFromJsonExtractionStatResponseV1 stores sequential g
 
   assert.equal(tracker.customStatistics?.scene_score?.[GLOBAL_TRACKER_KEY], 64);
   assert.equal(tracker.customStatistics?.scene_score?.Candy, undefined);
+});
+
+test("materializeTrackerDataFromJsonExtractionStatResponseV1 applies sequential JSON delta and confidence semantics", () => {
+  const response: JsonExtractionStatResponseV1 = {
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: {
+      status: "ok",
+    },
+    statId: "affection",
+    values: {
+      Candy: {
+        delta: 20,
+        confidence: 0.5,
+      },
+    },
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionStatResponseV1(response, {
+    activeCharacters: ["Candy"],
+    customStatDefinitions,
+    settings: {
+      ...defaultSettings,
+      maxDeltaPerTurn: 10,
+      confidenceDampening: 0.5,
+    },
+    previousTrackerData: makePreviousTracker(),
+    previousStatistics: makePreviousTracker().statistics,
+  });
+
+  assert.equal(tracker.statistics.affection.Candy, 58);
 });

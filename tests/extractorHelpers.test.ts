@@ -17,6 +17,7 @@ import {
   resolveMoodWithConfidence,
   selectNoActiveContinuityTrackerEntry,
   shouldBypassConfidenceControls,
+  shouldPreserveFinalValueByConfidence,
 } from "../src/extractorHelpers";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
 import type { BetterSimTrackerSettings, CustomStatDefinition } from "../src/types";
@@ -151,6 +152,34 @@ test("resolveMoodWithConfidence keeps previous mood only when confidence control
       bypassConfidenceControls: true,
     }),
     "Excited",
+  );
+});
+
+test("shouldPreserveFinalValueByConfidence gates final-value stat updates consistently", () => {
+  assert.equal(
+    shouldPreserveFinalValueByConfidence({
+      previousValue: "standing",
+      confidence: 0.2,
+      confidenceThreshold: 0.6,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldPreserveFinalValueByConfidence({
+      previousValue: "standing",
+      confidence: 0.8,
+      confidenceThreshold: 0.6,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldPreserveFinalValueByConfidence({
+      previousValue: "standing",
+      confidence: 0.2,
+      confidenceThreshold: 0.6,
+      bypassConfidenceControls: true,
+    }),
+    false,
   );
 });
 

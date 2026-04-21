@@ -122,6 +122,8 @@ function buildStatStageOutputContract(
 ): BuildJsonExtractionRequestInput["outputContract"] {
   const customStat = (settings.customStats ?? []).find(stat => stat.id === statId);
   const valueOwnerLabel = customStat?.globalScope === true ? "__bst_global__" : "Owner display name";
+  const isNumericStat = ["affection", "trust", "desire", "connection"].includes(statId)
+    || (customStat?.kind ?? "numeric") === "numeric";
   return {
     requiredSections: [
       "result",
@@ -136,9 +138,17 @@ function buildStatStageOutputContract(
       },
       statId,
       values: {
-        [valueOwnerLabel]: customStat?.globalScope === true
-          ? "single global scene value for this stat only"
-          : "value for this stat only",
+        [valueOwnerLabel]: isNumericStat
+          ? {
+              delta: "numeric change from the previous tracker value, not the final value",
+              confidence: 0.8,
+            }
+          : {
+              value: customStat?.globalScope === true
+                ? "single global scene value for this stat only"
+                : "value for this stat only",
+              confidence: 0.8,
+            },
       },
     },
   };
