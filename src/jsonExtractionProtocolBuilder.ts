@@ -1,5 +1,6 @@
 import { normalizeCustomStatKind, normalizeCustomTextMaxLength } from "./customStatRuntime";
 import type { BetterSimTrackerSettings, CustomStatDefinition, StatKey } from "./types";
+import { GLOBAL_TRACKER_KEY } from "./constants";
 import type {
   JsonExtractionRequestEntityCandidate,
   JsonExtractionRequestHistoryEntry,
@@ -149,8 +150,9 @@ function exampleValueForStat(definition: JsonExtractionRequestStatDefinition): u
 function buildStatResponseSchema(definitions: JsonExtractionRequestStatDefinition[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const definition of definitions) {
+    const ownerLabel = definition.globalScope ? GLOBAL_TRACKER_KEY : "Owner display name";
     out[definition.id] = {
-      "Owner display name": exampleValueForStat(definition),
+      [ownerLabel]: exampleValueForStat(definition),
     };
   }
   return out;

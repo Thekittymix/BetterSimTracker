@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev26] - 2026-04-21
+### Fixed
+- Fixed JSON extraction global custom stats so sequential and non-sequential JSON contracts store global values under the scene/global owner instead of the current message owner.
+
 ## [2.5.3.5-dev25] - 2026-04-21
 ### Changed
 - Renamed non-sequential JSON extraction progress labels to describe stats-only extraction, matching the separate resolver/extractor runtime contract.

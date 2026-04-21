@@ -6,6 +6,7 @@ import type {
   TrackerData,
   TrackerDataEntityResolution,
 } from "./types";
+import { GLOBAL_TRACKER_KEY } from "./constants";
 import type { JsonExtractionResponseV1 } from "./jsonExtractionProtocol";
 import type { JsonExtractionStatResponseV1, JsonExtractionStatsResponseV1 } from "./jsonExtractionProtocol";
 
@@ -98,13 +99,34 @@ function buildBuiltInStatistics(response: Pick<JsonExtractionResponseV1, "builtI
   return statistics;
 }
 
-function buildCustomStatistics(response: Pick<JsonExtractionResponseV1, "customStats">): CustomStatistics {
+function assignScopedValue<T>(
+  bucket: Record<string, T>,
+  definition: CustomStatDefinition | undefined,
+  ownerName: string,
+  value: T,
+): void {
+  const targetOwner = definition?.globalScope === true ? GLOBAL_TRACKER_KEY : ownerName;
+  if (
+    definition?.globalScope === true
+    && Object.prototype.hasOwnProperty.call(bucket, targetOwner)
+    && ownerName !== GLOBAL_TRACKER_KEY
+  ) {
+    return;
+  }
+  bucket[targetOwner] = value;
+}
+
+function buildCustomStatistics(
+  response: Pick<JsonExtractionResponseV1, "customStats">,
+  definitionsById?: Map<string, CustomStatDefinition>,
+): CustomStatistics {
   const output: CustomStatistics = {};
   for (const [statId, bucket] of Object.entries(response.customStats)) {
+    const definition = definitionsById?.get(statId);
     const nextBucket: Record<string, number> = {};
     for (const [ownerName, rawValue] of Object.entries(bucket ?? {})) {
       const value = coerceNumeric(rawValue);
-      if (value !== undefined) nextBucket[ownerName] = value;
+      if (value !== undefined) assignScopedValue(nextBucket, definition, ownerName, value);
     }
     output[statId] = nextBucket;
   }
@@ -135,7 +157,7 @@ export function materializeTrackerDataFromJsonExtractionResponseV1(
           preserveExplicitEmptyArray: true,
         },
       );
-      if (normalized !== undefined) nextBucket[ownerName] = normalized;
+      if (normalized !== undefined) assignScopedValue(nextBucket, definition, ownerName, normalized);
     }
     customNonNumericStatistics[statId] = nextBucket;
   }
@@ -145,7 +167,7 @@ export function materializeTrackerDataFromJsonExtractionResponseV1(
     activeCharacters: buildActiveCharacters(response),
     entityResolution: buildEntityResolution(response),
     statistics: buildBuiltInStatistics(response),
-    customStatistics: buildCustomStatistics(response),
+    customStatistics: buildCustomStatistics(response, definitionsById),
     customNonNumericStatistics,
   };
 }
@@ -176,7 +198,7 @@ export function materializeTrackerDataFromJsonExtractionStatsResponseV1(
           preserveExplicitEmptyArray: true,
         },
       );
-      if (normalized !== undefined) nextBucket[ownerName] = normalized;
+      if (normalized !== undefined) assignScopedValue(nextBucket, definition, ownerName, normalized);
     }
     customNonNumericStatistics[statId] = nextBucket;
   }
@@ -186,7 +208,7 @@ export function materializeTrackerDataFromJsonExtractionStatsResponseV1(
     activeCharacters: [...options.activeCharacters],
     entityResolution: options.entityResolution ?? undefined,
     statistics: buildBuiltInStatistics(response),
-    customStatistics: buildCustomStatistics(response),
+    customStatistics: buildCustomStatistics(response, definitionsById),
     customNonNumericStatistics,
   };
 }
@@ -234,7 +256,10 @@ export function materializeTrackerDataFromJsonExtractionStatResponseV1(
     const definition = (options.customStatDefinitions ?? []).find(candidate => candidate.id === statId);
     if (normalizeCustomStatKind(definition?.kind) === "numeric") {
       const bucket: Record<string, number> = {};
-      putNumeric(bucket);
+      for (const [ownerName, rawValue] of Object.entries(response.values)) {
+        const value = coerceNumeric(rawValue);
+        if (value !== undefined) assignScopedValue(bucket, definition, ownerName, value);
+      }
       customStatistics[statId] = bucket;
     } else {
       const bucket: Record<string, string | boolean | string[]> = {};
@@ -249,7 +274,7 @@ export function materializeTrackerDataFromJsonExtractionStatResponseV1(
             preserveExplicitEmptyArray: true,
           },
         );
-        if (normalized !== undefined) bucket[ownerName] = normalized;
+        if (normalized !== undefined) assignScopedValue(bucket, definition, ownerName, normalized);
       }
       customNonNumericStatistics[statId] = bucket;
     }

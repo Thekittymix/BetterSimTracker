@@ -31,6 +31,32 @@ function makeSettings(): BetterSimTrackerSettings {
         showInGraph: false,
         includeInInjection: true,
       },
+      {
+        id: "scene_score",
+        kind: "numeric",
+        label: "Scene Score",
+        defaultValue: 50,
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        showOnCard: true,
+        showInGraph: true,
+        includeInInjection: true,
+      },
+      {
+        id: "scene_date_time",
+        kind: "date_time",
+        label: "Scene Date/Time",
+        defaultValue: "",
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
     ],
   };
 }
@@ -262,7 +288,70 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes non-sequential JSO
   ]);
   assert.equal(request.outputContract.responseSchema?.responseType, "stats_extraction_result");
   assert.equal(Object.prototype.hasOwnProperty.call(request.outputContract.responseSchema ?? {}, "entityResolution"), false);
+  assert.deepEqual((request.outputContract.responseSchema?.customStats as Record<string, unknown>).scene_score, {
+    __bst_global__: 45,
+  });
+  assert.deepEqual((request.outputContract.responseSchema?.customNonNumericStats as Record<string, unknown>).scene_date_time, {
+    __bst_global__: "2026-03-07 20:00",
+  });
   assert.deepEqual(request.entityContext.candidateOwners, ["Candy", "Lisa"]);
+});
+
+test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global custom stat output as global", () => {
+  const request = buildJsonExtractionShadowRequestForExtractionRun({
+    context: makeContext(),
+    reason: "SWIPE_GENERATION_ENDED",
+    messageIndex: 0,
+    settings: {
+      ...makeSettings(),
+      trackAffection: false,
+      trackTrust: false,
+      trackDesire: false,
+      trackConnection: false,
+      trackMood: false,
+      trackLastThought: false,
+      customStats: [
+        {
+          id: "scene_date_time",
+          kind: "date_time",
+          label: "Scene Date/Time",
+          defaultValue: "",
+          track: true,
+          trackCharacters: true,
+          trackUser: true,
+          globalScope: true,
+          showOnCard: true,
+          showInGraph: false,
+          includeInInjection: true,
+        },
+      ],
+    },
+    activeCharacters: ["Candy"],
+    entityResolution: makePreviousTracker().entityResolution,
+    previousTrackerData: makePreviousTracker(),
+    previousStatistics: makePreviousTracker().statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: {
+      scene_date_time: {
+        __bst_global__: "2024-06-15 14:00",
+      },
+    },
+    responseMode: "stat",
+    statId: "scene_date_time",
+  });
+
+  assert.deepEqual(request.outputContract.requiredSections, ["result", "statId", "values"]);
+  assert.deepEqual(request.outputContract.responseSchema, {
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: {
+      status: "ok",
+    },
+    statId: "scene_date_time",
+    values: {
+      __bst_global__: "single global scene value for this stat only",
+    },
+  });
 });
 
 test("buildJsonExtractionShadowRequestForExtractionRun omits card context when the runtime setting is disabled", () => {

@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { materializeTrackerDataFromJsonExtractionResponseV1 } from "../src/jsonExtractionProtocolAdapter";
-import type { JsonExtractionResponseV1 } from "../src/jsonExtractionProtocol";
+import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
+import { materializeTrackerDataFromJsonExtractionResponseV1, materializeTrackerDataFromJsonExtractionStatResponseV1 } from "../src/jsonExtractionProtocolAdapter";
+import { resolveScopedCustomNonNumericValue } from "../src/promptInjectionHelpers";
+import type { JsonExtractionResponseV1, JsonExtractionStatResponseV1 } from "../src/jsonExtractionProtocol";
 import type { CustomStatDefinition } from "../src/types";
 
 function makeResponse(): JsonExtractionResponseV1 {
@@ -48,6 +50,9 @@ function makeResponse(): JsonExtractionResponseV1 {
     customStats: {
       stress: {
         Candy: 44,
+      },
+      scene_score: {
+        Candy: 77,
       },
     },
     customNonNumericStats: {
@@ -144,6 +149,33 @@ const customStatDefinitions: CustomStatDefinition[] = [
     showInGraph: false,
     includeInInjection: true,
   },
+  {
+    id: "scene_date_time",
+    kind: "date_time",
+    label: "Scene Date/Time",
+    defaultValue: "",
+    dateTimeMode: "timestamp",
+    track: true,
+    trackCharacters: true,
+    trackUser: true,
+    globalScope: true,
+    showOnCard: true,
+    showInGraph: false,
+    includeInInjection: true,
+  },
+  {
+    id: "scene_score",
+    kind: "numeric",
+    label: "Scene Score",
+    defaultValue: 50,
+    track: true,
+    trackCharacters: true,
+    trackUser: true,
+    globalScope: true,
+    showOnCard: true,
+    showInGraph: true,
+    includeInInjection: true,
+  },
 ];
 
 test("materializeTrackerDataFromJsonExtractionResponseV1 builds tracker data with broad scene continuity and narrow message participation", () => {
@@ -203,6 +235,8 @@ test("materializeTrackerDataFromJsonExtractionResponseV1 maps built-in, numeric 
   assert.equal(tracker.statistics.mood.Candy, "Playful");
   assert.equal(tracker.statistics.lastThought.Candy, "I want to keep teasing him.");
   assert.equal(tracker.customStatistics?.stress?.Candy, 44);
+  assert.equal(tracker.customStatistics?.scene_score?.[GLOBAL_TRACKER_KEY], 77);
+  assert.equal(tracker.customStatistics?.scene_score?.Candy, undefined);
   assert.deepEqual(tracker.customNonNumericStatistics?.clothes?.Candy, ["t-shirt", "panties"]);
   assert.equal(tracker.customNonNumericStatistics?.pose?.Candy, "sitting on the couch and grinning at Kuba");
 });
@@ -258,4 +292,55 @@ test("materializeTrackerDataFromJsonExtractionResponseV1 drops invalid enum valu
 
   assert.equal(tracker.customNonNumericStatistics?.isrestrained?.Candy, false);
   assert.equal(Object.prototype.hasOwnProperty.call(tracker.customNonNumericStatistics?.phase ?? {}, "Candy"), false);
+});
+
+test("materializeTrackerDataFromJsonExtractionStatResponseV1 stores sequential global custom stat values under the global owner", () => {
+  const response: JsonExtractionStatResponseV1 = {
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: {
+      status: "ok",
+    },
+    statId: "scene_date_time",
+    values: {
+      [USER_TRACKER_KEY]: "2024-06-15 14:05",
+      Candy: "2024-06-15 14:05",
+    },
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionStatResponseV1(response, {
+    activeCharacters: ["Candy"],
+    customStatDefinitions,
+    timestamp: 12345,
+  });
+
+  assert.equal(tracker.customNonNumericStatistics?.scene_date_time?.[GLOBAL_TRACKER_KEY], "2024-06-15 14:05");
+  assert.equal(tracker.customNonNumericStatistics?.scene_date_time?.Candy, undefined);
+  assert.equal(
+    resolveScopedCustomNonNumericValue(tracker, "scene_date_time", GLOBAL_TRACKER_KEY, true),
+    "2024-06-15 14:05",
+  );
+});
+
+test("materializeTrackerDataFromJsonExtractionStatResponseV1 stores sequential global numeric custom stat values under the global owner", () => {
+  const response: JsonExtractionStatResponseV1 = {
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: {
+      status: "ok",
+    },
+    statId: "scene_score",
+    values: {
+      Candy: 64,
+    },
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionStatResponseV1(response, {
+    activeCharacters: ["Candy"],
+    customStatDefinitions,
+    timestamp: 12345,
+  });
+
+  assert.equal(tracker.customStatistics?.scene_score?.[GLOBAL_TRACKER_KEY], 64);
+  assert.equal(tracker.customStatistics?.scene_score?.Candy, undefined);
 });

@@ -116,7 +116,12 @@ function scopeCurrentStateDataForJsonRequest(input: {
   };
 }
 
-function buildStatStageOutputContract(statId: string): BuildJsonExtractionRequestInput["outputContract"] {
+function buildStatStageOutputContract(
+  statId: string,
+  settings: BetterSimTrackerSettings,
+): BuildJsonExtractionRequestInput["outputContract"] {
+  const customStat = (settings.customStats ?? []).find(stat => stat.id === statId);
+  const valueOwnerLabel = customStat?.globalScope === true ? "__bst_global__" : "Owner display name";
   return {
     requiredSections: [
       "result",
@@ -131,7 +136,9 @@ function buildStatStageOutputContract(statId: string): BuildJsonExtractionReques
       },
       statId,
       values: {
-        "Owner display name": "value for this stat only",
+        [valueOwnerLabel]: customStat?.globalScope === true
+          ? "single global scene value for this stat only"
+          : "value for this stat only",
       },
     },
   };
@@ -226,7 +233,7 @@ export function buildJsonExtractionShadowRequest(
       customStats: input.settings.customStats,
     },
     outputContract: input.responseMode === "stat" && input.statId
-      ? buildStatStageOutputContract(input.statId)
+      ? buildStatStageOutputContract(input.statId, input.settings)
       : undefined,
     responseContractMode: input.responseMode === "stats" ? "stats" : "tracker",
   });
