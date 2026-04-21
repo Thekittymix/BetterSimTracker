@@ -62,6 +62,7 @@ export interface BuildJsonExtractionRequestInput {
   };
   recentHistory: JsonExtractionRequestHistoryEntry[];
   currentState: JsonExtractionRequestV1["currentState"];
+  contextSources?: JsonExtractionRequestV1["contextSources"];
   entityContext: {
     candidateOwners: string[];
     candidateEntities: JsonExtractionRequestEntityCandidate[];
@@ -194,6 +195,10 @@ export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestIn
     message: input.message,
     recentHistory: input.recentHistory,
     currentState: input.currentState,
+    contextSources: input.contextSources ?? {
+      characterCards: "",
+      activatedLorebook: "",
+    },
     entityContext: input.entityContext,
     statDefinitions: {
       builtIn,

@@ -39,6 +39,16 @@ function makeContext(): STContext {
   return {
     name1: "Kuba",
     name2: "Your Family",
+    characterId: 0,
+    characters: [
+      {
+        name: "Your Family",
+        avatar: "family.png",
+        description: "Candy, Lisa, Marylyn, and Serena share the same household.",
+        personality: "Candy is playful. Lisa is watchful.",
+        scenario: "The family remains in the bedroom unless recent messages move them.",
+      },
+    ],
     chatMetadata: {
       bstEntityRegistry: {
         version: 1,
@@ -208,4 +218,44 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes sequential JSON re
       "Owner display name": "value for this stat only",
     },
   });
+});
+
+test("buildJsonExtractionShadowRequestForExtractionRun includes enabled card context in the runtime JSON payload", () => {
+  const request = buildJsonExtractionShadowRequestForExtractionRun({
+    context: makeContext(),
+    reason: "GENERATION_ENDED",
+    messageIndex: 0,
+    settings: makeSettings(),
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: makePreviousTracker().entityResolution,
+    previousTrackerData: makePreviousTracker(),
+    previousStatistics: makePreviousTracker().statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: makePreviousTracker().customNonNumericStatistics,
+  });
+
+  assert.equal(request.task.includeCharacterCards, true);
+  assert.match(request.contextSources.characterCards, /Character Card - Your Family/);
+  assert.match(request.contextSources.characterCards, /Candy, Lisa, Marylyn, and Serena share the same household/);
+});
+
+test("buildJsonExtractionShadowRequestForExtractionRun omits card context when the runtime setting is disabled", () => {
+  const request = buildJsonExtractionShadowRequestForExtractionRun({
+    context: makeContext(),
+    reason: "GENERATION_ENDED",
+    messageIndex: 0,
+    settings: {
+      ...makeSettings(),
+      includeCharacterCardsInPrompt: false,
+    },
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: makePreviousTracker().entityResolution,
+    previousTrackerData: makePreviousTracker(),
+    previousStatistics: makePreviousTracker().statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: makePreviousTracker().customNonNumericStatistics,
+  });
+
+  assert.equal(request.task.includeCharacterCards, false);
+  assert.equal(request.contextSources.characterCards, "");
 });

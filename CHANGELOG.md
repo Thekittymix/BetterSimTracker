@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev20] - 2026-04-21
+### Fixed
+- Fixed JSON extraction requests so enabled character-card context is included in the structured payload for both sequential and non-sequential JSON extraction.
+
 ## [2.5.3.5-dev19] - 2026-04-20
 ### Fixed
 - Fixed full JSON extraction materialization so active scene owners include both `sceneOwners` and resolved entities marked `inScene`, preventing dropped characters when model owner arrays and entity flags disagree.

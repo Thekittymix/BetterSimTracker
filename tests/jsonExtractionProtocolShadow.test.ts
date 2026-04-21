@@ -115,6 +115,16 @@ function makeContext(): STContext {
   return {
     name1: "Kuba",
     name2: "Your Family",
+    characters: [
+      {
+        name: "Your Family",
+        avatar: "family.png",
+        description: "Candy, Lisa, Marylyn, and Serena live together.",
+        personality: "Candy is direct and playful. Lisa observes before acting.",
+        scenario: "The family is in the bedroom during the current scene.",
+      },
+    ],
+    characterId: 0,
     chatMetadata: {
       bstEntityRegistry: {
         version: 1,
@@ -175,7 +185,9 @@ test.after(() => {
 });
 
 test("buildJsonExtractionShadowRequest builds a real extractor-shaped request with current state and recent history", () => {
+  const context = makeContext();
   const request = buildJsonExtractionShadowRequest({
+    context,
     settings: makeSettings(),
     task: {
       mode: "ai_turn",
@@ -233,6 +245,8 @@ test("buildJsonExtractionShadowRequest builds a real extractor-shaped request wi
   assert.equal(request.task.retrack, true);
   assert.equal(request.recentHistory[0]?.messageIndex, 3);
   assert.deepEqual(request.currentState.customNonNumericStats, makeExpectedTracker().customNonNumericStatistics);
+  assert.match(request.contextSources.characterCards, /Character Card - Your Family/);
+  assert.match(request.contextSources.characterCards, /Candy, Lisa, Marylyn, and Serena live together/);
 });
 
 test("buildJsonExtractionEntityContextFromContext derives candidate entities and prior owner map from runtime context", () => {
@@ -330,6 +344,8 @@ test("buildJsonExtractionShadowRequestFromContext builds message and history fro
   assert.deepEqual(request.entityContext.candidateOwners, ["Candy", "Lisa", "Marylyn", "Serena"]);
   assert.equal(request.entityContext.candidateEntities[0]?.ownerName, "Candy");
   assert.equal(request.entityContext.candidateEntities[0]?.kind, "narrative-entity");
+  assert.match(request.contextSources.characterCards, /Character Card - Your Family/);
+  assert.match(request.contextSources.characterCards, /Candy is direct and playful/);
   const validated = validateJsonExtractionRequestV1(request);
   assert.equal(validated.ok, true);
 });

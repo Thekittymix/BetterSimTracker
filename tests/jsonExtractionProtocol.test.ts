@@ -54,6 +54,10 @@ function makeRequest(): JsonExtractionRequestV1 {
       customStats: {},
       customNonNumericStats: {},
     },
+    contextSources: {
+      characterCards: "",
+      activatedLorebook: "",
+    },
     entityContext: {
       candidateOwners: ["Candy", "Lisa", "Marylyn", "Serena"],
       candidateEntities: [

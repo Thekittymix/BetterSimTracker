@@ -1,8 +1,10 @@
 import { USER_TRACKER_KEY } from "./constants";
+import { buildCharacterCardsContext } from "./characterCardContext";
 import { normalizeCustomStatKind } from "./customStatRuntime";
-import { getEntityRegistryEntryByOwnerName, getEntityRegistryEntryForMessage } from "./entityRegistry";
+import { getEntityRegistryEntryByOwnerName, getEntityRegistryEntryForMessage, resolveTrackerEntityIdsForOwners } from "./entityRegistry";
 import { buildPromptCurrentTrackerData, enabledBuiltInAndTextStats, enabledCustomStats } from "./extractorHelpers";
 import { resolveStableEntityIdForOwner } from "./entityResolution";
+import { resolveSceneEntityIdsFromResolvedEntities } from "./entityResolver";
 import { buildJsonExtractionRecentHistoryEntries, resolveJsonExtractionMessageSpeaker } from "./jsonExtractionProtocolHistory";
 import { buildJsonExtractionRequestV1, type BuildJsonExtractionRequestInput } from "./jsonExtractionProtocolBuilder";
 import { materializeTrackerDataFromJsonExtractionResponseV1 } from "./jsonExtractionProtocolAdapter";
@@ -11,6 +13,7 @@ import { parseAndValidateJsonExtractionResponseV1, type JsonExtractionRequestHis
 import type { BetterSimTrackerSettings, ChatMessage, CustomStatistics, CustomNonNumericStatistics, STContext, Statistics, TrackerData } from "./types";
 
 export interface BuildJsonExtractionShadowRequestInput {
+  context: STContext;
   settings: BetterSimTrackerSettings;
   task: BuildJsonExtractionRequestInput["task"];
   message: BuildJsonExtractionRequestInput["message"];
@@ -134,6 +137,28 @@ function buildStatStageOutputContract(statId: string): BuildJsonExtractionReques
   };
 }
 
+function buildJsonExtractionContextSources(input: BuildJsonExtractionShadowRequestInput): BuildJsonExtractionRequestInput["contextSources"] {
+  const resolvedEntities = input.entityResolution?.resolvedEntities ?? [];
+  const sceneEntityIds = resolvedEntities.length
+    ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntities)
+    : resolveTrackerEntityIdsForOwners(input.context, input.activeCharacters);
+  const preferredCharacterName = input.task.mode === "user_turn"
+    ? undefined
+    : String(input.message.speaker ?? "").trim() || undefined;
+  return {
+    characterCards: input.settings.includeCharacterCardsInPrompt
+      ? buildCharacterCardsContext(
+          input.context,
+          input.activeCharacters,
+          sceneEntityIds,
+          input.settings.entityTrackingMode,
+          preferredCharacterName,
+        )
+      : "",
+    activatedLorebook: "",
+  };
+}
+
 export function buildJsonExtractionEntityContextFromContext(
   input: Pick<BuildJsonExtractionShadowRequestFromContextInput, "context" | "messageIndex" | "settings" | "activeCharacters" | "previousTrackerData">,
 ): BuildJsonExtractionRequestInput["entityContext"] {
@@ -194,6 +219,7 @@ export function buildJsonExtractionShadowRequest(
       customStats: currentStateData.customStatistics ?? {},
       customNonNumericStats: currentStateData.customNonNumericStatistics ?? {},
     },
+    contextSources: buildJsonExtractionContextSources(input),
     entityContext: input.entityContext,
     enabledBuiltInStats: enabledBuiltInAndTextStats(input.settings),
     settings: {
@@ -210,6 +236,7 @@ export function buildJsonExtractionShadowRequestFromContext(
 ): ReturnType<typeof buildJsonExtractionRequestV1> {
   const message = requireMessage(input.context, input.messageIndex);
   return buildJsonExtractionShadowRequest({
+    context: input.context,
     settings: input.settings,
     task: input.task,
     message: {

@@ -80,6 +80,10 @@ export interface JsonExtractionRequestV1 {
     customStats: Record<string, unknown>;
     customNonNumericStats: Record<string, unknown>;
   };
+  contextSources: {
+    characterCards: string;
+    activatedLorebook: string;
+  };
   entityContext: {
     candidateOwners: string[];
     candidateEntities: JsonExtractionRequestEntityCandidate[];
@@ -396,6 +400,16 @@ export function validateJsonExtractionRequestV1(payload: unknown): JsonExtractio
     for (const key of ["builtInStats", "customStats", "customNonNumericStats"] as const) {
       if (!isRecord(payload.currentState[key])) {
         pushError(errors, `currentState.${key}`, "invalid_type", `currentState.${key} must be an object.`);
+      }
+    }
+  }
+
+  if (!isRecord(payload.contextSources)) {
+    pushError(errors, "contextSources", "invalid_type", "contextSources must be an object.");
+  } else {
+    for (const key of ["characterCards", "activatedLorebook"] as const) {
+      if (typeof payload.contextSources[key] !== "string") {
+        pushError(errors, `contextSources.${key}`, "invalid_type", `contextSources.${key} must be a string.`);
       }
     }
   }
