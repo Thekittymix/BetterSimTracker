@@ -248,9 +248,7 @@ export function buildJsonExtractionShadowRequest(
     contextSources: buildJsonExtractionContextSources(input),
     entityContext: input.entityContext,
     enabledBuiltInStats: enabledBuiltInAndTextStats(input.settings),
-    settings: {
-      customStats: input.settings.customStats,
-    },
+    settings: input.settings,
     outputContract: input.responseMode === "stat" && input.statId
       ? buildStatStageOutputContract(input.statId, input.settings, input.entityContext.candidateOwners)
       : undefined,

@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev3] - 2026-04-21
+### Fixed
+- Fixed JSON extraction prompt parity so user-edited semantic prompt templates and protocol prompt overrides are carried into JSON requests for built-in and custom stat stages while the structured JSON output contract remains enforced.
+
 ## [2.5.4.1-dev2] - 2026-04-21
 ### Fixed
 - Fixed runtime and diagnostics active-owner normalization so scene-present owners remain active in summaries when only one of them is the direct message owner.

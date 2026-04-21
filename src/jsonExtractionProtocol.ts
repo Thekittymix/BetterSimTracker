@@ -58,6 +58,7 @@ export interface JsonExtractionRequestStatDefinition {
   globalScope: boolean;
   includeInInjection: boolean;
   behaviorGuidance: string;
+  protocolGuidance?: string;
   emptySemantics: string;
 }
 
@@ -356,6 +357,9 @@ function validateStatDefinition(value: unknown, path: string, errors: JsonExtrac
   }
   if (!isNonEmptyString(value.behaviorGuidance)) {
     pushError(errors, `${path}.behaviorGuidance`, "invalid_type", "stat definition behaviorGuidance must be a non-empty string.");
+  }
+  if (value.protocolGuidance !== undefined && typeof value.protocolGuidance !== "string") {
+    pushError(errors, `${path}.protocolGuidance`, "invalid_type", "stat definition protocolGuidance must be a string when present.");
   }
   if (!isNonEmptyString(value.emptySemantics)) {
     pushError(errors, `${path}.emptySemantics`, "invalid_type", "stat definition emptySemantics must be a non-empty string.");
