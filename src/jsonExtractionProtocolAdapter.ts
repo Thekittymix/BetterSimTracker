@@ -7,7 +7,7 @@ import type {
   TrackerDataEntityResolution,
 } from "./types";
 import type { JsonExtractionResponseV1 } from "./jsonExtractionProtocol";
-import type { JsonExtractionStatResponseV1 } from "./jsonExtractionProtocol";
+import type { JsonExtractionStatResponseV1, JsonExtractionStatsResponseV1 } from "./jsonExtractionProtocol";
 
 function emptyStatistics(): Statistics {
   return {
@@ -69,7 +69,7 @@ function buildActiveCharacters(response: JsonExtractionResponseV1): string[] {
   return uniqueStrings([...response.entityResolution.sceneOwners, ...fromResolved]);
 }
 
-function buildBuiltInStatistics(response: JsonExtractionResponseV1): Statistics {
+function buildBuiltInStatistics(response: Pick<JsonExtractionResponseV1, "builtInStats">): Statistics {
   const statistics = emptyStatistics();
   for (const [ownerName, rawValue] of Object.entries(response.builtInStats.affection ?? {})) {
     const value = coerceNumeric(rawValue);
@@ -98,7 +98,7 @@ function buildBuiltInStatistics(response: JsonExtractionResponseV1): Statistics 
   return statistics;
 }
 
-function buildCustomStatistics(response: JsonExtractionResponseV1): CustomStatistics {
+function buildCustomStatistics(response: Pick<JsonExtractionResponseV1, "customStats">): CustomStatistics {
   const output: CustomStatistics = {};
   for (const [statId, bucket] of Object.entries(response.customStats)) {
     const nextBucket: Record<string, number> = {};
@@ -144,6 +144,47 @@ export function materializeTrackerDataFromJsonExtractionResponseV1(
     timestamp: options?.timestamp ?? Date.now(),
     activeCharacters: buildActiveCharacters(response),
     entityResolution: buildEntityResolution(response),
+    statistics: buildBuiltInStatistics(response),
+    customStatistics: buildCustomStatistics(response),
+    customNonNumericStatistics,
+  };
+}
+
+export function materializeTrackerDataFromJsonExtractionStatsResponseV1(
+  response: JsonExtractionStatsResponseV1,
+  options: {
+    activeCharacters: string[];
+    entityResolution?: TrackerDataEntityResolution | null;
+    customStatDefinitions?: CustomStatDefinition[];
+    timestamp?: number;
+  },
+): TrackerData {
+  const definitionsById = new Map((options.customStatDefinitions ?? []).map(definition => [definition.id, definition] as const));
+  const customNonNumericStatistics: NonNullable<TrackerData["customNonNumericStatistics"]> = {};
+
+  for (const [statId, bucket] of Object.entries(response.customNonNumericStats)) {
+    const definition = definitionsById.get(statId);
+    const nextBucket: Record<string, string | boolean | string[]> = {};
+    for (const [ownerName, rawValue] of Object.entries(bucket ?? {})) {
+      const normalized = normalizeCustomNonNumericValue(
+        normalizeCustomStatKind(definition?.kind),
+        rawValue,
+        {
+          enumOptions: definition?.enumOptions,
+          textMaxLength: definition?.textMaxLength,
+          dateTimeMode: definition?.dateTimeMode,
+          preserveExplicitEmptyArray: true,
+        },
+      );
+      if (normalized !== undefined) nextBucket[ownerName] = normalized;
+    }
+    customNonNumericStatistics[statId] = nextBucket;
+  }
+
+  return {
+    timestamp: options.timestamp ?? Date.now(),
+    activeCharacters: [...options.activeCharacters],
+    entityResolution: options.entityResolution ?? undefined,
     statistics: buildBuiltInStatistics(response),
     customStatistics: buildCustomStatistics(response),
     customNonNumericStatistics,

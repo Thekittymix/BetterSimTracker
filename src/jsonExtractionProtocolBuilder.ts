@@ -11,6 +11,7 @@ import type {
 import {
   JSON_EXTRACTION_PROTOCOL_VERSION,
   JSON_EXTRACTION_REQUEST_TYPE,
+  JSON_EXTRACTION_STATS_RESPONSE_TYPE,
 } from "./jsonExtractionProtocol";
 
 type BuiltInStatDefinitionSeed = {
@@ -72,6 +73,7 @@ export interface BuildJsonExtractionRequestInput {
   settings: Pick<BetterSimTrackerSettings, "customStats">;
   rules?: Partial<JsonExtractionRequestV1["rules"]>;
   outputContract?: Partial<JsonExtractionRequestOutputContract>;
+  responseContractMode?: "tracker" | "stats";
 }
 
 function buildBuiltInStatDefinitions(enabledBuiltInStats: StatKey[]): JsonExtractionRequestStatDefinition[] {
@@ -185,9 +187,43 @@ function buildResponseSchema(input: {
   };
 }
 
+function buildStatsResponseSchema(input: {
+  builtIn: JsonExtractionRequestStatDefinition[];
+  customNumeric: JsonExtractionRequestStatDefinition[];
+  customNonNumeric: JsonExtractionRequestStatDefinition[];
+}): Record<string, unknown> {
+  return {
+    protocolVersion: JSON_EXTRACTION_PROTOCOL_VERSION,
+    responseType: JSON_EXTRACTION_STATS_RESPONSE_TYPE,
+    result: {
+      status: "ok",
+    },
+    builtInStats: buildStatResponseSchema(input.builtIn),
+    customStats: buildStatResponseSchema(input.customNumeric),
+    customNonNumericStats: buildStatResponseSchema(input.customNonNumeric),
+  };
+}
+
 export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestInput): JsonExtractionRequestV1 {
   const builtIn = buildBuiltInStatDefinitions(input.enabledBuiltInStats);
   const { customNumeric, customNonNumeric } = splitCustomStatDefinitions(input.settings.customStats);
+  const defaultResponseSchema = input.responseContractMode === "stats"
+    ? buildStatsResponseSchema({ builtIn, customNumeric, customNonNumeric })
+    : buildResponseSchema({ builtIn, customNumeric, customNonNumeric });
+  const defaultRequiredSections = input.responseContractMode === "stats"
+    ? [
+        "result",
+        "builtInStats",
+        "customStats",
+        "customNonNumericStats",
+      ]
+    : [
+        "result",
+        "entityResolution",
+        "builtInStats",
+        "customStats",
+        "customNonNumericStats",
+      ];
   return {
     protocolVersion: JSON_EXTRACTION_PROTOCOL_VERSION,
     requestType: JSON_EXTRACTION_REQUEST_TYPE,
@@ -231,15 +267,28 @@ export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestIn
       format: "json_only",
       allowMarkdownFences: input.outputContract?.allowMarkdownFences ?? false,
       allowProse: input.outputContract?.allowProse ?? false,
-      requiredSections: input.outputContract?.requiredSections ?? [
-        "result",
-        "entityResolution",
-        "builtInStats",
-        "customStats",
-        "customNonNumericStats",
-      ],
-      responseSchema: input.outputContract?.responseSchema ?? buildResponseSchema({ builtIn, customNumeric, customNonNumeric }),
+      requiredSections: input.outputContract?.requiredSections ?? defaultRequiredSections,
+      responseSchema: input.outputContract?.responseSchema ?? defaultResponseSchema,
     },
+  };
+}
+
+export function buildJsonExtractionStatsOutputContract(input: {
+  builtIn: JsonExtractionRequestStatDefinition[];
+  customNumeric: JsonExtractionRequestStatDefinition[];
+  customNonNumeric: JsonExtractionRequestStatDefinition[];
+}): JsonExtractionRequestOutputContract {
+  return {
+    format: "json_only",
+    allowMarkdownFences: false,
+    allowProse: false,
+    requiredSections: [
+      "result",
+      "builtInStats",
+      "customStats",
+      "customNonNumericStats",
+    ],
+    responseSchema: buildStatsResponseSchema(input),
   };
 }
 

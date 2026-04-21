@@ -113,6 +113,7 @@ function makeMeta(): GenerateRequestMeta {
 
 test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output and debug record on success", async () => {
   const progressLabels: string[] = [];
+  const calls: Array<{ responseMode?: string; statId?: string }> = [];
   const result = await tryExtractStatisticsViaJsonProtocol(
     {
       context: makeContext(),
@@ -131,20 +132,27 @@ test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output 
         if (label) progressLabels.push(label);
       },
     },
-    async () => ({
-      ok: true,
-      request: {} as never,
-      requestText: "{\"protocolVersion\":\"bst.extract.v1\"}",
-      response: {} as never,
-      responseText: "{\"responseType\":\"tracker_extraction_result\"}",
-      responseMeta: makeMeta(),
-      trackerData: makeTrackerData(),
-      parity: null,
-    }),
+    async input => {
+      calls.push({
+        responseMode: input.responseMode,
+        statId: input.statId,
+      });
+      return {
+        ok: true,
+        request: {} as never,
+        requestText: "{\"protocolVersion\":\"bst.extract.v1\"}",
+        response: {} as never,
+        responseText: "{\"responseType\":\"stats_extraction_result\"}",
+        responseMeta: makeMeta(),
+        trackerData: makeTrackerData(),
+        parity: null,
+      };
+    },
   );
 
   assert.equal(result.mode, "success");
   if (result.mode !== "success") return;
+  assert.deepEqual(calls, [{ responseMode: "stats", statId: undefined }]);
   assert.equal(result.statistics.affection.Candy, 61);
   assert.deepEqual(result.customNonNumericStatistics.clothes.Candy, ["t-shirt", "panties"]);
   assert.equal(result.debug.meta?.jsonShadow?.status, "response_valid");

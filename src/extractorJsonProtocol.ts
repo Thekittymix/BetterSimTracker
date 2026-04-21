@@ -247,7 +247,7 @@ type JsonProtocolRequestPlanItem = {
   label: string;
   statsRequested: string[];
   settings: BetterSimTrackerSettings;
-  responseMode: "tracker" | "stat";
+  responseMode: "stats" | "stat";
   statId?: string;
 };
 
@@ -260,7 +260,7 @@ function buildJsonProtocolRequestPlan(settings: BetterSimTrackerSettings): JsonP
         ...enabledCustomStats(settings).map(stat => stat.id),
       ],
       settings,
-      responseMode: "tracker",
+      responseMode: "stats",
     }];
   }
 
@@ -286,7 +286,7 @@ function buildJsonProtocolRequestPlan(settings: BetterSimTrackerSettings): JsonP
       base: settings,
       customStats: group,
     }),
-    responseMode: group.length === 1 ? "stat" as const : "tracker" as const,
+    responseMode: group.length === 1 ? "stat" as const : "stats" as const,
     statId: group.length === 1 ? group[0]?.id : undefined,
   }));
   return [...builtInItems, ...customItems];

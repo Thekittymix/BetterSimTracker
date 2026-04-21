@@ -200,6 +200,48 @@ test("executeJsonExtractionProtocol materializes tracker data and parity for mat
   assert.equal(result.trackerData.statistics.mood.Candy, "Playful");
 });
 
+test("executeJsonExtractionProtocol materializes non-sequential stats JSON without resolver output", () => {
+  const expected = makeExpectedTracker();
+  const result = executeJsonExtractionProtocol({
+    context: makeContext(),
+    reason: "manual_refresh",
+    messageIndex: 0,
+    settings: makeSettings(),
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: expected.entityResolution,
+    previousTrackerData: expected,
+    previousStatistics: expected.statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: expected.customNonNumericStatistics,
+    expectedTrackerData: expected,
+    responseMode: "stats",
+    rawJsonResponse: JSON.stringify({
+      protocolVersion: "bst.extract.v1",
+      responseType: "stats_extraction_result",
+      result: { status: "ok" },
+      builtInStats: {
+        affection: { Candy: 61 },
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: { Candy: "Playful" },
+        lastThought: { Candy: "Still teasing him." },
+      },
+      customStats: {},
+      customNonNumericStats: {
+        clothes: { Candy: ["t-shirt", "panties"] },
+      },
+    }),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.parity?.ok, true);
+  assert.deepEqual(result.trackerData.activeCharacters, ["Candy", "Lisa"]);
+  assert.deepEqual(result.trackerData.entityResolution, expected.entityResolution);
+  assert.equal(result.trackerData.statistics.mood.Candy, "Playful");
+});
+
 test("executeJsonExtractionProtocol materializes a sequential stat-only JSON response", () => {
   const expected = makeExpectedTracker();
   const result = executeJsonExtractionProtocol({

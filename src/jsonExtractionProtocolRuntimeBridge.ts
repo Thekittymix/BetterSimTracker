@@ -13,7 +13,7 @@ export interface BuildJsonExtractionShadowRequestForRunInput {
   previousCustomStatistics?: CustomStatistics | null;
   previousCustomNonNumericStatistics?: CustomNonNumericStatistics | null;
   historyLimit?: number;
-  responseMode?: "tracker" | "stat";
+  responseMode?: "tracker" | "stats" | "stat";
   statId?: string;
 }
 

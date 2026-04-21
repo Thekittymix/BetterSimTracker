@@ -239,6 +239,32 @@ test("buildJsonExtractionShadowRequestForExtractionRun includes enabled card con
   assert.match(request.contextSources.characterCards, /Candy, Lisa, Marylyn, and Serena share the same household/);
 });
 
+test("buildJsonExtractionShadowRequestForExtractionRun scopes non-sequential JSON extractor output to stats only", () => {
+  const request = buildJsonExtractionShadowRequestForExtractionRun({
+    context: makeContext(),
+    reason: "GENERATION_ENDED",
+    messageIndex: 0,
+    settings: makeSettings(),
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: makePreviousTracker().entityResolution,
+    previousTrackerData: makePreviousTracker(),
+    previousStatistics: makePreviousTracker().statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: makePreviousTracker().customNonNumericStatistics,
+    responseMode: "stats",
+  });
+
+  assert.deepEqual(request.outputContract.requiredSections, [
+    "result",
+    "builtInStats",
+    "customStats",
+    "customNonNumericStats",
+  ]);
+  assert.equal(request.outputContract.responseSchema?.responseType, "stats_extraction_result");
+  assert.equal(Object.prototype.hasOwnProperty.call(request.outputContract.responseSchema ?? {}, "entityResolution"), false);
+  assert.deepEqual(request.entityContext.candidateOwners, ["Candy", "Lisa"]);
+});
+
 test("buildJsonExtractionShadowRequestForExtractionRun omits card context when the runtime setting is disabled", () => {
   const request = buildJsonExtractionShadowRequestForExtractionRun({
     context: makeContext(),

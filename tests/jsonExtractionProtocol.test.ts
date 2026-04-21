@@ -8,6 +8,7 @@ import {
   JSON_EXTRACTION_RESPONSE_TYPE,
   parseAndValidateJsonExtractionResponseV1,
   parseAndValidateJsonExtractionStatResponseV1,
+  parseAndValidateJsonExtractionStatsResponseV1,
   validateJsonExtractionRequestV1,
   validateJsonExtractionResponseV1,
   type JsonExtractionRequestV1,
@@ -263,6 +264,53 @@ test("parseAndValidateJsonExtractionStatResponseV1 accepts wrapped sequential st
   if (!result.ok) return;
   assert.equal(result.value.statId, "pose");
   assert.equal(result.value.values.Candy, "Standing by the bed.");
+});
+
+test("parseAndValidateJsonExtractionStatsResponseV1 accepts non-sequential extractor stats without entity resolution", () => {
+  const raw = "```json\n" + JSON.stringify({
+    protocolVersion: "bst.extract.v1",
+    responseType: "stats_extraction_result",
+    result: { status: "ok" },
+    builtInStats: {
+      affection: {
+        Candy: 61,
+      },
+      mood: {
+        Candy: "Playful",
+      },
+    },
+    customStats: {},
+    customNonNumericStats: {
+      clothes: {
+        Candy: ["t-shirt", "panties"],
+      },
+    },
+  }) + "\n```";
+  const result = parseAndValidateJsonExtractionStatsResponseV1(raw);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.value.responseType, "stats_extraction_result");
+  assert.equal(result.value.builtInStats.mood.Candy, "Playful");
+});
+
+test("parseAndValidateJsonExtractionStatsResponseV1 rejects resolver output in stats-only extractor responses", () => {
+  const result = parseAndValidateJsonExtractionStatsResponseV1(JSON.stringify({
+    protocolVersion: "bst.extract.v1",
+    responseType: "tracker_extraction_result",
+    result: { status: "ok" },
+    entityResolution: {
+      sceneOwners: ["Candy"],
+      messageOwners: ["Candy"],
+      resolvedEntities: [],
+    },
+    builtInStats: {},
+    customStats: {},
+    customNonNumericStats: {},
+  }));
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.errors.map(error => error.message).join("\n"), /stats_extraction_result/);
 });
 
 test("parseAndValidateJsonExtractionResponseV1 rejects non-JSON text", () => {

@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev24] - 2026-04-21
+### Changed
+- Split non-sequential JSON extraction output from entity resolving: the resolver owns character/entity selection, while the JSON extractor now returns stats-only payloads without `entityResolution`.
+
 ## [2.5.3.5-dev23] - 2026-04-21
 ### Changed
 - Changed extraction loading cards so named phases such as `requesting`, `parsing`, `applying`, and `finalizing` no longer display misleading percent suffixes.

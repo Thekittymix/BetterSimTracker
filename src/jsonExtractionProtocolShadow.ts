@@ -25,7 +25,7 @@ export interface BuildJsonExtractionShadowRequestInput {
   previousCustomNonNumericStatistics?: CustomNonNumericStatistics | null;
   recentHistory: JsonExtractionRequestHistoryEntry[];
   entityContext: BuildJsonExtractionRequestInput["entityContext"];
-  responseMode?: "tracker" | "stat";
+  responseMode?: "tracker" | "stats" | "stat";
   statId?: string;
 }
 
@@ -42,7 +42,7 @@ export interface BuildJsonExtractionShadowRequestFromContextInput {
   previousCustomNonNumericStatistics?: CustomNonNumericStatistics | null;
   entityContext?: BuildJsonExtractionRequestInput["entityContext"];
   historyLimit?: number;
-  responseMode?: "tracker" | "stat";
+  responseMode?: "tracker" | "stats" | "stat";
   statId?: string;
 }
 
@@ -228,6 +228,7 @@ export function buildJsonExtractionShadowRequest(
     outputContract: input.responseMode === "stat" && input.statId
       ? buildStatStageOutputContract(input.statId)
       : undefined,
+    responseContractMode: input.responseMode === "stats" ? "stats" : "tracker",
   });
 }
 
