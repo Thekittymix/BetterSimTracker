@@ -150,9 +150,9 @@ test("tryExtractStatisticsViaJsonProtocol returns active JSON extraction output 
   assert.equal(result.debug.meta?.jsonShadow?.status, "response_valid");
   assert.equal(result.debug.meta?.requests?.[0]?.retryType, "json_protocol");
   assert.deepEqual(progressLabels, [
-    "Requesting extraction",
-    "Parsing extraction",
-    "Applying extraction",
+    "Requesting full JSON extraction",
+    "Parsing full JSON extraction",
+    "Applying full JSON extraction",
     "Finalizing",
   ]);
 });

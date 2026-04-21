@@ -27,9 +27,17 @@ test("resolveExtractionLoadingCopy explains baseline and later request phases", 
     title: "Requesting Custom: Clothes",
     subtitle: "Waiting for the tracker response from the selected AI backend.",
   });
-  assert.deepEqual(resolveExtractionLoadingCopy(0, "Requesting extraction"), {
-    title: "Requesting extraction",
-    subtitle: "Waiting for the JSON tracker response from the selected AI backend.",
+  assert.deepEqual(resolveExtractionLoadingCopy(0, "Requesting full JSON extraction"), {
+    title: "Requesting full JSON extraction",
+    subtitle: "Waiting for one JSON response containing all enabled stats and active owners.",
+  });
+  assert.deepEqual(resolveExtractionLoadingCopy(1, "Parsing full JSON extraction"), {
+    title: "Parsing full JSON extraction",
+    subtitle: "Validating the structured JSON tracker response.",
+  });
+  assert.deepEqual(resolveExtractionLoadingCopy(2, "Applying full JSON extraction"), {
+    title: "Applying full JSON extraction",
+    subtitle: "Applying the parsed JSON tracker values to the current message.",
   });
   assert.deepEqual(resolveExtractionLoadingCopy(2, "Parsing Built-in: mood"), {
     title: "Parsing Built-in: mood",

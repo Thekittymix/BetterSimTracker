@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev21] - 2026-04-21
+### Changed
+- Clarified non-sequential JSON extraction progress copy so the loading card says it is requesting, parsing, and applying one full JSON extraction instead of showing generic extraction wording.
+
 ## [2.5.3.5-dev20] - 2026-04-21
 ### Fixed
 - Fixed JSON extraction requests so enabled character-card context is included in the structured payload for both sequential and non-sequential JSON extraction.

@@ -254,7 +254,7 @@ type JsonProtocolRequestPlanItem = {
 function buildJsonProtocolRequestPlan(settings: BetterSimTrackerSettings): JsonProtocolRequestPlanItem[] {
   if (!settings.sequentialExtraction) {
     return [{
-      label: "extraction",
+      label: "full JSON extraction",
       statsRequested: [
         ...enabledBuiltInAndTextStats(settings),
         ...enabledCustomStats(settings).map(stat => stat.id),
