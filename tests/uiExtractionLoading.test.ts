@@ -77,3 +77,31 @@ test("resolveExtractionProgressDisplay keeps resolver preflight out of fake 1/1 
     ratio: 0,
   });
 });
+
+test("resolveExtractionProgressDisplayWithLabel uses real extraction phase names instead of fake stage labels", () => {
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(0, 3, "Requesting full JSON extraction"), {
+    stageText: "requesting",
+    percent: 0,
+    ratio: 0,
+  });
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(1, 3, "Parsing full JSON extraction"), {
+    stageText: "parsing",
+    percent: 33,
+    ratio: 1 / 3,
+  });
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(2, 3, "Applying full JSON extraction"), {
+    stageText: "applying",
+    percent: 67,
+    ratio: 2 / 3,
+  });
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(3, 3, "Finalizing"), {
+    stageText: "finalizing",
+    percent: 100,
+    ratio: 1,
+  });
+  assert.deepEqual(resolveExtractionProgressDisplayWithLabel(12, 30, "Requesting mood"), {
+    stageText: "requesting",
+    percent: 40,
+    ratio: 0.4,
+  });
+});

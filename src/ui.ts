@@ -738,8 +738,15 @@ export function resolveExtractionProgressDisplayWithLabel(
   }
   const clampedDone = Math.max(0, Math.min(normalizedTotal, normalizedDone));
   const ratio = Math.max(0, Math.min(1, clampedDone / normalizedTotal));
+  const phaseLabel = (() => {
+    if (/^Requesting\b/i.test(normalizedLabel)) return "requesting";
+    if (/^Parsing\b/i.test(normalizedLabel)) return "parsing";
+    if (/^Applying\b/i.test(normalizedLabel)) return "applying";
+    if (/^Finalizing$/i.test(normalizedLabel)) return "finalizing";
+    return "";
+  })();
   return {
-    stageText: `stage ${Math.min(clampedDone + 1, normalizedTotal)}/${normalizedTotal}`,
+    stageText: phaseLabel || `stage ${Math.min(clampedDone + 1, normalizedTotal)}/${normalizedTotal}`,
     percent: Math.round(ratio * 100),
     ratio,
   };

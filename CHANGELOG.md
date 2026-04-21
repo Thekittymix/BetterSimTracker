@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.3.5-dev22] - 2026-04-21
+### Changed
+- Changed extraction loading progress so labeled request, parse, apply, and finalizing phases display the real phase name instead of a generic `stage N/M` counter.
+
 ## [2.5.3.5-dev21] - 2026-04-21
 ### Changed
 - Clarified non-sequential JSON extraction progress copy so the loading card says it is requesting, parsing, and applying one full JSON extraction instead of showing generic extraction wording.
