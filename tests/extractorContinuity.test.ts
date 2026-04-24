@@ -200,6 +200,96 @@ test("extractStatisticsParallel keeps built-in continuity scoped to the current 
   assert.equal(result.statistics.affection.Ash, 61);
 });
 
+test("extractStatisticsParallel keeps private lastThought out of public legacy sequential prompts", async () => {
+  const prompts: string[] = [];
+  const { extractStatisticsParallel } = loadExtractorWithGeneratorMock({
+    generateJson: async (prompt: string) => {
+      prompts.push(prompt);
+      if (/Only update trust deltas/.test(prompt) || /"trust": 0/.test(prompt)) {
+        return {
+          text: JSON.stringify({
+            characters: [
+              { name: "Lisa", confidence: 1, delta: { trust: 0 } },
+              { name: "Candy", confidence: 1, delta: { trust: 0 } },
+            ],
+          }),
+          meta: {},
+        };
+      }
+      const owner = /Extract updates only for these target owners: Lisa/.test(prompt) ? "Lisa" : "Candy";
+      return {
+        text: JSON.stringify({
+          characters: [
+            { name: owner, confidence: 1, lastThought: owner === "Lisa" ? "I need to hold my line." : "I should stay nearby." },
+          ],
+        }),
+        meta: {},
+      };
+    },
+  });
+  const context = makeBaseContext(async () => {
+    throw new Error("ChatCompletionService path should not be used with the generator mock.");
+  });
+
+  const previousTrackerData = makeTracker({
+    activeCharacters: ["Lisa", "Candy"],
+    statistics: {
+      affection: {},
+      trust: { Lisa: 40, Candy: 55 },
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {
+        Lisa: "Previous private Lisa thought.",
+        Candy: "Previous private Candy thought.",
+      },
+    },
+  });
+
+  const result = await withSillyTavernContext(context, () => extractStatisticsParallel({
+    context,
+    settings: makeSettings({
+      extractionProtocolMode: "legacy",
+      sequentialExtraction: true,
+      maxConcurrentCalls: 1,
+      trackTrust: true,
+      trackLastThought: true,
+      lastThoughtPrivate: true,
+      includeContextInDiagnostics: true,
+    }),
+    userName: "User",
+    activeCharacters: ["Lisa", "Candy"],
+    contextText: "Lisa answers while Candy stays close.",
+    previousTrackerData,
+    previousStatistics: previousTrackerData.statistics,
+    previousCustomStatistics: {},
+    previousCustomStatisticsRaw: {},
+    previousCustomNonNumericStatistics: {},
+    hasPriorTrackerData: true,
+    history: [previousTrackerData],
+  }));
+
+  assert.equal(prompts.length, 3);
+  const trustPrompt = prompts.find(prompt => /Only update trust deltas/.test(prompt) || /"trust": 0/.test(prompt));
+  const lisaThoughtPrompt = prompts.find(prompt =>
+    /Extract updates only for these target owners: Lisa/.test(prompt) && /"lastThought": ""/.test(prompt),
+  );
+  const candyThoughtPrompt = prompts.find(prompt =>
+    /Extract updates only for these target owners: Candy/.test(prompt) && /"lastThought": ""/.test(prompt),
+  );
+  assert.ok(trustPrompt);
+  assert.ok(lisaThoughtPrompt);
+  assert.ok(candyThoughtPrompt);
+  assert.doesNotMatch(trustPrompt, /lastThought=/);
+  assert.match(lisaThoughtPrompt, /Lisa: trust=40, lastThought="Previous private Lisa thought\."/);
+  assert.doesNotMatch(lisaThoughtPrompt, /Previous private Candy thought/);
+  assert.match(candyThoughtPrompt, /Candy: trust=55, lastThought="Previous private Candy thought\."/);
+  assert.doesNotMatch(candyThoughtPrompt, /Previous private Lisa thought/);
+  assert.equal(result.statistics.trust.Lisa, 40);
+  assert.equal(result.statistics.lastThought.Lisa, "I need to hold my line.");
+  assert.equal(result.statistics.lastThought.Candy, "I should stay nearby.");
+});
+
 test("extractStatisticsParallel seeds custom numeric defaults when only a stale same-name owner bucket exists", async () => {
   const { extractStatisticsParallel } = loadExtractor();
   let requestCount = 0;

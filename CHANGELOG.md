@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev5] - 2026-04-24
+### Fixed
+- Fixed Legacy sequential prompt privacy so private `lastThought` continuity is only included in owner-scoped private thought requests, not in public built-in stat requests.
+
 ## [2.5.4.1-dev4] - 2026-04-24
 ### Fixed
 - Strengthened the shared `lastThought` extraction contract so directly advanced characters update from the latest dialogue/action/emotional cues while scene-present background characters preserve continuity when there is no new thought cue.

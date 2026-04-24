@@ -1274,6 +1274,7 @@ export async function extractStatisticsParallel(input: {
               trackDesire: settings.trackDesire,
               trackConnection: settings.trackConnection,
               trackMood: settings.trackMood,
+              trackLastThought: statList.includes("lastThought") && settings.trackLastThought,
             },
             context,
             promptCurrentData,
