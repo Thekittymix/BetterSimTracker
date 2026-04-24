@@ -5,6 +5,10 @@ import { buildCharacterCardsContext } from "../src/characterCardContext";
 
 import {
   DEFAULT_PROTOCOL_SEQUENTIAL_CUSTOM_NUMERIC,
+  DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT,
+  DEFAULT_PROTOCOL_UNIFIED,
+  DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS,
+  DEFAULT_UNIFIED_PROMPT_INSTRUCTION,
   buildBuiltInSequentialPromptGenerationPrompt,
   buildCustomStatBehaviorGuidanceGenerationPrompt,
   buildSequentialCustomNumericPrompt,
@@ -109,6 +113,34 @@ test("buildUnifiedPrompt resolves {{char}} inside included character card text t
   assert.doesNotMatch(prompt, /Description: Kuba studies the campfire in silence\./);
   assert.doesNotMatch(prompt, /Description: User studies the campfire in silence\./);
   assert.doesNotMatch(prompt, /Description: __bst_user__ studies the campfire in silence\./);
+});
+
+test("buildUnifiedPrompt carries lastThought current-message update rules and prior state", () => {
+  const prompt = buildUnifiedPrompt(
+    ["lastThought"],
+    "User",
+    ["Lisa", "Candy"],
+    "Lisa flinched and warned him not to push it, but her voice softened. Candy stayed nearby.",
+    {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {
+        Lisa: "Great, another boring summer... maybe not.",
+        Candy: "I can go get them right now!",
+      },
+    },
+    [],
+    12,
+  );
+
+  assert.match(prompt, /Lisa: lastThought="Great, another boring summer\.\.\. maybe not\."/);
+  assert.match(prompt, /Candy: lastThought="I can go get them right now!"/);
+  assert.match(prompt, /If lastThought is requested and the latest message directly advances a target/);
+  assert.match(prompt, /For lastThought, do not copy the previous tracker thought/);
+  assert.match(prompt, /Preserve lastThought only when recent messages provide no new thought cue/);
 });
 
 test("buildUnifiedPrompt resolves alias owner built-in state through registry lookup names", () => {
@@ -764,6 +796,61 @@ test("buildSequentialPrompt respects built-in tracking and source priority wordi
   assert.match(prompt, /Snapshot ordering: newest-0 is the most recent prior snapshot; newest-1 is older/);
   assert.match(prompt, /trust=42/);
   assert.match(prompt, /Use recent messages first; use lorebook only to disambiguate when context is unclear\./);
+});
+
+test("default lastThought prompts require updating directly advanced owners before preserving continuity", () => {
+  assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /latest message directly advances a target owner/);
+  assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /Do not copy the previous tracker thought/);
+  assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /scene-present\/background/);
+  assert.match(DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT, /current immediate internal thought after the latest relevant message/);
+  assert.match(DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT, /Preserve the previous thought only when recent messages provide no new thought cue/);
+  assert.match(DEFAULT_UNIFIED_PROMPT_INSTRUCTION, /If lastThought is requested/);
+  assert.match(DEFAULT_PROTOCOL_UNIFIED, /For lastThought, do not copy the previous tracker thought/);
+});
+
+test("buildSequentialPrompt carries the lastThought current-message update contract with prior state", () => {
+  const prompt = buildSequentialPrompt(
+    "lastThought",
+    "User",
+    ["Lisa", "Candy"],
+    [
+      "Recent messages:",
+      "[34] Your Family: Lisa flinched as if the words had touched something raw. \"Don't push it,\" she said, but there was unexpected softness in her warning. Candy stayed by the doorway.",
+    ].join("\n"),
+    {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: {},
+      lastThought: {
+        Lisa: "Great, another boring summer... maybe not.",
+        Candy: "I can go get them right now!",
+      },
+    },
+    [],
+    7,
+    undefined,
+    undefined,
+    undefined,
+    true,
+    false,
+    {
+      trackAffection: false,
+      trackTrust: false,
+      trackDesire: false,
+      trackConnection: false,
+      trackMood: false,
+      trackLastThought: true,
+    },
+  );
+
+  assert.match(prompt, /Lisa: lastThought="Great, another boring summer\.\.\. maybe not\."/);
+  assert.match(prompt, /Candy: lastThought="I can go get them right now!"/);
+  assert.match(prompt, /If the latest message directly advances a target owner through dialogue, action, or emotional reaction, update that owner's thought from those latest cues\./);
+  assert.match(prompt, /Do not copy the previous tracker thought for an owner whose current message cues changed\./);
+  assert.match(prompt, /Preserve the previous thought only when recent messages provide no new thought cue for that owner/);
+  assert.match(prompt, /lastThought must be the character's current immediate internal thought after the latest relevant message/);
 });
 
 test("buildSequentialPrompt resolves {{char}} inside included character card text to a non-user speaker during user extraction", () => {

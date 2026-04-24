@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev4] - 2026-04-24
+### Fixed
+- Strengthened the shared `lastThought` extraction contract so directly advanced characters update from the latest dialogue/action/emotional cues while scene-present background characters preserve continuity when there is no new thought cue.
+
 ## [2.5.4.1-dev3] - 2026-04-21
 ### Fixed
 - Fixed JSON extraction prompt parity so user-edited semantic prompt templates and protocol prompt overrides are carried into JSON requests for built-in and custom stat stages while the structured JSON output contract remains enforced.

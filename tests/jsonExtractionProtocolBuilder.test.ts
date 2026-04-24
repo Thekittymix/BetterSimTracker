@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 
 import { buildJsonExtractionRequestV1, serializeJsonExtractionRequestV1 } from "../src/jsonExtractionProtocolBuilder";
 import { validateJsonExtractionRequestV1 } from "../src/jsonExtractionProtocol";
+import {
+  DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT,
+  DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS,
+} from "../src/prompts";
 import type { BetterSimTrackerSettings } from "../src/types";
 
 function makeSettings(overrides: Partial<BetterSimTrackerSettings> = {}): Pick<
@@ -239,6 +243,66 @@ test("buildJsonExtractionRequestV1 carries unified custom prompts in non-sequent
     "customStats",
     "customNonNumericStats",
   ]);
+});
+
+test("buildJsonExtractionRequestV1 carries the shared lastThought update contract into JSON requests", () => {
+  const request = buildJsonExtractionRequestV1({
+    task: {
+      mode: "ai_turn",
+      messageIndex: 34,
+      retrack: true,
+      swipeRetrack: false,
+      entityTrackingMode: "dynamic_characters",
+      includeCharacterCards: true,
+      includeActivatedLorebook: false,
+    },
+    message: {
+      speaker: "Your Family",
+      isUser: false,
+      isSystem: false,
+      text: "Lisa flinched and warned him not to push it, but her voice softened. Candy stayed nearby.",
+    },
+    recentHistory: [],
+    currentState: {
+      latestRelevantSnapshot: {
+        statistics: {
+          lastThought: {
+            Lisa: "Great, another boring summer... maybe not.",
+            Candy: "I can go get them right now!",
+          },
+        },
+      },
+      builtInStats: {
+        lastThought: {
+          Lisa: "Great, another boring summer... maybe not.",
+          Candy: "I can go get them right now!",
+        },
+      },
+      customStats: {},
+      customNonNumericStats: {},
+    },
+    entityContext: {
+      candidateOwners: ["Lisa", "Candy"],
+      candidateEntities: [],
+      currentEntityOwnerMap: {},
+    },
+    enabledBuiltInStats: ["lastThought"],
+    settings: makeSettings({
+      promptTemplateSequentialLastThought: DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought,
+      promptProtocolSequentialLastThought: DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT,
+      customStats: [],
+    }),
+  });
+
+  const result = validateJsonExtractionRequestV1(request);
+  assert.equal(result.ok, true);
+
+  const definition = request.statDefinitions.builtIn[0];
+  assert.equal(definition?.id, "lastThought");
+  assert.match(definition?.behaviorGuidance ?? "", /latest message directly advances a target owner/);
+  assert.match(definition?.behaviorGuidance ?? "", /Do not copy the previous tracker thought/);
+  assert.match(definition?.protocolGuidance ?? "", /current immediate internal thought after the latest relevant message/);
+  assert.match(definition?.protocolGuidance ?? "", /Preserve the previous thought only when recent messages provide no new thought cue/);
 });
 
 test("buildJsonExtractionRequestV1 preserves structured rule sections instead of collapsing into one prompt blob", () => {
