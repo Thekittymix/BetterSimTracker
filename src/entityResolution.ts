@@ -339,12 +339,12 @@ function hasDirectScenePresenceCue(text: string, name: string): boolean {
   if (!normalized || !name) return false;
   if (hasOffSceneMentionCue(normalized, name)) return false;
   const escaped = escapeRegex(name);
-  const subjectActionPattern = String.raw`(?:answer(?:s|ed|ing)?|reply(?:s|ed|ing)?|say(?:s|ing)?|said|ask(?:s|ed|ing)?|watch(?:es|ed|ing)?|look(?:s|ed|ing)?|glanc(?:e|es|ed|ing)|hover(?:s|ed|ing)?|pace(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|remain(?:s|ed|ing)?|stay(?:s|ed|ing)?|enter(?:s|ed|ing)?|walk(?:s|ed|ing)?|come(?:s|ing)?|came|step(?:s|ped|ping)?|lean(?:s|ed|ing)?|smile(?:s|d|ing)?|laugh(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|move(?:s|d|ing)?)`;
+  const subjectActionPattern = String.raw`(?:answer(?:s|ed|ing)?|reply(?:s|ed|ing)?|say(?:s|ing)?|said|ask(?:s|ed|ing)?|watch(?:es|ed|ing)?|look(?:s|ed|ing)?|glanc(?:e|es|ed|ing)|hover(?:s|ed|ing)?|pace(?:s|d|ing)?|stand(?:s|ing)?|stood|sit(?:s|ting)?|sat|remain(?:s|ed|ing)?|stay(?:s|ed|ing)?|enter(?:s|ed|ing)?|walk(?:s|ed|ing)?|come(?:s|ing)?|came|step(?:s|ped|ping)?|lean(?:s|ed|ing)?|rest(?:s|ed|ing)?|sleep(?:s|ing)?|slept|snor(?:e|es|ed|ing)|breath(?:e|es|ed|ing)?|smile(?:s|d|ing)?|laugh(?:s|ed|ing)?|nod(?:s|ded|ding)?|gesture(?:s|d|ing)?|move(?:s|d|ing)?)`;
   const patterns = [
     new RegExp(`\\b${escaped}\\b[^.!?\\n,:;]{0,80}\\b${subjectActionPattern}\\b`, "i"),
     new RegExp(`\\b${escaped}\\b(?:\\s*,\\s*[^.!?\\n,:;]+){0,4}\\s*(?:,?\\s*and\\s+[^.!?\\n,:;]+)?[^.!?\\n]{0,24}\\b${subjectActionPattern}\\b`, "i"),
-    new RegExp(`\\b(?:with|beside|next\\s+to|near|alongside|behind|across\\s+from)\\s+${escaped}\\b`, "i"),
-    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,40}\\b(?:with|beside|next\\s+to|near|alongside|behind|across\\s+from)\\b`, "i"),
+    new RegExp(`\\b(?:with|beside|next\\s+to|near|alongside|behind|across\\s+from|against)\\s+${escaped}\\b`, "i"),
+    new RegExp(`\\b${escaped}\\b[^.!?\\n]{0,80}\\b(?:with|beside|next\\s+to|near|alongside|behind|across\\s+from|against)\\b`, "i"),
   ];
   return patterns.some(pattern => pattern.test(normalized));
 }

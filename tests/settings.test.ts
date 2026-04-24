@@ -341,3 +341,42 @@ test("sanitizeSettings defaults extractionProtocolMode to legacy and accepts exp
   } as never);
   assert.equal(fallback.extractionProtocolMode, "legacy");
 });
+
+test("sanitizeSettings migrates stored legacy default lastThought prompts to current defaults", () => {
+  const legacyLastThoughtPrompt = [
+    "- Write a short internal thought (one sentence) each character has right now.",
+    "- Keep it concise and grounded in the recent messages.",
+    "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
+  ].join("\n");
+  const legacyLastThoughtProtocol = `Return STRICT JSON only:
+{
+  "characters": [
+    {
+      "name": "Character Name",
+      "confidence": 0.0,
+      "lastThought": ""
+    }
+  ]
+}
+
+Rules:
+- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.
+- include one entry for each character name exactly: {{characters}}.
+- omit fields for stats that are not requested.
+- output JSON only, no commentary.`;
+
+  const migrated = sanitizeSettings({
+    promptTemplateSequentialLastThought: legacyLastThoughtPrompt,
+    promptProtocolSequentialLastThought: legacyLastThoughtProtocol.replace(/\n/g, "\r\n"),
+  });
+
+  assert.equal(migrated.promptTemplateSequentialLastThought, defaultSettings.promptTemplateSequentialLastThought);
+  assert.equal(migrated.promptProtocolSequentialLastThought, defaultSettings.promptProtocolSequentialLastThought);
+
+  const custom = sanitizeSettings({
+    promptTemplateSequentialLastThought: `${legacyLastThoughtPrompt}\n- Custom rule.`,
+    promptProtocolSequentialLastThought: `${legacyLastThoughtProtocol}\n- Custom protocol rule.`,
+  });
+  assert.notEqual(custom.promptTemplateSequentialLastThought, defaultSettings.promptTemplateSequentialLastThought);
+  assert.notEqual(custom.promptProtocolSequentialLastThought, defaultSettings.promptProtocolSequentialLastThought);
+});

@@ -945,3 +945,128 @@ test("retracking an older AI row recovers broad continuity when intervening user
   assertSameMembers(retrackedRow4Scopes.sceneActiveCharacters, broadSceneOwners);
   assert.deepEqual(retrackedRow4Scopes.requestCharacters, ["Candy"]);
 });
+
+test("model AI scope preserves physically present background owner when latest message only directly advances another owner", () => {
+  const settings = makeSettings();
+  const context = {
+    chat: [
+      {
+        mes: "We are on the bed between Lisa and Candy, cuddled together for movie night.",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+        extra: {},
+        swipe_id: 0,
+      },
+      {
+        mes: "Candy is snuggled against Kuba while Lisa stays tense on the other side.",
+        name: "Your Family",
+        is_user: false,
+        is_system: false,
+        extra: {},
+        swipe_id: 0,
+      },
+      {
+        mes: "After some time, Lisa cuddled closer too.",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+        extra: {},
+        swipe_id: 0,
+      },
+      {
+        mes: "*The only sound was the movie and Candy's soft, contented snores starting to puff against Kuba's neck.*\n\n*Then Lisa relaxed into the space beside him and mumbled that this was just less awkward.*",
+        name: "Your Family",
+        is_user: false,
+        is_system: false,
+        extra: {},
+        swipe_id: 0,
+      },
+    ],
+    characters: [{ name: "Your Family", avatar: "your family.png" }],
+    characterId: 10,
+    groupId: null,
+  } as unknown as STContext;
+  const priorScene = makeTracker({
+    timestamp: 1001,
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: [
+        {
+          entityId: "bst_narrative:candy",
+          kind: "narrative-entity",
+          name: "Candy",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+        {
+          entityId: "bst_narrative:lisa",
+          kind: "narrative-entity",
+          name: "Lisa",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: false,
+          created: false,
+        },
+      ],
+    }),
+  });
+  writeTrackerDataToMessage(context, priorScene, 1);
+  const bridgeUserScene = makeTracker({
+    timestamp: 1002,
+    activeCharacters: [USER_TRACKER_KEY],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: [
+        {
+          entityId: "bst_narrative:candy",
+          kind: "narrative-entity",
+          name: "Candy",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: false,
+          created: false,
+        },
+        {
+          entityId: "bst_narrative:lisa",
+          kind: "narrative-entity",
+          name: "Lisa",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
+    }),
+  });
+  writeTrackerDataToMessage(context, bridgeUserScene, 2);
+
+  const scopes = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[3],
+    settings,
+    previousTrackerData: getTrackerDataFromMessage(context.chat[2]),
+    recentTrackerHistory: selectResolverContinuityHistoryEntries(
+      getRecentTrackerHistoryEntries(context, 6),
+      3,
+      3,
+    ),
+    resolvedSceneActiveCharacters: ["Lisa"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+  assertSameMembers(scopes.sceneActiveCharacters, ["Lisa", "Candy"]);
+  assert.deepEqual(scopes.requestCharacters, ["Lisa"]);
+  assert.deepEqual(resolveExtractionTargetOwners({
+    sceneActiveCharacters: scopes.sceneActiveCharacters,
+    requestCharacters: scopes.requestCharacters,
+    userExtraction: false,
+  }).sort(), ["Candy", "Lisa"]);
+});

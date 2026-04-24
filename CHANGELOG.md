@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev6] - 2026-04-24
+### Fixed
+- Fixed dynamic scene continuity so physically present background characters are not dropped as mention-only when the latest message directly advances another character.
+- Migrated stored legacy default `lastThought` prompt/protocol settings to the current defaults so existing profiles receive the strengthened thought-update contract unless the prompt was actually customized.
+
 ## [2.5.4.1-dev5] - 2026-04-24
 ### Fixed
 - Fixed Legacy sequential prompt privacy so private `lastThought` continuity is only included in owner-scoped private thought requests, not in public built-in stat requests.
