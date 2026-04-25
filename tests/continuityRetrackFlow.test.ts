@@ -946,7 +946,7 @@ test("retracking an older AI row recovers broad continuity when intervening user
   assert.deepEqual(retrackedRow4Scopes.requestCharacters, ["Candy"]);
 });
 
-test("model AI scope preserves physically present background owner when latest message only directly advances another owner", () => {
+test("model AI scope does not locally re-add omitted background owners from message prose", () => {
   const settings = makeSettings();
   const context = {
     chat: [
@@ -1062,11 +1062,11 @@ test("model AI scope preserves physically present background owner when latest m
     resolvedRequestCharacters: ["Lisa"],
   });
 
-  assertSameMembers(scopes.sceneActiveCharacters, ["Lisa", "Candy"]);
+  assert.deepEqual(scopes.sceneActiveCharacters, ["Lisa"]);
   assert.deepEqual(scopes.requestCharacters, ["Lisa"]);
   assert.deepEqual(resolveExtractionTargetOwners({
     sceneActiveCharacters: scopes.sceneActiveCharacters,
     requestCharacters: scopes.requestCharacters,
     userExtraction: false,
-  }).sort(), ["Candy", "Lisa"]);
+  }), ["Lisa"]);
 });

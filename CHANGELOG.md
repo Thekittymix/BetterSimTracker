@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev7] - 2026-04-24
+### Fixed
+- Reworked the scene-continuity fix so physical background presence is handled by the model resolver prompt contract instead of local prose-pattern activation logic.
+
 ## [2.5.4.1-dev6] - 2026-04-24
 ### Fixed
 - Fixed dynamic scene continuity so physically present background characters are not dropped as mention-only when the latest message directly advances another character.
