@@ -61,7 +61,7 @@ export const DEFAULT_INJECTION_PROMPT_TEMPLATE = [
 ].join("\n");
 
 export const UNIFIED_PROMPT_PROTOCOL = `Numeric stats to update ({{numericStats}}):
-- Return deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
+- Return integer deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
 
 Text stats to update ({{textStats}}):
 - mood must be one of: {{moodOptions}}.
@@ -114,7 +114,7 @@ Keep it to one short sentence per character.
 
 {{basePrompt}}`;
 
-export const NUMERIC_PROMPT_PROTOCOL = (key: string): string => `Return deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
+export const NUMERIC_PROMPT_PROTOCOL = (key: string): string => `Return integer deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
 
 Return STRICT JSON only:
 {
@@ -627,7 +627,7 @@ function buildUnifiedBuiltInProtocol(stats: StatKey[], safeMaxDelta: number, cha
 
   return [
     `Numeric stats to update (${numericStats.length ? numericStats.join(", ") : "none"}):`,
-    `- Return deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
+    `- Return integer deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
     "",
     ...(textStats.length
       ? [
@@ -1138,7 +1138,7 @@ export function buildUnifiedAllStatsPrompt(input: {
 
   const protocol = [
     `${customOnlyMode ? "Custom numeric delta stats to update" : "Numeric delta stats to update"} (${numericDeltaKeys.length ? numericDeltaKeys.join(", ") : "none"}):`,
-    `- Return deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
+    `- Return integer deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
     "",
     ...(customOnlyMode
       ? []

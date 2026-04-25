@@ -370,7 +370,7 @@ export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestIn
       continuityRules: input.rules?.continuityRules ?? [
         "Preserve current scene continuity unless recent evidence shows a real change.",
         "Keep background participants inScene when recent context says they remain present.",
-        "For every numeric stat, return delta plus confidence. Delta is the signed change from the previous tracker value, not the final absolute value.",
+        "For every numeric stat, return delta plus confidence. Delta must be an integer. Delta is the signed change from the previous tracker value, not the final absolute value.",
         "For every non-numeric stat, return value plus confidence. If evidence is weak, lower confidence instead of inventing a change.",
       ],
       entityRules: input.rules?.entityRules ?? [
