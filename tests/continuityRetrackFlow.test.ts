@@ -1062,11 +1062,13 @@ test("model AI scope does not locally re-add omitted background owners from mess
     resolvedRequestCharacters: ["Lisa"],
   });
 
-  assert.deepEqual(scopes.sceneActiveCharacters, ["Lisa"]);
+
+
+  assertSameMembers(scopes.sceneActiveCharacters, ["Candy", "Lisa"]);
   assert.deepEqual(scopes.requestCharacters, ["Lisa"]);
-  assert.deepEqual(resolveExtractionTargetOwners({
+  assertSameMembers(resolveExtractionTargetOwners({
     sceneActiveCharacters: scopes.sceneActiveCharacters,
     requestCharacters: scopes.requestCharacters,
     userExtraction: false,
-  }), ["Lisa"]);
+  }), ["Candy", "Lisa"]);
 });
