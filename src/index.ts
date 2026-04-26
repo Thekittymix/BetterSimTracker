@@ -2,6 +2,7 @@ import {
   buildRecentContext,
   getAllTrackedCharacterNames,
   resolveActiveCharacterAnalysis,
+  readManualInactiveCharacters,
   setManualInactiveCharacter,
 } from "./activity";
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
