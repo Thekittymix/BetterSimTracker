@@ -3802,11 +3802,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           source: "fallback" as const,
         }
       : baseOwnerScopes;
+    const manualInactiveSet = new Set(readManualInactiveCharacters(context).map(n => n.toLowerCase()));
     const sceneActiveCharacters = ownerScopes.sceneActiveCharacters.filter(name =>
-      isTrackerEnabledForOwner(context, activeSettings, name),
+      isTrackerEnabledForOwner(context, activeSettings, name) && !manualInactiveSet.has(name.toLowerCase()),
     );
     const requestCharacters = ownerScopes.requestCharacters.filter(name =>
-      isTrackerEnabledForOwner(context, activeSettings, name),
+      isTrackerEnabledForOwner(context, activeSettings, name) && !manualInactiveSet.has(name.toLowerCase()),
     );
     const sceneActiveEntityIds = resolvedEntityResolution?.resolvedEntities?.length
       ? resolveSceneEntityIdsFromResolvedEntities(resolvedEntityResolution.resolvedEntities)
@@ -5407,4 +5408,5 @@ if (document.readyState === "loading") {
 } else {
   void init();
 }
+
 
