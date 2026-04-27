@@ -5,6 +5,7 @@ import {
   buildRecentContext,
   getAllTrackedCharacterNames,
   readManualInactiveCharacters,
+  reconcileManualInactiveCharactersWithScene,
   resolveActiveCharacterAnalysis,
   setManualInactiveCharacter,
 } from "../src/activity";
@@ -91,6 +92,17 @@ test("manual inactive override can still be cleared manually before the characte
     activityLookback: 5,
   });
   assert.deepEqual(clearedResult.activeCharacters, ["Billie"]);
+});
+
+test("manual inactive override clears when model-backed scene resolution confirms the character is in scene", () => {
+  const context = makeContext();
+  setManualInactiveCharacter(context, "Billie", true);
+
+  const reconciliation = reconcileManualInactiveCharactersWithScene(context, ["Billie", "Alice"]);
+
+  assert.deepEqual(reconciliation.cleared, ["Billie"]);
+  assert.deepEqual(reconciliation.remaining, []);
+  assert.deepEqual(readManualInactiveCharacters(context), []);
 });
 
 test("getAllTrackedCharacterNames expands multi-character source cards into aliases when enabled", () => {

@@ -1,6 +1,7 @@
-import {
+﻿import {
   buildRecentContext,
   getAllTrackedCharacterNames,
+  reconcileManualInactiveCharactersWithScene,
   resolveActiveCharacterAnalysis,
   readManualInactiveCharacters,
   setManualInactiveCharacter,
@@ -3802,7 +3803,18 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           source: "fallback" as const,
         }
       : baseOwnerScopes;
-    const manualInactiveSet = new Set(readManualInactiveCharacters(context).map(n => n.toLowerCase()));
+    let manualInactiveCharacters = readManualInactiveCharacters(context);
+    if (resolvedOwnerScopes?.source === "model" && manualInactiveCharacters.length && ownerScopes.sceneActiveCharacters.length) {
+      const reconciliation = reconcileManualInactiveCharactersWithScene(context, ownerScopes.sceneActiveCharacters);
+      for (const clearedOwner of reconciliation.cleared) {
+        pushTrace("activity.manual_inactive_auto_clear", {
+          character: clearedOwner,
+          reason: "entity_resolver_inScene",
+        });
+      }
+      manualInactiveCharacters = reconciliation.remaining;
+    }
+    const manualInactiveSet = new Set(manualInactiveCharacters.map(name => name.toLowerCase()));
     const sceneActiveCharacters = ownerScopes.sceneActiveCharacters.filter(name =>
       isTrackerEnabledForOwner(context, activeSettings, name) && !manualInactiveSet.has(name.toLowerCase()),
     );
