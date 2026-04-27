@@ -3803,9 +3803,12 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           source: "fallback" as const,
         }
       : baseOwnerScopes;
+    const modelConfirmedSceneOwners = resolvedEntityResolution?.source === "model"
+      ? resolveSceneOwnersFromResolvedEntities(resolvedEntityResolution.resolvedEntities ?? [])
+      : [];
     let manualInactiveCharacters = readManualInactiveCharacters(context);
-    if (resolvedOwnerScopes?.source === "model" && manualInactiveCharacters.length && ownerScopes.sceneActiveCharacters.length) {
-      const reconciliation = reconcileManualInactiveCharactersWithScene(context, ownerScopes.sceneActiveCharacters);
+    if (modelConfirmedSceneOwners.length && manualInactiveCharacters.length) {
+      const reconciliation = reconcileManualInactiveCharactersWithScene(context, modelConfirmedSceneOwners);
       for (const clearedOwner of reconciliation.cleared) {
         pushTrace("activity.manual_inactive_auto_clear", {
           character: clearedOwner,

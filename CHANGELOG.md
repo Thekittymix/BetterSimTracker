@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev15] - 2026-04-27
+### Fixed
+- Fixed dynamic single-card scene reconciliation so model-resolved in-scene owners clear stale manual inactive overrides before extraction filtering, preventing retracks from dropping characters that the resolver already put back into the active scene.
+
 ## [2.5.4.1-dev7] - 2026-04-24
 ### Fixed
 - Reworked the scene-continuity fix so physical background presence is handled by the model resolver prompt contract instead of local prose-pattern activation logic.
