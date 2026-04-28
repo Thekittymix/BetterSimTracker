@@ -2,47 +2,14 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.4.1-dev17] - 2026-04-28
+## [2.5.4.4] - 2026-04-28
 ### Fixed
-- Fixed the custom enum stat settings wizard so it now honors the shared 30-option cap in its label, validation, and add-row gate instead of stopping at the older 12-option UI limit.
-- Increased the user-facing `lastThought` edit limit to 1200 characters across character defaults, persona defaults, and the manual stat edit modal.
-
-## [2.5.4.1-dev16] - 2026-04-28
-### Fixed
-- Fixed retrack continuity for reactivated scene owners so BST restores their older owner-scoped stat baseline from merged prior history before default seeding, preventing numeric resets when the current extraction returns zero deltas.
-
-## [2.5.4.1-dev15] - 2026-04-27
-### Fixed
-- Fixed dynamic single-card scene reconciliation so model-resolved in-scene owners clear stale manual inactive overrides before extraction filtering, preventing retracks from dropping characters that the resolver already put back into the active scene.
-
-## [2.5.4.1-dev7] - 2026-04-24
-### Fixed
-- Reworked the scene-continuity fix so physical background presence is handled by the model resolver prompt contract instead of local prose-pattern activation logic.
-
-## [2.5.4.1-dev6] - 2026-04-24
-### Fixed
-- Fixed dynamic scene continuity so physically present background characters are not dropped as mention-only when the latest message directly advances another character.
-- Migrated stored legacy default `lastThought` prompt/protocol settings to the current defaults so existing profiles receive the strengthened thought-update contract unless the prompt was actually customized.
-
-## [2.5.4.1-dev5] - 2026-04-24
-### Fixed
-- Fixed Legacy sequential prompt privacy so private `lastThought` continuity is only included in owner-scoped private thought requests, not in public built-in stat requests.
-
-## [2.5.4.1-dev4] - 2026-04-24
-### Fixed
-- Strengthened the shared `lastThought` extraction contract so directly advanced characters update from the latest dialogue/action/emotional cues while scene-present background characters preserve continuity when there is no new thought cue.
-
-## [2.5.4.1-dev3] - 2026-04-21
-### Fixed
-- Fixed JSON extraction prompt parity so user-edited semantic prompt templates and protocol prompt overrides are carried into JSON requests for built-in and custom stat stages while the structured JSON output contract remains enforced.
-
-## [2.5.4.1-dev2] - 2026-04-21
-### Fixed
-- Fixed runtime and diagnostics active-owner normalization so scene-present owners remain active in summaries when only one of them is the direct message owner.
-
-## [2.5.4.1-dev1] - 2026-04-21
-### Fixed
-- Fixed AI-turn stat extraction scope so scene-present background characters are included in tracker extraction targets even when only one character is the direct message/request owner, while persisted `inMessage` ownership remains request-scoped.
+- Fixed scene continuity and extraction targeting so scene-present background characters remain in active extraction scope, while mention-only or off-scene names are less likely to become active from continuity alone.
+- Fixed model-backed scene reconciliation so stale manual inactive overrides are filtered and auto-cleared when the resolver confirms a character is back in-scene, including dynamic single-card retrack recovery.
+- Fixed retrack baseline continuity for reactivated owners so BST restores older owner-scoped stats from merged prior history before default seeding, preventing stat resets when the current extraction returns no change.
+- Fixed JSON extraction parity and small-model handling so JSON requests honor edited prompt/protocol overrides, default numeric prompts require integer deltas, and empty or null `result.status` responses no longer fail the extraction run unnecessarily.
+- Fixed `lastThought` extraction and privacy behavior so directly advanced characters update from fresh message cues, private sequential thought requests stay owner-scoped, and existing profiles receive the strengthened default prompt/protocol unless they were explicitly customized.
+- Fixed custom stat editor limits so enum options now allow up to 30 values in the settings wizard, and increased the user-facing `lastThought` edit limit to 1200 characters across character defaults, persona defaults, and manual stat edits.
 
 ## [2.5.4.1] - 2026-04-21
 ### Fixed
