@@ -1,13 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { buildEntityResolution } from "./helpers/entityResolution";
+
 import {
   buildRecentContext,
   getAllTrackedCharacterNames,
   readManualInactiveCharacters,
+  reconcileManualInactiveCharactersWithScene,
   resolveActiveCharacterAnalysis,
   setManualInactiveCharacter,
 } from "../src/activity";
+import { resolveSceneOwnersFromResolvedEntities } from "../src/entityResolver";
 import { defaultSettings } from "../src/settings";
 import type { STContext } from "../src/types";
 
@@ -91,6 +95,111 @@ test("manual inactive override can still be cleared manually before the characte
     activityLookback: 5,
   });
   assert.deepEqual(clearedResult.activeCharacters, ["Billie"]);
+});
+
+test("manual inactive override clears when model-backed scene resolution confirms the character is in scene", () => {
+  const context = makeContext();
+  setManualInactiveCharacter(context, "Billie", true);
+
+  const reconciliation = reconcileManualInactiveCharactersWithScene(context, ["Billie", "Alice"]);
+
+  assert.deepEqual(reconciliation.cleared, ["Billie"]);
+  assert.deepEqual(reconciliation.remaining, []);
+  assert.deepEqual(readManualInactiveCharacters(context), []);
+});
+
+test("manual inactive override clears from model-backed scene entities for dynamic single-card scenes", () => {
+  const context = {
+    characterId: 0,
+    characters: [
+      { name: "Your Family", avatar: "your-family.png" },
+    ],
+    extensionSettings: {
+      bettersimtracker: {
+        entityTrackingMode: "dynamic_characters",
+      },
+    },
+    chatMetadata: {
+      bstEntityRegistry: {
+        version: 1,
+        entities: {
+          "bst_narrative:lisa": {
+            id: "bst_narrative:lisa",
+            ownerName: "Lisa",
+            canonicalName: "Lisa",
+            aliases: [],
+            sourceName: "Your Family",
+            sourceAvatar: "your-family.png",
+            sourceKey: "your-family.png|your family",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+          "bst_narrative:marylyn": {
+            id: "bst_narrative:marylyn",
+            ownerName: "Marylyn",
+            canonicalName: "Marylyn",
+            aliases: [],
+            sourceName: "Your Family",
+            sourceAvatar: "your-family.png",
+            sourceKey: "your-family.png|your family",
+            kind: "narrative-entity",
+            introducedAtMessageIndex: 0,
+            lastSeenMessageIndex: 0,
+            lastActiveMessageIndex: 0,
+            lifecycleState: "active",
+            archivedAtMessageIndex: null,
+          },
+        },
+        ownerToEntityId: {
+          lisa: "bst_narrative:lisa",
+          marylyn: "bst_narrative:marylyn",
+        },
+      },
+    },
+    chat: [
+      { name: "Your Family", mes: "Lisa freezes as Marylyn rushes into the room.", is_user: false, is_system: false },
+    ],
+  } as unknown as STContext;
+
+  setManualInactiveCharacter(context, "Marylyn", true);
+  assert.deepEqual(readManualInactiveCharacters(context), ["Marylyn"]);
+
+  const resolved = buildEntityResolution({
+    source: "model",
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:lisa",
+        kind: "narrative-entity",
+        name: "Lisa",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+      {
+        entityId: "bst_narrative:marylyn",
+        kind: "narrative-entity",
+        name: "Marylyn",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
+  });
+
+  const reconciliation = reconcileManualInactiveCharactersWithScene(
+    context,
+    resolveSceneOwnersFromResolvedEntities(resolved.resolvedEntities ?? []),
+  );
+
+  assert.deepEqual(reconciliation.cleared, ["Marylyn"]);
+  assert.deepEqual(reconciliation.remaining, []);
+  assert.deepEqual(readManualInactiveCharacters(context), []);
 });
 
 test("getAllTrackedCharacterNames expands multi-character source cards into aliases when enabled", () => {

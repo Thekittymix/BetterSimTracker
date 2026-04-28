@@ -5,6 +5,7 @@ import { USER_TRACKER_KEY } from "../src/constants";
 import {
   hasCharacterOwnedTrackedValueForCharacter,
   hasCharacterOwnedTrackedValueForSelection,
+  restoreMissingCharacterContinuityFromMergedHistory,
   selectLatestRelevantHistoryEntry,
 } from "../src/extractionBaselineHelpers";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
@@ -312,4 +313,75 @@ test("hasCharacterOwnedTrackedValueForSelection does not reuse same-name continu
     ),
     false,
   );
+});
+
+test("restoreMissingCharacterContinuityFromMergedHistory backfills a reactivated owner from older merged scene continuity before default seeding", () => {
+  const settings = makeSettings();
+  const base: TrackerData = {
+    timestamp: 4200,
+    activeCharacters: ["Lisa"],
+    statistics: {
+      affection: { Lisa: 0 },
+      trust: { Lisa: 0 },
+      desire: { Lisa: 8 },
+      connection: { Lisa: 7 },
+      mood: { Lisa: "Panicked" },
+      lastThought: { Lisa: "Oh crap, Mom's here! I'm so busted." },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: {
+        Lisa: ["black tank top", "low-slung denim shorts", "white panties"],
+      },
+    },
+  };
+  const merged: TrackerData = {
+    timestamp: 4300,
+    activeCharacters: ["Lisa", "Marylyn"],
+    statistics: {
+      affection: { Lisa: 0, Marylyn: 5 },
+      trust: { Lisa: 0, Marylyn: 5 },
+      desire: { Lisa: 8, Marylyn: 0 },
+      connection: { Lisa: 7, Marylyn: 6 },
+      mood: { Lisa: "Panicked", Marylyn: "Caring" },
+      lastThought: {
+        Lisa: "Oh crap, Mom's here! I'm so busted.",
+        Marylyn: "I hope he knows I love him and I'm just trying to do what's best.",
+      },
+    },
+    customStatistics: {},
+    customNonNumericStatistics: {
+      clothes: {
+        Lisa: ["black tank top", "low-slung denim shorts", "white panties"],
+        Marylyn: [],
+      },
+    },
+  };
+
+  const restored = restoreMissingCharacterContinuityFromMergedHistory({
+    base,
+    merged,
+    activeOwners: ["Lisa", "Marylyn"],
+    activeEntityIds: ["bst_narrative:lisa", "bst_narrative:marylyn"],
+    settingsInput: settings,
+    context: null,
+  });
+
+  assert.ok(restored);
+  assert.deepEqual(restored?.statistics.affection, { Lisa: 0, Marylyn: 5 });
+  assert.deepEqual(restored?.statistics.trust, { Lisa: 0, Marylyn: 5 });
+  assert.deepEqual(restored?.statistics.desire, { Lisa: 8, Marylyn: 0 });
+  assert.deepEqual(restored?.statistics.connection, { Lisa: 7, Marylyn: 6 });
+  assert.deepEqual(restored?.statistics.mood, {
+    Lisa: "Panicked",
+    Marylyn: "Caring",
+  });
+  assert.deepEqual(restored?.statistics.lastThought, {
+    Lisa: "Oh crap, Mom's here! I'm so busted.",
+    Marylyn: "I hope he knows I love him and I'm just trying to do what's best.",
+  });
+  assert.deepEqual(restored?.customNonNumericStatistics?.clothes, {
+    Lisa: ["black tank top", "low-slung denim shorts", "white panties"],
+    Marylyn: [],
+  });
 });

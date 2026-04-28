@@ -3,10 +3,55 @@ import assert from "node:assert/strict";
 
 import { buildJsonExtractionRequestV1, serializeJsonExtractionRequestV1 } from "../src/jsonExtractionProtocolBuilder";
 import { validateJsonExtractionRequestV1 } from "../src/jsonExtractionProtocol";
+import {
+  DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT,
+  DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS,
+} from "../src/prompts";
 import type { BetterSimTrackerSettings } from "../src/types";
 
-function makeSettings(): Pick<BetterSimTrackerSettings, "customStats"> {
+function makeSettings(overrides: Partial<BetterSimTrackerSettings> = {}): Pick<
+  BetterSimTrackerSettings,
+  | "customStats"
+  | "sequentialExtraction"
+  | "promptTemplateUnified"
+  | "promptTemplateSequentialAffection"
+  | "promptTemplateSequentialTrust"
+  | "promptTemplateSequentialDesire"
+  | "promptTemplateSequentialConnection"
+  | "promptTemplateSequentialMood"
+  | "promptTemplateSequentialLastThought"
+  | "promptTemplateSequentialCustomNumeric"
+  | "promptTemplateSequentialCustomNonNumeric"
+  | "promptProtocolUnified"
+  | "promptProtocolSequentialAffection"
+  | "promptProtocolSequentialTrust"
+  | "promptProtocolSequentialDesire"
+  | "promptProtocolSequentialConnection"
+  | "promptProtocolSequentialMood"
+  | "promptProtocolSequentialLastThought"
+  | "promptProtocolSequentialCustomNumeric"
+  | "promptProtocolSequentialCustomNonNumeric"
+> {
   return {
+    sequentialExtraction: true,
+    promptTemplateUnified: "Unified semantic prompt",
+    promptTemplateSequentialAffection: "Sequential affection semantic prompt",
+    promptTemplateSequentialTrust: "Sequential trust semantic prompt",
+    promptTemplateSequentialDesire: "Sequential desire semantic prompt",
+    promptTemplateSequentialConnection: "Sequential connection semantic prompt",
+    promptTemplateSequentialMood: "Sequential mood semantic prompt",
+    promptTemplateSequentialLastThought: "Sequential lastThought semantic prompt",
+    promptTemplateSequentialCustomNumeric: "Sequential custom numeric semantic prompt",
+    promptTemplateSequentialCustomNonNumeric: "Sequential custom non-numeric semantic prompt",
+    promptProtocolUnified: "Unified protocol prompt",
+    promptProtocolSequentialAffection: "Sequential affection protocol prompt",
+    promptProtocolSequentialTrust: "Sequential trust protocol prompt",
+    promptProtocolSequentialDesire: "Sequential desire protocol prompt",
+    promptProtocolSequentialConnection: "Sequential connection protocol prompt",
+    promptProtocolSequentialMood: "Sequential mood protocol prompt",
+    promptProtocolSequentialLastThought: "Sequential lastThought protocol prompt",
+    promptProtocolSequentialCustomNumeric: "Sequential custom numeric protocol prompt",
+    promptProtocolSequentialCustomNonNumeric: "Sequential custom non-numeric protocol prompt",
     customStats: [
       {
         id: "stress",
@@ -65,6 +110,7 @@ function makeSettings(): Pick<BetterSimTrackerSettings, "customStats"> {
         includeInInjection: false,
       },
     ],
+    ...overrides,
   };
 }
 
@@ -134,6 +180,129 @@ test("buildJsonExtractionRequestV1 builds a schema-valid request with built-ins 
       confidence: 0.8,
     },
   });
+  const lastThoughtDefinition = request.statDefinitions.builtIn.find(definition => definition.id === "lastThought");
+  assert.equal(lastThoughtDefinition?.behaviorGuidance, "Sequential lastThought semantic prompt");
+  assert.equal(lastThoughtDefinition?.protocolGuidance, "Sequential lastThought protocol prompt");
+  const affectionDefinition = request.statDefinitions.builtIn.find(definition => definition.id === "affection");
+  assert.equal(affectionDefinition?.behaviorGuidance, "Sequential affection semantic prompt");
+  assert.equal(affectionDefinition?.protocolGuidance, "Sequential affection protocol prompt");
+  const stressDefinition = request.statDefinitions.customNumeric.find(definition => definition.id === "stress");
+  assert.equal(stressDefinition?.behaviorGuidance, "Track current stress while preserving continuity.");
+  assert.equal(stressDefinition?.protocolGuidance, "Sequential custom numeric protocol prompt");
+  const clothesDefinition = request.statDefinitions.customNonNumeric.find(definition => definition.id === "clothes");
+  assert.equal(clothesDefinition?.behaviorGuidance, "Track only current on-body clothes and keep continuity unless the scene changes.");
+  assert.equal(clothesDefinition?.protocolGuidance, "Sequential custom non-numeric protocol prompt");
+});
+
+test("buildJsonExtractionRequestV1 carries unified custom prompts in non-sequential JSON requests", () => {
+  const request = buildJsonExtractionRequestV1({
+    task: {
+      mode: "ai_turn",
+      messageIndex: 12,
+      retrack: false,
+      swipeRetrack: false,
+      entityTrackingMode: "dynamic_characters",
+      includeCharacterCards: true,
+      includeActivatedLorebook: false,
+    },
+    message: {
+      speaker: "Your Family",
+      isUser: false,
+      isSystem: false,
+      text: "Candy replies while Lisa watches.",
+    },
+    recentHistory: [],
+    currentState: {
+      latestRelevantSnapshot: {},
+      builtInStats: {},
+      customStats: {},
+      customNonNumericStats: {},
+    },
+    entityContext: {
+      candidateOwners: ["Candy", "Lisa"],
+      candidateEntities: [],
+      currentEntityOwnerMap: {},
+    },
+    enabledBuiltInStats: ["lastThought"],
+    settings: makeSettings({
+      sequentialExtraction: false,
+      promptTemplateUnified: "Unified semantic override for JSON mode",
+      promptProtocolUnified: "Unified protocol override for JSON mode",
+      customStats: [],
+    }),
+  });
+
+  const result = validateJsonExtractionRequestV1(request);
+  assert.equal(result.ok, true);
+  assert.equal(request.statDefinitions.builtIn[0]?.behaviorGuidance, "Unified semantic override for JSON mode");
+  assert.equal(request.statDefinitions.builtIn[0]?.protocolGuidance, "Unified protocol override for JSON mode");
+  assert.deepEqual(request.outputContract.requiredSections, [
+    "result",
+    "entityResolution",
+    "builtInStats",
+    "customStats",
+    "customNonNumericStats",
+  ]);
+});
+
+test("buildJsonExtractionRequestV1 carries the shared lastThought update contract into JSON requests", () => {
+  const request = buildJsonExtractionRequestV1({
+    task: {
+      mode: "ai_turn",
+      messageIndex: 34,
+      retrack: true,
+      swipeRetrack: false,
+      entityTrackingMode: "dynamic_characters",
+      includeCharacterCards: true,
+      includeActivatedLorebook: false,
+    },
+    message: {
+      speaker: "Your Family",
+      isUser: false,
+      isSystem: false,
+      text: "Lisa flinched and warned him not to push it, but her voice softened. Candy stayed nearby.",
+    },
+    recentHistory: [],
+    currentState: {
+      latestRelevantSnapshot: {
+        statistics: {
+          lastThought: {
+            Lisa: "Great, another boring summer... maybe not.",
+            Candy: "I can go get them right now!",
+          },
+        },
+      },
+      builtInStats: {
+        lastThought: {
+          Lisa: "Great, another boring summer... maybe not.",
+          Candy: "I can go get them right now!",
+        },
+      },
+      customStats: {},
+      customNonNumericStats: {},
+    },
+    entityContext: {
+      candidateOwners: ["Lisa", "Candy"],
+      candidateEntities: [],
+      currentEntityOwnerMap: {},
+    },
+    enabledBuiltInStats: ["lastThought"],
+    settings: makeSettings({
+      promptTemplateSequentialLastThought: DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought,
+      promptProtocolSequentialLastThought: DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT,
+      customStats: [],
+    }),
+  });
+
+  const result = validateJsonExtractionRequestV1(request);
+  assert.equal(result.ok, true);
+
+  const definition = request.statDefinitions.builtIn[0];
+  assert.equal(definition?.id, "lastThought");
+  assert.match(definition?.behaviorGuidance ?? "", /latest message directly advances a target owner/);
+  assert.match(definition?.behaviorGuidance ?? "", /Do not copy the previous tracker thought/);
+  assert.match(definition?.protocolGuidance ?? "", /current immediate internal thought after the latest relevant message/);
+  assert.match(definition?.protocolGuidance ?? "", /Preserve the previous thought only when recent messages provide no new thought cue/);
 });
 
 test("buildJsonExtractionRequestV1 preserves structured rule sections instead of collapsing into one prompt blob", () => {

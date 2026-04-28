@@ -97,6 +97,34 @@ test("buildMultiCharacterResolverPrompt distinguishes off-screen mention from ac
   assert.match(prompt, /resting in another room/i);
 });
 
+test("buildMultiCharacterResolverPrompt keeps physical background presence model-driven", () => {
+  const prompt = buildMultiCharacterResolverPrompt({
+    candidateEntities: [
+      { entityRef: "ent1", ownerName: "Ashley", entityId: "bst_narrative:ashley" },
+      { entityRef: "ent2", ownerName: "Blake", entityId: "bst_narrative:blake" },
+    ],
+    contextText: "Ashley and Blake were both in the same bed watching a movie.",
+    previousMessage: {
+      name: "User",
+      mes: "Blake, answer while Ashley stays here.",
+      is_user: true,
+      is_system: false,
+    } as any,
+    message: {
+      name: "Shared Card",
+      mes: "The only sound was the movie and Ashley's quiet breathing against his shoulder. Blake relaxed and answered softly.",
+      is_user: false,
+      is_system: false,
+    } as any,
+  });
+
+  assert.match(prompt, /physically co-located, touching, leaning, breathing, sleeping, resting/i);
+  assert.match(prompt, /A sleeping\/resting\/silent body in the same interaction space is still `inScene=true`/i);
+  assert.match(prompt, /Ashley is asleep, breathing, or leaning against someone/i);
+  assert.match(prompt, /keep Ashley as `inScene=true, inMessage=false` and Blake as `inScene=true, inMessage=true`/i);
+  assert.match(prompt, /The only sound was the movie and Ashley's quiet breathing against his shoulder/);
+});
+
 test("buildMultiCharacterResolverPrompt supports user-turn scene resolution", () => {
   const prompt = buildMultiCharacterResolverPrompt({
     candidateEntities: [

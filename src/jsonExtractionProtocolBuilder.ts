@@ -21,6 +21,30 @@ type BuiltInStatDefinitionSeed = {
   emptySemantics: string;
 };
 
+type JsonPromptSettings = Pick<
+  BetterSimTrackerSettings,
+  | "customStats"
+  | "sequentialExtraction"
+  | "promptTemplateUnified"
+  | "promptTemplateSequentialAffection"
+  | "promptTemplateSequentialTrust"
+  | "promptTemplateSequentialDesire"
+  | "promptTemplateSequentialConnection"
+  | "promptTemplateSequentialMood"
+  | "promptTemplateSequentialLastThought"
+  | "promptTemplateSequentialCustomNumeric"
+  | "promptTemplateSequentialCustomNonNumeric"
+  | "promptProtocolUnified"
+  | "promptProtocolSequentialAffection"
+  | "promptProtocolSequentialTrust"
+  | "promptProtocolSequentialDesire"
+  | "promptProtocolSequentialConnection"
+  | "promptProtocolSequentialMood"
+  | "promptProtocolSequentialLastThought"
+  | "promptProtocolSequentialCustomNumeric"
+  | "promptProtocolSequentialCustomNonNumeric"
+>;
+
 const BUILT_IN_STAT_DEFINITIONS: Record<StatKey, BuiltInStatDefinitionSeed> = {
   affection: {
     label: "Affection",
@@ -49,7 +73,7 @@ const BUILT_IN_STAT_DEFINITIONS: Record<StatKey, BuiltInStatDefinitionSeed> = {
   },
   lastThought: {
     label: "Last Thought",
-    behaviorGuidance: "Track one short internal thought grounded in recent messages. Preserve continuity unless recent messages clearly justify change.",
+    behaviorGuidance: "Track the current immediate internal thought after the latest relevant message. Update directly advanced owners from latest dialogue/action/emotional cues; preserve continuity only when recent messages provide no new thought cue.",
     emptySemantics: "Omitted owner means no extracted lastThought value for that owner in this response. Empty string is invalid.",
   },
 };
@@ -71,15 +95,65 @@ export interface BuildJsonExtractionRequestInput {
     currentEntityOwnerMap: Record<string, unknown>;
   };
   enabledBuiltInStats: StatKey[];
-  settings: Pick<BetterSimTrackerSettings, "customStats">;
+  settings: JsonPromptSettings;
   rules?: Partial<JsonExtractionRequestV1["rules"]>;
   outputContract?: Partial<JsonExtractionRequestOutputContract>;
   responseContractMode?: "tracker" | "stats";
 }
 
-function buildBuiltInStatDefinitions(enabledBuiltInStats: StatKey[]): JsonExtractionRequestStatDefinition[] {
+function trimPrompt(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function resolveBuiltInTemplate(settings: JsonPromptSettings, stat: StatKey): string {
+  if (!settings.sequentialExtraction) {
+    return trimPrompt(settings.promptTemplateUnified);
+  }
+  if (stat === "affection") return trimPrompt(settings.promptTemplateSequentialAffection);
+  if (stat === "trust") return trimPrompt(settings.promptTemplateSequentialTrust);
+  if (stat === "desire") return trimPrompt(settings.promptTemplateSequentialDesire);
+  if (stat === "connection") return trimPrompt(settings.promptTemplateSequentialConnection);
+  if (stat === "mood") return trimPrompt(settings.promptTemplateSequentialMood);
+  return trimPrompt(settings.promptTemplateSequentialLastThought);
+}
+
+function resolveBuiltInProtocol(settings: JsonPromptSettings, stat: StatKey): string {
+  if (!settings.sequentialExtraction) {
+    return trimPrompt(settings.promptProtocolUnified);
+  }
+  if (stat === "affection") return trimPrompt(settings.promptProtocolSequentialAffection);
+  if (stat === "trust") return trimPrompt(settings.promptProtocolSequentialTrust);
+  if (stat === "desire") return trimPrompt(settings.promptProtocolSequentialDesire);
+  if (stat === "connection") return trimPrompt(settings.promptProtocolSequentialConnection);
+  if (stat === "mood") return trimPrompt(settings.promptProtocolSequentialMood);
+  return trimPrompt(settings.promptProtocolSequentialLastThought);
+}
+
+function resolveCustomTemplateFallback(settings: JsonPromptSettings, definition: CustomStatDefinition): string {
+  if (!settings.sequentialExtraction) {
+    return trimPrompt(settings.promptTemplateUnified);
+  }
+  const kind = normalizeCustomStatKind(definition.kind);
+  return kind === "numeric"
+    ? trimPrompt(settings.promptTemplateSequentialCustomNumeric)
+    : trimPrompt(settings.promptTemplateSequentialCustomNonNumeric);
+}
+
+function resolveCustomProtocol(settings: JsonPromptSettings, definition: CustomStatDefinition): string {
+  if (!settings.sequentialExtraction) {
+    return trimPrompt(settings.promptProtocolUnified);
+  }
+  const kind = normalizeCustomStatKind(definition.kind);
+  return kind === "numeric"
+    ? trimPrompt(settings.promptProtocolSequentialCustomNumeric)
+    : trimPrompt(settings.promptProtocolSequentialCustomNonNumeric);
+}
+
+function buildBuiltInStatDefinitions(settings: JsonPromptSettings, enabledBuiltInStats: StatKey[]): JsonExtractionRequestStatDefinition[] {
   return enabledBuiltInStats.map(stat => {
     const seed = BUILT_IN_STAT_DEFINITIONS[stat];
+    const behaviorGuidance = resolveBuiltInTemplate(settings, stat) || seed.behaviorGuidance;
+    const protocolGuidance = resolveBuiltInProtocol(settings, stat);
     return {
       id: stat,
       label: seed.label,
@@ -88,15 +162,22 @@ function buildBuiltInStatDefinitions(enabledBuiltInStats: StatKey[]): JsonExtrac
       trackUser: true,
       globalScope: false,
       includeInInjection: true,
-      behaviorGuidance: seed.behaviorGuidance,
+      behaviorGuidance,
+      ...(protocolGuidance ? { protocolGuidance } : {}),
       emptySemantics: seed.emptySemantics,
     };
   });
 }
 
-function buildCustomStatDefinition(definition: CustomStatDefinition): JsonExtractionRequestStatDefinition {
+function buildCustomStatDefinition(settings: JsonPromptSettings, definition: CustomStatDefinition): JsonExtractionRequestStatDefinition {
   const kind = normalizeCustomStatKind(definition.kind);
-  const guidance = String(definition.promptOverride ?? definition.behaviorGuidance ?? definition.description ?? "").trim();
+  const guidance = trimPrompt(
+    definition.promptOverride
+    ?? definition.behaviorGuidance
+    ?? definition.description
+    ?? resolveCustomTemplateFallback(settings, definition),
+  );
+  const protocolGuidance = resolveCustomProtocol(settings, definition);
   const baseEmptySemantics = kind === "array"
     ? "Empty array means known empty, not unknown."
     : kind === "text_short"
@@ -112,11 +193,12 @@ function buildCustomStatDefinition(definition: CustomStatDefinition): JsonExtrac
     globalScope: definition.globalScope === true,
     includeInInjection: definition.includeInInjection === true,
     behaviorGuidance: guidance || `Extract ${definition.label} while preserving continuity from the recent scene.`,
+    ...(protocolGuidance ? { protocolGuidance } : {}),
     emptySemantics: baseEmptySemantics,
   };
 }
 
-function splitCustomStatDefinitions(definitions: CustomStatDefinition[] | undefined): {
+function splitCustomStatDefinitions(settings: JsonPromptSettings, definitions: CustomStatDefinition[] | undefined): {
   customNumeric: JsonExtractionRequestStatDefinition[];
   customNonNumeric: JsonExtractionRequestStatDefinition[];
 } {
@@ -124,7 +206,7 @@ function splitCustomStatDefinitions(definitions: CustomStatDefinition[] | undefi
   const customNonNumeric: JsonExtractionRequestStatDefinition[] = [];
   for (const definition of definitions ?? []) {
     if (!definition.track) continue;
-    const built = buildCustomStatDefinition({
+    const built = buildCustomStatDefinition(settings, {
       ...definition,
       textMaxLength: normalizeCustomTextMaxLength(definition.textMaxLength),
     });
@@ -241,8 +323,8 @@ function buildStatsResponseSchema(input: {
 }
 
 export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestInput): JsonExtractionRequestV1 {
-  const builtIn = buildBuiltInStatDefinitions(input.enabledBuiltInStats);
-  const { customNumeric, customNonNumeric } = splitCustomStatDefinitions(input.settings.customStats);
+  const builtIn = buildBuiltInStatDefinitions(input.settings, input.enabledBuiltInStats);
+  const { customNumeric, customNonNumeric } = splitCustomStatDefinitions(input.settings, input.settings.customStats);
   const defaultResponseSchema = input.responseContractMode === "stats"
     ? buildStatsResponseSchema({ builtIn, customNumeric, customNonNumeric, candidateOwners: input.entityContext.candidateOwners })
     : buildResponseSchema({ builtIn, customNumeric, customNonNumeric, candidateOwners: input.entityContext.candidateOwners });
@@ -288,7 +370,7 @@ export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestIn
       continuityRules: input.rules?.continuityRules ?? [
         "Preserve current scene continuity unless recent evidence shows a real change.",
         "Keep background participants inScene when recent context says they remain present.",
-        "For every numeric stat, return delta plus confidence. Delta is the signed change from the previous tracker value, not the final absolute value.",
+        "For every numeric stat, return delta plus confidence. Delta must be an integer. Delta is the signed change from the previous tracker value, not the final absolute value.",
         "For every non-numeric stat, return value plus confidence. If evidence is weak, lower confidence instead of inventing a change.",
       ],
       entityRules: input.rules?.entityRules ?? [

@@ -2480,3 +2480,45 @@ test("selectResolverContinuityHistoryEntries prefers nearest prior messages over
 
   assert.deepEqual(selected, [nearest, nearer, oldest]);
 });
+
+test("resolveModelExtractionOwnerScopes preserves previous scene owner not resolved by model when no departure evidence exists", () => {
+  const context = {
+    characters: [],
+    chat: [
+      {
+        mes: "Candy bounced excitedly. \"Lisa? Oh, that's a SUPER idea!\"",
+        name: "Your Family",
+        is_user: false,
+        is_system: false,
+      },
+    ],
+  } as any;
+
+  const previousScene = buildEntityResolution({
+    resolvedEntities: [
+      { entityId: "bst_narrative:lisa", kind: "narrative-entity", name: "Lisa", avatar: null, inScene: true, inMessage: false },
+      { entityId: "bst_narrative:candy", kind: "narrative-entity", name: "Candy", avatar: null, inScene: true, inMessage: true },
+    ],
+    source: "model",
+  });
+
+  // Model resolver returns only Lisa, omits Candy
+  const resolved = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[0],
+    settings: { entityTrackingMode: "dynamic_characters" },
+    previousTrackerData: {
+      activeCharacters: ["Candy", "Lisa"],
+      entityResolution: previousScene,
+    } as any,
+    recentTrackerHistory: [
+      { activeCharacters: ["Candy", "Lisa"], entityResolution: previousScene } as any,
+    ],
+    resolvedSceneActiveCharacters: ["Lisa"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+  // Candy must be preserved because she was in the previous scene and there is no departure evidence
+  assert.ok(resolved.sceneActiveCharacters.includes("Candy"), `Candy should be preserved in sceneActiveCharacters, got: ${JSON.stringify(resolved.sceneActiveCharacters)}`);
+  assert.ok(resolved.sceneActiveCharacters.includes("Lisa"), "Lisa should remain in sceneActiveCharacters");
+});

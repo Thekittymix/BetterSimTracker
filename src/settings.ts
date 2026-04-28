@@ -79,6 +79,39 @@ const DEFAULT_MOOD_SYMBOL_MAP: Record<MoodLabel, string> = {
   "Neutral": "😶",
 };
 
+const LEGACY_DEFAULT_SEQUENTIAL_LAST_THOUGHT_PROMPT = [
+  "- Write a short internal thought (one sentence) each character has right now.",
+  "- Keep it concise and grounded in the recent messages.",
+  "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
+].join("\n");
+
+const LEGACY_DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT = `Return STRICT JSON only:
+{
+  "characters": [
+    {
+      "name": "Character Name",
+      "confidence": 0.0,
+      "lastThought": ""
+    }
+  ]
+}
+
+Rules:
+- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.
+- include one entry for each character name exactly: {{characters}}.
+- omit fields for stats that are not requested.
+- output JSON only, no commentary.`;
+
+function normalizePromptForDefaultMigration(value: string): string {
+  return value.replace(/\r\n/g, "\n").trim();
+}
+
+function migrateLegacyDefaultPrompt(value: string, legacyDefault: string, currentDefault: string): string {
+  return normalizePromptForDefaultMigration(value) === normalizePromptForDefaultMigration(legacyDefault)
+    ? currentDefault
+    : value;
+}
+
 export const defaultSettings: BetterSimTrackerSettings = {
   enabled: true,
   maxConcurrentCalls: 2,
@@ -702,7 +735,11 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
     promptTemplateSequentialCustomNumeric: normalizeInstruction(input.promptTemplateSequentialCustomNumeric, defaultSettings.promptTemplateSequentialCustomNumeric).slice(0, 20000),
     promptTemplateSequentialCustomNonNumeric: normalizeInstruction(input.promptTemplateSequentialCustomNonNumeric, defaultSettings.promptTemplateSequentialCustomNonNumeric).slice(0, 20000),
     promptTemplateSequentialMood: normalizeInstruction(input.promptTemplateSequentialMood, defaultSettings.promptTemplateSequentialMood).slice(0, 20000),
-    promptTemplateSequentialLastThought: normalizeInstruction(input.promptTemplateSequentialLastThought, defaultSettings.promptTemplateSequentialLastThought).slice(0, 20000),
+    promptTemplateSequentialLastThought: migrateLegacyDefaultPrompt(
+      normalizeInstruction(input.promptTemplateSequentialLastThought, defaultSettings.promptTemplateSequentialLastThought).slice(0, 20000),
+      LEGACY_DEFAULT_SEQUENTIAL_LAST_THOUGHT_PROMPT,
+      defaultSettings.promptTemplateSequentialLastThought,
+    ),
     builtInBehaviorAffection: asText(input.builtInBehaviorAffection, defaultSettings.builtInBehaviorAffection).slice(0, 4000),
     builtInBehaviorTrust: asText(input.builtInBehaviorTrust, defaultSettings.builtInBehaviorTrust).slice(0, 4000),
     builtInBehaviorDesire: asText(input.builtInBehaviorDesire, defaultSettings.builtInBehaviorDesire).slice(0, 4000),
@@ -717,7 +754,11 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
     promptProtocolSequentialCustomNumeric: asText(input.promptProtocolSequentialCustomNumeric, defaultSettings.promptProtocolSequentialCustomNumeric).slice(0, 20000),
     promptProtocolSequentialCustomNonNumeric: asText(input.promptProtocolSequentialCustomNonNumeric, defaultSettings.promptProtocolSequentialCustomNonNumeric).slice(0, 20000),
     promptProtocolSequentialMood: asText(input.promptProtocolSequentialMood, defaultSettings.promptProtocolSequentialMood).slice(0, 20000),
-    promptProtocolSequentialLastThought: asText(input.promptProtocolSequentialLastThought, defaultSettings.promptProtocolSequentialLastThought).slice(0, 20000),
+    promptProtocolSequentialLastThought: migrateLegacyDefaultPrompt(
+      asText(input.promptProtocolSequentialLastThought, defaultSettings.promptProtocolSequentialLastThought).slice(0, 20000),
+      LEGACY_DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT,
+      defaultSettings.promptProtocolSequentialLastThought,
+    ),
     customStats,
     characterDefaults: sanitizeCharacterDefaults(input.characterDefaults, customStats),
   };

@@ -223,12 +223,64 @@ export function readManualInactiveCharacters(context: STContext): string[] {
   return Object.keys(readManualInactiveOverrideMap(context));
 }
 
+function materializeManualInactiveCharacterNames(
+  context: STContext,
+  materialized: ManualInactiveOverrideMap,
+): string[] {
+  const settingsMode = resolveEntityTrackingMode({
+    entityTrackingMode: (context.extensionSettings?.[EXTENSION_KEY] as Partial<BetterSimTrackerSettings> | undefined)?.entityTrackingMode ?? "standard",
+  });
+  const ordered = getAllTrackedCharacterNames(context, { entityTrackingMode: settingsMode ?? "standard" });
+  const materializedNames = ordered.filter(name => Object.prototype.hasOwnProperty.call(materialized, name));
+  const leftovers = Object.keys(materialized).filter(name => !materializedNames.includes(name));
+  if (leftovers.length) materializedNames.push(...leftovers);
+  return materializedNames;
+}
+
 export function clearManualInactiveCharacters(context: STContext | null): void {
   if (!context?.chatMetadata || typeof context.chatMetadata !== "object") return;
   if (!Object.prototype.hasOwnProperty.call(context.chatMetadata, MANUAL_INACTIVE_METADATA_KEY)) return;
   delete context.chatMetadata[MANUAL_INACTIVE_METADATA_KEY];
   context.saveMetadataDebounced?.();
   context.saveChatDebounced?.();
+}
+
+export function reconcileManualInactiveCharactersWithScene(
+  context: STContext,
+  sceneOwners: string[],
+): { remaining: string[]; cleared: string[] } {
+  const existing = readManualInactiveOverrideMap(context);
+  const existingNames = Object.keys(existing);
+  if (!existingNames.length) {
+    return { remaining: [], cleared: [] };
+  }
+
+  const sceneOwnerKeys = new Set(
+    sceneOwners
+      .map(owner => String(owner ?? "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (!sceneOwnerKeys.size) {
+    return { remaining: existingNames, cleared: [] };
+  }
+
+  const next: ManualInactiveOverrideMap = { ...existing };
+  const cleared: string[] = [];
+  for (const name of existingNames) {
+    if (!sceneOwnerKeys.has(name.toLowerCase())) continue;
+    delete next[name];
+    cleared.push(name);
+  }
+
+  if (!cleared.length) {
+    return { remaining: existingNames, cleared: [] };
+  }
+
+  persistManualInactiveOverrideMap(context, next);
+  return {
+    remaining: materializeManualInactiveCharacterNames(context, next),
+    cleared,
+  };
 }
 
 export function setManualInactiveCharacter(
@@ -249,14 +301,7 @@ export function setManualInactiveCharacter(
   }
   const materialized = Object.fromEntries(next.entries());
   persistManualInactiveOverrideMap(context, materialized);
-  const settingsMode = resolveEntityTrackingMode({
-    entityTrackingMode: (context.extensionSettings?.[EXTENSION_KEY] as Partial<BetterSimTrackerSettings> | undefined)?.entityTrackingMode ?? "standard",
-  });
-  const ordered = getAllTrackedCharacterNames(context, { entityTrackingMode: settingsMode ?? "standard" });
-  const materializedNames = ordered.filter(name => Object.prototype.hasOwnProperty.call(materialized, name));
-  const leftovers = Object.keys(materialized).filter(name => !materializedNames.includes(name));
-  if (leftovers.length) materializedNames.push(...leftovers);
-  return materializedNames;
+  return materializeManualInactiveCharacterNames(context, materialized);
 }
 
 export function resolveActiveCharacterAnalysis(

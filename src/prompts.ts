@@ -38,6 +38,8 @@ export const DEFAULT_UNIFIED_PROMPT_INSTRUCTION = [
   "- Keep updates conservative and realistic.",
   "- It is valid to return 0 or negative deltas if the interaction is neutral or negative.",
   "- Do not reuse the same delta for all stats unless strongly justified by context.",
+  "- If lastThought is requested and the latest message directly advances a target with dialogue, action, or emotional reaction, update that target's thought from those latest cues instead of copying the previous tracker thought.",
+  "- Preserve lastThought only when recent messages provide no new thought cue for that owner or the owner is only scene-present/background.",
   "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
   "- Only increase desire if the relationship is explicitly romantic/sexual in the recent messages. If the relationship is non-romantic, desire must be 0 or negative. Do not infer romance from affectionate or playful behavior alone.",
 ].join("\n");
@@ -59,11 +61,13 @@ export const DEFAULT_INJECTION_PROMPT_TEMPLATE = [
 ].join("\n");
 
 export const UNIFIED_PROMPT_PROTOCOL = `Numeric stats to update ({{numericStats}}):
-- Return deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
+- Return integer deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
 
 Text stats to update ({{textStats}}):
 - mood must be one of: {{moodOptions}}.
-- lastThought must be one short sentence.
+- lastThought must be the character's current immediate internal thought after the latest relevant message, in one short sentence.
+- For lastThought, do not copy the previous tracker thought when the latest message gives that owner a new dialogue/action/emotional cue.
+- Preserve lastThought only when recent messages provide no new thought cue for that owner.
 
 Return STRICT JSON only:
 {
@@ -110,7 +114,7 @@ Keep it to one short sentence per character.
 
 {{basePrompt}}`;
 
-export const NUMERIC_PROMPT_PROTOCOL = (key: string): string => `Return deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
+export const NUMERIC_PROMPT_PROTOCOL = (key: string): string => `Return integer deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
 
 Return STRICT JSON only:
 {
@@ -161,6 +165,10 @@ export const LAST_THOUGHT_PROMPT_PROTOCOL = `Return STRICT JSON only:
 
 Rules:
 - confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.
+- lastThought must be the character's current immediate internal thought after the latest relevant message, in one short sentence.
+- If the latest message directly advances a target owner through dialogue, action, or emotional reaction, infer that owner's updated thought from those latest cues.
+- Do not copy the previous tracker thought for an owner whose current message cues changed.
+- Preserve the previous thought only when recent messages provide no new thought cue for that owner.
 - include one entry for each character name exactly: {{characters}}.
 - omit fields for stats that are not requested.
 - output JSON only, no commentary.`;
@@ -225,8 +233,11 @@ export const DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS: Record<StatKey, string> = {
     "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
   ].join("\n"),
   lastThought: [
-    "- Write a short internal thought (one sentence) each character has right now.",
-    "- Keep it concise and grounded in the recent messages.",
+    "- Write the character's current immediate internal thought after the latest relevant message.",
+    "- If the latest message directly advances a target owner through dialogue, action, or emotional reaction, update that owner's thought from those latest cues.",
+    "- Do not copy the previous tracker thought for an owner whose current message cues changed.",
+    "- Preserve the previous thought only when recent messages provide no new thought cue for that owner or the owner is only scene-present/background.",
+    "- Keep it to one concise sentence grounded in the recent messages.",
     "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
   ].join("\n"),
 };
@@ -616,13 +627,17 @@ function buildUnifiedBuiltInProtocol(stats: StatKey[], safeMaxDelta: number, cha
 
   return [
     `Numeric stats to update (${numericStats.length ? numericStats.join(", ") : "none"}):`,
-    `- Return deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
+    `- Return integer deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
     "",
     ...(textStats.length
       ? [
           `Text stats to update (${textStats.join(", ")}):`,
           ...(textStats.includes("mood") ? [`- mood must be one of: ${moodOptions.join(", ")}.`] : []),
-          ...(textStats.includes("lastThought") ? ["- lastThought must be one short sentence."] : []),
+          ...(textStats.includes("lastThought") ? [
+            "- lastThought must be the character's current immediate internal thought after the latest relevant message, in one short sentence.",
+            "- For lastThought, do not copy the previous tracker thought when the latest message gives that owner a new dialogue/action/emotional cue.",
+            "- Preserve lastThought only when recent messages provide no new thought cue for that owner.",
+          ] : []),
           "",
         ]
       : []),
@@ -1123,14 +1138,16 @@ export function buildUnifiedAllStatsPrompt(input: {
 
   const protocol = [
     `${customOnlyMode ? "Custom numeric delta stats to update" : "Numeric delta stats to update"} (${numericDeltaKeys.length ? numericDeltaKeys.join(", ") : "none"}):`,
-    `- Return deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
+    `- Return integer deltas only, each in range -${safeMaxDelta}..${safeMaxDelta}.`,
     "",
     ...(customOnlyMode
       ? []
       : [
           `Text stats to update (${builtInText.length ? builtInText.join(", ") : "none"}):`,
           `- mood must be one of: ${moodOptions.join(", ")}.`,
-          "- lastThought must be one short sentence.",
+          "- lastThought must be the character's current immediate internal thought after the latest relevant message, in one short sentence.",
+          "- For lastThought, do not copy the previous tracker thought when the latest message gives that owner a new dialogue/action/emotional cue.",
+          "- Preserve lastThought only when recent messages provide no new thought cue for that owner.",
           "",
         ]),
     customNonNumeric.length
@@ -1278,6 +1295,7 @@ export function buildSequentialPrompt(
       desire: resolveBuiltInNumericValue(context, currentData ?? null, current?.desire, name),
       connection: resolveBuiltInNumericValue(context, currentData ?? null, current?.connection, name),
       mood: resolveBuiltInTextValue(context, currentData ?? null, current?.mood, name),
+      lastThought: resolveBuiltInTextValue(context, currentData ?? null, current?.lastThought, name),
     }, builtInTracking);
     return `- ${name}: ${chunk || "no built-in stats tracked"}`;
   }).join("\n");
@@ -1291,6 +1309,7 @@ export function buildSequentialPrompt(
         desire: resolveBuiltInNumericValue(context, entry, entry.statistics.desire, name),
         connection: resolveBuiltInNumericValue(context, entry, entry.statistics.connection, name),
         mood: resolveBuiltInTextValue(context, entry, entry.statistics.mood, name),
+        lastThought: resolveBuiltInTextValue(context, entry, entry.statistics.lastThought, name),
       }, builtInTracking);
       return `  - ${name}: ${chunk || "no built-in stats tracked"}`;
     }).join("\n");

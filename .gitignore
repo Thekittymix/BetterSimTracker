@@ -8,6 +8,7 @@ node_modules/
 .cache/
 debug.txt
 .test-dist/
+test_*.txt
 
 # OS/editor noise
 .DS_Store
@@ -15,3 +16,10 @@ Thumbs.db
 
 # Local workflow instructions
 AGENTS.md
+
+# Local plans and research
+AGENT_MISTAKES.md
+PLAN_ACTIVITY_RESOLVER*.md
+ST_TEST_CHECKLIST.md
+_research_sillytavern/
+_research_sillytavern_docs/

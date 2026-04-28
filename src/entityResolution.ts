@@ -492,6 +492,7 @@ function filterModelResolvedOwnerScopesByMessageEvidence(input: {
   });
   const allowedRequestKeys = new Set(filteredRequestCharacters.map(normalizeKey));
 
+  const resolvedAndRequestKeys = new Set([...input.resolvedSceneActiveCharacters, ...filteredRequestCharacters].map(normalizeKey));
   const filteredSceneActiveCharacters = uniqueStrings([
     ...input.resolvedSceneActiveCharacters.filter(owner => {
       const ownerKey = normalizeKey(owner);
@@ -499,11 +500,21 @@ function filterModelResolvedOwnerScopesByMessageEvidence(input: {
       if (allowedRequestKeys.has(ownerKey)) return true;
       if (previousSceneKeys.has(ownerKey)) {
         if (hasMentionOnlyReference(messageText, owner)) return false;
+      if (!countAliasMentions(messageText.toLowerCase(), owner.toLowerCase())) return false;
         return hasRecentScenePresenceEvidence(input.context, input.message, owner);
       }
       return hasDirectScenePresenceCue(messageText, owner);
     }),
     ...filteredRequestCharacters,
+    ...input.previousSceneActiveCharacters.filter(owner => {
+      const ownerKey = normalizeKey(owner);
+      if (!ownerKey) return false;
+      if (allowedRequestKeys.has(ownerKey)) return false;
+      if (resolvedAndRequestKeys.has(ownerKey)) return false;
+      if (hasOffSceneMentionCue(messageText, owner)) return false;
+      if (!countAliasMentions(messageText.toLowerCase(), owner.toLowerCase())) return false;
+      return true;
+    }),
   ]);
 
   return {
@@ -1365,6 +1376,30 @@ export function resolvePersistedSnapshotActiveEntityIds(input: {
     (input.userExtraction ? input.requestEntityIds : input.sceneActiveEntityIds)
       .map(entityId => normalizeToken(entityId))
       .filter(Boolean),
+  );
+}
+
+export function resolveExtractionTargetOwners(input: {
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+  userExtraction: boolean;
+}): string[] {
+  return uniqueStrings(
+    input.userExtraction
+      ? input.requestCharacters
+      : (input.sceneActiveCharacters.length ? input.sceneActiveCharacters : input.requestCharacters),
+  );
+}
+
+export function resolveExtractionTargetEntityIds(input: {
+  sceneActiveEntityIds: string[];
+  requestEntityIds: string[];
+  userExtraction: boolean;
+}): string[] {
+  return uniqueStrings(
+    input.userExtraction
+      ? input.requestEntityIds
+      : (input.sceneActiveEntityIds.length ? input.sceneActiveEntityIds : input.requestEntityIds),
   );
 }
 

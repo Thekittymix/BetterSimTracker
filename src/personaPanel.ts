@@ -40,7 +40,7 @@ const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_WIDTH = 1024;
 const MAX_IMAGE_HEIGHT = 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-const LAST_THOUGHT_DEFAULT_MAX_CHARS = 600;
+const LAST_THOUGHT_DEFAULT_MAX_CHARS = 1200;
 const EXPRESSION_CHECK_TTL_MS = 30_000;
 const expressionAvailabilityCache = new Map<string, { checkedAt: number; hasExpressions: boolean }>();
 const moodLabelSet = new Set(moodOptions.map(label => label.toLowerCase()));

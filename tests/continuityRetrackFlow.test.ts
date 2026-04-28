@@ -6,6 +6,8 @@ import { buildEntityResolution } from "./helpers/entityResolution";
 import { USER_TRACKER_KEY } from "../src/constants";
 import {
   filterResolvedEntitiesToTrackedOwners,
+  resolveExtractionTargetEntityIds,
+  resolveExtractionTargetOwners,
   resolveModelExtractionOwnerScopes,
   resolvePersistedSnapshotActiveEntityIds,
   resolvePersistedSnapshotActiveOwners,
@@ -278,6 +280,149 @@ test("continuity across a user turn keeps the prior broad family scene through p
 
   assert.deepEqual(row2Scopes.sceneActiveCharacters, ["Candy", "Marylyn", "Serena", "Lisa"]);
   assert.deepEqual(row2Scopes.requestCharacters, ["Candy"]);
+});
+
+test("AI extraction targets full scene continuity while persisted message ownership stays request-scoped", () => {
+  const context = makeContext();
+  const settings = makeSettings();
+  const broadSceneOwners = ["Marylyn", "Serena", "Lisa", "Candy"];
+
+  const openingTracker = makeTracker({
+    timestamp: 1000,
+    activeCharacters: broadSceneOwners,
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: broadSceneOwners.map(ownerName => ({
+        entityId: `bst_narrative:${ownerName.toLowerCase()}`,
+        kind: "narrative-entity" as const,
+        name: ownerName,
+        avatar: null,
+        sourceKey: "your family.png|your family",
+        inScene: true,
+        inMessage: true,
+        created: true,
+      })),
+    }),
+    statistics: {
+      affection: { Marylyn: 1, Serena: 1, Lisa: 1, Candy: 1 },
+      trust: { Marylyn: 1, Serena: 1, Lisa: 1, Candy: 1 },
+      desire: { Marylyn: 1, Serena: 1, Lisa: 1, Candy: 1 },
+      connection: { Marylyn: 1, Serena: 1, Lisa: 1, Candy: 1 },
+      mood: {
+        Marylyn: "Neutral",
+        Serena: "Neutral",
+        Lisa: "Reserved",
+        Candy: "Playful",
+      },
+      lastThought: {
+        Marylyn: "Dinner is still pending.",
+        Serena: "The room is still calm.",
+        Lisa: "This is awkward.",
+        Candy: "Movie night sounds fun.",
+      },
+    },
+    customNonNumericStatistics: {
+      pose: {
+        Marylyn: "standing nearby",
+        Serena: "standing nearby",
+        Lisa: "lying stiffly on Kuba's right",
+        Candy: "snuggled on Kuba's left",
+      },
+    },
+  });
+  writeTrackerDataToMessage(context, openingTracker, 0);
+  syncEntityRegistryFromTrackerData({
+    context,
+    messageIndex: 0,
+    data: openingTracker,
+    settings,
+    allKnownCharacters: ["Your Family", ...broadSceneOwners],
+  });
+
+  const row1UserTracker = makeTracker({
+    timestamp: 1001,
+    activeCharacters: [USER_TRACKER_KEY],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: broadSceneOwners.map(ownerName => ({
+        entityId: `bst_narrative:${ownerName.toLowerCase()}`,
+        kind: "narrative-entity" as const,
+        name: ownerName,
+        avatar: null,
+        sourceKey: "your family.png|your family",
+        inScene: true,
+        inMessage: false,
+        created: true,
+      })),
+    }),
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { [USER_TRACKER_KEY]: "Neutral" },
+      lastThought: { [USER_TRACKER_KEY]: "Keep the movie night calm." },
+    },
+  });
+  writeTrackerDataToMessage(context, row1UserTracker, 1);
+
+  const recentTrackerHistory = selectResolverContinuityHistoryEntries(
+    getRecentTrackerHistoryEntries(context, 10),
+    2,
+    4,
+  );
+  const row2Scopes = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[2],
+    settings,
+    previousTrackerData: getTrackerDataFromMessage(context.chat[1]),
+    recentTrackerHistory,
+    resolvedSceneActiveCharacters: ["Candy"],
+    resolvedRequestCharacters: ["Candy"],
+  });
+
+  assertSameMembers(row2Scopes.sceneActiveCharacters, broadSceneOwners);
+  assert.deepEqual(row2Scopes.requestCharacters, ["Candy"]);
+
+  const extractionOwners = resolveExtractionTargetOwners({
+    sceneActiveCharacters: row2Scopes.sceneActiveCharacters,
+    requestCharacters: row2Scopes.requestCharacters,
+    userExtraction: false,
+  });
+  assertSameMembers(extractionOwners, broadSceneOwners);
+
+  const extractionEntityIds = resolveExtractionTargetEntityIds({
+    sceneActiveEntityIds: row2Scopes.sceneActiveCharacters.map(owner => `bst_narrative:${owner.toLowerCase()}`),
+    requestEntityIds: ["bst_narrative:candy"],
+    userExtraction: false,
+  });
+  assertSameMembers(extractionEntityIds, broadSceneOwners.map(owner => `bst_narrative:${owner.toLowerCase()}`));
+
+  const persistedEntities = resolvePersistedSnapshotResolvedEntities({
+    context,
+    sceneActiveCharacters: row2Scopes.sceneActiveCharacters,
+    requestCharacters: row2Scopes.requestCharacters,
+    resolvedEntities: [
+      {
+        entityId: "bst_narrative:candy",
+        kind: "narrative-entity",
+        name: "Candy",
+        avatar: null,
+        sourceKey: "your family.png|your family",
+        inScene: true,
+        inMessage: true,
+        created: true,
+      },
+    ],
+    userExtraction: false,
+    entityTrackingMode: "dynamic_characters",
+  });
+  const lisaEntity = persistedEntities.find(entity => entity.name === "Lisa");
+  const candyEntity = persistedEntities.find(entity => entity.name === "Candy");
+  assert.equal(lisaEntity?.inScene, true);
+  assert.equal(lisaEntity?.inMessage, false);
+  assert.equal(candyEntity?.inScene, true);
+  assert.equal(candyEntity?.inMessage, true);
 });
 
 test("retracking an older AI row keeps concrete background participants even after later stale rows changed registry state", () => {
@@ -799,4 +944,131 @@ test("retracking an older AI row recovers broad continuity when intervening user
 
   assertSameMembers(retrackedRow4Scopes.sceneActiveCharacters, broadSceneOwners);
   assert.deepEqual(retrackedRow4Scopes.requestCharacters, ["Candy"]);
+});
+
+test("model AI scope does not locally re-add omitted background owners from message prose", () => {
+  const settings = makeSettings();
+  const context = {
+    chat: [
+      {
+        mes: "We are on the bed between Lisa and Candy, cuddled together for movie night.",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+        extra: {},
+        swipe_id: 0,
+      },
+      {
+        mes: "Candy is snuggled against Kuba while Lisa stays tense on the other side.",
+        name: "Your Family",
+        is_user: false,
+        is_system: false,
+        extra: {},
+        swipe_id: 0,
+      },
+      {
+        mes: "After some time, Lisa cuddled closer too.",
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+        extra: {},
+        swipe_id: 0,
+      },
+      {
+        mes: "*The only sound was the movie and Candy's soft, contented snores starting to puff against Kuba's neck.*\n\n*Then Lisa relaxed into the space beside him and mumbled that this was just less awkward.*",
+        name: "Your Family",
+        is_user: false,
+        is_system: false,
+        extra: {},
+        swipe_id: 0,
+      },
+    ],
+    characters: [{ name: "Your Family", avatar: "your family.png" }],
+    characterId: 10,
+    groupId: null,
+  } as unknown as STContext;
+  const priorScene = makeTracker({
+    timestamp: 1001,
+    activeCharacters: ["Candy", "Lisa"],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: [
+        {
+          entityId: "bst_narrative:candy",
+          kind: "narrative-entity",
+          name: "Candy",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+        {
+          entityId: "bst_narrative:lisa",
+          kind: "narrative-entity",
+          name: "Lisa",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: false,
+          created: false,
+        },
+      ],
+    }),
+  });
+  writeTrackerDataToMessage(context, priorScene, 1);
+  const bridgeUserScene = makeTracker({
+    timestamp: 1002,
+    activeCharacters: [USER_TRACKER_KEY],
+    entityResolution: buildEntityResolution({
+      source: "model",
+      resolvedEntities: [
+        {
+          entityId: "bst_narrative:candy",
+          kind: "narrative-entity",
+          name: "Candy",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: false,
+          created: false,
+        },
+        {
+          entityId: "bst_narrative:lisa",
+          kind: "narrative-entity",
+          name: "Lisa",
+          avatar: null,
+          sourceKey: "your family.png|your family",
+          inScene: true,
+          inMessage: true,
+          created: false,
+        },
+      ],
+    }),
+  });
+  writeTrackerDataToMessage(context, bridgeUserScene, 2);
+
+  const scopes = resolveModelExtractionOwnerScopes({
+    context,
+    message: context.chat[3],
+    settings,
+    previousTrackerData: getTrackerDataFromMessage(context.chat[2]),
+    recentTrackerHistory: selectResolverContinuityHistoryEntries(
+      getRecentTrackerHistoryEntries(context, 6),
+      3,
+      3,
+    ),
+    resolvedSceneActiveCharacters: ["Lisa"],
+    resolvedRequestCharacters: ["Lisa"],
+  });
+
+
+
+  assertSameMembers(scopes.sceneActiveCharacters, ["Candy", "Lisa"]);
+  assert.deepEqual(scopes.requestCharacters, ["Lisa"]);
+  assertSameMembers(resolveExtractionTargetOwners({
+    sceneActiveCharacters: scopes.sceneActiveCharacters,
+    requestCharacters: scopes.requestCharacters,
+    userExtraction: false,
+  }), ["Candy", "Lisa"]);
 });

@@ -250,3 +250,44 @@ export function overlayLatestOwnerScopedContinuity(
   return next;
 }
 
+export function restoreMissingCharacterContinuityFromMergedHistory(input: {
+  base: TrackerData | null;
+  merged: TrackerData | null;
+  activeOwners: string[];
+  activeEntityIds?: string[] | null;
+  settingsInput: BetterSimTrackerSettings;
+  context?: STContext | null;
+}): TrackerData | null {
+  const { base, merged, activeOwners, activeEntityIds, settingsInput, context = null } = input;
+  if (!base || !merged) return base;
+
+  const missingOwners: string[] = [];
+  for (const [index, ownerName] of activeOwners.entries()) {
+    const owner = String(ownerName ?? "").trim();
+    if (!owner) continue;
+    const entityId = String(activeEntityIds?.[index] ?? "").trim();
+    const selection = {
+      ownerNames: [owner],
+      entityIds: entityId ? [entityId] : [],
+    };
+    const hasBaseValue = hasCharacterOwnedTrackedValueForSelection(
+      base,
+      selection,
+      settingsInput,
+      context,
+    );
+    if (hasBaseValue) continue;
+    const hasMergedValue = hasCharacterOwnedTrackedValueForSelection(
+      merged,
+      selection,
+      settingsInput,
+      context,
+    );
+    if (!hasMergedValue) continue;
+    missingOwners.push(owner);
+  }
+
+  if (!missingOwners.length) return base;
+  return overlayLatestOwnerScopedContinuity(base, merged, missingOwners);
+}
+
