@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev16] - 2026-04-28
+### Fixed
+- Fixed retrack continuity for reactivated scene owners so BST restores their older owner-scoped stat baseline from merged prior history before default seeding, preventing numeric resets when the current extraction returns zero deltas.
+
 ## [2.5.4.1-dev15] - 2026-04-27
 ### Fixed
 - Fixed dynamic single-card scene reconciliation so model-resolved in-scene owners clear stale manual inactive overrides before extraction filtering, preventing retracks from dropping characters that the resolver already put back into the active scene.

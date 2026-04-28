@@ -164,6 +164,7 @@ import {
   hasCharacterOwnedTrackedValueForSelection,
   hasCharacterOwnedTrackedValueForCharacter,
   overlayLatestGlobalCustomStats,
+  restoreMissingCharacterContinuityFromMergedHistory,
   selectLatestRelevantHistoryEntry,
 } from "./extractionBaselineHelpers";
 import {
@@ -3989,7 +3990,24 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
           activeEntityIds,
           runScopedSettings,
         );
+    const mergedPreviousEntry = !userExtraction
+      ? getMergedRelevantTrackerDataWithIndexBefore(
+          context,
+          baselineBeforeIndex,
+          activeCharacters,
+          activeEntityIds,
+          runScopedSettings,
+        )
+      : null;
     let previous = previousEntry?.data ?? null;
+    previous = restoreMissingCharacterContinuityFromMergedHistory({
+      base: previous,
+      merged: mergedPreviousEntry?.data ?? null,
+      activeOwners: activeCharacters,
+      activeEntityIds,
+      settingsInput: runScopedSettings,
+      context,
+    });
     if (previous) {
       previous = overlayLatestGlobalCustomStats(previous, previousGlobalEntry?.data ?? null, runScopedSettings);
     }
