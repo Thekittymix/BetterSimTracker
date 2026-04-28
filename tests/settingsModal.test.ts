@@ -134,6 +134,16 @@ test("custom stat wizard keeps text and array max-length fields distinct", () =>
   assert.doesNotMatch(source, /data-bst-custom-field="textMaxLength"/);
 });
 
+test("custom stat enum wizard uses the shared 30-option cap across label, validation, and add gating", () => {
+  const source = fs.readFileSync(path.resolve("src/settingsModal.ts"), "utf8");
+  assert.match(source, /Allowed Values \(2-\$\{MAX_CUSTOM_ENUM_OPTIONS\}\)/);
+  assert.match(source, /if \(options\.length > MAX_CUSTOM_ENUM_OPTIONS\) errors\.push\(`Enum options allow up to \$\{MAX_CUSTOM_ENUM_OPTIONS\} values\.`\);/);
+  assert.match(source, /if \(count >= MAX_CUSTOM_ENUM_OPTIONS\) return;/);
+  assert.doesNotMatch(source, /Allowed Values \(2-12\)/);
+  assert.doesNotMatch(source, /Enum options allow up to 12 values\./);
+  assert.doesNotMatch(source, /if \(count >= 12\) return;/);
+});
+
 test("settings checkbox checked state keeps a visible non-color-mix fallback", () => {
   const source = fs.readFileSync(path.resolve("src/ui.ts"), "utf8");
   assert.match(source, /\.bst-check input\[type="checkbox"\]::before \{[\s\S]*border-right: 2px solid rgba\(247, 250, 255, 0\.96\);/);

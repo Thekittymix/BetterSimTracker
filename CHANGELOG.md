@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.1-dev17] - 2026-04-28
+### Fixed
+- Fixed the custom enum stat settings wizard so it now honors the shared 30-option cap in its label, validation, and add-row gate instead of stopping at the older 12-option UI limit.
+- Increased the user-facing `lastThought` edit limit to 1200 characters across character defaults, persona defaults, and the manual stat edit modal.
+
 ## [2.5.4.1-dev16] - 2026-04-28
 ### Fixed
 - Fixed retrack continuity for reactivated scene owners so BST restores their older owner-scoped stat baseline from merged prior history before default seeding, preventing numeric resets when the current extraction returns zero deltas.

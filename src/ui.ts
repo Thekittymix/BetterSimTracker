@@ -1383,7 +1383,7 @@ let deferredOverflowResyncScheduled = false;
 export const EDIT_STATS_BACKDROP_CLASS = "bst-edit-backdrop";
 export const EDIT_STATS_MODAL_CLASS = "bst-edit-modal";
 export const EDIT_STATS_DIALOG_CLASS = "bst-edit-dialog";
-export const MAX_EDIT_LAST_THOUGHT_CHARS = 600;
+export const MAX_EDIT_LAST_THOUGHT_CHARS = 1200;
 export const BST_UI_SURFACE_CONTRACT = {
   headerClass: "bst-surface-header",
   footerClass: "bst-surface-footer",

@@ -73,7 +73,7 @@ const EXPRESSION_CHECK_TTL_MS = 30_000;
 const expressionAvailabilityCache = new Map<string, { checkedAt: number; hasExpressions: boolean }>();
 let lastEditorCharacterId: number | null = null;
 let editorListenerBound = false;
-const LAST_THOUGHT_DEFAULT_MAX_CHARS = 600;
+const LAST_THOUGHT_DEFAULT_MAX_CHARS = 1200;
 
 function notify(message: string, type: "info" | "success" | "warning" | "error" = "info"): void {
   const anyGlobal = globalThis as Record<string, unknown>;

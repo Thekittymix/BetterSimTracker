@@ -1499,7 +1499,7 @@ export function openSettingsModal(input: {
       } else if (draft.kind === "enum_single") {
         const options = normalizeCustomEnumOptions(draft.enumOptionsText.split(/\r?\n/));
         if (options.length < 2) errors.push("Enum options require at least 2 unique values.");
-        if (options.length > 12) errors.push("Enum options allow up to 12 values.");
+        if (options.length > MAX_CUSTOM_ENUM_OPTIONS) errors.push(`Enum options allow up to ${MAX_CUSTOM_ENUM_OPTIONS} values.`);
         if (options.some(option => hasScriptLikeContent(option))) {
           errors.push("Enum values cannot contain script-like content.");
         }
@@ -2890,7 +2890,7 @@ export function openSettingsModal(input: {
           </label>
         </div>
         <div class="bst-custom-wizard-grid bst-custom-wizard-grid-single" data-bst-kind-panel="enum_single" style="display:none;">
-          <label>Allowed Values (2-12)
+          <label>Allowed Values (2-${MAX_CUSTOM_ENUM_OPTIONS})
             <div class="bst-enum-options-editor">
               <div class="bst-enum-options-list" data-bst-enum-options-list></div>
               <div class="bst-enum-options-actions">
@@ -3606,7 +3606,7 @@ export function openSettingsModal(input: {
     enumOptionsAddBtn?.addEventListener("click", () => {
       if (!enumOptionsListNode) return;
       const count = getEnumEditorOptionInputs().length;
-      if (count >= 12) return;
+      if (count >= MAX_CUSTOM_ENUM_OPTIONS) return;
       enumOptionsListNode.insertAdjacentHTML("beforeend", enumEditorRowHtml(""));
       const nextInput = getEnumEditorOptionInputs().at(-1);
       nextInput?.focus();
