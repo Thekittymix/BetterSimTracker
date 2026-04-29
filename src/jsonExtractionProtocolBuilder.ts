@@ -261,7 +261,7 @@ function exampleValueForStat(definition: JsonExtractionRequestStatDefinition): u
   if (definition.kind === "array") return withConfidence(["value"]);
   if (definition.kind === "date_time") {
     return definition.dateTimeMode === "structured"
-      ? withConfidence({ absolute: "2026-03-07 20:00", delta_minutes: 5, ofDay: "Evening" })
+      ? withConfidence({ ofDay: "Evening" })
       : withConfidence("2026-03-07 20:00");
   }
   if (definition.id === "mood") return withConfidence("calm");

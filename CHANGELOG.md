@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.4-dev7] - 2026-04-29
+### Fixed
+- Fixed structured custom `date_time` JSON request shaping so protocol guidance and response-schema examples now teach sparse semantic intents like `ofDay`, `delta_minutes`, or `absolute` individually instead of biasing small models toward copying stale full timestamp objects.
+
 ## [2.5.4.4-dev6] - 2026-04-29
 ### Fixed
 - Fixed structured custom `date_time` progression so semantic scene-clock updates like `ofDay` and relative minute shifts now normalize against the previous stored scene time instead of collapsing to empty or stale values, including the JSON custom-stat materialization path.

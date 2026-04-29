@@ -350,6 +350,96 @@ test("buildJsonExtractionShadowRequestFromContext builds message and history fro
   assert.equal(validated.ok, true);
 });
 
+test("buildJsonExtractionShadowRequest uses sparse structured date_time stat-stage examples for global scene clocks", () => {
+  const context = makeContext();
+  const settings = {
+    ...makeSettings(),
+    customStats: [
+      {
+        id: "scene_date_time",
+        kind: "date_time" as const,
+        label: "Scene Date/Time",
+        defaultValue: "2024-06-15 15:20",
+        dateTimeMode: "structured" as const,
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+  };
+
+  const request = buildJsonExtractionShadowRequest({
+    context,
+    settings,
+    task: {
+      mode: "user_turn",
+      messageIndex: 2,
+      retrack: true,
+      swipeRetrack: false,
+      entityTrackingMode: "dynamic_characters",
+      includeCharacterCards: true,
+      includeActivatedLorebook: false,
+    },
+    responseMode: "stat",
+    statId: "scene_date_time",
+    message: {
+      speaker: "Kuba",
+      isUser: true,
+      isSystem: false,
+      text: "Time passed. It's night.",
+    },
+    activeCharacters: ["Candy"],
+    entityResolution: {
+      source: "model",
+      resolvedEntities: [],
+    },
+    previousTrackerData: {
+      ...makeExpectedTracker(),
+      customNonNumericStatistics: {
+        scene_date_time: {
+          __bst_global__: "2024-06-15 15:20",
+        },
+      },
+    },
+    previousStatistics: makeExpectedTracker().statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: {
+      scene_date_time: {
+        __bst_global__: "2024-06-15 15:20",
+      },
+    },
+    recentHistory: [],
+    entityContext: {
+      candidateOwners: ["__bst_user__"],
+      candidateEntities: [
+        {
+          entityId: "bst_owner:__bst_user__",
+          ownerName: "__bst_user__",
+          kind: "persona",
+          aliases: ["__bst_user__"],
+        },
+      ],
+      currentEntityOwnerMap: {},
+    },
+  });
+
+  const sceneDateTimeDefinition = request.statDefinitions.customNonNumeric[0];
+  assert.equal(sceneDateTimeDefinition?.id, "scene_date_time");
+  assert.deepEqual(request.outputContract.responseSchema?.values, {
+    __bst_global__: {
+      value: {
+        ofDay: "Evening",
+      },
+      confidence: 0.8,
+    },
+  });
+});
+
 test("runJsonExtractionShadowParity reports parity success for equivalent expected and JSON-derived tracker outputs", () => {
   const expected = makeExpectedTracker();
   const rawResponse = JSON.stringify({

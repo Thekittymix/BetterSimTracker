@@ -305,8 +305,6 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes non-sequential JSO
   assert.deepEqual((request.outputContract.responseSchema?.customNonNumericStats as Record<string, unknown>).scene_date_time, {
     __bst_global__: {
       value: {
-        absolute: "2026-03-07 20:00",
-        delta_minutes: 5,
         ofDay: "Evening",
       },
       confidence: 0.8,
@@ -432,8 +430,6 @@ test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global c
     values: {
       __bst_global__: {
         value: {
-          absolute: "2026-03-07 20:00",
-          delta_minutes: 5,
           ofDay: "Evening",
         },
         confidence: 0.8,

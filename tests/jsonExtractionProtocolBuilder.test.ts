@@ -412,16 +412,20 @@ test("buildJsonExtractionRequestV1 renders structured custom date_time protocol 
   assert.equal(definition?.id, "scene_date_time");
   assert.equal(definition?.dateTimeMode, "structured");
   assert.match(definition?.protocolGuidance ?? "", /Return structured datetime intent for scene_date_time/);
+  assert.match(definition?.protocolGuidance ?? "", /Return the smallest structured datetime intent supported by the evidence/i);
+  assert.match(definition?.protocolGuidance ?? "", /\{"ofDay":"Night"\}/);
+  assert.match(definition?.protocolGuidance ?? "", /\{"delta_minutes":30\}/);
+  assert.match(definition?.protocolGuidance ?? "", /\{"absolute":"2026-03-03 20:15"\}/);
+  assert.match(definition?.protocolGuidance ?? "", /Do not copy unchanged absolute time/i);
   assert.match(definition?.protocolGuidance ?? "", /return exactly one global scene value under "__bst_global__"/i);
-  assert.match(definition?.protocolGuidance ?? "", /"value": \{"absolute":"2026-03-03 20:15","delta_minutes":5,"ofDay":"Evening"\}/);
+  assert.match(definition?.protocolGuidance ?? "", /"value": \{"ofDay":"Evening"\}/);
+  assert.doesNotMatch(definition?.protocolGuidance ?? "", /"value": \{"absolute":"2026-03-03 20:15","delta_minutes":5,"ofDay":"Evening"\}/);
   assert.doesNotMatch(definition?.protocolGuidance ?? "", /"value":\s*\{\s*"scene_date_time"/);
   assert.doesNotMatch(definition?.protocolGuidance ?? "", /include one entry for each character name exactly/);
   assert.doesNotMatch(definition?.protocolGuidance ?? "", /\{\{valueSchemaRules\}\}|\{\{valueSchemaSample\}\}|\{\{characters\}\}/);
   assert.deepEqual((request.outputContract.responseSchema?.customNonNumericStats as Record<string, unknown>).scene_date_time, {
     __bst_global__: {
       value: {
-        absolute: "2026-03-07 20:00",
-        delta_minutes: 5,
         ofDay: "Evening",
       },
       confidence: 0.8,

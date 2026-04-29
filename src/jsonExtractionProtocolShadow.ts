@@ -180,7 +180,7 @@ function buildStatStageOutputContract(
       }
     : {
         value: isStructuredDateTime
-          ? { absolute: "2026-03-07 20:00", delta_minutes: 5, ofDay: "Evening" }
+          ? { ofDay: "Evening" }
           : customStat?.globalScope === true
             ? "single global scene value for this stat only"
             : "value for this stat only",

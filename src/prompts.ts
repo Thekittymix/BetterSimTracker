@@ -1684,12 +1684,21 @@ function getCustomNonNumericProtocolValues(input: {
     return {
       valueSchemaRules: [
         mode === "structured"
-          ? `- Return structured datetime intent for ${input.statId} (absolute and/or delta fields), BST normalizes it to YYYY-MM-DD HH:mm (24h).`
+          ? `- Return structured datetime intent for ${input.statId}, BST normalizes it to YYYY-MM-DD HH:mm (24h).`
           : `- Return one datetime string for ${input.statId} in exact format YYYY-MM-DD HH:mm (24h).`,
+        ...(mode === "structured"
+          ? [
+              "- Return the smallest structured datetime intent supported by the evidence.",
+              "- For broad time-of-day cues, use an ofDay-only object such as {\"ofDay\":\"Night\"}.",
+              "- For elapsed-time cues without a precise clock value, use a delta_minutes-only object such as {\"delta_minutes\":30}.",
+              "- For explicit or near-explicit date/time cues, use an absolute-only object such as {\"absolute\":\"2026-03-03 20:15\"}.",
+              "- Do not copy unchanged absolute time just to complete the object when the evidence only supports ofDay or delta_minutes.",
+            ]
+          : []),
         "- Keep progression conservative and scene-consistent; do not jump backward unless context explicitly rewinds time.",
       ].join("\n"),
       valueSchemaSample: mode === "structured"
-        ? "{\"absolute\":\"2026-03-03 20:15\",\"delta_minutes\":5,\"ofDay\":\"Evening\"}"
+        ? "{\"ofDay\":\"Evening\"}"
         : "\"2026-03-03 20:15\"",
     };
   }
