@@ -157,6 +157,7 @@ function resolveCustomProtocol(settings: JsonPromptSettings, definition: CustomS
       falseLabel: String(definition.booleanFalseLabel ?? "disabled").trim() || "disabled",
       template,
       characters: candidateOwners.join(", "),
+      globalScope: definition.globalScope === true,
     });
   }
   if (!settings.sequentialExtraction) {

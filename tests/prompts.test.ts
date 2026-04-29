@@ -1280,6 +1280,10 @@ test("buildSequentialCustomNonNumericPrompt includes scoped values and mode-awar
   assert.match(prompt, /structured datetime intent/);
   assert.match(prompt, /Use the custom stat description to interpret what this stat actually measures\./);
   assert.match(prompt, /use character cards and lorebook only to disambiguate when context is unclear\./);
+  assert.match(prompt, /Return one global scene value only under "__bst_global__"/);
+  assert.match(prompt, /"__bst_global__"/);
+  assert.doesNotMatch(prompt, /Return one valid value per character/);
+  assert.doesNotMatch(prompt, /include one entry for each character name exactly/);
 });
 
 test("buildSequentialCustomNonNumericPrompt preserves explicit empty arrays instead of falling back to defaults", () => {

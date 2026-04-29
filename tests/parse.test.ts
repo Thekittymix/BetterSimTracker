@@ -9,6 +9,7 @@ import {
   parseUnifiedStatResponse,
   withDefaultsForMissingNumeric,
 } from "../src/parse";
+import { GLOBAL_TRACKER_KEY } from "../src/constants";
 
 test("parseStatResponse parses numeric and mood/text maps", () => {
   const longThought = "Ashley worries the secret predates the camp itself; Blake feels intellectually superior to the speculation; Garret is desperate to escape the stifling room; Raleigh silently warns Kuba not to destabilize the group.";
@@ -121,4 +122,22 @@ test("parseCustomValueResponse handles enum, array, and date_time kinds", () => 
   });
   const dtParsed = parseCustomValueResponse(dtRaw, ["Alice"], "scene_date_time", "date_time");
   assert.deepEqual(dtParsed.value, { Alice: "2026-03-06 21:30" });
+});
+
+test("parseCustomValueResponse accepts global custom non-numeric payloads under __bst_global__", () => {
+  const raw = JSON.stringify({
+    [GLOBAL_TRACKER_KEY]: {
+      confidence: 0.9,
+      value: {
+        scene_date_time: {
+          absolute: "2026-03-06 21:00",
+        },
+      },
+    },
+  });
+  const parsed = parseCustomValueResponse(raw, ["Lisa"], "scene_date_time", "date_time", {
+    globalScope: true,
+  });
+  assert.deepEqual(parsed.confidence, { [GLOBAL_TRACKER_KEY]: 0.9 });
+  assert.deepEqual(parsed.value, { [GLOBAL_TRACKER_KEY]: "2026-03-06 21:00" });
 });

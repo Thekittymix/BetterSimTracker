@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.4-dev3] - 2026-04-29
+### Fixed
+- Fixed global custom non-numeric extraction contracts in both legacy and JSON modes so global-scope stats no longer receive per-character protocol wording, legacy parsing accepts `__bst_global__` payloads, and grouped legacy extraction keeps `date_time` stats on the correct structured parsing path.
+
 ## [2.5.4.4-dev2] - 2026-04-29
 ### Fixed
 - Fixed JSON extraction contracts for structured custom date/time stats so custom protocol templates are rendered correctly, structured datetime responses stay object-shaped in both sequential and non-sequential JSON schemas, and structured values now normalize correctly through the apply path instead of collapsing to empty or stale timestamps.

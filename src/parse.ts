@@ -1,4 +1,5 @@
 import { moodOptions } from "./prompts";
+import { GLOBAL_TRACKER_KEY } from "./constants";
 import type { CustomNonNumericValue, CustomStatKind, NumericStatKey, StatKey, StatValue } from "./types";
 import type { Statistics } from "./types";
 import { normalizeDateTimeWithMode } from "./dateTime";
@@ -426,6 +427,7 @@ export function parseCustomValueResponse(
   input: {
     enumOptions?: string[];
     textMaxLength?: number;
+    globalScope?: boolean;
   } = {},
   nameAliases?: CharacterNameAliases,
 ): {
@@ -441,6 +443,7 @@ export function parseCustomValueResponse(
   if (!parsed || typeof parsed !== "object") return result;
 
   const source = parsed as Record<string, unknown>;
+  const isGlobalScope = input.globalScope === true;
   const list = Array.isArray(source.characters) ? source.characters : null;
   if (list) {
     for (const row of list) {
@@ -458,10 +461,19 @@ export function parseCustomValueResponse(
       byName.set(name, row as Record<string, unknown>);
     }
   }
+  if (isGlobalScope) {
+    const globalRow = source[GLOBAL_TRACKER_KEY];
+    if (globalRow && typeof globalRow === "object" && !Array.isArray(globalRow)) {
+      byName.set(GLOBAL_TRACKER_KEY, globalRow as Record<string, unknown>);
+    }
+  }
 
   const enumOptions = normalizeCustomEnumOptions(input.enumOptions);
   const textMaxLength = normalizeCustomTextMaxLength(input.textMaxLength);
-  for (const name of activeCharacters) {
+  const parseTargets = isGlobalScope && byName.has(GLOBAL_TRACKER_KEY)
+    ? [GLOBAL_TRACKER_KEY]
+    : activeCharacters;
+  for (const name of parseTargets) {
     const row = byName.get(name);
     if (!row) continue;
 

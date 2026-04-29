@@ -747,7 +747,9 @@ export async function extractStatisticsParallel(input: {
         parsed.confidence[name] = value;
       }
       if (statDef.globalScope) {
-        const sourceName = requestCharacters.find(name => parsedOne.value[name] !== undefined);
+        const sourceName = parsedOne.value[GLOBAL_TRACKER_KEY] !== undefined
+          ? GLOBAL_TRACKER_KEY
+          : requestCharacters.find(name => parsedOne.value[name] !== undefined);
         if (!sourceName) return;
         const value = parsedOne.value[sourceName];
         if (value === undefined) return;
@@ -1170,7 +1172,10 @@ export async function extractStatisticsParallel(input: {
           }
           return items;
         };
-        for (const name of requestCharacters) {
+        const namesToCheck = statDef.globalScope && next.value[GLOBAL_TRACKER_KEY] !== undefined
+          ? [GLOBAL_TRACKER_KEY]
+          : requestCharacters;
+        for (const name of namesToCheck) {
           const candidateRaw = next.value[name];
           if (candidateRaw === undefined) continue;
           const candidate = toArrayItems(candidateRaw);
@@ -1476,6 +1481,7 @@ export async function extractStatisticsParallel(input: {
         : parseCustomValueResponse(raw, requestCharacters, statId, kind, {
           enumOptions: statDef.enumOptions,
           textMaxLength: statDef.textMaxLength,
+          globalScope: Boolean(statDef.globalScope),
         }, promptCharacterAliases);
       if (kind !== "numeric" && parsedNonNumeric) {
         parsedNonNumeric = sanitizeParsedCustomNonNumeric(statDef, requestCharacters, parsedNonNumeric);
@@ -1514,6 +1520,7 @@ export async function extractStatisticsParallel(input: {
           const strictParsed = parseCustomValueResponse(strictResponse.text, requestCharacters, statId, kind, {
             enumOptions: statDef.enumOptions,
             textMaxLength: statDef.textMaxLength,
+            globalScope: Boolean(statDef.globalScope),
           }, promptCharacterAliases);
           const sanitizedStrictParsed = sanitizeParsedCustomNonNumeric(statDef, requestCharacters, strictParsed);
           if (hasAnyValues(sanitizedStrictParsed.value)) {
@@ -1592,6 +1599,7 @@ export async function extractStatisticsParallel(input: {
               {
                 enumOptions: plan.statDef.enumOptions,
                 textMaxLength: plan.statDef.textMaxLength,
+                globalScope: Boolean(plan.statDef.globalScope),
               },
               promptCharacterAliases,
             );
@@ -1863,12 +1871,13 @@ export async function extractStatisticsParallel(input: {
                 rawText,
                 requestNames,
                 statDef.id,
-                statDef.kind === "enum_single" || statDef.kind === "boolean" || statDef.kind === "text_short" || statDef.kind === "array"
+                statDef.kind === "enum_single" || statDef.kind === "boolean" || statDef.kind === "text_short" || statDef.kind === "array" || statDef.kind === "date_time"
                   ? statDef.kind
                   : "text_short",
                 {
                   enumOptions: statDef.enumOptions,
                   textMaxLength: statDef.textMaxLength,
+                  globalScope: Boolean(statDef.globalScope),
                 },
                 promptCharacterAliases,
               );

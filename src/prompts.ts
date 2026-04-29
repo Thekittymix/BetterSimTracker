@@ -173,7 +173,7 @@ Rules:
 - omit fields for stats that are not requested.
 - output JSON only, no commentary.`;
 
-export const DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE = `Value schema:
+const LEGACY_DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE = `Value schema:
 {{valueSchemaRules}}
 
 Return STRICT JSON only:
@@ -192,6 +192,17 @@ Return STRICT JSON only:
 Rules:
 - confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.
 - include one entry for each character name exactly: {{characters}}.
+- output JSON only, no commentary.`;
+
+export const DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE = `Value schema:
+{{valueSchemaRules}}
+
+Return STRICT JSON only:
+{{responsePayload}}
+
+Rules:
+- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update.
+{{scopeRules}}
 - output JSON only, no commentary.`;
 
 export const DEFAULT_PROTOCOL_UNIFIED = UNIFIED_PROMPT_PROTOCOL;
@@ -252,10 +263,20 @@ export const DEFAULT_SEQUENTIAL_CUSTOM_NUMERIC_PROMPT_INSTRUCTION = [
   "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
 ].join("\n");
 
-export const DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION = [
+const LEGACY_DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION = [
   "- Determine the best current value for {{statLabel}} from recent messages.",
   "- Update only {{statId}} and ignore other stats.",
   "- Return one valid value per character using the exact schema for this stat kind.",
+  "- Use the custom stat description to interpret what this stat actually measures.",
+  "- For array kind, apply item-level updates (add/remove/edit items) and avoid rewriting the entire list unless context clearly requires replacement.",
+  "- Keep updates conservative and context-grounded.",
+  "- Prefer recent messages first; use character cards only to disambiguate when needed.",
+].join("\n");
+
+export const DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION = [
+  "- Determine the best current value for {{statLabel}} from recent messages.",
+  "- Update only {{statId}} and ignore other stats.",
+  "{{valueTargetInstruction}}",
   "- Use the custom stat description to interpret what this stat actually measures.",
   "- For array kind, apply item-level updates (add/remove/edit items) and avoid rewriting the entire list unless context clearly requires replacement.",
   "- Keep updates conservative and context-grounded.",
@@ -1692,9 +1713,40 @@ function customNonNumericProtocol(input: {
   trueLabel: string;
   falseLabel: string;
   template?: string;
+  globalScope?: boolean;
+  characters?: string;
 }): string {
   const values = getCustomNonNumericProtocolValues(input);
-  const protocolTemplate = input.template?.trim() || DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE;
+  const rawTemplate = input.template?.trim();
+  const protocolTemplate = !rawTemplate
+    || rawTemplate === LEGACY_DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE
+    || rawTemplate === DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE
+    ? DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE
+    : rawTemplate;
+  const responsePayload = input.globalScope
+    ? `{
+  "${GLOBAL_TRACKER_KEY}": {
+    "confidence": 0.0,
+    "value": {
+      "${input.statId}": ${values.valueSchemaSample}
+    }
+  }
+}`
+    : `{
+  "characters": [
+    {
+      "name": "Character Name",
+      "confidence": 0.0,
+      "value": {
+        "${input.statId}": ${values.valueSchemaSample}
+      }
+    }
+  ]
+}`;
+  const scopeRules = input.globalScope
+    ? `- return exactly one global scene value under "${GLOBAL_TRACKER_KEY}".
+- do not return per-character entries for this stat.`
+    : `- include one entry for each character name exactly: ${input.characters ?? ""}.`;
   return renderTemplate(protocolTemplate, {
     statId: input.statId,
     valueSchemaRules: values.valueSchemaRules,
@@ -1705,6 +1757,10 @@ function customNonNumericProtocol(input: {
     dateTimeMode: input.dateTimeMode === "structured" ? "structured" : "timestamp",
     booleanTrueLabel: input.trueLabel,
     booleanFalseLabel: input.falseLabel,
+    responsePayload,
+    scopeRules,
+    characters: input.characters ?? "",
+    globalTrackerKey: GLOBAL_TRACKER_KEY,
   });
 }
 
@@ -1719,10 +1775,9 @@ export function buildCustomNonNumericProtocolGuidance(input: {
   falseLabel: string;
   template?: string;
   characters?: string;
+  globalScope?: boolean;
 }): string {
-  return renderTemplate(customNonNumericProtocol(input), {
-    characters: input.characters ?? "",
-  });
+  return customNonNumericProtocol(input);
 }
 
 export function buildSequentialCustomNonNumericPrompt(input: {
@@ -1853,7 +1908,12 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     return `${header}\n${rows}`;
   }).join("\n");
 
-  const instructionTemplate = input.template?.trim() || DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION;
+  const rawInstructionTemplate = input.template?.trim();
+  const instructionTemplate = !rawInstructionTemplate
+    || rawInstructionTemplate === LEGACY_DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION
+    || rawInstructionTemplate === DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION
+    ? DEFAULT_SEQUENTIAL_CUSTOM_NON_NUMERIC_PROMPT_INSTRUCTION
+    : rawInstructionTemplate;
   const instructionRendered = renderTemplate(instructionTemplate, {
     statId,
     statLabel,
@@ -1874,6 +1934,9 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     booleanFalseLabel: falseLabel,
     valueSchema,
     dateTimeMode,
+    valueTargetInstruction: input.globalScope
+      ? `- Return one global scene value only under "${GLOBAL_TRACKER_KEY}" using the exact schema for this stat kind.`
+      : "- Return one valid value per character using the exact schema for this stat kind.",
   });
   const instruction = applySourcePriorityRule(
     instructionRendered,
@@ -1892,6 +1955,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     falseLabel,
     template: input.protocolTemplate,
     characters: input.characters.join(", "),
+    globalScope: input.globalScope,
   }));
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");

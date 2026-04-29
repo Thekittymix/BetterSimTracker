@@ -412,7 +412,8 @@ test("buildJsonExtractionRequestV1 renders structured custom date_time protocol 
   assert.equal(definition?.id, "scene_date_time");
   assert.equal(definition?.dateTimeMode, "structured");
   assert.match(definition?.protocolGuidance ?? "", /Return structured datetime intent for scene_date_time/);
-  assert.match(definition?.protocolGuidance ?? "", /include one entry for each character name exactly: Lisa\./);
+  assert.match(definition?.protocolGuidance ?? "", /return exactly one global scene value under "__bst_global__"/i);
+  assert.doesNotMatch(definition?.protocolGuidance ?? "", /include one entry for each character name exactly/);
   assert.doesNotMatch(definition?.protocolGuidance ?? "", /\{\{valueSchemaRules\}\}|\{\{valueSchemaSample\}\}|\{\{characters\}\}/);
   assert.deepEqual((request.outputContract.responseSchema?.customNonNumericStats as Record<string, unknown>).scene_date_time, {
     __bst_global__: {
