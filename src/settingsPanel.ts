@@ -81,7 +81,7 @@ export function upsertSettingsPanel(input: {
         <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
       </div>
       <div class="inline-drawer-content">
-        <label class="checkbox_label" style="display:flex;align-items:center;gap:8px;margin:8px 0;">
+        <label class="checkbox_label bst-check" style="display:flex;align-items:center;gap:8px;margin:8px 0;">
           <input id="bst-settings-enabled" type="checkbox" ${input.settings.enabled ? "checked" : ""}>
           <span>Enabled</span>
         </label>

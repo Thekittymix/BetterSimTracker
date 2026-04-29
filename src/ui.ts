@@ -3314,63 +3314,20 @@ export function ensureStyles(): void {
 .bst-custom-wizard label { font-size: 12px; display: flex; flex-direction: column; gap: 6px; color: rgba(241, 246, 255, 0.94); }
 .bst-check { flex-direction: row !important; align-items: center; gap: 10px !important; }
 .bst-check input[type="checkbox"] {
-  appearance: none !important;
-  -webkit-appearance: none !important;
-  -moz-appearance: none !important;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  flex: 0 0 19px;
-  width: 19px;
-  height: 19px;
-  min-width: 19px;
+  appearance: auto !important;
+  -webkit-appearance: checkbox !important;
+  -moz-appearance: auto !important;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
   margin: 0;
-  border-radius: 999px;
-  border: 1px solid rgba(188, 212, 242, 0.55);
-  background: linear-gradient(180deg, rgba(16, 27, 44, 0.88), rgba(10, 17, 30, 0.92));
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 0 0 rgba(88, 173, 248, 0.0);
-  position: relative;
-  transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease, transform .12s ease;
+  accent-color: var(--bst-accent);
   cursor: pointer;
-}
-.bst-check input[type="checkbox"]::before {
-  content: "";
-  display: block;
-  width: 5px;
-  height: 9px;
-  border-right: 2px solid rgba(247, 250, 255, 0.96);
-  border-bottom: 2px solid rgba(247, 250, 255, 0.96);
-  transform: translate(-0.5px, -1px) rotate(45deg) scale(0);
-  transform-origin: center;
-  opacity: 0;
-  transition: transform .14s ease, opacity .14s ease;
-}
-.bst-check input[type="checkbox"]:hover {
-  border-color: rgba(206, 225, 249, 0.75);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 0 2px rgba(86, 180, 255, 0.18);
 }
 .bst-check input[type="checkbox"]:focus-visible {
   outline: 2px solid rgba(120, 214, 255, 0.56);
   outline-offset: 2px;
-}
-.bst-check input[type="checkbox"]:checked {
-  border-color: #78c9ff;
-  background: linear-gradient(180deg, #76c9ff, #2f87d7);
-  border-color: color-mix(in srgb, var(--bst-accent) 66%, #d7edff 34%);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bst-accent) 62%, #9fd8ff 38%),
-    color-mix(in srgb, var(--bst-accent) 78%, #4eaef0 22%)
-  );
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12), 0 0 0 2px rgba(86, 180, 255, 0.22);
-}
-.bst-check input[type="checkbox"]:checked::before {
-  opacity: 1;
-  transform: translate(-0.5px, -1px) rotate(45deg) scale(1);
-}
-.bst-check input[type="checkbox"]:active {
-  transform: scale(0.94);
 }
 .bst-check-grid .bst-check.bst-check-disabled {
   opacity: 0.62;
@@ -3383,12 +3340,7 @@ export function ensureStyles(): void {
 }
 .bst-check input[type="checkbox"]:disabled {
   cursor: not-allowed;
-  filter: grayscale(0.15);
-  opacity: 0.9;
-}
-.bst-check input[type="checkbox"]:disabled:hover {
-  border-color: rgba(188, 212, 242, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06), 0 0 0 0 rgba(88, 173, 248, 0.0);
+  opacity: 0.72;
 }
 .bst-settings input:not([type="checkbox"]), .bst-settings select, .bst-settings textarea,
 .bst-custom-wizard input:not([type="checkbox"]), .bst-custom-wizard select, .bst-custom-wizard textarea {

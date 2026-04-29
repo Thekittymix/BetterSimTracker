@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.4-dev1] - 2026-04-29
+### Fixed
+- Simplified BST checkbox rendering across settings, defaults panels, graph controls, and edit modals by dropping the custom checkbox skin and using native browser checkboxes with shared accent styling for better cross-device compatibility.
+
 ## [2.5.4.4] - 2026-04-28
 ### Fixed
 - Fixed scene continuity and extraction targeting so scene-present background characters remain in active extraction scope, while mention-only or off-scene names are less likely to become active from continuity alone.
