@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.4-dev6] - 2026-04-29
+### Fixed
+- Fixed structured custom `date_time` progression so semantic scene-clock updates like `ofDay` and relative minute shifts now normalize against the previous stored scene time instead of collapsing to empty or stale values, including the JSON custom-stat materialization path.
+
 ## [2.5.4.4-dev5] - 2026-04-29
 ### Fixed
 - Fixed JSON sequential custom non-numeric stat-stage contracts so generated protocol guidance now uses the same direct value-cell shape as the response schema, and malformed legacy nested stat wrappers are rejected instead of being applied as valid structured values.

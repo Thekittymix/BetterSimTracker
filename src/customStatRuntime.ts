@@ -169,6 +169,7 @@ export function normalizeCustomNonNumericValue(
     enumOptions?: string[];
     textMaxLength?: number;
     dateTimeMode?: DateTimeMode;
+    previousValue?: unknown;
     preserveExplicitEmptyArray?: boolean;
   },
 ): CustomNonNumericValue | undefined {
@@ -196,7 +197,7 @@ export function normalizeCustomNonNumericValue(
   }
   if (kind === "date_time") {
     const mode = normalizeDateTimeMode(options?.dateTimeMode);
-    return normalizeDateTimeWithMode(value, mode);
+    return normalizeDateTimeWithMode(value, mode, options?.previousValue);
   }
   if (typeof value !== "string") return undefined;
   const normalized = normalizeNonNumericTextValue(value, textMaxLength);

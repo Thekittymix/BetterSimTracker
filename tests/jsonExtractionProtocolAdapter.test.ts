@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "../src/constants";
+import { getDateTimeStructuredParts } from "../src/dateTime";
 import { materializeTrackerDataFromJsonExtractionResponseV1, materializeTrackerDataFromJsonExtractionStatResponseV1 } from "../src/jsonExtractionProtocolAdapter";
 import { resolveScopedCustomNonNumericValue } from "../src/promptInjectionHelpers";
 import { defaultSettings } from "../src/settings";
@@ -475,6 +476,108 @@ test("materializeTrackerDataFromJsonExtractionStatResponseV1 normalizes structur
   });
 
   assert.equal(tracker.customNonNumericStatistics?.scene_date_time?.[GLOBAL_TRACKER_KEY], "2024-06-15 21:05");
+});
+
+test("materializeTrackerDataFromJsonExtractionStatResponseV1 advances structured global date_time from an ofDay-only cue", () => {
+  const previous = "2024-06-15 15:20";
+  const response: JsonExtractionStatResponseV1 = {
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: {
+      status: "ok",
+    },
+    statId: "scene_date_time",
+    values: {
+      [GLOBAL_TRACKER_KEY]: {
+        value: {
+          ofDay: "Night",
+        },
+        confidence: 0.95,
+      },
+    },
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionStatResponseV1(response, {
+    activeCharacters: ["Candy"],
+    previousCustomNonNumericStatistics: {
+      scene_date_time: {
+        [GLOBAL_TRACKER_KEY]: previous,
+      },
+    },
+    customStatDefinitions: [
+      ...customStatDefinitions,
+      {
+        id: "scene_date_time",
+        kind: "date_time",
+        label: "Scene Date/Time",
+        defaultValue: "",
+        dateTimeMode: "structured",
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+    timestamp: 12347,
+  });
+
+  const stored = tracker.customNonNumericStatistics?.scene_date_time?.[GLOBAL_TRACKER_KEY];
+  assert.ok(typeof stored === "string" && stored.length > 0, "expected a stored global scene datetime");
+  assert.notEqual(stored, previous);
+  assert.ok(stored > previous, `expected ${stored} to progress beyond ${previous}`);
+  assert.equal(getDateTimeStructuredParts(stored)?.phase, "Night");
+});
+
+test("materializeTrackerDataFromJsonExtractionStatResponseV1 applies structured global date_time delta_minutes against the previous global value", () => {
+  const previous = "2024-06-15 15:20";
+  const response: JsonExtractionStatResponseV1 = {
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: {
+      status: "ok",
+    },
+    statId: "scene_date_time",
+    values: {
+      [GLOBAL_TRACKER_KEY]: {
+        value: {
+          delta_minutes: 30,
+        },
+        confidence: 0.95,
+      },
+    },
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionStatResponseV1(response, {
+    activeCharacters: ["Candy"],
+    previousCustomNonNumericStatistics: {
+      scene_date_time: {
+        [GLOBAL_TRACKER_KEY]: previous,
+      },
+    },
+    customStatDefinitions: [
+      ...customStatDefinitions,
+      {
+        id: "scene_date_time",
+        kind: "date_time",
+        label: "Scene Date/Time",
+        defaultValue: "",
+        dateTimeMode: "structured",
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+    timestamp: 12348,
+  });
+
+  assert.equal(tracker.customNonNumericStatistics?.scene_date_time?.[GLOBAL_TRACKER_KEY], "2024-06-15 15:50");
 });
 
 test("materializeTrackerDataFromJsonExtractionStatResponseV1 stores sequential global numeric custom stat values under the global owner", () => {

@@ -346,17 +346,6 @@ function buildCustomNonNumericStatistics(
     const definition = definitionsById.get(statId);
     const nextBucket: Record<string, string | boolean | string[]> = {};
     for (const [ownerName, rawValue] of Object.entries(bucket ?? {})) {
-      const normalized = normalizeCustomNonNumericValue(
-        normalizeCustomStatKind(definition?.kind),
-        extractValueCell(rawValue),
-        {
-          enumOptions: definition?.enumOptions,
-          textMaxLength: definition?.textMaxLength,
-          dateTimeMode: definition?.dateTimeMode,
-          preserveExplicitEmptyArray: true,
-        },
-      );
-      if (normalized === undefined) continue;
       const previousBucket = options?.previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId];
       const previousByOwner = options?.previousCustomNonNumericStatistics?.[statId];
       const previousValue = definition?.globalScope === true
@@ -368,6 +357,18 @@ function buildCustomNonNumericStatistics(
             previousBucket,
             ownerName,
           );
+      const normalized = normalizeCustomNonNumericValue(
+        normalizeCustomStatKind(definition?.kind),
+        extractValueCell(rawValue),
+        {
+          enumOptions: definition?.enumOptions,
+          textMaxLength: definition?.textMaxLength,
+          dateTimeMode: definition?.dateTimeMode,
+          previousValue,
+          preserveExplicitEmptyArray: true,
+        },
+      );
+      if (normalized === undefined) continue;
       const value = shouldPreservePreviousFinalValue({
         rawValue,
         previousValue,
@@ -538,17 +539,6 @@ export function materializeTrackerDataFromJsonExtractionStatResponseV1(
     } else {
       const bucket: Record<string, string | boolean | string[]> = {};
       for (const [ownerName, rawValue] of Object.entries(response.values)) {
-        const normalized = normalizeCustomNonNumericValue(
-          normalizeCustomStatKind(definition?.kind),
-          extractValueCell(rawValue),
-          {
-            enumOptions: definition?.enumOptions,
-            textMaxLength: definition?.textMaxLength,
-            dateTimeMode: definition?.dateTimeMode,
-            preserveExplicitEmptyArray: true,
-          },
-        );
-        if (normalized === undefined) continue;
         const previousByOwner = options.previousCustomNonNumericStatistics?.[statId];
         const previousByEntityId = options.previousTrackerData?.customNonNumericStatisticsByEntityId?.[statId];
         const previousValue = definition?.globalScope === true
@@ -560,6 +550,18 @@ export function materializeTrackerDataFromJsonExtractionStatResponseV1(
               previousByEntityId,
               ownerName,
             );
+        const normalized = normalizeCustomNonNumericValue(
+          normalizeCustomStatKind(definition?.kind),
+          extractValueCell(rawValue),
+          {
+            enumOptions: definition?.enumOptions,
+            textMaxLength: definition?.textMaxLength,
+            dateTimeMode: definition?.dateTimeMode,
+            previousValue,
+            preserveExplicitEmptyArray: true,
+          },
+        );
+        if (normalized === undefined) continue;
         const value = shouldPreservePreviousFinalValue({
           rawValue,
           previousValue,

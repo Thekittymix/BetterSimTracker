@@ -123,6 +123,18 @@ function resolvePhaseByHour(hour: number): string {
   return "Late Evening";
 }
 
+function resolveForwardStructuredPhaseDateTime(prevDate: Date, phaseHour: number): string {
+  const targetPhase = resolvePhaseByHour(phaseHour);
+  for (let offsetHours = 0; offsetHours <= 48; offsetHours += 1) {
+    const candidate = new Date(prevDate.getTime());
+    candidate.setHours(prevDate.getHours() + offsetHours, prevDate.getMinutes(), 0, 0);
+    if (resolvePhaseByHour(candidate.getHours()) === targetPhase) {
+      return formatLocalDateTime(candidate);
+    }
+  }
+  return "";
+}
+
 export function normalizeStructuredDateTimeCandidate(raw: unknown, previous?: unknown): string {
   if (raw == null) return "";
 
@@ -177,6 +189,12 @@ export function normalizeStructuredDateTimeCandidate(raw: unknown, previous?: un
       String(obj.minute ?? prevMinute).padStart(2, "0"),
     );
     if (parsed) return parsed;
+  }
+
+  const phaseHour = inferHourFromPhase(obj.ofDay);
+  if (phaseHour != null && prevDate) {
+    const progressed = resolveForwardStructuredPhaseDateTime(prevDate, phaseHour);
+    if (progressed) return progressed;
   }
 
   const relativeMinutes =

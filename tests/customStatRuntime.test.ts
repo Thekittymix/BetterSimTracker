@@ -155,6 +155,13 @@ test("normalizeCustomNonNumericValue handles supported non-numeric kinds", () =>
     "2026-03-06 22:30",
   );
   assert.equal(
+    normalizeCustomNonNumericValue("date_time", { delta_minutes: 30 }, {
+      dateTimeMode: "structured",
+      previousValue: "2024-06-15 15:20",
+    }),
+    "2024-06-15 15:50",
+  );
+  assert.equal(
     normalizeCustomNonNumericValue("text_short", "  hello world  ", {
       textMaxLength: 20,
     }),

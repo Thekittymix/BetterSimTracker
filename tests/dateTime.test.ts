@@ -34,6 +34,15 @@ test("normalizeStructuredDateTimeCandidate handles relative shifts and semantic 
   );
 });
 
+test("normalizeStructuredDateTimeCandidate advances ofDay-only cues from the previous scene time", () => {
+  const previous = "2024-06-15 15:20";
+  const normalized = normalizeStructuredDateTimeCandidate({ ofDay: "Night" }, previous);
+  assert.ok(normalized, "expected an ofDay-only cue to produce a normalized datetime");
+  assert.notEqual(normalized, previous);
+  assert.ok(normalized > previous, `expected ${normalized} to progress beyond ${previous}`);
+  assert.equal(getDateTimeStructuredParts(normalized)?.phase, "Night");
+});
+
 test("normalizeDateTimeWithMode respects structured candidates before timestamp fallback", () => {
   assert.equal(
     normalizeDateTimeWithMode({ value: "2026-03-07 08:45" }, "structured"),
