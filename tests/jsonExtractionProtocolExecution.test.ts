@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { GLOBAL_TRACKER_KEY } from "../src/constants";
 import { prepareJsonExtractionProtocolRequest, executeJsonExtractionProtocol } from "../src/jsonExtractionProtocolExecution";
 import { defaultSettings } from "../src/settings";
 import type { BetterSimTrackerSettings, STContext, TrackerData } from "../src/types";
@@ -284,6 +285,145 @@ test("executeJsonExtractionProtocol materializes a sequential stat-only JSON res
   assert.deepEqual(result.trackerData.statistics.affection, {});
   assert.deepEqual(result.trackerData.customNonNumericStatistics, {});
   assert.deepEqual(result.trackerData.activeCharacters, ["Candy", "Lisa"]);
+});
+
+test("executeJsonExtractionProtocol materializes a sequential structured global date_time stat response with direct value cells", () => {
+  const settings: BetterSimTrackerSettings = {
+    ...makeSettings(),
+    trackAffection: false,
+    trackTrust: false,
+    trackDesire: false,
+    trackConnection: false,
+    trackMood: false,
+    trackLastThought: false,
+    customStats: [
+      {
+        id: "scene_date_time",
+        kind: "date_time",
+        label: "Scene Date/Time",
+        defaultValue: "2024-06-15 15:20",
+        dateTimeMode: "structured",
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+  };
+  const result = executeJsonExtractionProtocol({
+    context: makeContext(),
+    reason: "manual_refresh",
+    messageIndex: 0,
+    settings,
+    activeCharacters: ["Candy", "Lisa"],
+    previousTrackerData: {
+      ...makeExpectedTracker(),
+      customNonNumericStatistics: {
+        scene_date_time: {
+          [GLOBAL_TRACKER_KEY]: "2024-06-15 15:20",
+        },
+      },
+    },
+    previousStatistics: makeExpectedTracker().statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: {
+      scene_date_time: {
+        [GLOBAL_TRACKER_KEY]: "2024-06-15 15:20",
+      },
+    },
+    responseMode: "stat",
+    statId: "scene_date_time",
+    rawJsonResponse: JSON.stringify({
+      protocolVersion: "bst.extract.v1",
+      responseType: "stat_extraction_result",
+      result: { status: "ok" },
+      statId: "scene_date_time",
+      values: {
+        [GLOBAL_TRACKER_KEY]: {
+          value: {
+            absolute: "2024-06-15 21:05",
+            ofDay: "Night",
+          },
+          confidence: 0.95,
+        },
+      },
+    }),
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.trackerData.customNonNumericStatistics?.scene_date_time?.[GLOBAL_TRACKER_KEY], "2024-06-15 21:05");
+});
+
+test("executeJsonExtractionProtocol rejects legacy wrapped sequential custom non-numeric stat cells", () => {
+  const settings: BetterSimTrackerSettings = {
+    ...makeSettings(),
+    trackAffection: false,
+    trackTrust: false,
+    trackDesire: false,
+    trackConnection: false,
+    trackMood: false,
+    trackLastThought: false,
+    customStats: [
+      {
+        id: "scene_date_time",
+        kind: "date_time",
+        label: "Scene Date/Time",
+        defaultValue: "2024-06-15 15:20",
+        dateTimeMode: "structured",
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        privateToOwner: false,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+  };
+  const result = executeJsonExtractionProtocol({
+    context: makeContext(),
+    reason: "manual_refresh",
+    messageIndex: 0,
+    settings,
+    activeCharacters: ["Candy", "Lisa"],
+    previousTrackerData: makeExpectedTracker(),
+    previousStatistics: makeExpectedTracker().statistics,
+    previousCustomStatistics: {},
+    previousCustomNonNumericStatistics: {
+      scene_date_time: {
+        [GLOBAL_TRACKER_KEY]: "2024-06-15 15:20",
+      },
+    },
+    responseMode: "stat",
+    statId: "scene_date_time",
+    rawJsonResponse: JSON.stringify({
+      protocolVersion: "bst.extract.v1",
+      responseType: "stat_extraction_result",
+      result: { status: "ok" },
+      statId: "scene_date_time",
+      values: {
+        [GLOBAL_TRACKER_KEY]: {
+          value: {
+            scene_date_time: {
+              absolute: "2024-06-15 21:05",
+              ofDay: "Night",
+            },
+          },
+          confidence: 0.95,
+        },
+      },
+    }),
+  });
+
+  assert.equal(result.ok, false);
+  if (result.ok) return;
+  assert.match(result.errors[0] ?? "", /must return direct value cells/i);
 });
 
 test("executeJsonExtractionProtocol rejects a stat-only response for the wrong sequential stat", () => {

@@ -1715,6 +1715,7 @@ function customNonNumericProtocol(input: {
   template?: string;
   globalScope?: boolean;
   characters?: string;
+  directValuePayload?: boolean;
 }): string {
   const values = getCustomNonNumericProtocolValues(input);
   const rawTemplate = input.template?.trim();
@@ -1723,13 +1724,16 @@ function customNonNumericProtocol(input: {
     || rawTemplate === DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE
     ? DEFAULT_CUSTOM_NON_NUMERIC_PROTOCOL_TEMPLATE
     : rawTemplate;
+  const payloadValue = input.directValuePayload
+    ? values.valueSchemaSample
+    : `{
+      "${input.statId}": ${values.valueSchemaSample}
+    }`;
   const responsePayload = input.globalScope
     ? `{
   "${GLOBAL_TRACKER_KEY}": {
     "confidence": 0.0,
-    "value": {
-      "${input.statId}": ${values.valueSchemaSample}
-    }
+    "value": ${payloadValue}
   }
 }`
     : `{
@@ -1737,9 +1741,7 @@ function customNonNumericProtocol(input: {
     {
       "name": "Character Name",
       "confidence": 0.0,
-      "value": {
-        "${input.statId}": ${values.valueSchemaSample}
-      }
+      "value": ${payloadValue}
     }
   ]
 }`;
@@ -1776,6 +1778,7 @@ export function buildCustomNonNumericProtocolGuidance(input: {
   template?: string;
   characters?: string;
   globalScope?: boolean;
+  directValuePayload?: boolean;
 }): string {
   return customNonNumericProtocol(input);
 }

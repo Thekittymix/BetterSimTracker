@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.4-dev5] - 2026-04-29
+### Fixed
+- Fixed JSON sequential custom non-numeric stat-stage contracts so generated protocol guidance now uses the same direct value-cell shape as the response schema, and malformed legacy nested stat wrappers are rejected instead of being applied as valid structured values.
+
 ## [2.5.4.4-dev4] - 2026-04-29
 ### Fixed
 - Fixed JSON sequential stat-stage request scoping for global custom stats so scene-level `date_time` requests no longer leak owner/entity snapshot noise into `currentState`, which keeps global-scene cues like day-phase changes cleaner for small-model extraction.

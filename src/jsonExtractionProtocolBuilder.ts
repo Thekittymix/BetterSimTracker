@@ -158,6 +158,7 @@ function resolveCustomProtocol(settings: JsonPromptSettings, definition: CustomS
       template,
       characters: candidateOwners.join(", "),
       globalScope: definition.globalScope === true,
+      directValuePayload: true,
     });
   }
   if (!settings.sequentialExtraction) {

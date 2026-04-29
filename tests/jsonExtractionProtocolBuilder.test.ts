@@ -413,6 +413,8 @@ test("buildJsonExtractionRequestV1 renders structured custom date_time protocol 
   assert.equal(definition?.dateTimeMode, "structured");
   assert.match(definition?.protocolGuidance ?? "", /Return structured datetime intent for scene_date_time/);
   assert.match(definition?.protocolGuidance ?? "", /return exactly one global scene value under "__bst_global__"/i);
+  assert.match(definition?.protocolGuidance ?? "", /"value": \{"absolute":"2026-03-03 20:15","delta_minutes":5,"ofDay":"Evening"\}/);
+  assert.doesNotMatch(definition?.protocolGuidance ?? "", /"value":\s*\{\s*"scene_date_time"/);
   assert.doesNotMatch(definition?.protocolGuidance ?? "", /include one entry for each character name exactly/);
   assert.doesNotMatch(definition?.protocolGuidance ?? "", /\{\{valueSchemaRules\}\}|\{\{valueSchemaSample\}\}|\{\{characters\}\}/);
   assert.deepEqual((request.outputContract.responseSchema?.customNonNumericStats as Record<string, unknown>).scene_date_time, {
@@ -425,6 +427,64 @@ test("buildJsonExtractionRequestV1 renders structured custom date_time protocol 
       confidence: 0.8,
     },
   });
+});
+
+test("buildJsonExtractionRequestV1 renders direct custom array value samples in JSON protocol guidance", () => {
+  const request = buildJsonExtractionRequestV1({
+    task: {
+      mode: "user_turn",
+      messageIndex: 9,
+      retrack: true,
+      swipeRetrack: false,
+      entityTrackingMode: "dynamic_characters",
+      includeCharacterCards: true,
+      includeActivatedLorebook: false,
+    },
+    message: {
+      speaker: "Kuba",
+      isUser: true,
+      isSystem: false,
+      text: "Lisa keeps her blouse on.",
+    },
+    recentHistory: [],
+    currentState: {
+      latestRelevantSnapshot: {},
+      builtInStats: {},
+      customStats: {},
+      customNonNumericStats: {},
+    },
+    entityContext: {
+      candidateOwners: ["Lisa"],
+      candidateEntities: [],
+      currentEntityOwnerMap: {},
+    },
+    enabledBuiltInStats: [],
+    settings: makeSettings({
+      promptProtocolSequentialCustomNonNumeric: DEFAULT_PROTOCOL_SEQUENTIAL_CUSTOM_NON_NUMERIC,
+      customStats: [
+        {
+          id: "clothes",
+          kind: "array",
+          label: "Clothes",
+          defaultValue: [],
+          textMaxLength: 120,
+          track: true,
+          trackCharacters: true,
+          trackUser: true,
+          globalScope: false,
+          showOnCard: true,
+          showInGraph: false,
+          includeInInjection: true,
+          promptOverride: "Track only current on-body clothes and keep continuity unless the scene changes.",
+        },
+      ],
+    }),
+  });
+
+  const definition = request.statDefinitions.customNonNumeric[0];
+  assert.equal(definition?.id, "clothes");
+  assert.match(definition?.protocolGuidance ?? "", /"value": \["item one", "item two"\]/);
+  assert.doesNotMatch(definition?.protocolGuidance ?? "", /"value":\s*\{\s*"clothes"/);
 });
 
 test("serializeJsonExtractionRequestV1 returns transport JSON for the built request", () => {
