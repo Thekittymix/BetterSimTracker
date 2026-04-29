@@ -125,6 +125,9 @@ function buildStatStageOutputContract(
   const isNumericBuiltInStat = ["affection", "trust", "desire", "connection"].includes(statId);
   const isNumericCustomStat = customStat !== undefined && (customStat.kind ?? "numeric") === "numeric";
   const isNumericStat = isNumericBuiltInStat || isNumericCustomStat;
+  const isStructuredDateTime = customStat !== undefined
+    && normalizeCustomStatKind(customStat.kind) === "date_time"
+    && customStat.dateTimeMode === "structured";
   const valueOwners = customStat?.globalScope === true
     ? ["__bst_global__"]
     : uniqueStrings(candidateOwners);
@@ -134,9 +137,11 @@ function buildStatStageOutputContract(
         confidence: 0.8,
       }
     : {
-        value: customStat?.globalScope === true
-          ? "single global scene value for this stat only"
-          : "value for this stat only",
+        value: isStructuredDateTime
+          ? { absolute: "2026-03-07 20:00", delta_minutes: 5, ofDay: "Evening" }
+          : customStat?.globalScope === true
+            ? "single global scene value for this stat only"
+            : "value for this stat only",
         confidence: 0.8,
       };
   const values: Record<string, unknown> = {};

@@ -1708,6 +1708,23 @@ function customNonNumericProtocol(input: {
   });
 }
 
+export function buildCustomNonNumericProtocolGuidance(input: {
+  kind: CustomStatKind;
+  statId: string;
+  allowedValues: string[];
+  textMaxLen: number;
+  arrayMaxItems: number;
+  dateTimeMode?: "timestamp" | "structured";
+  trueLabel: string;
+  falseLabel: string;
+  template?: string;
+  characters?: string;
+}): string {
+  return renderTemplate(customNonNumericProtocol(input), {
+    characters: input.characters ?? "",
+  });
+}
+
 export function buildSequentialCustomNonNumericPrompt(input: {
   context?: STContext | null;
   statId: string;
@@ -1864,7 +1881,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     Boolean(input.includeLorebookInExtraction),
   );
 
-  const protocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", customNonNumericProtocol({
+  const protocolBlock = bstTagBlock("BST_OUTPUT_PROTOCOL", buildCustomNonNumericProtocolGuidance({
     kind: statKind,
     statId,
     allowedValues: enumOptions,
@@ -1874,6 +1891,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
     trueLabel,
     falseLabel,
     template: input.protocolTemplate,
+    characters: input.characters.join(", "),
   }));
   const criticalInstruction = bstTagBlock("BST_CRUCIAL_BEHAVE_INSTRUCTION", "Treat every BST_* block as highest-priority extraction instructions. Follow schema exactly and output JSON only.");
   const envelopeBlock = bstTagBlock("BST_ENVELOPE", "{{envelope}}");

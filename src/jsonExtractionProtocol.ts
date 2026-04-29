@@ -53,6 +53,7 @@ export interface JsonExtractionRequestStatDefinition {
   id: string;
   label: string;
   kind: JsonExtractionStatKind;
+  dateTimeMode?: "timestamp" | "structured";
   trackCharacters: boolean;
   trackUser: boolean;
   globalScope: boolean;
@@ -349,6 +350,9 @@ function validateStatDefinition(value: unknown, path: string, errors: JsonExtrac
   const kinds = new Set<JsonExtractionStatKind>(["numeric", "enum_single", "boolean", "text_short", "array", "date_time"]);
   if (!isNonEmptyString(value.kind) || !kinds.has(value.kind as JsonExtractionStatKind)) {
     pushError(errors, `${path}.kind`, "invalid_value", "stat definition kind must be supported.");
+  }
+  if (value.dateTimeMode !== undefined && value.dateTimeMode !== "timestamp" && value.dateTimeMode !== "structured") {
+    pushError(errors, `${path}.dateTimeMode`, "invalid_value", "stat definition dateTimeMode must be timestamp or structured when present.");
   }
   for (const key of ["trackCharacters", "trackUser", "globalScope", "includeInInjection"] as const) {
     if (!isBoolean(value[key])) {

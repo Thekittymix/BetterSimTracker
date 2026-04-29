@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { buildJsonExtractionRequestV1, serializeJsonExtractionRequestV1 } from "../src/jsonExtractionProtocolBuilder";
 import { validateJsonExtractionRequestV1 } from "../src/jsonExtractionProtocol";
 import {
+  DEFAULT_PROTOCOL_SEQUENTIAL_CUSTOM_NON_NUMERIC,
   DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT,
   DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS,
 } from "../src/prompts";
@@ -87,6 +88,7 @@ function makeSettings(overrides: Partial<BetterSimTrackerSettings> = {}): Pick<
         kind: "date_time",
         label: "Scene Date/Time",
         defaultValue: "2026-03-07 20:00",
+        dateTimeMode: "structured",
         track: true,
         trackCharacters: true,
         trackUser: true,
@@ -192,6 +194,8 @@ test("buildJsonExtractionRequestV1 builds a schema-valid request with built-ins 
   const clothesDefinition = request.statDefinitions.customNonNumeric.find(definition => definition.id === "clothes");
   assert.equal(clothesDefinition?.behaviorGuidance, "Track only current on-body clothes and keep continuity unless the scene changes.");
   assert.equal(clothesDefinition?.protocolGuidance, "Sequential custom non-numeric protocol prompt");
+  const sceneDateTimeDefinition = request.statDefinitions.customNonNumeric.find(definition => definition.id === "scene_date_time");
+  assert.equal(sceneDateTimeDefinition?.dateTimeMode, "structured");
 });
 
 test("buildJsonExtractionRequestV1 carries unified custom prompts in non-sequential JSON requests", () => {
@@ -350,6 +354,76 @@ test("buildJsonExtractionRequestV1 preserves structured rule sections instead of
   assert.deepEqual(request.rules.emptyValueRules, ["Explicit empty arrays are known empty values."]);
   assert.deepEqual(request.outputContract.responseSchema?.result, { status: "ok" });
   assert.ok(request.outputContract.responseSchema?.entityResolution);
+});
+
+test("buildJsonExtractionRequestV1 renders structured custom date_time protocol guidance and examples", () => {
+  const request = buildJsonExtractionRequestV1({
+    task: {
+      mode: "ai_turn",
+      messageIndex: 12,
+      retrack: false,
+      swipeRetrack: false,
+      entityTrackingMode: "dynamic_characters",
+      includeCharacterCards: true,
+      includeActivatedLorebook: false,
+    },
+    message: {
+      speaker: "Your Family",
+      isUser: false,
+      isSystem: false,
+      text: "Night fell while the house stayed quiet.",
+    },
+    recentHistory: [],
+    currentState: {
+      latestRelevantSnapshot: {},
+      builtInStats: {},
+      customStats: {},
+      customNonNumericStats: {},
+    },
+    entityContext: {
+      candidateOwners: ["Lisa"],
+      candidateEntities: [],
+      currentEntityOwnerMap: {},
+    },
+    enabledBuiltInStats: [],
+    settings: makeSettings({
+      promptProtocolSequentialCustomNonNumeric: DEFAULT_PROTOCOL_SEQUENTIAL_CUSTOM_NON_NUMERIC,
+      customStats: [
+        {
+          id: "scene_date_time",
+          kind: "date_time",
+          label: "Scene Date/Time",
+          defaultValue: "2026-03-07 20:00",
+          dateTimeMode: "structured",
+          track: true,
+          trackCharacters: true,
+          trackUser: true,
+          globalScope: true,
+          showOnCard: true,
+          showInGraph: false,
+          includeInInjection: true,
+          promptOverride: "Infer semantic scene time progression from recent messages only.",
+        },
+      ],
+    }),
+  });
+
+  const definition = request.statDefinitions.customNonNumeric[0];
+  assert.equal(definition?.id, "scene_date_time");
+  assert.equal(definition?.dateTimeMode, "structured");
+  assert.match(definition?.protocolGuidance ?? "", /Return structured datetime intent for scene_date_time/);
+  assert.match(definition?.protocolGuidance ?? "", /include one entry for each character name exactly: Lisa\./);
+  assert.doesNotMatch(definition?.protocolGuidance ?? "", /\{\{valueSchemaRules\}\}|\{\{valueSchemaSample\}\}|\{\{characters\}\}/);
+  assert.deepEqual((request.outputContract.responseSchema?.customNonNumericStats as Record<string, unknown>).scene_date_time, {
+    __bst_global__: {
+      value: {
+        absolute: "2026-03-07 20:00",
+        delta_minutes: 5,
+        ofDay: "Evening",
+      },
+      confidence: 0.8,
+    },
+  });
 });
 
 test("serializeJsonExtractionRequestV1 returns transport JSON for the built request", () => {

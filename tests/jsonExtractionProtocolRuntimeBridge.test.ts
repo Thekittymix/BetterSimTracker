@@ -49,6 +49,7 @@ function makeSettings(): BetterSimTrackerSettings {
         kind: "date_time",
         label: "Scene Date/Time",
         defaultValue: "",
+        dateTimeMode: "structured",
         track: true,
         trackCharacters: true,
         trackUser: true,
@@ -303,7 +304,11 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes non-sequential JSO
   });
   assert.deepEqual((request.outputContract.responseSchema?.customNonNumericStats as Record<string, unknown>).scene_date_time, {
     __bst_global__: {
-      value: "2026-03-07 20:00",
+      value: {
+        absolute: "2026-03-07 20:00",
+        delta_minutes: 5,
+        ofDay: "Evening",
+      },
       confidence: 0.8,
     },
   });
@@ -374,6 +379,7 @@ test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global c
           kind: "date_time",
           label: "Scene Date/Time",
           defaultValue: "",
+          dateTimeMode: "structured",
           track: true,
           trackCharacters: true,
           trackUser: true,
@@ -408,7 +414,11 @@ test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global c
     statId: "scene_date_time",
     values: {
       __bst_global__: {
-        value: "single global scene value for this stat only",
+        value: {
+          absolute: "2026-03-07 20:00",
+          delta_minutes: 5,
+          ofDay: "Evening",
+        },
         confidence: 0.8,
       },
     },

@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.4-dev2] - 2026-04-29
+### Fixed
+- Fixed JSON extraction contracts for structured custom date/time stats so custom protocol templates are rendered correctly, structured datetime responses stay object-shaped in both sequential and non-sequential JSON schemas, and structured values now normalize correctly through the apply path instead of collapsing to empty or stale timestamps.
+
 ## [2.5.4.4-dev1] - 2026-04-29
 ### Fixed
 - Simplified BST checkbox rendering across settings, defaults panels, graph controls, and edit modals by dropping the custom checkbox skin and using native browser checkboxes with shared accent styling for better cross-device compatibility.

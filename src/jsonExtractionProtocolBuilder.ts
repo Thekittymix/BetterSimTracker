@@ -1,4 +1,5 @@
-import { normalizeCustomStatKind, normalizeCustomTextMaxLength } from "./customStatRuntime";
+import { MAX_CUSTOM_ARRAY_ITEMS, normalizeCustomStatKind, normalizeCustomTextMaxLength } from "./customStatRuntime";
+import { buildCustomNonNumericProtocolGuidance } from "./prompts";
 import type { BetterSimTrackerSettings, CustomStatDefinition, StatKey } from "./types";
 import { GLOBAL_TRACKER_KEY } from "./constants";
 import type {
@@ -139,14 +140,29 @@ function resolveCustomTemplateFallback(settings: JsonPromptSettings, definition:
     : trimPrompt(settings.promptTemplateSequentialCustomNonNumeric);
 }
 
-function resolveCustomProtocol(settings: JsonPromptSettings, definition: CustomStatDefinition): string {
+function resolveCustomProtocol(settings: JsonPromptSettings, definition: CustomStatDefinition, candidateOwners: string[]): string {
+  const kind = normalizeCustomStatKind(definition.kind);
+  if (kind !== "numeric") {
+    const template = !settings.sequentialExtraction
+      ? trimPrompt(settings.promptProtocolUnified)
+      : trimPrompt(settings.promptProtocolSequentialCustomNonNumeric);
+    return buildCustomNonNumericProtocolGuidance({
+      kind,
+      statId: definition.id,
+      allowedValues: Array.isArray(definition.enumOptions) ? definition.enumOptions : [],
+      textMaxLen: normalizeCustomTextMaxLength(definition.textMaxLength),
+      arrayMaxItems: MAX_CUSTOM_ARRAY_ITEMS,
+      dateTimeMode: definition.dateTimeMode === "structured" ? "structured" : "timestamp",
+      trueLabel: String(definition.booleanTrueLabel ?? "enabled").trim() || "enabled",
+      falseLabel: String(definition.booleanFalseLabel ?? "disabled").trim() || "disabled",
+      template,
+      characters: candidateOwners.join(", "),
+    });
+  }
   if (!settings.sequentialExtraction) {
     return trimPrompt(settings.promptProtocolUnified);
   }
-  const kind = normalizeCustomStatKind(definition.kind);
-  return kind === "numeric"
-    ? trimPrompt(settings.promptProtocolSequentialCustomNumeric)
-    : trimPrompt(settings.promptProtocolSequentialCustomNonNumeric);
+  return trimPrompt(settings.promptProtocolSequentialCustomNumeric);
 }
 
 function buildBuiltInStatDefinitions(settings: JsonPromptSettings, enabledBuiltInStats: StatKey[]): JsonExtractionRequestStatDefinition[] {
@@ -169,7 +185,11 @@ function buildBuiltInStatDefinitions(settings: JsonPromptSettings, enabledBuiltI
   });
 }
 
-function buildCustomStatDefinition(settings: JsonPromptSettings, definition: CustomStatDefinition): JsonExtractionRequestStatDefinition {
+function buildCustomStatDefinition(
+  settings: JsonPromptSettings,
+  definition: CustomStatDefinition,
+  candidateOwners: string[],
+): JsonExtractionRequestStatDefinition {
   const kind = normalizeCustomStatKind(definition.kind);
   const guidance = trimPrompt(
     definition.promptOverride
@@ -177,7 +197,7 @@ function buildCustomStatDefinition(settings: JsonPromptSettings, definition: Cus
     ?? definition.description
     ?? resolveCustomTemplateFallback(settings, definition),
   );
-  const protocolGuidance = resolveCustomProtocol(settings, definition);
+  const protocolGuidance = resolveCustomProtocol(settings, definition, candidateOwners);
   const baseEmptySemantics = kind === "array"
     ? "Empty array means known empty, not unknown."
     : kind === "text_short"
@@ -192,13 +212,18 @@ function buildCustomStatDefinition(settings: JsonPromptSettings, definition: Cus
     trackUser: definition.trackUser !== false,
     globalScope: definition.globalScope === true,
     includeInInjection: definition.includeInInjection === true,
+    ...(kind === "date_time" ? { dateTimeMode: definition.dateTimeMode === "structured" ? "structured" as const : "timestamp" as const } : {}),
     behaviorGuidance: guidance || `Extract ${definition.label} while preserving continuity from the recent scene.`,
     ...(protocolGuidance ? { protocolGuidance } : {}),
     emptySemantics: baseEmptySemantics,
   };
 }
 
-function splitCustomStatDefinitions(settings: JsonPromptSettings, definitions: CustomStatDefinition[] | undefined): {
+function splitCustomStatDefinitions(
+  settings: JsonPromptSettings,
+  definitions: CustomStatDefinition[] | undefined,
+  candidateOwners: string[],
+): {
   customNumeric: JsonExtractionRequestStatDefinition[];
   customNonNumeric: JsonExtractionRequestStatDefinition[];
 } {
@@ -209,7 +234,7 @@ function splitCustomStatDefinitions(settings: JsonPromptSettings, definitions: C
     const built = buildCustomStatDefinition(settings, {
       ...definition,
       textMaxLength: normalizeCustomTextMaxLength(definition.textMaxLength),
-    });
+    }, candidateOwners);
     if (built.kind === "numeric") {
       customNumeric.push(built);
     } else {
@@ -232,7 +257,11 @@ function exampleValueForStat(definition: JsonExtractionRequestStatDefinition): u
   });
   if (definition.kind === "boolean") return withConfidence(true);
   if (definition.kind === "array") return withConfidence(["value"]);
-  if (definition.kind === "date_time") return withConfidence("2026-03-07 20:00");
+  if (definition.kind === "date_time") {
+    return definition.dateTimeMode === "structured"
+      ? withConfidence({ absolute: "2026-03-07 20:00", delta_minutes: 5, ofDay: "Evening" })
+      : withConfidence("2026-03-07 20:00");
+  }
   if (definition.id === "mood") return withConfidence("calm");
   if (definition.id === "lastThought") return withConfidence("short thought");
   return withConfidence("value");
@@ -324,7 +353,11 @@ function buildStatsResponseSchema(input: {
 
 export function buildJsonExtractionRequestV1(input: BuildJsonExtractionRequestInput): JsonExtractionRequestV1 {
   const builtIn = buildBuiltInStatDefinitions(input.settings, input.enabledBuiltInStats);
-  const { customNumeric, customNonNumeric } = splitCustomStatDefinitions(input.settings, input.settings.customStats);
+  const { customNumeric, customNonNumeric } = splitCustomStatDefinitions(
+    input.settings,
+    input.settings.customStats,
+    input.entityContext.candidateOwners,
+  );
   const defaultResponseSchema = input.responseContractMode === "stats"
     ? buildStatsResponseSchema({ builtIn, customNumeric, customNonNumeric, candidateOwners: input.entityContext.candidateOwners })
     : buildResponseSchema({ builtIn, customNumeric, customNonNumeric, candidateOwners: input.entityContext.candidateOwners });

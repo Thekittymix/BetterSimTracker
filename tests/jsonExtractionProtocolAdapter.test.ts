@@ -155,7 +155,7 @@ const customStatDefinitions: CustomStatDefinition[] = [
     kind: "date_time",
     label: "Scene Date/Time",
     defaultValue: "",
-    dateTimeMode: "timestamp",
+    dateTimeMode: "structured",
     track: true,
     trackCharacters: true,
     trackUser: true,
@@ -431,6 +431,50 @@ test("materializeTrackerDataFromJsonExtractionStatResponseV1 stores sequential g
     resolveScopedCustomNonNumericValue(tracker, "scene_date_time", GLOBAL_TRACKER_KEY, true),
     "2024-06-15 14:05",
   );
+});
+
+test("materializeTrackerDataFromJsonExtractionStatResponseV1 normalizes structured global date_time values", () => {
+  const response: JsonExtractionStatResponseV1 = {
+    protocolVersion: "bst.extract.v1",
+    responseType: "stat_extraction_result",
+    result: {
+      status: "ok",
+    },
+    statId: "scene_date_time",
+    values: {
+      Candy: {
+        value: {
+          absolute: "2024-06-15 21:05",
+          ofDay: "Night",
+        },
+        confidence: 0.9,
+      },
+    },
+  };
+
+  const tracker = materializeTrackerDataFromJsonExtractionStatResponseV1(response, {
+    activeCharacters: ["Candy"],
+    customStatDefinitions: [
+      ...customStatDefinitions,
+      {
+        id: "scene_date_time",
+        kind: "date_time",
+        label: "Scene Date/Time",
+        defaultValue: "",
+        dateTimeMode: "structured",
+        track: true,
+        trackCharacters: true,
+        trackUser: true,
+        globalScope: true,
+        showOnCard: true,
+        showInGraph: false,
+        includeInInjection: true,
+      },
+    ],
+    timestamp: 12346,
+  });
+
+  assert.equal(tracker.customNonNumericStatistics?.scene_date_time?.[GLOBAL_TRACKER_KEY], "2024-06-15 21:05");
 });
 
 test("materializeTrackerDataFromJsonExtractionStatResponseV1 stores sequential global numeric custom stat values under the global owner", () => {

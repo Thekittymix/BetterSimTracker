@@ -1,4 +1,4 @@
-import { normalizeDateTimeValue } from "./dateTime";
+import { normalizeDateTimeValue, normalizeDateTimeWithMode } from "./dateTime";
 import type { CustomNonNumericValue, CustomStatKind, DateTimeMode } from "./types";
 
 export const DEFAULT_CUSTOM_TEXT_MAX_LENGTH = 120;
@@ -196,9 +196,7 @@ export function normalizeCustomNonNumericValue(
   }
   if (kind === "date_time") {
     const mode = normalizeDateTimeMode(options?.dateTimeMode);
-    return mode === "structured"
-      ? normalizeDateTimeValue(value)
-      : normalizeDateTimeValue(value);
+    return normalizeDateTimeWithMode(value, mode);
   }
   if (typeof value !== "string") return undefined;
   const normalized = normalizeNonNumericTextValue(value, textMaxLength);
