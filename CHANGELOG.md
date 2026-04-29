@@ -2,33 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.4.4-dev7] - 2026-04-29
-### Fixed
-- Fixed structured custom `date_time` JSON request shaping so protocol guidance and response-schema examples now teach sparse semantic intents like `ofDay`, `delta_minutes`, or `absolute` individually instead of biasing small models toward copying stale full timestamp objects.
-
-## [2.5.4.4-dev6] - 2026-04-29
-### Fixed
-- Fixed structured custom `date_time` progression so semantic scene-clock updates like `ofDay` and relative minute shifts now normalize against the previous stored scene time instead of collapsing to empty or stale values, including the JSON custom-stat materialization path.
-
-## [2.5.4.4-dev5] - 2026-04-29
-### Fixed
-- Fixed JSON sequential custom non-numeric stat-stage contracts so generated protocol guidance now uses the same direct value-cell shape as the response schema, and malformed legacy nested stat wrappers are rejected instead of being applied as valid structured values.
-
-## [2.5.4.4-dev4] - 2026-04-29
-### Fixed
-- Fixed JSON sequential stat-stage request scoping for global custom stats so scene-level `date_time` requests no longer leak owner/entity snapshot noise into `currentState`, which keeps global-scene cues like day-phase changes cleaner for small-model extraction.
-
-## [2.5.4.4-dev3] - 2026-04-29
-### Fixed
-- Fixed global custom non-numeric extraction contracts in both legacy and JSON modes so global-scope stats no longer receive per-character protocol wording, legacy parsing accepts `__bst_global__` payloads, and grouped legacy extraction keeps `date_time` stats on the correct structured parsing path.
-
-## [2.5.4.4-dev2] - 2026-04-29
-### Fixed
-- Fixed JSON extraction contracts for structured custom date/time stats so custom protocol templates are rendered correctly, structured datetime responses stay object-shaped in both sequential and non-sequential JSON schemas, and structured values now normalize correctly through the apply path instead of collapsing to empty or stale timestamps.
-
-## [2.5.4.4-dev1] - 2026-04-29
+## [2.5.4.5] - 2026-04-29
 ### Fixed
 - Simplified BST checkbox rendering across settings, defaults panels, graph controls, and edit modals by dropping the custom checkbox skin and using native browser checkboxes with shared accent styling for better cross-device compatibility.
+- Fixed global custom-stat extraction contracts across legacy and JSON modes so scene-level stats stay globally scoped, no longer receive per-character wording/noise, and parse/apply correctly through retracks and grouped extraction paths.
+- Fixed structured custom `date_time` tracking so semantic scene-clock cues like time-of-day changes and elapsed time now normalize against previous scene continuity, while JSON requests teach sparse semantic intents (`ofDay`, `delta_minutes`, or `absolute`) instead of biasing small models toward stale copied timestamps.
 
 ## [2.5.4.4] - 2026-04-28
 ### Fixed
