@@ -1,4 +1,4 @@
-import { USER_TRACKER_KEY } from "./constants";
+import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
 import { buildCharacterCardsContext } from "./characterCardContext";
 import { normalizeCustomStatKind } from "./customStatRuntime";
 import { getEntityRegistryEntryByOwnerName, getEntityRegistryEntryForMessage, resolveTrackerEntityIdsForOwners } from "./entityRegistry";
@@ -85,19 +85,46 @@ function pickRecordKeys<T>(source: Record<string, T> | null | undefined, keys: s
   return out;
 }
 
+function scopeOwnerBucket<T>(
+  bucket: Record<string, T> | null | undefined,
+  globalScope: boolean,
+): Record<string, T> {
+  if (!bucket || typeof bucket !== "object") return {};
+  if (!globalScope) return { ...bucket };
+  return Object.prototype.hasOwnProperty.call(bucket, GLOBAL_TRACKER_KEY)
+    ? { [GLOBAL_TRACKER_KEY]: bucket[GLOBAL_TRACKER_KEY] }
+    : {};
+}
+
 function scopeCurrentStateDataForJsonRequest(input: {
   currentStateData: TrackerData;
   settings: BetterSimTrackerSettings;
 }): TrackerData {
   const builtInStats = enabledBuiltInAndTextStats(input.settings);
-  const customNumericStats: string[] = [];
-  const customNonNumericStats: string[] = [];
+  const customNumericDefs = new Map<string, { globalScope: boolean }>();
+  const customNonNumericDefs = new Map<string, { globalScope: boolean }>();
   for (const stat of enabledCustomStats(input.settings)) {
     const kind = normalizeCustomStatKind(stat.kind);
     if (kind === "numeric") {
-      customNumericStats.push(stat.id);
+      customNumericDefs.set(stat.id, { globalScope: Boolean(stat.globalScope) });
     } else {
-      customNonNumericStats.push(stat.id);
+      customNonNumericDefs.set(stat.id, { globalScope: Boolean(stat.globalScope) });
+    }
+  }
+
+  const scopedCustomStatistics: NonNullable<TrackerData["customStatistics"]> = {};
+  for (const [statId, meta] of customNumericDefs) {
+    const bucket = scopeOwnerBucket(input.currentStateData.customStatistics?.[statId], meta.globalScope);
+    if (Object.keys(bucket).length) {
+      scopedCustomStatistics[statId] = bucket;
+    }
+  }
+
+  const scopedCustomNonNumericStatistics: NonNullable<TrackerData["customNonNumericStatistics"]> = {};
+  for (const [statId, meta] of customNonNumericDefs) {
+    const bucket = scopeOwnerBucket(input.currentStateData.customNonNumericStatistics?.[statId], meta.globalScope);
+    if (Object.keys(bucket).length) {
+      scopedCustomNonNumericStatistics[statId] = bucket;
     }
   }
 
@@ -111,8 +138,23 @@ function scopeCurrentStateDataForJsonRequest(input: {
       mood: builtInStats.includes("mood") ? { ...(input.currentStateData.statistics?.mood ?? {}) } : {},
       lastThought: builtInStats.includes("lastThought") ? { ...(input.currentStateData.statistics?.lastThought ?? {}) } : {},
     },
-    customStatistics: pickRecordKeys(input.currentStateData.customStatistics, customNumericStats),
-    customNonNumericStatistics: pickRecordKeys(input.currentStateData.customNonNumericStatistics, customNonNumericStats),
+    statisticsByEntityId: {
+      affection: builtInStats.includes("affection") ? { ...(input.currentStateData.statisticsByEntityId?.affection ?? {}) } : {},
+      trust: builtInStats.includes("trust") ? { ...(input.currentStateData.statisticsByEntityId?.trust ?? {}) } : {},
+      desire: builtInStats.includes("desire") ? { ...(input.currentStateData.statisticsByEntityId?.desire ?? {}) } : {},
+      connection: builtInStats.includes("connection") ? { ...(input.currentStateData.statisticsByEntityId?.connection ?? {}) } : {},
+      mood: builtInStats.includes("mood") ? { ...(input.currentStateData.statisticsByEntityId?.mood ?? {}) } : {},
+      lastThought: builtInStats.includes("lastThought") ? { ...(input.currentStateData.statisticsByEntityId?.lastThought ?? {}) } : {},
+    },
+    customStatistics: scopedCustomStatistics,
+    customStatisticsByEntityId: pickRecordKeys(input.currentStateData.customStatisticsByEntityId, [...customNumericDefs.keys()]),
+    customNonNumericStatistics: scopedCustomNonNumericStatistics,
+    customNonNumericStatisticsByEntityId: pickRecordKeys(
+      input.currentStateData.customNonNumericStatisticsByEntityId,
+      [...customNonNumericDefs.entries()]
+        .filter(([, meta]) => !meta.globalScope)
+        .map(([statId]) => statId),
+    ),
   };
 }
 

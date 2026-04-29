@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.4-dev4] - 2026-04-29
+### Fixed
+- Fixed JSON sequential stat-stage request scoping for global custom stats so scene-level `date_time` requests no longer leak owner/entity snapshot noise into `currentState`, which keeps global-scene cues like day-phase changes cleaner for small-model extraction.
+
 ## [2.5.4.4-dev3] - 2026-04-29
 ### Fixed
 - Fixed global custom non-numeric extraction contracts in both legacy and JSON modes so global-scope stats no longer receive per-character protocol wording, legacy parsing accepts `__bst_global__` payloads, and grouped legacy extraction keeps `date_time` stats on the correct structured parsing path.

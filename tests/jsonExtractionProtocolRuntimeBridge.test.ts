@@ -361,10 +361,26 @@ test("buildJsonExtractionShadowRequestForExtractionRun uses text values and real
 });
 
 test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global custom stat output as global", () => {
+  const previousTracker = makePreviousTracker();
+  previousTracker.customNonNumericStatistics = {
+    ...previousTracker.customNonNumericStatistics,
+    scene_date_time: {
+      __bst_global__: "2024-06-15 14:00",
+      __bst_user__: "",
+    },
+  };
+  previousTracker.customNonNumericStatisticsByEntityId = {
+    clothes: {
+      "bst_owner:__bst_user__": ["t-shirt", "jeans"],
+    },
+    pose: {
+      "bst_owner:__bst_user__": "standing still",
+    },
+  };
   const request = buildJsonExtractionShadowRequestForExtractionRun({
     context: makeContext(),
-    reason: "SWIPE_GENERATION_ENDED",
-    messageIndex: 0,
+    reason: "USER_MESSAGE_RENDERED",
+    messageIndex: 1,
     settings: {
       ...makeSettings(),
       trackAffection: false,
@@ -390,14 +406,15 @@ test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global c
         },
       ],
     },
-    activeCharacters: ["Candy"],
-    entityResolution: makePreviousTracker().entityResolution,
-    previousTrackerData: makePreviousTracker(),
-    previousStatistics: makePreviousTracker().statistics,
+    activeCharacters: ["__bst_user__"],
+    entityResolution: previousTracker.entityResolution,
+    previousTrackerData: previousTracker,
+    previousStatistics: previousTracker.statistics,
     previousCustomStatistics: {},
     previousCustomNonNumericStatistics: {
       scene_date_time: {
         __bst_global__: "2024-06-15 14:00",
+        __bst_user__: "",
       },
     },
     responseMode: "stat",
@@ -423,6 +440,21 @@ test("buildJsonExtractionShadowRequestForExtractionRun marks sequential global c
       },
     },
   });
+  assert.deepEqual(request.currentState.customNonNumericStats, {
+    scene_date_time: {
+      __bst_global__: "2024-06-15 14:00",
+    },
+  });
+  const latestSnapshot = request.currentState.latestRelevantSnapshot as {
+    customNonNumericStatistics?: Record<string, unknown>;
+    customNonNumericStatisticsByEntityId?: Record<string, unknown>;
+  };
+  assert.deepEqual(latestSnapshot.customNonNumericStatistics, {
+    scene_date_time: {
+      __bst_global__: "2024-06-15 14:00",
+    },
+  });
+  assert.deepEqual(latestSnapshot.customNonNumericStatisticsByEntityId ?? {}, {});
 });
 
 test("buildJsonExtractionShadowRequestForExtractionRun omits card context when the runtime setting is disabled", () => {
