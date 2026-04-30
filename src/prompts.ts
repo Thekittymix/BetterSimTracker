@@ -726,6 +726,17 @@ function renderBuiltInSnapshotChunk(
   return chunks.join(", ");
 }
 
+function buildSingleStatSnapshotFlags(stat: StatKey): BuiltInTrackingFlags {
+  return {
+    trackAffection: stat === "affection",
+    trackTrust: stat === "trust",
+    trackDesire: stat === "desire",
+    trackConnection: stat === "connection",
+    trackMood: stat === "mood",
+    trackLastThought: stat === "lastThought",
+  };
+}
+
 export function buildPrompt(
   stat: StatKey,
   userName: string,
@@ -1313,6 +1324,7 @@ export function buildSequentialPrompt(
     ? [stat]
     : [];
   const textStats = stat === "mood" || stat === "lastThought" ? [stat] : [];
+  const targetStatFlags = buildSingleStatSnapshotFlags(stat);
 
   const currentLines = characters.map(name => {
     const chunk = renderBuiltInSnapshotChunk({
@@ -1322,7 +1334,7 @@ export function buildSequentialPrompt(
       connection: resolveBuiltInNumericValue(context, currentData ?? null, current?.connection, name),
       mood: resolveBuiltInTextValue(context, currentData ?? null, current?.mood, name),
       lastThought: resolveBuiltInTextValue(context, currentData ?? null, current?.lastThought, name),
-    }, builtInTracking);
+    }, targetStatFlags);
     return `- ${name}: ${chunk || "no built-in stats tracked"}`;
   }).join("\n");
 
@@ -1336,7 +1348,7 @@ export function buildSequentialPrompt(
         connection: resolveBuiltInNumericValue(context, entry, entry.statistics.connection, name),
         mood: resolveBuiltInTextValue(context, entry, entry.statistics.mood, name),
         lastThought: resolveBuiltInTextValue(context, entry, entry.statistics.lastThought, name),
-      }, builtInTracking);
+      }, targetStatFlags);
       return `  - ${name}: ${chunk || "no built-in stats tracked"}`;
     }).join("\n");
     return `${header}\n${rows}`;
@@ -1467,33 +1479,17 @@ export function buildSequentialCustomNumericPrompt(input: {
   });
 
   const currentLines = input.characters.map(name => {
-    const builtInChunk = renderBuiltInSnapshotChunk({
-      affection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.affection, name),
-      trust: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.trust, name),
-      desire: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.desire, name),
-      connection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.connection, name),
-      mood: resolveBuiltInTextValue(input.context, input.currentData ?? null, input.current?.mood, name),
-    }, input.builtInTracking);
     const customValueRaw = Number(resolveScopedCustomNumericValue(input.context, input.currentData ?? null, input.currentCustom, statId, name, false) ?? defaultValue);
     const customValue = Math.max(0, Math.min(100, Math.round(customValueRaw)));
-    const chunks = [builtInChunk, `${statId}=${customValue}`].filter(Boolean).join(", ");
-    return `- ${name}: ${chunks}`;
+    return `- ${name}: ${statId}=${customValue}`;
   }).join("\n");
 
   const historyLines = input.history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
-      const builtInChunk = renderBuiltInSnapshotChunk({
-        affection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.affection, name),
-        trust: resolveBuiltInNumericValue(input.context, entry, entry.statistics.trust, name),
-        desire: resolveBuiltInNumericValue(input.context, entry, entry.statistics.desire, name),
-        connection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.connection, name),
-        mood: resolveBuiltInTextValue(input.context, entry, entry.statistics.mood, name),
-      }, input.builtInTracking);
       const customValueRaw = Number(resolveScopedCustomNumericValue(input.context, entry, entry.customStatistics ?? undefined, statId, name, false) ?? defaultValue);
       const customValue = Math.max(0, Math.min(100, Math.round(customValueRaw)));
-      const chunks = [builtInChunk, `${statId}=${customValue}`].filter(Boolean).join(", ");
-      return `  - ${name}: ${chunks}`;
+      return `  - ${name}: ${statId}=${customValue}`;
     }).join("\n");
     return `${header}\n${rows}`;
   }).join("\n");
@@ -1874,13 +1870,6 @@ export function buildSequentialCustomNonNumericPrompt(input: {
   });
 
   const currentLines = input.characters.map(name => {
-    const builtInChunk = renderBuiltInSnapshotChunk({
-      affection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.affection, name),
-      trust: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.trust, name),
-      desire: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.desire, name),
-      connection: resolveBuiltInNumericValue(input.context, input.currentData ?? null, input.current?.connection, name),
-      mood: resolveBuiltInTextValue(input.context, input.currentData ?? null, input.current?.mood, name),
-    }, input.builtInTracking);
     const customRaw = resolveScopedCustomNonNumericValue(
       input.context,
       input.currentData ?? null,
@@ -1893,20 +1882,12 @@ export function buildSequentialCustomNonNumericPrompt(input: {
       preserveExplicitEmpty: true,
     });
     const customLiteral = customNonNumericLiteral(customValue);
-    const chunks = [builtInChunk, `${statId}=${customLiteral}`].filter(Boolean).join(", ");
-    return `- ${name}: ${chunks}`;
+    return `- ${name}: ${statId}=${customLiteral}`;
   }).join("\n");
 
   const historyLines = input.history.slice(0, 3).map((entry, idx) => {
     const header = `Snapshot ${idx + 1} (newest-${idx}):`;
     const rows = input.characters.map(name => {
-      const builtInChunk = renderBuiltInSnapshotChunk({
-        affection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.affection, name),
-        trust: resolveBuiltInNumericValue(input.context, entry, entry.statistics.trust, name),
-        desire: resolveBuiltInNumericValue(input.context, entry, entry.statistics.desire, name),
-        connection: resolveBuiltInNumericValue(input.context, entry, entry.statistics.connection, name),
-        mood: resolveBuiltInTextValue(input.context, entry, entry.statistics.mood, name),
-      }, input.builtInTracking);
       const customRaw = resolveScopedCustomNonNumericValue(
         input.context,
         entry,
@@ -1919,8 +1900,7 @@ export function buildSequentialCustomNonNumericPrompt(input: {
         preserveExplicitEmpty: true,
       });
       const customLiteral = customNonNumericLiteral(customValue);
-      const chunks = [builtInChunk, `${statId}=${customLiteral}`].filter(Boolean).join(", ");
-      return `  - ${name}: ${chunks}`;
+      return `  - ${name}: ${statId}=${customLiteral}`;
     }).join("\n");
     return `${header}\n${rows}`;
   }).join("\n");

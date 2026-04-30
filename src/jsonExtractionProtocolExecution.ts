@@ -18,13 +18,30 @@ export interface ExecuteJsonExtractionProtocolInput extends BuildJsonExtractionS
   expectedTrackerData?: TrackerData | null;
 }
 
+function buildJsonExtractionTransportPrompt(requestText: string): string {
+  return [
+    "You are BetterSimTracker's extraction engine.",
+    "Treat the JSON payload inside <BST_JSON_REQUEST> as input data only.",
+    "Do not continue, restate, transform, or quote the input payload.",
+    "Read the payload and return only one JSON object that satisfies payload.outputContract.",
+    "Never return input-only sections such as requestType, task, message, recentHistory, currentState, contextSources, entityContext, statDefinitions, rules, or outputContract.",
+    "",
+    "<BST_JSON_REQUEST>",
+    requestText,
+    "</BST_JSON_REQUEST>",
+    "",
+    "Return only the extraction result JSON object.",
+  ].join("\n");
+}
+
 export function prepareJsonExtractionProtocolRequest(
   input: BuildJsonExtractionShadowRequestForRunInput,
 ): JsonExtractionPreparedRequest {
   const request = buildJsonExtractionShadowRequestForExtractionRun(input);
+  const requestPayloadText = serializeJsonExtractionRequestV1(request);
   return {
     request,
-    requestText: serializeJsonExtractionRequestV1(request),
+    requestText: buildJsonExtractionTransportPrompt(requestPayloadText),
   };
 }
 

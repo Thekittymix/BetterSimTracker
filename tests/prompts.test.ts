@@ -798,6 +798,128 @@ test("buildSequentialPrompt respects built-in tracking and source priority wordi
   assert.match(prompt, /Use recent messages first; use lorebook only to disambiguate when context is unclear\./);
 });
 
+test("buildSequentialPrompt keeps current state and history stat-local for a single built-in request", () => {
+  const prompt = buildSequentialPrompt(
+    "lastThought",
+    "User",
+    ["Seraphina"],
+    "Seraphina smiled faintly and asked whether he trusted her.",
+    {
+      affection: { Seraphina: 55 },
+      trust: { Seraphina: 42 },
+      desire: { Seraphina: 10 },
+      connection: { Seraphina: 33 },
+      mood: { Seraphina: "Warm" },
+      lastThought: { Seraphina: "I need him calm first." },
+    },
+    [makeTracker(1, {
+      statistics: {
+        affection: { Seraphina: 51 },
+        trust: { Seraphina: 38 },
+        desire: { Seraphina: 9 },
+        connection: { Seraphina: 29 },
+        mood: { Seraphina: "Neutral" },
+        lastThought: { Seraphina: "He looks exhausted." },
+      },
+    })],
+    7,
+  );
+
+  assert.match(prompt, /- Seraphina: lastThought="I need him calm first\."/);
+  assert.match(prompt, /Snapshot 1 \(newest-0\):[\s\S]*- Seraphina: lastThought="He looks exhausted\."/);
+  assert.doesNotMatch(prompt, /affection=55/);
+  assert.doesNotMatch(prompt, /trust=42/);
+  assert.doesNotMatch(prompt, /desire=10/);
+  assert.doesNotMatch(prompt, /connection=33/);
+  assert.doesNotMatch(prompt, /mood=Warm/);
+});
+
+test("buildSequentialCustomNonNumericPrompt keeps current state and history focused on the requested custom stat", () => {
+  const prompt = buildSequentialCustomNonNumericPrompt({
+    statId: "clothes",
+    statKind: "array",
+    statLabel: "Clothes",
+    statDescription: "Current worn items.",
+    statDefault: [],
+    userName: "User",
+    characters: ["Seraphina"],
+    contextText: "Seraphina smooths her sundress.",
+    current: {
+      affection: { Seraphina: 55 },
+      trust: { Seraphina: 42 },
+      desire: {},
+      connection: {},
+      mood: { Seraphina: "Warm" },
+      lastThought: {},
+    },
+    currentCustomNonNumeric: {
+      clothes: { Seraphina: ["black sundress"] },
+    },
+    history: [makeTracker(1, {
+      statistics: {
+        affection: { Seraphina: 51 },
+        trust: { Seraphina: 38 },
+        desire: {},
+        connection: {},
+        mood: { Seraphina: "Neutral" },
+        lastThought: {},
+      },
+      customNonNumericStatistics: {
+        clothes: { Seraphina: ["travel cloak"] },
+      },
+    })],
+  });
+
+  assert.match(prompt, /- Seraphina: clothes=\["black sundress"\]/);
+  assert.match(prompt, /Snapshot 1 \(newest-0\):[\s\S]*- Seraphina: clothes=\["travel cloak"\]/);
+  assert.doesNotMatch(prompt, /affection=55/);
+  assert.doesNotMatch(prompt, /trust=42/);
+  assert.doesNotMatch(prompt, /mood=Warm/);
+});
+
+test("buildSequentialCustomNumericPrompt keeps current state and history focused on the requested custom stat", () => {
+  const prompt = buildSequentialCustomNumericPrompt({
+    statId: "satisfaction",
+    statLabel: "Satisfaction",
+    statDescription: "Current satisfaction level.",
+    statDefault: 50,
+    maxDeltaPerTurn: 7,
+    userName: "User",
+    characters: ["Seraphina"],
+    contextText: "Seraphina looks relieved.",
+    current: {
+      affection: { Seraphina: 55 },
+      trust: { Seraphina: 42 },
+      desire: {},
+      connection: {},
+      mood: { Seraphina: "Warm" },
+      lastThought: {},
+    },
+    currentCustom: {
+      satisfaction: { Seraphina: 63 },
+    },
+    history: [makeTracker(1, {
+      statistics: {
+        affection: { Seraphina: 51 },
+        trust: { Seraphina: 38 },
+        desire: {},
+        connection: {},
+        mood: { Seraphina: "Neutral" },
+        lastThought: {},
+      },
+      customStatistics: {
+        satisfaction: { Seraphina: 58 },
+      },
+    })],
+  });
+
+  assert.match(prompt, /- Seraphina: satisfaction=63/);
+  assert.match(prompt, /Snapshot 1 \(newest-0\):[\s\S]*- Seraphina: satisfaction=58/);
+  assert.doesNotMatch(prompt, /affection=55/);
+  assert.doesNotMatch(prompt, /trust=42/);
+  assert.doesNotMatch(prompt, /mood=Warm/);
+});
+
 test("default lastThought prompts require updating directly advanced owners before preserving continuity", () => {
   assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /latest message directly advances a target owner/);
   assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /Do not copy the previous tracker thought/);

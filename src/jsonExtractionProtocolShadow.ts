@@ -128,24 +128,37 @@ function scopeCurrentStateDataForJsonRequest(input: {
     }
   }
 
+  const scopedStatistics: Partial<TrackerData["statistics"]> = {};
+  const scopedStatisticsByEntityId: Partial<NonNullable<TrackerData["statisticsByEntityId"]>> = {};
+  if (builtInStats.includes("affection")) {
+    scopedStatistics.affection = { ...(input.currentStateData.statistics?.affection ?? {}) };
+    scopedStatisticsByEntityId.affection = { ...(input.currentStateData.statisticsByEntityId?.affection ?? {}) };
+  }
+  if (builtInStats.includes("trust")) {
+    scopedStatistics.trust = { ...(input.currentStateData.statistics?.trust ?? {}) };
+    scopedStatisticsByEntityId.trust = { ...(input.currentStateData.statisticsByEntityId?.trust ?? {}) };
+  }
+  if (builtInStats.includes("desire")) {
+    scopedStatistics.desire = { ...(input.currentStateData.statistics?.desire ?? {}) };
+    scopedStatisticsByEntityId.desire = { ...(input.currentStateData.statisticsByEntityId?.desire ?? {}) };
+  }
+  if (builtInStats.includes("connection")) {
+    scopedStatistics.connection = { ...(input.currentStateData.statistics?.connection ?? {}) };
+    scopedStatisticsByEntityId.connection = { ...(input.currentStateData.statisticsByEntityId?.connection ?? {}) };
+  }
+  if (builtInStats.includes("mood")) {
+    scopedStatistics.mood = { ...(input.currentStateData.statistics?.mood ?? {}) };
+    scopedStatisticsByEntityId.mood = { ...(input.currentStateData.statisticsByEntityId?.mood ?? {}) };
+  }
+  if (builtInStats.includes("lastThought")) {
+    scopedStatistics.lastThought = { ...(input.currentStateData.statistics?.lastThought ?? {}) };
+    scopedStatisticsByEntityId.lastThought = { ...(input.currentStateData.statisticsByEntityId?.lastThought ?? {}) };
+  }
+
   return {
     ...input.currentStateData,
-    statistics: {
-      affection: builtInStats.includes("affection") ? { ...(input.currentStateData.statistics?.affection ?? {}) } : {},
-      trust: builtInStats.includes("trust") ? { ...(input.currentStateData.statistics?.trust ?? {}) } : {},
-      desire: builtInStats.includes("desire") ? { ...(input.currentStateData.statistics?.desire ?? {}) } : {},
-      connection: builtInStats.includes("connection") ? { ...(input.currentStateData.statistics?.connection ?? {}) } : {},
-      mood: builtInStats.includes("mood") ? { ...(input.currentStateData.statistics?.mood ?? {}) } : {},
-      lastThought: builtInStats.includes("lastThought") ? { ...(input.currentStateData.statistics?.lastThought ?? {}) } : {},
-    },
-    statisticsByEntityId: {
-      affection: builtInStats.includes("affection") ? { ...(input.currentStateData.statisticsByEntityId?.affection ?? {}) } : {},
-      trust: builtInStats.includes("trust") ? { ...(input.currentStateData.statisticsByEntityId?.trust ?? {}) } : {},
-      desire: builtInStats.includes("desire") ? { ...(input.currentStateData.statisticsByEntityId?.desire ?? {}) } : {},
-      connection: builtInStats.includes("connection") ? { ...(input.currentStateData.statisticsByEntityId?.connection ?? {}) } : {},
-      mood: builtInStats.includes("mood") ? { ...(input.currentStateData.statisticsByEntityId?.mood ?? {}) } : {},
-      lastThought: builtInStats.includes("lastThought") ? { ...(input.currentStateData.statisticsByEntityId?.lastThought ?? {}) } : {},
-    },
+    statistics: scopedStatistics as TrackerData["statistics"],
+    statisticsByEntityId: scopedStatisticsByEntityId as TrackerData["statisticsByEntityId"],
     customStatistics: scopedCustomStatistics,
     customStatisticsByEntityId: pickRecordKeys(input.currentStateData.customStatisticsByEntityId, [...customNumericDefs.keys()]),
     customNonNumericStatistics: scopedCustomNonNumericStatistics,

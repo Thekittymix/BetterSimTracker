@@ -209,27 +209,15 @@ test("buildJsonExtractionShadowRequestForExtractionRun scopes sequential JSON re
   });
 
   assert.deepEqual(request.statDefinitions.builtIn.map(stat => stat.id), ["desire"]);
-  assert.deepEqual(Object.keys(request.currentState.builtInStats), [
-    "affection",
-    "trust",
-    "desire",
-    "connection",
-    "mood",
-    "lastThought",
-  ]);
-  assert.deepEqual(request.currentState.builtInStats.affection, {});
-  assert.deepEqual(request.currentState.builtInStats.trust, {});
+  assert.deepEqual(Object.keys(request.currentState.builtInStats), ["desire"]);
   assert.deepEqual(request.currentState.builtInStats.desire, { Candy: 35, Lisa: 30 });
-  assert.deepEqual(request.currentState.builtInStats.connection, {});
-  assert.deepEqual(request.currentState.builtInStats.mood, {});
-  assert.deepEqual(request.currentState.builtInStats.lastThought, {});
   assert.deepEqual(request.currentState.customNonNumericStats, {});
 
   const latestSnapshot = request.currentState.latestRelevantSnapshot as {
     statistics: Record<string, unknown>;
     customNonNumericStatistics: Record<string, unknown>;
   };
-  assert.deepEqual(latestSnapshot.statistics.affection, {});
+  assert.deepEqual(Object.keys(latestSnapshot.statistics), ["desire"]);
   assert.deepEqual(latestSnapshot.statistics.desire, { Candy: 35, Lisa: 30 });
   assert.deepEqual(latestSnapshot.customNonNumericStatistics, {});
 
