@@ -9,6 +9,7 @@
 import { resolveCharacterDefaultsEntry } from "./characterDefaults";
 import { resolveAutoBootstrapTarget } from "./bootstrapTargets";
 import {
+  buildBootstrapFallbackEntityResolution,
   buildGreetingBootstrapDefaultTrackerData,
   resolveBootstrapContinueEntityResolution,
   resolveBootstrapEntityResolutionOwnerScopes,
@@ -4091,11 +4092,21 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
       !hasPriorUserMessage,
     );
     if (shouldSeedDefaultsForGreetingBootstrap) {
+      const bootstrapEntityResolution = resolvedEntityResolution ?? (
+        resolvedOwnerScopes?.source === "fallback"
+          ? buildBootstrapFallbackEntityResolution({
+              context,
+              sceneActiveCharacters,
+              requestCharacters,
+              settings: activeSettings,
+            })
+          : null
+      );
       const bootstrapData = buildGreetingBootstrapDefaultTrackerData({
         timestamp: Date.now(),
         activeCharacters,
         previous,
-        entityResolution: resolvedEntityResolution,
+        entityResolution: bootstrapEntityResolution,
       });
       latestData = bootstrapData;
       latestDataMessageIndex = lastIndex;

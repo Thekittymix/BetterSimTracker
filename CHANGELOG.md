@@ -14,6 +14,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed first-message bootstrap extraction so an empty model entity-resolution result no longer skips tracker generation for opening AI messages with no prior history, and BST now falls back to the bootstrap candidate speaker instead of stopping at `no_active_characters`.
 
+## [2.5.4.5-dev4] - 2026-04-30
+### Fixed
+- Fixed greeting bootstrap continue extraction so a bootstrap fallback speaker is now serialized into reusable fallback entity resolution state, preventing the immediate follow-up pass from running the same opening-message resolver/audit cycle a second time.
+
 ## [2.5.4.5] - 2026-04-29
 ### Fixed
 - Simplified BST checkbox rendering across settings, defaults panels, graph controls, and edit modals by dropping the custom checkbox skin and using native browser checkboxes with shared accent styling for better cross-device compatibility.

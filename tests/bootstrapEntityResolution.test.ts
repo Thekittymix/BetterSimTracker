@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildBootstrapFallbackEntityResolution,
   buildGreetingBootstrapDefaultTrackerData,
   resolveBootstrapContinueEntityResolution,
   resolveBootstrapEntityResolutionOwnerScopes,
@@ -111,4 +112,60 @@ test("bootstrap entity-resolution falls back to the opening AI speaker when the 
     requestCharacters: ["Seraphina"],
     source: "fallback",
   });
+});
+
+test("buildBootstrapFallbackEntityResolution serializes fallback owner scopes for continue reuse", () => {
+  const fallback = buildBootstrapFallbackEntityResolution({
+    context: {
+      characters: [
+        { name: "Seraphina", avatar: "seraphina.png" },
+      ],
+    } as any,
+    sceneActiveCharacters: ["Seraphina"],
+    requestCharacters: ["Seraphina"],
+    settings: { entityTrackingMode: "dynamic_characters" },
+  });
+
+  assert.deepEqual(fallback, {
+    source: "fallback",
+    resolvedEntities: [
+      {
+        entityId: "bst_owner:seraphina.png|seraphina",
+        kind: "st-character",
+        name: "Seraphina",
+        avatar: null,
+        inScene: true,
+        inMessage: true,
+        created: false,
+      },
+    ],
+  });
+});
+
+test("greeting bootstrap defaults preserve fallback entity resolution for the continue extraction pass", () => {
+  const previous = makeTracker();
+  const fallbackEntityResolution = buildBootstrapFallbackEntityResolution({
+    context: {
+      characters: [
+        { name: "Seraphina", avatar: "seraphina.png" },
+      ],
+    } as any,
+    sceneActiveCharacters: ["Seraphina"],
+    requestCharacters: ["Seraphina"],
+    settings: { entityTrackingMode: "dynamic_characters" },
+  });
+  const seeded = buildGreetingBootstrapDefaultTrackerData({
+    timestamp: 2,
+    activeCharacters: ["Seraphina"],
+    previous,
+    entityResolution: fallbackEntityResolution,
+  });
+
+  assert.deepEqual(
+    resolveBootstrapContinueEntityResolution({
+      isBootstrapContinue: true,
+      existingTrackerData: seeded,
+    }),
+    fallbackEntityResolution,
+  );
 });

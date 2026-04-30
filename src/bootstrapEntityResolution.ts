@@ -1,4 +1,9 @@
-import { resolveExtractionOwnerScopes, resolvePersistedActiveOwners } from "./entityResolution";
+import {
+  resolveEntityTrackingMode,
+  resolveExtractionOwnerScopes,
+  resolvePersistedActiveOwners,
+  resolveStableEntityIdForOwner,
+} from "./entityResolution";
 import type { BetterSimTrackerSettings, ChatMessage, STContext, TrackerData } from "./types";
 
 export function buildGreetingBootstrapDefaultTrackerData(input: {
@@ -27,6 +32,46 @@ export function resolveBootstrapContinueEntityResolution(input: {
 }): TrackerData["entityResolution"] | null {
   if (!input.isBootstrapContinue) return null;
   return input.existingTrackerData?.entityResolution ?? null;
+}
+
+export function buildBootstrapFallbackEntityResolution(input: {
+  context: STContext | null;
+  sceneActiveCharacters: string[];
+  requestCharacters: string[];
+  settings: Pick<BetterSimTrackerSettings, "entityTrackingMode">;
+}): TrackerData["entityResolution"] | null {
+  const sceneActiveCharacters = resolvePersistedActiveOwners(
+    input.sceneActiveCharacters,
+    { includeUserOwner: false },
+  );
+  const requestCharacters = resolvePersistedActiveOwners(
+    input.requestCharacters,
+    { includeUserOwner: false },
+  );
+  const sceneKeys = new Set(sceneActiveCharacters.map(owner => owner.toLowerCase()));
+  const requestKeys = new Set(requestCharacters.map(owner => owner.toLowerCase()));
+  const owners = resolvePersistedActiveOwners(
+    [...sceneActiveCharacters, ...requestCharacters],
+    { includeUserOwner: false },
+  );
+  if (!owners.length) return null;
+
+  return {
+    source: "fallback",
+    resolvedEntities: owners.map(ownerName => ({
+      entityId: resolveStableEntityIdForOwner(
+        input.context,
+        ownerName,
+        resolveEntityTrackingMode(input.settings),
+      ) || `bst_bootstrap:${ownerName.trim().toLowerCase()}`,
+      kind: "st-character" as const,
+      name: ownerName,
+      avatar: null,
+      inScene: sceneKeys.has(ownerName.toLowerCase()),
+      inMessage: requestKeys.has(ownerName.toLowerCase()),
+      created: false,
+    })),
+  };
 }
 
 export function resolveBootstrapEntityResolutionOwnerScopes(input: {
