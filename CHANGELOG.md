@@ -2,21 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.4.5-dev1] - 2026-04-30
+## [2.5.4.6] - 2026-04-30
 ### Fixed
-- Fixed `lastThought` extraction defaults so built-in thought prompts now require fresh internal subtext instead of empty values or verbatim repeated dialogue, and migrated stored default prompt/protocol settings to the stronger contract.
-
-## [2.5.4.5-dev2] - 2026-04-30
-### Fixed
-- Fixed sequential extraction request shaping so JSON stat runs now wrap the protocol payload as input data instead of sending a raw continuation-bait request object, while JSON and legacy single-stat prompts now keep current-state/snapshot context scoped to the requested stat instead of unrelated sibling stat buckets.
-
-## [2.5.4.5-dev3] - 2026-04-30
-### Fixed
-- Fixed first-message bootstrap extraction so an empty model entity-resolution result no longer skips tracker generation for opening AI messages with no prior history, and BST now falls back to the bootstrap candidate speaker instead of stopping at `no_active_characters`.
-
-## [2.5.4.5-dev4] - 2026-04-30
-### Fixed
-- Fixed greeting bootstrap continue extraction so a bootstrap fallback speaker is now serialized into reusable fallback entity resolution state, preventing the immediate follow-up pass from running the same opening-message resolver/audit cycle a second time.
+- Fixed `lastThought` extraction defaults so built-in thought prompts now favor fresh internal subtext instead of empty values or verbatim repeated dialogue, and migrated stored default prompt/protocol settings to the stronger contract.
+- Fixed sequential extraction request shaping so JSON per-stat requests are wrapped as input payloads, while JSON and legacy single-stat prompts now keep current-state and snapshot context scoped to the requested stat instead of unrelated sibling stat buckets.
+- Fixed greeting bootstrap tracking so opening AI messages with no prior history fall back to the bootstrap speaker when the model resolves an empty scene, and the immediate continue pass now reuses that fallback entity-resolution state instead of rerunning the same resolver and audit cycle.
 
 ## [2.5.4.5] - 2026-04-29
 ### Fixed
