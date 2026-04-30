@@ -10,6 +10,10 @@ All notable changes to BetterSimTracker are documented here.
 ### Fixed
 - Fixed sequential extraction request shaping so JSON stat runs now wrap the protocol payload as input data instead of sending a raw continuation-bait request object, while JSON and legacy single-stat prompts now keep current-state/snapshot context scoped to the requested stat instead of unrelated sibling stat buckets.
 
+## [2.5.4.5-dev3] - 2026-04-30
+### Fixed
+- Fixed first-message bootstrap extraction so an empty model entity-resolution result no longer skips tracker generation for opening AI messages with no prior history, and BST now falls back to the bootstrap candidate speaker instead of stopping at `no_active_characters`.
+
 ## [2.5.4.5] - 2026-04-29
 ### Fixed
 - Simplified BST checkbox rendering across settings, defaults panels, graph controls, and edit modals by dropping the custom checkbox skin and using native browser checkboxes with shared accent styling for better cross-device compatibility.

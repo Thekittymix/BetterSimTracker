@@ -11,6 +11,7 @@ import { resolveAutoBootstrapTarget } from "./bootstrapTargets";
 import {
   buildGreetingBootstrapDefaultTrackerData,
   resolveBootstrapContinueEntityResolution,
+  resolveBootstrapEntityResolutionOwnerScopes,
 } from "./bootstrapEntityResolution";
 import {
   isAliasResolvedOwner,
@@ -3690,11 +3691,6 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
                 ? parsedMessageOwners
                 : parsedSceneOwners,
             });
-            resolvedOwnerScopes = {
-              sceneActiveCharacters: modelOwnerScopes.sceneActiveCharacters,
-              requestCharacters: modelOwnerScopes.requestCharacters,
-              source: "model",
-            };
             const nextResolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
               resolvedEntities: finalResolvedEntities.map(entity => ({
                 ...entity,
@@ -3706,16 +3702,47 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
             if (materializedResolution?.unresolvedMentions.length) {
               nextResolvedEntityResolution.unresolvedMentions = [...materializedResolution.unresolvedMentions];
             }
-            resolvedEntityResolution = nextResolvedEntityResolution;
+            const bootstrapOwnerScopes = useBootstrapEntityUniverseResolver
+              ? resolveBootstrapEntityResolutionOwnerScopes({
+                  context,
+                  candidateOwners,
+                  message: lastMessage,
+                  settings: activeSettings,
+                  modelOwnerScopes,
+                })
+              : null;
+            if (bootstrapOwnerScopes) {
+              resolvedOwnerScopes = bootstrapOwnerScopes;
+              if (bootstrapOwnerScopes.source === "model") {
+                resolvedEntityResolution = nextResolvedEntityResolution;
+              } else {
+                resolvedEntityResolution = null;
+                pushTrace("entity.resolve.bootstrap.fallback", {
+                  reason: "empty_model_scene",
+                  candidateOwners,
+                  sceneActiveCharacters: bootstrapOwnerScopes.sceneActiveCharacters,
+                  requestCharacters: bootstrapOwnerScopes.requestCharacters,
+                });
+              }
+            } else {
+              resolvedOwnerScopes = {
+                sceneActiveCharacters: modelOwnerScopes.sceneActiveCharacters,
+                requestCharacters: modelOwnerScopes.requestCharacters,
+                source: "model",
+              };
+              resolvedEntityResolution = nextResolvedEntityResolution;
+            }
             pushTrace("entity.resolve", {
-              source: "model",
-              sceneActiveCharacters: resolvedOwnerScopes.sceneActiveCharacters,
-              requestCharacters: resolvedOwnerScopes.requestCharacters,
+              source: resolvedOwnerScopes?.source === "fallback" && useBootstrapEntityUniverseResolver
+                ? "bootstrap_fallback"
+                : "model",
+              sceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters ?? [],
+              requestCharacters: resolvedOwnerScopes?.requestCharacters ?? [],
               sceneEntityIds: parsedSceneEntityIds,
               messageEntityIds: parsedMessageEntityIds.length
                 ? parsedMessageEntityIds
                 : parsedSceneEntityIds,
-              createdEntities: finalResolvedEntities.filter(entity => entity.kind === "narrative-entity" && entity.created).map(entity => entity.name),
+              createdEntities: resolvedEntityResolution?.resolvedEntities?.filter(entity => entity.kind === "narrative-entity" && entity.created).map(entity => entity.name) ?? [],
             });
           }
         } catch (error) {

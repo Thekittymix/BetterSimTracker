@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildGreetingBootstrapDefaultTrackerData,
   resolveBootstrapContinueEntityResolution,
+  resolveBootstrapEntityResolutionOwnerScopes,
 } from "../src/bootstrapEntityResolution";
 import type { TrackerData } from "../src/types";
 
@@ -82,4 +83,32 @@ test("bootstrap continue reuses only current-message bootstrap entity resolution
     }),
     resolvedEntityResolution,
   );
+});
+
+test("bootstrap entity-resolution falls back to the opening AI speaker when the model resolves an empty scene", () => {
+  const resolved = resolveBootstrapEntityResolutionOwnerScopes({
+    context: {
+      characters: [
+        { name: "Seraphina", avatar: "seraphina.png" },
+      ],
+    } as any,
+    candidateOwners: ["Seraphina"],
+    message: {
+      name: "Seraphina",
+      mes: "She exhales slowly and watches the doorway without saying anything.",
+      is_user: false,
+      is_system: false,
+    } as any,
+    settings: { entityTrackingMode: "dynamic_characters" },
+    modelOwnerScopes: {
+      sceneActiveCharacters: [],
+      requestCharacters: [],
+    },
+  });
+
+  assert.deepEqual(resolved, {
+    sceneActiveCharacters: ["Seraphina"],
+    requestCharacters: ["Seraphina"],
+    source: "fallback",
+  });
 });
