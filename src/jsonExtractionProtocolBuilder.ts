@@ -74,7 +74,7 @@ const BUILT_IN_STAT_DEFINITIONS: Record<StatKey, BuiltInStatDefinitionSeed> = {
   },
   lastThought: {
     label: "Last Thought",
-    behaviorGuidance: "Track the current immediate internal thought after the latest relevant message. Update directly advanced owners from latest dialogue/action/emotional cues; preserve continuity only when recent messages provide no new thought cue.",
+    behaviorGuidance: "Track the current immediate internal thought after the latest relevant message. Update directly advanced owners from latest dialogue/action/emotional cues; rewrite spoken dialogue into private subtext instead of repeating it verbatim; preserve continuity only when recent messages provide no new thought cue.",
     emptySemantics: "Omitted owner means no extracted lastThought value for that owner in this response. Empty string is invalid.",
   },
 };

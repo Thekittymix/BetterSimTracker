@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { USER_TRACKER_KEY } from "../src/constants";
 import { defaultSettings } from "../src/settings";
 import type {
   BetterSimTrackerSettings,
@@ -341,6 +342,94 @@ test("extractStatisticsParallel in legacy mode skips the JSON protocol helper an
     assert.equal(legacyGeneratorCalls, 1);
     assert.equal(result.statistics.affection.Ash, 64);
     assert.equal(result.debug?.meta?.jsonShadow, undefined);
+  } finally {
+    if (previousWindow === undefined) delete globalBag.window;
+    else globalBag.window = previousWindow;
+  }
+});
+
+test("extractStatisticsParallel legacy lastThought request tells the model to infer internal thought instead of repeating dialogue", async () => {
+  const prompts: string[] = [];
+  const context = {
+    ...makeBaseContext(async () => ({ choices: [] })),
+    name1: "Kuba",
+    chat: [
+      {
+        name: "Kuba",
+        is_user: true,
+        is_system: false,
+        mes: "\"Thank you\"",
+        extra: {},
+      },
+    ],
+  } as STContext;
+  const globalBag = globalThis as any;
+  const previousWindow = globalBag.window;
+  globalBag.window = globalThis;
+  const { extractStatisticsParallel } = loadExtractorWithMocks({
+    generateJson: async (prompt: string) => {
+      prompts.push(prompt);
+      return {
+        text: JSON.stringify({
+          characters: [
+            {
+              name: USER_TRACKER_KEY,
+              confidence: 1,
+              lastThought: "I'm glad she helped me.",
+            },
+          ],
+        }),
+        meta: {
+          profileId: "legacy-profile",
+          promptChars: prompt.length,
+          maxTokens: 128,
+          durationMs: 10,
+          outputChars: 96,
+          timestamp: 100,
+        },
+      };
+    },
+    tryExtractStatisticsViaJsonProtocol: async () => ({ mode: "inactive" }),
+  });
+
+  try {
+    const result = await withSillyTavernContext(context, () => extractStatisticsParallel({
+      context,
+      settings: makeSettings({
+        extractionProtocolMode: "legacy",
+        sequentialExtraction: true,
+        trackLastThought: true,
+        enableUserTracking: true,
+        userTrackLastThought: true,
+      }),
+      reason: "manual_refresh",
+      messageIndex: 0,
+      userName: "Kuba",
+      activeCharacters: [USER_TRACKER_KEY],
+      contextText: "Kuba: \"Thank you\"",
+      previousTrackerData: {
+        ...makeTracker(),
+        activeCharacters: [USER_TRACKER_KEY],
+      },
+      previousStatistics: {
+        affection: {},
+        trust: {},
+        desire: {},
+        connection: {},
+        mood: {},
+        lastThought: {},
+      },
+      previousCustomStatistics: {},
+      previousCustomStatisticsRaw: {},
+      previousCustomNonNumericStatistics: {},
+      hasPriorTrackerData: true,
+      history: [],
+    }));
+
+    assert.equal(result.statistics.lastThought[USER_TRACKER_KEY], "I'm glad she helped me.");
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0] ?? "", /Do not repeat or quote the owner's spoken dialogue verbatim/i);
+    assert.doesNotMatch(prompts[0] ?? "", /"lastThought": ""/);
   } finally {
     if (previousWindow === undefined) delete globalBag.window;
     else globalBag.window = previousWindow;

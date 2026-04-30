@@ -102,12 +102,88 @@ Rules:
 - omit fields for stats that are not requested.
 - output JSON only, no commentary.`;
 
+const PREVIOUS_DEFAULT_UNIFIED_PROMPT_INSTRUCTION = [
+  "- Propose incremental changes to tracker state from the recent messages.",
+  "- Do NOT rewrite absolute values; provide per-stat deltas.",
+  "- Keep updates conservative and realistic.",
+  "- It is valid to return 0 or negative deltas if the interaction is neutral or negative.",
+  "- Do not reuse the same delta for all stats unless strongly justified by context.",
+  "- If lastThought is requested and the latest message directly advances a target with dialogue, action, or emotional reaction, update that target's thought from those latest cues instead of copying the previous tracker thought.",
+  "- Preserve lastThought only when recent messages provide no new thought cue for that owner or the owner is only scene-present/background.",
+  "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
+  "- Only increase desire if the relationship is explicitly romantic/sexual in the recent messages. If the relationship is non-romantic, desire must be 0 or negative. Do not infer romance from affectionate or playful behavior alone.",
+].join("\n");
+
+const PREVIOUS_DEFAULT_PROTOCOL_UNIFIED = `Numeric stats to update ({{numericStats}}):
+- Return integer deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
+
+Text stats to update ({{textStats}}):
+- mood must be one of: {{moodOptions}}.
+- lastThought must be the character's current immediate internal thought after the latest relevant message, in one short sentence.
+- For lastThought, do not copy the previous tracker thought when the latest message gives that owner a new dialogue/action/emotional cue.
+- Preserve lastThought only when recent messages provide no new thought cue for that owner.
+
+Return STRICT JSON only:
+{
+  "characters": [
+    {
+      "name": "Character Name",
+      "confidence": 0.0,
+      "delta": {
+        "affection": 0,
+        "trust": 0,
+        "desire": 0,
+        "connection": 0
+      },
+      "mood": "Neutral",
+      "lastThought": ""
+    }
+  ]
+}
+
+Rules:
+- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.
+- include one entry for each character name exactly: {{characters}}.
+- omit fields for stats that are not requested.
+- output JSON only, no commentary.`;
+
+const PREVIOUS_DEFAULT_SEQUENTIAL_LAST_THOUGHT_PROMPT = [
+  "- Write the character's current immediate internal thought after the latest relevant message.",
+  "- If the latest message directly advances a target owner through dialogue, action, or emotional reaction, update that owner's thought from those latest cues.",
+  "- Do not copy the previous tracker thought for an owner whose current message cues changed.",
+  "- Preserve the previous thought only when recent messages provide no new thought cue for that owner or the owner is only scene-present/background.",
+  "- Keep it to one concise sentence grounded in the recent messages.",
+  "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
+].join("\n");
+
+const PREVIOUS_DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT = `Return STRICT JSON only:
+{
+  "characters": [
+    {
+      "name": "Character Name",
+      "confidence": 0.0,
+      "lastThought": ""
+    }
+  ]
+}
+
+Rules:
+- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.
+- lastThought must be the character's current immediate internal thought after the latest relevant message, in one short sentence.
+- If the latest message directly advances a target owner through dialogue, action, or emotional reaction, infer that owner's updated thought from those latest cues.
+- Do not copy the previous tracker thought for an owner whose current message cues changed.
+- Preserve the previous thought only when recent messages provide no new thought cue for that owner.
+- include one entry for each character name exactly: {{characters}}.
+- omit fields for stats that are not requested.
+- output JSON only, no commentary.`;
+
 function normalizePromptForDefaultMigration(value: string): string {
   return value.replace(/\r\n/g, "\n").trim();
 }
 
-function migrateLegacyDefaultPrompt(value: string, legacyDefault: string, currentDefault: string): string {
-  return normalizePromptForDefaultMigration(value) === normalizePromptForDefaultMigration(legacyDefault)
+function migrateKnownDefaultPrompt(value: string, knownDefaults: string[], currentDefault: string): string {
+  const normalizedValue = normalizePromptForDefaultMigration(value);
+  return knownDefaults.some(candidate => normalizedValue === normalizePromptForDefaultMigration(candidate))
     ? currentDefault
     : value;
 }
@@ -727,7 +803,11 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
     debugFlags: sanitizeDebugFlags(input.debugFlags),
     includeContextInDiagnostics: asBool(input.includeContextInDiagnostics, defaultSettings.includeContextInDiagnostics),
     includeGraphInDiagnostics: asBool(input.includeGraphInDiagnostics, defaultSettings.includeGraphInDiagnostics),
-    promptTemplateUnified: normalizeInstruction(input.promptTemplateUnified, defaultSettings.promptTemplateUnified).slice(0, 20000),
+    promptTemplateUnified: migrateKnownDefaultPrompt(
+      normalizeInstruction(input.promptTemplateUnified, defaultSettings.promptTemplateUnified).slice(0, 20000),
+      [PREVIOUS_DEFAULT_UNIFIED_PROMPT_INSTRUCTION],
+      defaultSettings.promptTemplateUnified,
+    ),
     promptTemplateSequentialAffection: normalizeInstruction(input.promptTemplateSequentialAffection, defaultSettings.promptTemplateSequentialAffection).slice(0, 20000),
     promptTemplateSequentialTrust: normalizeInstruction(input.promptTemplateSequentialTrust, defaultSettings.promptTemplateSequentialTrust).slice(0, 20000),
     promptTemplateSequentialDesire: normalizeInstruction(input.promptTemplateSequentialDesire, defaultSettings.promptTemplateSequentialDesire).slice(0, 20000),
@@ -735,9 +815,9 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
     promptTemplateSequentialCustomNumeric: normalizeInstruction(input.promptTemplateSequentialCustomNumeric, defaultSettings.promptTemplateSequentialCustomNumeric).slice(0, 20000),
     promptTemplateSequentialCustomNonNumeric: normalizeInstruction(input.promptTemplateSequentialCustomNonNumeric, defaultSettings.promptTemplateSequentialCustomNonNumeric).slice(0, 20000),
     promptTemplateSequentialMood: normalizeInstruction(input.promptTemplateSequentialMood, defaultSettings.promptTemplateSequentialMood).slice(0, 20000),
-    promptTemplateSequentialLastThought: migrateLegacyDefaultPrompt(
+    promptTemplateSequentialLastThought: migrateKnownDefaultPrompt(
       normalizeInstruction(input.promptTemplateSequentialLastThought, defaultSettings.promptTemplateSequentialLastThought).slice(0, 20000),
-      LEGACY_DEFAULT_SEQUENTIAL_LAST_THOUGHT_PROMPT,
+      [LEGACY_DEFAULT_SEQUENTIAL_LAST_THOUGHT_PROMPT, PREVIOUS_DEFAULT_SEQUENTIAL_LAST_THOUGHT_PROMPT],
       defaultSettings.promptTemplateSequentialLastThought,
     ),
     builtInBehaviorAffection: asText(input.builtInBehaviorAffection, defaultSettings.builtInBehaviorAffection).slice(0, 4000),
@@ -746,7 +826,11 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
     builtInBehaviorConnection: asText(input.builtInBehaviorConnection, defaultSettings.builtInBehaviorConnection).slice(0, 4000),
     promptTemplateInjection: normalizeInstruction(input.promptTemplateInjection, defaultSettings.promptTemplateInjection).slice(0, 20000),
     unlockProtocolPrompts: asBool(input.unlockProtocolPrompts, defaultSettings.unlockProtocolPrompts),
-    promptProtocolUnified: asText(input.promptProtocolUnified, defaultSettings.promptProtocolUnified).slice(0, 20000),
+    promptProtocolUnified: migrateKnownDefaultPrompt(
+      asText(input.promptProtocolUnified, defaultSettings.promptProtocolUnified).slice(0, 20000),
+      [PREVIOUS_DEFAULT_PROTOCOL_UNIFIED],
+      defaultSettings.promptProtocolUnified,
+    ),
     promptProtocolSequentialAffection: asText(input.promptProtocolSequentialAffection, defaultSettings.promptProtocolSequentialAffection).slice(0, 20000),
     promptProtocolSequentialTrust: asText(input.promptProtocolSequentialTrust, defaultSettings.promptProtocolSequentialTrust).slice(0, 20000),
     promptProtocolSequentialDesire: asText(input.promptProtocolSequentialDesire, defaultSettings.promptProtocolSequentialDesire).slice(0, 20000),
@@ -754,9 +838,9 @@ export function sanitizeSettings(input: Partial<BetterSimTrackerSettings>): Bett
     promptProtocolSequentialCustomNumeric: asText(input.promptProtocolSequentialCustomNumeric, defaultSettings.promptProtocolSequentialCustomNumeric).slice(0, 20000),
     promptProtocolSequentialCustomNonNumeric: asText(input.promptProtocolSequentialCustomNonNumeric, defaultSettings.promptProtocolSequentialCustomNonNumeric).slice(0, 20000),
     promptProtocolSequentialMood: asText(input.promptProtocolSequentialMood, defaultSettings.promptProtocolSequentialMood).slice(0, 20000),
-    promptProtocolSequentialLastThought: migrateLegacyDefaultPrompt(
+    promptProtocolSequentialLastThought: migrateKnownDefaultPrompt(
       asText(input.promptProtocolSequentialLastThought, defaultSettings.promptProtocolSequentialLastThought).slice(0, 20000),
-      LEGACY_DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT,
+      [LEGACY_DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT, PREVIOUS_DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT],
       defaultSettings.promptProtocolSequentialLastThought,
     ),
     customStats,

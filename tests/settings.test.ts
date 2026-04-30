@@ -380,3 +380,89 @@ Rules:
   assert.notEqual(custom.promptTemplateSequentialLastThought, defaultSettings.promptTemplateSequentialLastThought);
   assert.notEqual(custom.promptProtocolSequentialLastThought, defaultSettings.promptProtocolSequentialLastThought);
 });
+
+test("sanitizeSettings migrates stored previous default unified and lastThought prompts to the current anti-dialogue defaults", () => {
+  const previousUnifiedPrompt = [
+    "- Propose incremental changes to tracker state from the recent messages.",
+    "- Do NOT rewrite absolute values; provide per-stat deltas.",
+    "- Keep updates conservative and realistic.",
+    "- It is valid to return 0 or negative deltas if the interaction is neutral or negative.",
+    "- Do not reuse the same delta for all stats unless strongly justified by context.",
+    "- If lastThought is requested and the latest message directly advances a target with dialogue, action, or emotional reaction, update that target's thought from those latest cues instead of copying the previous tracker thought.",
+    "- Preserve lastThought only when recent messages provide no new thought cue for that owner or the owner is only scene-present/background.",
+    "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
+    "- Only increase desire if the relationship is explicitly romantic/sexual in the recent messages. If the relationship is non-romantic, desire must be 0 or negative. Do not infer romance from affectionate or playful behavior alone.",
+  ].join("\n");
+  const previousUnifiedProtocol = `Numeric stats to update ({{numericStats}}):
+- Return integer deltas only, each in range -{{maxDelta}}..{{maxDelta}}.
+
+Text stats to update ({{textStats}}):
+- mood must be one of: {{moodOptions}}.
+- lastThought must be the character's current immediate internal thought after the latest relevant message, in one short sentence.
+- For lastThought, do not copy the previous tracker thought when the latest message gives that owner a new dialogue/action/emotional cue.
+- Preserve lastThought only when recent messages provide no new thought cue for that owner.
+
+Return STRICT JSON only:
+{
+  "characters": [
+    {
+      "name": "Character Name",
+      "confidence": 0.0,
+      "delta": {
+        "affection": 0,
+        "trust": 0,
+        "desire": 0,
+        "connection": 0
+      },
+      "mood": "Neutral",
+      "lastThought": ""
+    }
+  ]
+}
+
+Rules:
+- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.
+- include one entry for each character name exactly: {{characters}}.
+- omit fields for stats that are not requested.
+- output JSON only, no commentary.`;
+  const previousSequentialPrompt = [
+    "- Write the character's current immediate internal thought after the latest relevant message.",
+    "- If the latest message directly advances a target owner through dialogue, action, or emotional reaction, update that owner's thought from those latest cues.",
+    "- Do not copy the previous tracker thought for an owner whose current message cues changed.",
+    "- Preserve the previous thought only when recent messages provide no new thought cue for that owner or the owner is only scene-present/background.",
+    "- Keep it to one concise sentence grounded in the recent messages.",
+    "- Use recent messages first; use character cards only to disambiguate when context is unclear.",
+  ].join("\n");
+  const previousSequentialProtocol = `Return STRICT JSON only:
+{
+  "characters": [
+    {
+      "name": "Character Name",
+      "confidence": 0.0,
+      "lastThought": ""
+    }
+  ]
+}
+
+Rules:
+- confidence is 0..1 (0 low confidence, 1 high confidence) and reflects your certainty in the extracted update for that character.
+- lastThought must be the character's current immediate internal thought after the latest relevant message, in one short sentence.
+- If the latest message directly advances a target owner through dialogue, action, or emotional reaction, infer that owner's updated thought from those latest cues.
+- Do not copy the previous tracker thought for an owner whose current message cues changed.
+- Preserve the previous thought only when recent messages provide no new thought cue for that owner.
+- include one entry for each character name exactly: {{characters}}.
+- omit fields for stats that are not requested.
+- output JSON only, no commentary.`;
+
+  const migrated = sanitizeSettings({
+    promptTemplateUnified: previousUnifiedPrompt,
+    promptProtocolUnified: previousUnifiedProtocol.replace(/\n/g, "\r\n"),
+    promptTemplateSequentialLastThought: previousSequentialPrompt,
+    promptProtocolSequentialLastThought: previousSequentialProtocol,
+  });
+
+  assert.equal(migrated.promptTemplateUnified, defaultSettings.promptTemplateUnified);
+  assert.equal(migrated.promptProtocolUnified, defaultSettings.promptProtocolUnified);
+  assert.equal(migrated.promptTemplateSequentialLastThought, defaultSettings.promptTemplateSequentialLastThought);
+  assert.equal(migrated.promptProtocolSequentialLastThought, defaultSettings.promptProtocolSequentialLastThought);
+});

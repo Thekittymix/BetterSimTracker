@@ -138,6 +138,8 @@ test("prepareJsonExtractionProtocolRequest builds transport text for a real extr
   assert.equal(prepared.request.task.mode, "ai_turn");
   assert.equal(prepared.request.task.retrack, false);
   assert.match(prepared.requestText, /"protocolVersion": "bst\.extract\.v1"/);
+  assert.match(prepared.requestText, /Do not repeat or quote the owner's spoken dialogue verbatim/i);
+  assert.doesNotMatch(prepared.requestText, /"lastThought": ""/);
 });
 
 test("executeJsonExtractionProtocol materializes tracker data and parity for matching JSON response", () => {

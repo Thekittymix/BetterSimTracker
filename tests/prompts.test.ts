@@ -801,11 +801,17 @@ test("buildSequentialPrompt respects built-in tracking and source priority wordi
 test("default lastThought prompts require updating directly advanced owners before preserving continuity", () => {
   assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /latest message directly advances a target owner/);
   assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /Do not copy the previous tracker thought/);
+  assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /Do not repeat or quote the owner's spoken dialogue/);
   assert.match(DEFAULT_SEQUENTIAL_PROMPT_INSTRUCTIONS.lastThought, /scene-present\/background/);
   assert.match(DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT, /current immediate internal thought after the latest relevant message/);
+  assert.match(DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT, /do not repeat or quote the owner's spoken dialogue verbatim/i);
   assert.match(DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT, /Preserve the previous thought only when recent messages provide no new thought cue/);
+  assert.doesNotMatch(DEFAULT_PROTOCOL_SEQUENTIAL_LAST_THOUGHT, /"lastThought": ""/);
   assert.match(DEFAULT_UNIFIED_PROMPT_INSTRUCTION, /If lastThought is requested/);
+  assert.match(DEFAULT_UNIFIED_PROMPT_INSTRUCTION, /Do not repeat or quote the owner's spoken dialogue as lastThought/);
   assert.match(DEFAULT_PROTOCOL_UNIFIED, /For lastThought, do not copy the previous tracker thought/);
+  assert.match(DEFAULT_PROTOCOL_UNIFIED, /do not repeat or quote the owner's spoken dialogue verbatim/i);
+  assert.doesNotMatch(DEFAULT_PROTOCOL_UNIFIED, /"lastThought": ""/);
 });
 
 test("buildSequentialPrompt carries the lastThought current-message update contract with prior state", () => {
@@ -849,8 +855,10 @@ test("buildSequentialPrompt carries the lastThought current-message update contr
   assert.match(prompt, /Candy: lastThought="I can go get them right now!"/);
   assert.match(prompt, /If the latest message directly advances a target owner through dialogue, action, or emotional reaction, update that owner's thought from those latest cues\./);
   assert.match(prompt, /Do not copy the previous tracker thought for an owner whose current message cues changed\./);
+  assert.match(prompt, /do not repeat or quote the owner's spoken dialogue verbatim\./i);
   assert.match(prompt, /Preserve the previous thought only when recent messages provide no new thought cue for that owner/);
   assert.match(prompt, /lastThought must be the character's current immediate internal thought after the latest relevant message/);
+  assert.doesNotMatch(prompt, /"lastThought": ""/);
 });
 
 test("buildSequentialPrompt resolves {{char}} inside included character card text to a non-user speaker during user extraction", () => {

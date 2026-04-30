@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.5-dev1] - 2026-04-30
+### Fixed
+- Fixed `lastThought` extraction defaults so built-in thought prompts now require fresh internal subtext instead of empty values or verbatim repeated dialogue, and migrated stored default prompt/protocol settings to the stronger contract.
+
 ## [2.5.4.5] - 2026-04-29
 ### Fixed
 - Simplified BST checkbox rendering across settings, defaults panels, graph controls, and edit modals by dropping the custom checkbox skin and using native browser checkboxes with shared accent styling for better cross-device compatibility.
