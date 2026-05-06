@@ -167,6 +167,110 @@ export function wrapEntityResolverPromptAsJsonRequest(input: {
   );
 }
 
+function isAbortLikeError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === "AbortError") return true;
+  const raw = typeof error === "string"
+    ? error
+    : error && typeof error === "object"
+      ? [
+          String((error as Record<string, unknown>).name ?? ""),
+          String((error as Record<string, unknown>).message ?? ""),
+          String((((error as Record<string, unknown>).meta as Record<string, unknown> | undefined)?.error ?? "")),
+        ].join(" ")
+      : "";
+  const normalized = raw.toLowerCase();
+  return normalized.includes("abort") || normalized.includes("cancel");
+}
+
+function getResolverErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message || "unknown";
+  const normalized = String(error ?? "").trim();
+  return normalized || "unknown";
+}
+
+export async function executeEntityResolverModelRequest(input: {
+  basePrompt: string;
+  requestType: "entity_resolution" | "entity_resolution_bootstrap";
+  protocolMode: string;
+  candidateEntities: MultiCharacterResolverCandidate[];
+  contextText: string;
+  message: ChatMessage;
+  previousMessage?: ChatMessage;
+  allowNarrativeEntityCreation?: boolean;
+  generate: (prompt: string) => Promise<{ text: string }>;
+  onAuditStart?: () => void;
+  onAuditResult?: (result: MultiCharacterResolutionResult) => void;
+}): Promise<
+  | {
+      kind: "resolved";
+      resolverResponse: { text: string };
+      parsedResolver: MultiCharacterResolutionResult | null;
+    }
+  | {
+      kind: "model_error";
+      error: string;
+    }
+> {
+  const resolverPrompt = input.protocolMode === "json"
+    ? wrapEntityResolverPromptAsJsonRequest({
+        requestType: input.requestType,
+        prompt: input.basePrompt,
+      })
+    : input.basePrompt;
+  try {
+    let resolverResponse = await input.generate(resolverPrompt);
+    let parsedResolver = filterResolverCreatedEntitiesToGroundedText({
+      result: parseMultiCharacterResolverResponse(resolverResponse.text, input.candidateEntities),
+      contextText: input.contextText,
+      message: input.message,
+      previousMessage: input.previousMessage,
+    });
+    if (shouldAuditCollapsedSourceOwnerResult({
+      candidateEntities: input.candidateEntities,
+      result: parsedResolver,
+      message: input.message,
+      allowNarrativeEntityCreation: input.allowNarrativeEntityCreation,
+    })) {
+      const auditPrompt = buildCollapsedSourceOwnerAuditPrompt({
+        originalPrompt: resolverPrompt,
+        previousResponseText: resolverResponse.text,
+      });
+      const auditRequestPrompt = input.protocolMode === "json"
+        ? wrapEntityResolverPromptAsJsonRequest({
+            requestType: "entity_resolution_audit",
+            prompt: auditPrompt,
+          })
+        : auditPrompt;
+      input.onAuditStart?.();
+      const auditResponse = await input.generate(auditRequestPrompt);
+      const auditedResolver = filterResolverCreatedEntitiesToGroundedText({
+        result: parseMultiCharacterResolverResponse(auditResponse.text, input.candidateEntities),
+        contextText: input.contextText,
+        message: input.message,
+        previousMessage: input.previousMessage,
+      });
+      if (auditedResolver) {
+        resolverResponse = auditResponse;
+        parsedResolver = auditedResolver;
+        input.onAuditResult?.(auditedResolver);
+      }
+    }
+    return {
+      kind: "resolved",
+      resolverResponse,
+      parsedResolver,
+    };
+  } catch (error) {
+    if (isAbortLikeError(error)) {
+      throw new DOMException("Request aborted by user", "AbortError");
+    }
+    return {
+      kind: "model_error",
+      error: getResolverErrorMessage(error),
+    };
+  }
+}
+
 export function shouldAuditCollapsedSourceOwnerResult(input: {
   candidateEntities: MultiCharacterResolverCandidate[];
   result: MultiCharacterResolutionResult | null;

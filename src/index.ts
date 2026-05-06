@@ -40,16 +40,12 @@ import {
 } from "./entityResolution";
 import {
   buildBootstrapEntityUniverseResolverPrompt,
-  buildCollapsedSourceOwnerAuditPrompt,
   buildMultiCharacterResolverPrompt,
-  filterResolverCreatedEntitiesToGroundedText,
-  parseMultiCharacterResolverResponse,
+  executeEntityResolverModelRequest,
   resolveMessageEntityIdsFromResolvedEntities,
   resolveMessageOwnersFromResolvedEntities,
   resolveSceneEntityIdsFromResolvedEntities,
   resolveSceneOwnersFromResolvedEntities,
-  shouldAuditCollapsedSourceOwnerResult,
-  wrapEntityResolverPromptAsJsonRequest,
 } from "./entityResolver";
 import { materializeNarrativeEntityCreations } from "./narrativeEntityResolution";
 import {
@@ -3611,7 +3607,6 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
         { previousTrackerData: previousMessageTrackerData },
       );
       if (candidateOwners.length) {
-        try {
           const candidateEntities = candidateOwners.map((ownerName, index) => {
             const registryEntry = getEntityRegistryEntryForMessage(context, ownerName, lastIndex)
               ?? getEntityRegistryEntryByOwnerName(context, ownerName);
@@ -3674,157 +3669,133 @@ async function runExtraction(reason: string, targetMessageIndex?: number): Promi
                   recentTrackerHistory,
                 }),
               });
-          const resolverPrompt = activeSettings.extractionProtocolMode === "json"
-            ? wrapEntityResolverPromptAsJsonRequest({
-                requestType: resolverPromptRequestType,
-                prompt: baseResolverPrompt,
-              })
-            : baseResolverPrompt;
           if (useBootstrapEntityUniverseResolver) {
             pushTrace("entity.resolve.bootstrap", {
               reason: "first_tracker_no_history",
               candidateOwners,
             });
           }
-          let resolverResponse = await generateJson(resolverPrompt, activeSettings);
-          let parsedResolver = filterResolverCreatedEntitiesToGroundedText({
-            result: parseMultiCharacterResolverResponse(resolverResponse.text, candidateEntities),
+          const resolverResult = await executeEntityResolverModelRequest({
+            basePrompt: baseResolverPrompt,
+            requestType: resolverPromptRequestType,
+            protocolMode: activeSettings.extractionProtocolMode,
+            candidateEntities,
             contextText: resolverContextText,
             message: lastMessage,
-            previousMessage,
-          });
-          if (shouldAuditCollapsedSourceOwnerResult({
-            candidateEntities,
-            result: parsedResolver,
-            message: lastMessage,
+            previousMessage: previousMessage ?? undefined,
             allowNarrativeEntityCreation: activeSettings.entityTrackingMode === "dynamic_characters",
-          })) {
-            const auditPrompt = buildCollapsedSourceOwnerAuditPrompt({
-              originalPrompt: resolverPrompt,
-              previousResponseText: resolverResponse.text,
-            });
-            const auditRequestPrompt = activeSettings.extractionProtocolMode === "json"
-              ? wrapEntityResolverPromptAsJsonRequest({
-                  requestType: "entity_resolution_audit",
-                  prompt: auditPrompt,
-                })
-              : auditPrompt;
-            pushTrace("entity.resolve.audit.start", {
-              reason: "possible_collapsed_source_owner",
-              candidateOwners,
-            });
-            const auditResponse = await generateJson(auditRequestPrompt, activeSettings);
-            const auditedResolver = filterResolverCreatedEntitiesToGroundedText({
-              result: parseMultiCharacterResolverResponse(auditResponse.text, candidateEntities),
-              contextText: resolverContextText,
-              message: lastMessage,
-              previousMessage,
-            });
-            if (auditedResolver) {
-              resolverResponse = auditResponse;
-              parsedResolver = auditedResolver;
+            generate: prompt => generateJson(prompt, activeSettings),
+            onAuditStart: () => {
+              pushTrace("entity.resolve.audit.start", {
+                reason: "possible_collapsed_source_owner",
+                candidateOwners,
+              });
+            },
+            onAuditResult: auditedResolver => {
               pushTrace("entity.resolve.audit.result", {
                 source: "model",
                 candidateOwners,
                 createdEntities: auditedResolver.createdEntities.map(entity => entity.name),
               });
-            }
-          }
-          const materializedResolution = parsedResolver
-            ? materializeNarrativeEntityCreations({
-                context,
-                settings: activeSettings,
-                candidateEntities,
-                resolvedEntities: parsedResolver.resolvedEntities,
-                createdEntities: parsedResolver.createdEntities,
-                unresolvedMentions: parsedResolver.unresolvedMentions,
-              })
-            : null;
-          const finalResolvedEntities = materializedResolution?.resolvedEntities ?? (parsedResolver?.resolvedEntities ?? []);
-          const parsedSceneOwners = parsedResolver
-            ? resolveSceneOwnersFromResolvedEntities(finalResolvedEntities)
-            : [];
-          const parsedMessageOwners = parsedResolver
-            ? resolveMessageOwnersFromResolvedEntities(finalResolvedEntities)
-            : [];
-          const parsedSceneEntityIds = parsedResolver
-            ? resolveSceneEntityIdsFromResolvedEntities(finalResolvedEntities)
-            : [];
-          const parsedMessageEntityIds = parsedResolver
-            ? resolveMessageEntityIdsFromResolvedEntities(finalResolvedEntities)
-            : [];
-          if (parsedResolver) {
-            const modelOwnerScopes = resolveModelExtractionOwnerScopes({
-              context,
-              message: lastMessage,
-              settings: activeSettings,
-              previousTrackerData: previousMessageTrackerData,
-              recentTrackerHistory,
-              resolvedSceneActiveCharacters: parsedSceneOwners,
-              resolvedRequestCharacters: parsedMessageOwners.length
-                ? parsedMessageOwners
-                : parsedSceneOwners,
+            },
+          });
+          if (resolverResult.kind === "model_error") {
+            pushTrace("entity.resolve", {
+              source: "model_error",
+              error: resolverResult.error,
             });
-            const nextResolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
-              resolvedEntities: finalResolvedEntities.map(entity => ({
-                ...entity,
-                aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
-                created: Boolean(entity.created),
-              })),
-              source: "model",
-            };
-            if (materializedResolution?.unresolvedMentions.length) {
-              nextResolvedEntityResolution.unresolvedMentions = [...materializedResolution.unresolvedMentions];
-            }
-            const bootstrapOwnerScopes = useBootstrapEntityUniverseResolver
-              ? resolveBootstrapEntityResolutionOwnerScopes({
+          } else {
+            const parsedResolver = resolverResult.parsedResolver;
+            const materializedResolution = parsedResolver
+              ? materializeNarrativeEntityCreations({
                   context,
-                  candidateOwners,
-                  message: lastMessage,
                   settings: activeSettings,
-                  modelOwnerScopes,
+                  candidateEntities,
+                  resolvedEntities: parsedResolver.resolvedEntities,
+                  createdEntities: parsedResolver.createdEntities,
+                  unresolvedMentions: parsedResolver.unresolvedMentions,
                 })
               : null;
-            if (bootstrapOwnerScopes) {
-              resolvedOwnerScopes = bootstrapOwnerScopes;
-              if (bootstrapOwnerScopes.source === "model") {
-                resolvedEntityResolution = nextResolvedEntityResolution;
-              } else {
-                resolvedEntityResolution = null;
-                pushTrace("entity.resolve.bootstrap.fallback", {
-                  reason: "empty_model_scene",
-                  candidateOwners,
-                  sceneActiveCharacters: bootstrapOwnerScopes.sceneActiveCharacters,
-                  requestCharacters: bootstrapOwnerScopes.requestCharacters,
-                });
-              }
-            } else {
-              resolvedOwnerScopes = {
-                sceneActiveCharacters: modelOwnerScopes.sceneActiveCharacters,
-                requestCharacters: modelOwnerScopes.requestCharacters,
+            const finalResolvedEntities = materializedResolution?.resolvedEntities ?? (parsedResolver?.resolvedEntities ?? []);
+            const parsedSceneOwners = parsedResolver
+              ? resolveSceneOwnersFromResolvedEntities(finalResolvedEntities)
+              : [];
+            const parsedMessageOwners = parsedResolver
+              ? resolveMessageOwnersFromResolvedEntities(finalResolvedEntities)
+              : [];
+            const parsedSceneEntityIds = parsedResolver
+              ? resolveSceneEntityIdsFromResolvedEntities(finalResolvedEntities)
+              : [];
+            const parsedMessageEntityIds = parsedResolver
+              ? resolveMessageEntityIdsFromResolvedEntities(finalResolvedEntities)
+              : [];
+            if (parsedResolver) {
+              const modelOwnerScopes = resolveModelExtractionOwnerScopes({
+                context,
+                message: lastMessage,
+                settings: activeSettings,
+                previousTrackerData: previousMessageTrackerData,
+                recentTrackerHistory,
+                resolvedSceneActiveCharacters: parsedSceneOwners,
+                resolvedRequestCharacters: parsedMessageOwners.length
+                  ? parsedMessageOwners
+                  : parsedSceneOwners,
+              });
+              const nextResolvedEntityResolution: NonNullable<TrackerData["entityResolution"]> = {
+                resolvedEntities: finalResolvedEntities.map(entity => ({
+                  ...entity,
+                  aliases: entity.aliases?.length ? [...entity.aliases] : undefined,
+                  created: Boolean(entity.created),
+                })),
                 source: "model",
               };
-              resolvedEntityResolution = nextResolvedEntityResolution;
+              if (materializedResolution?.unresolvedMentions.length) {
+                nextResolvedEntityResolution.unresolvedMentions = [...materializedResolution.unresolvedMentions];
+              }
+              const bootstrapOwnerScopes = useBootstrapEntityUniverseResolver
+                ? resolveBootstrapEntityResolutionOwnerScopes({
+                    context,
+                    candidateOwners,
+                    message: lastMessage,
+                    settings: activeSettings,
+                    modelOwnerScopes,
+                  })
+                : null;
+              if (bootstrapOwnerScopes) {
+                resolvedOwnerScopes = bootstrapOwnerScopes;
+                if (bootstrapOwnerScopes.source === "model") {
+                  resolvedEntityResolution = nextResolvedEntityResolution;
+                } else {
+                  resolvedEntityResolution = null;
+                  pushTrace("entity.resolve.bootstrap.fallback", {
+                    reason: "empty_model_scene",
+                    candidateOwners,
+                    sceneActiveCharacters: bootstrapOwnerScopes.sceneActiveCharacters,
+                    requestCharacters: bootstrapOwnerScopes.requestCharacters,
+                  });
+                }
+              } else {
+                resolvedOwnerScopes = {
+                  sceneActiveCharacters: modelOwnerScopes.sceneActiveCharacters,
+                  requestCharacters: modelOwnerScopes.requestCharacters,
+                  source: "model",
+                };
+                resolvedEntityResolution = nextResolvedEntityResolution;
+              }
+              pushTrace("entity.resolve", {
+                source: resolvedOwnerScopes?.source === "fallback" && useBootstrapEntityUniverseResolver
+                  ? "bootstrap_fallback"
+                  : "model",
+                sceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters ?? [],
+                requestCharacters: resolvedOwnerScopes?.requestCharacters ?? [],
+                sceneEntityIds: parsedSceneEntityIds,
+                messageEntityIds: parsedMessageEntityIds.length
+                  ? parsedMessageEntityIds
+                  : parsedSceneEntityIds,
+                createdEntities: resolvedEntityResolution?.resolvedEntities?.filter(entity => entity.kind === "narrative-entity" && entity.created).map(entity => entity.name) ?? [],
+              });
             }
-            pushTrace("entity.resolve", {
-              source: resolvedOwnerScopes?.source === "fallback" && useBootstrapEntityUniverseResolver
-                ? "bootstrap_fallback"
-                : "model",
-              sceneActiveCharacters: resolvedOwnerScopes?.sceneActiveCharacters ?? [],
-              requestCharacters: resolvedOwnerScopes?.requestCharacters ?? [],
-              sceneEntityIds: parsedSceneEntityIds,
-              messageEntityIds: parsedMessageEntityIds.length
-                ? parsedMessageEntityIds
-                : parsedSceneEntityIds,
-              createdEntities: resolvedEntityResolution?.resolvedEntities?.filter(entity => entity.kind === "narrative-entity" && entity.created).map(entity => entity.name) ?? [],
-            });
           }
-        } catch (error) {
-          pushTrace("entity.resolve", {
-            source: "model_error",
-            error: error instanceof Error ? error.message : String(error ?? "unknown"),
-          });
-        }
       }
       }
     }

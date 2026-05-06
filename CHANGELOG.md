@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.6-dev3] - 2026-05-06
+### Fixed
+- Fixed tracker `Stop` during greeting-bootstrap entity resolution so resolver or audit aborts now terminate the whole extraction run immediately instead of being swallowed as soft model errors that still seed bootstrap defaults and schedule a follow-up backend extraction.
+
 ## [2.5.4.6-dev2] - 2026-05-06
 ### Fixed
 - Fixed tracker stop recovery so a single `Stop` now blocks automatic bootstrap re-extraction for the same message instead of letting refresh treat the stopped row as a fresh missing-tracker target and restart backend generation.
