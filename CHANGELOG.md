@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.6-dev1] - 2026-05-06
+### Fixed
+- Fixed tracker cancellation so BST `Stop` now aborts the active backend extraction and also clears queued follow-up work such as pending extraction schedules, swipe continuations, late-render recovery, and user-turn replay state.
+- Fixed the main `Enabled` drawer checkbox/runtime settings transition so disabling BST from the ST extension drawer or settings modal now follows the same full shutdown path as the window toggle, including canceling active or queued tracker generation before clearing prompt injection and UI state.
+
 ## [2.5.4.6] - 2026-04-30
 ### Fixed
 - Fixed `lastThought` extraction defaults so built-in thought prompts now favor fresh internal subtext instead of empty values or verbatim repeated dialogue, and migrated stored default prompt/protocol settings to the stronger contract.

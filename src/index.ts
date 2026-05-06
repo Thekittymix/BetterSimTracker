@@ -100,6 +100,8 @@ import {
 } from "./extractorHelpers";
 import { resolveExtractionFailurePolicy } from "./extractionFailurePolicy";
 import { shouldReplayUserTurnAfterExtraction } from "./extractionContinuationPolicy";
+import { cancelTrackerGenerationFlow, type TrackerGenerationStopMode } from "./trackerGenerationControl";
+import { applySettingsRuntimeTransition } from "./settingsRuntimeTransition";
 import { isTrackableAiMessage, isTrackableMessage, isTrackableUserMessage } from "./messageFilter";
 import { clearPromptInjection, getLastInjectedPrompt, getLastInjectedPromptDebug } from "./promptInjection";
 import { GLOBAL_TRACKER_KEY, USER_TRACKER_KEY } from "./constants";
@@ -1771,12 +1773,9 @@ function queueRender(): void {
     }, messageIndex => {
       void sendTrackerSummaryToChat(messageIndex);
     }, () => {
-      if (!isExtracting) return;
-      if (activeExtractionRunId != null) {
-        cancelledExtractionRuns.add(activeExtractionRunId);
-      }
-      const canceled = cancelActiveGenerations();
-      pushTrace("extract.cancel", { canceled, source: "ui", runId: activeExtractionRunId });
+      const liveContext = getSafeContext();
+      if (!liveContext) return;
+      cancelTrackerGeneration(liveContext, "stop", "ui");
     }, payload => {
       applyManualTrackerEdits(payload);
     }, messageIndex => {
@@ -1847,6 +1846,14 @@ function scheduleDeferredInitRefresh(delay: number): void {
 }
 
 function scheduleExtraction(reason: string, targetMessageIndex?: number, delay = 180): void {
+  if (settings && !settings.enabled && !isManualExtractionReason(reason)) {
+    pushTrace("extract.schedule.skip", {
+      reason: "extension_disabled",
+      trigger: reason,
+      targetMessageIndex: targetMessageIndex ?? null,
+    });
+    return;
+  }
   if (settings && !settings.autoGenerateTracker && !isManualExtractionReason(reason)) {
     pushTrace("extract.schedule.skip", {
       reason: "auto_generate_disabled",
@@ -1856,6 +1863,72 @@ function scheduleExtraction(reason: string, targetMessageIndex?: number, delay =
     return;
   }
   extractionScheduler.schedule(reason, targetMessageIndex, delay);
+}
+
+function cancelTrackerGeneration(context: STContext, mode: TrackerGenerationStopMode, source: "ui" | "toggle" | "settings"): void {
+  const hadPendingSwipeExtraction = Boolean(pendingSwipeExtraction);
+  const hadPendingLateRenderExtraction = pendingLateRenderExtraction;
+  const result = cancelTrackerGenerationFlow({
+    mode,
+    activeExtractionRunId,
+    cancelledExtractionRuns,
+    cancelActiveGenerations,
+    cancelPendingExtractionSchedule: () => extractionScheduler.cancel(),
+    clearPendingSwipeExtraction,
+    clearLateRenderRecovery: () => lateRenderRecovery.clear(),
+    resetUserTurnGate,
+    resetBootstrapScheduler: () => bootstrapScheduler.reset(),
+  });
+  pushTrace("extract.cancel", {
+    canceled: result.canceledRequests,
+    source,
+    mode,
+    runId: result.canceledRunId,
+    pendingScheduleReason: result.pendingSchedule?.reason ?? null,
+    pendingScheduleTargetMessageIndex: result.pendingSchedule?.targetMessageIndex ?? null,
+    hadPendingSwipeExtraction,
+    hadPendingLateRenderExtraction,
+    resetUserTurnGate: result.userTurnGateResetReason,
+    bootstrapSchedulerReset: result.bootstrapSchedulerReset,
+  });
+  if (trackerUiState.phase !== "idle") {
+    setTrackerUi(context, {
+      phase: "idle",
+      done: 0,
+      total: 0,
+      messageIndex: latestDataMessageIndex,
+      stepLabel: null,
+    });
+    queueRender();
+  }
+}
+
+function applyRuntimeSettingsUpdate(
+  context: STContext,
+  nextSettings: BetterSimTrackerSettings,
+  source: "toggle" | "settings_panel" | "settings_modal",
+): void {
+  const previousEnabled = Boolean(settings?.enabled);
+  settings = nextSettings;
+  saveSettings(context, settings);
+  applySettingsRuntimeTransition({
+    previousEnabled,
+    nextEnabled: settings.enabled,
+    onDisable: () => {
+      cancelTrackerGeneration(context, "disable", source === "toggle" ? "toggle" : "settings");
+      void clearPromptInjection();
+      closeGraphModal();
+      removeTrackerUI();
+      refreshFromStoredData({ allowBootstrapScheduling: false });
+    },
+    onEnable: () => {
+      queuePromptSync(context);
+      refreshFromStoredData();
+    },
+    onUnchanged: () => {
+      refreshFromStoredData({ allowBootstrapScheduling: false });
+    },
+  });
 }
 
 function scheduleSwipeExtraction(reason: string, targetMessageIndex?: number): void {
@@ -4734,9 +4807,7 @@ function refreshFromStoredData(options: RefreshFromStoredDataOptions = {}): void
       settings,
       onSave: patch => {
         if (!settings || !context) return;
-        settings = { ...settings, ...patch };
-        saveSettings(context, settings);
-        refreshFromStoredData({ allowBootstrapScheduling: false });
+        applyRuntimeSettingsUpdate(context, { ...settings, ...patch }, "settings_panel");
       },
       onOpenModal: () => openSettings()
     });
@@ -5204,9 +5275,7 @@ async function openSettingsAsync(): Promise<void> {
     onSave: next => {
       const activeContext = getSafeContext();
       if (!activeContext) return;
-      settings = next;
-      saveSettings(activeContext, settings);
-      refreshFromStoredData({ allowBootstrapScheduling: false });
+      applyRuntimeSettingsUpdate(activeContext, next, "settings_modal");
     },
     onRetrack: () => {
       void runExtraction("manual_refresh");
@@ -5343,17 +5412,12 @@ function buildLorebookExtractionContext(context: STContext, maxChars: number): s
 function toggle(): boolean {
   const context = getSafeContext();
   if (!context || !settings) return false;
-  settings.enabled = !settings.enabled;
-  saveSettings(context, settings);
-  if (!settings.enabled) {
-    void clearPromptInjection();
-    closeGraphModal();
-    removeTrackerUI();
-  } else {
-    queuePromptSync(context);
-    refreshFromStoredData();
-  }
-  return settings.enabled;
+  const nextSettings = {
+    ...settings,
+    enabled: !settings.enabled,
+  };
+  applyRuntimeSettingsUpdate(context, nextSettings, "toggle");
+  return nextSettings.enabled;
 }
 
 async function refresh(input?: RefreshTargetInput): Promise<void> {

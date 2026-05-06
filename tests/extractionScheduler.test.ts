@@ -79,3 +79,39 @@ test("extraction scheduler replaces a general pending latest-message request wit
 
   assert.deepEqual(fired, [{ reason: "GENERATION_ENDED_LATE_RENDER", targetMessageIndex: 10 }]);
 });
+
+test("extraction scheduler cancel clears the pending timer and prevents any fire", () => {
+  const scheduled = new Map<number, () => void>();
+  const fired: Array<{ reason: string; targetMessageIndex: number | null }> = [];
+  let nextId = 1;
+
+  const scheduler = createExtractionScheduler({
+    now: () => 1000,
+    timers: {
+      setTimeout(fn) {
+        const id = nextId++;
+        scheduled.set(id, fn);
+        return id;
+      },
+      clearTimeout(id) {
+        scheduled.delete(id);
+      },
+    },
+    onFire: (reason, targetMessageIndex) => {
+      fired.push({ reason, targetMessageIndex });
+    },
+  });
+
+  scheduler.schedule("GENERATION_ENDED", 7, 180);
+
+  const pending = scheduler.cancel();
+
+  assert.deepEqual(pending, {
+    reason: "GENERATION_ENDED",
+    targetMessageIndex: 7,
+    dueAt: 1180,
+  });
+  assert.equal(scheduled.size, 0);
+  assert.equal(scheduler.getPendingSchedule(), null);
+  assert.deepEqual(fired, []);
+});

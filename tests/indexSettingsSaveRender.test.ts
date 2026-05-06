@@ -9,17 +9,15 @@ function extractAround(source: string, marker: string, radius = 300): string {
   return source.slice(start, Math.min(source.length, start + radius));
 }
 
-test("settings save paths refresh from stored data without an immediate extra queueRender", () => {
+test("settings save paths delegate to the shared runtime settings update helper", () => {
   const source = fs.readFileSync(path.resolve("src/index.ts"), "utf8");
   const panelSaveSegment = extractAround(source, "onSave: patch => {");
   const modalSaveSegment = extractAround(source, "onSave: next => {");
 
-  assert.match(panelSaveSegment, /saveSettings\(context, settings\);/);
-  assert.match(panelSaveSegment, /refreshFromStoredData\(\{ allowBootstrapScheduling: false \}\);/);
+  assert.match(panelSaveSegment, /applyRuntimeSettingsUpdate\(context, \{ \.\.\.settings, \.\.\.patch \}, "settings_panel"\);/);
   assert.doesNotMatch(panelSaveSegment, /queueRender\(\);/);
 
-  assert.match(modalSaveSegment, /saveSettings\(activeContext, settings\);/);
-  assert.match(modalSaveSegment, /refreshFromStoredData\(\{ allowBootstrapScheduling: false \}\);/);
+  assert.match(modalSaveSegment, /applyRuntimeSettingsUpdate\(activeContext, next, "settings_modal"\);/);
   assert.doesNotMatch(modalSaveSegment, /queueRender\(\);/);
 });
 

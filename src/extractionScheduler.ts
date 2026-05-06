@@ -15,6 +15,7 @@ export function createExtractionScheduler(input: {
   onSkip?: (reason: string, targetMessageIndex: number | null) => void;
 }): {
   schedule: (reason: string, targetMessageIndex?: number, delay?: number) => void;
+  cancel: () => PendingExtractionSchedule | null;
   getPendingSchedule: () => PendingExtractionSchedule | null;
 } {
   const now = input.now ?? (() => Date.now());
@@ -47,6 +48,16 @@ export function createExtractionScheduler(input: {
         if (!pending) return;
         input.onFire(pending.reason, pending.targetMessageIndex);
       }, delay);
+    },
+
+    cancel(): PendingExtractionSchedule | null {
+      const pending = pendingExtractionSchedule;
+      if (extractionTimer !== null) {
+        input.timers.clearTimeout(extractionTimer);
+        extractionTimer = null;
+      }
+      pendingExtractionSchedule = null;
+      return pending;
     },
 
     getPendingSchedule(): PendingExtractionSchedule | null {
