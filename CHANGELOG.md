@@ -2,18 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.4.6-dev3] - 2026-05-06
+## [2.5.4.7] - 2026-05-06
 ### Fixed
-- Fixed tracker `Stop` during greeting-bootstrap entity resolution so resolver or audit aborts now terminate the whole extraction run immediately instead of being swallowed as soft model errors that still seed bootstrap defaults and schedule a follow-up backend extraction.
-
-## [2.5.4.6-dev2] - 2026-05-06
-### Fixed
-- Fixed tracker stop recovery so a single `Stop` now blocks automatic bootstrap re-extraction for the same message instead of letting refresh treat the stopped row as a fresh missing-tracker target and restart backend generation.
-
-## [2.5.4.6-dev1] - 2026-05-06
-### Fixed
-- Fixed tracker cancellation so BST `Stop` now aborts the active backend extraction and also clears queued follow-up work such as pending extraction schedules, swipe continuations, late-render recovery, and user-turn replay state.
-- Fixed the main `Enabled` drawer checkbox/runtime settings transition so disabling BST from the ST extension drawer or settings modal now follows the same full shutdown path as the window toggle, including canceling active or queued tracker generation before clearing prompt injection and UI state.
+- Fixed tracker generation shutdown so a single `Stop` now fully aborts the active extraction run and all queued follow-up work, including bootstrap re-entry, resolver or audit requests, pending extraction schedules, swipe continuations, late-render recovery, and user-turn replay.
+- Fixed the main `Enabled` drawer checkbox and settings disable path so turning BetterSimTracker off follows the same full cancellation flow before clearing prompt injection and tracker UI state.
 
 ## [2.5.4.6] - 2026-04-30
 ### Fixed
