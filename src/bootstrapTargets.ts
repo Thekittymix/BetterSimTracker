@@ -12,6 +12,7 @@ export type ResolveAutoBootstrapTargetInput = {
   chatLength: number;
   isTrackableAiAt: (index: number) => boolean;
   hasTrackerAt: (index: number) => boolean;
+  hasStoppedRecoveryAt: (index: number) => boolean;
   hasPriorTrackableUserAt: (index: number) => boolean;
 };
 
@@ -33,6 +34,7 @@ export function resolveAutoBootstrapTarget({
   chatLength,
   isTrackableAiAt,
   hasTrackerAt,
+  hasStoppedRecoveryAt,
   hasPriorTrackableUserAt,
 }: ResolveAutoBootstrapTargetInput): ResolveAutoBootstrapTargetResult {
   if (
@@ -56,7 +58,7 @@ export function resolveAutoBootstrapTarget({
   }
 
   for (let index = 0; index <= latestTrackableIndex; index += 1) {
-    if (!isTrackableAiAt(index) || hasTrackerAt(index)) continue;
+    if (!isTrackableAiAt(index) || hasTrackerAt(index) || hasStoppedRecoveryAt(index)) continue;
     if (!hasPriorTrackableUserAt(index)) {
       if (!generateOnGreetingMessages) {
         return { targetMessageIndex: null, reason: null, skippedGreetingBootstrap: true };
@@ -71,6 +73,7 @@ export function resolveAutoBootstrapTarget({
 
   if (
     isTrackableAiAt(latestTrackableIndex) &&
+    !hasStoppedRecoveryAt(latestTrackableIndex) &&
     !hasTrackerAt(latestTrackableIndex) &&
     (latestDataMessageIndex == null || latestDataMessageIndex < latestTrackableIndex)
   ) {

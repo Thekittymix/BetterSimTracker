@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.6-dev2] - 2026-05-06
+### Fixed
+- Fixed tracker stop recovery so a single `Stop` now blocks automatic bootstrap re-extraction for the same message instead of letting refresh treat the stopped row as a fresh missing-tracker target and restart backend generation.
+
 ## [2.5.4.6-dev1] - 2026-05-06
 ### Fixed
 - Fixed tracker cancellation so BST `Stop` now aborts the active backend extraction and also clears queued follow-up work such as pending extraction schedules, swipe continuations, late-render recovery, and user-turn replay state.

@@ -16,6 +16,7 @@ test("resolveAutoBootstrapTarget prioritizes a missing greeting AI tracker befor
     chatLength: 3,
     isTrackableAiAt: index => index === 0 || index === 2,
     hasTrackerAt: index => index === 2,
+    hasStoppedRecoveryAt: () => false,
     hasPriorTrackableUserAt: index => index > 0,
   });
 
@@ -39,6 +40,7 @@ test("resolveAutoBootstrapTarget can skip missing greeting bootstrap when greeti
     chatLength: 3,
     isTrackableAiAt: index => index === 0 || index === 2,
     hasTrackerAt: index => index === 2,
+    hasStoppedRecoveryAt: () => false,
     hasPriorTrackableUserAt: index => index > 0,
   });
 
@@ -62,6 +64,7 @@ test("resolveAutoBootstrapTarget falls back to the latest missing AI tracker whe
     chatLength: 5,
     isTrackableAiAt: index => index === 2 || index === 4,
     hasTrackerAt: index => index === 2,
+    hasStoppedRecoveryAt: () => false,
     hasPriorTrackableUserAt: () => true,
   });
 
@@ -85,7 +88,32 @@ test("resolveAutoBootstrapTarget does not backfill a greeting while stored track
     chatLength: 1,
     isTrackableAiAt: index => index === 0,
     hasTrackerAt: () => false,
+    hasStoppedRecoveryAt: () => false,
     hasPriorTrackableUserAt: () => false,
+  });
+
+  assert.deepEqual(result, {
+    targetMessageIndex: null,
+    reason: null,
+    skippedGreetingBootstrap: false,
+  });
+});
+
+test("resolveAutoBootstrapTarget does not reschedule a missing AI message that has a stopped recovery", () => {
+  const result = resolveAutoBootstrapTarget({
+    enabled: true,
+    isExtracting: false,
+    chatGenerationInFlight: false,
+    pendingLateRenderExtraction: false,
+    latestTrackableIndex: 4,
+    latestDataMessageIndex: 2,
+    highestStoredMessageIndex: 4,
+    generateOnGreetingMessages: true,
+    chatLength: 5,
+    isTrackableAiAt: index => index === 2 || index === 4,
+    hasTrackerAt: index => index === 2,
+    hasStoppedRecoveryAt: index => index === 4,
+    hasPriorTrackableUserAt: () => true,
   });
 
   assert.deepEqual(result, {

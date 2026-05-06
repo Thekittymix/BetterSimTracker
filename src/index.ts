@@ -4744,6 +4744,10 @@ function refreshFromStoredData(options: RefreshFromStoredDataOptions = {}): void
         index < context.chat.length &&
         Boolean(getTrackerDataFromMessage(context.chat[index]))
       ),
+      hasStoppedRecoveryAt: index => (
+        index >= 0 &&
+        trackerRecoveryByMessage.get(index)?.kind === "stopped"
+      ),
       hasPriorTrackableUserAt: index => hasTrackableUserMessageBeforeIndex(context, index),
     });
     if (bootstrapDecision.skippedGreetingBootstrap && lastTrackableIndex != null) {
