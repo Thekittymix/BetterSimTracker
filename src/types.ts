@@ -451,7 +451,8 @@ export interface STContext {
       unregisterMacro?: (name: string) => void;
     };
   };
-  csrf_token?: string;
+  getRequestHeaders: () => Record<string, string>;
+
 }
 
 export interface DeltaDebugRecord {

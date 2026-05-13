@@ -332,8 +332,9 @@ async function uploadMoodImage(
 ): Promise<string> {
   const label = moodSpriteName(mood);
   const headers: Record<string, string> = {};
-  if (context.csrf_token) {
-    headers["X-CSRF-Token"] = context.csrf_token;
+  const csrf_token = context.getRequestHeaders()["X-CSRF-Token"];
+  if (csrf_token != undefined) {
+    headers["X-CSRF-Token"] = csrf_token;
   }
 
   const beforeSprites = await fetchSpriteList(headers, characterName, settings).catch(() => []);
@@ -388,10 +389,7 @@ async function deleteMoodImage(
   mood: MoodLabel,
 ): Promise<void> {
   const spriteName = moodSpriteName(mood);
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (context.csrf_token) {
-    headers["X-CSRF-Token"] = context.csrf_token;
-  }
+  const headers = context.getRequestHeaders();
 
   logDebug(settings, "moodImages", "sprites.delete start", { characterName, mood, spriteName });
   const response = await fetch("/api/sprites/delete", {
