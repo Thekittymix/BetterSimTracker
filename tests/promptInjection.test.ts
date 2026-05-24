@@ -88,14 +88,14 @@ test("buildPrompt includes global custom stats in a dedicated Scene line", () =>
 
   const prompt = __testables.buildPrompt(data, settings, makeContext());
   assert.match(prompt, /<BST_STAT_SEMANTICS>/);
-  assert.match(prompt, /<BST_BEHAVIOR_BANDS>/);
-  assert.match(prompt, /<BST_REACT_RULES>/);
+  assert.doesNotMatch(prompt, /<BST_BEHAVIOR_BANDS>/);
+  assert.doesNotMatch(prompt, /<BST_REACT_RULES>/);
   assert.match(prompt, /<BST_PRIORITY_RULES>/);
   assert.match(prompt, /<BST_TRACKER_STATE>/);
   assert.doesNotMatch(prompt, /<BST_PUBLIC_STATE_STATS>/);
   assert.doesNotMatch(prompt, /<BST_OWNER_STATE_STATS>/);
   assert.doesNotMatch(prompt, /<BST_OWNER_STATE_LINES>/);
-  assert.match(prompt, /<BST_SUMMARIZATION_NOTE>/);
+  assert.doesNotMatch(prompt, /<BST_SUMMARIZATION_NOTE>/);
   assert.match(prompt, /- Scene: scene_date_time="2026-03-07 20:05"/);
 });
 
@@ -198,7 +198,7 @@ test("buildPrompt excludes custom stats from semantics and lines when track is d
   assert.doesNotMatch(prompt, /characters_in_scene/i);
 });
 
-test("buildPrompt keeps BST tags when using custom injection template", () => {
+test("buildPrompt keeps non-empty BST tags and omits empty blocks when using custom injection template", () => {
   const settings = makeSettings({
     promptTemplateInjection: [
       "{{header}}",
@@ -237,14 +237,37 @@ test("buildPrompt keeps BST tags when using custom injection template", () => {
 
   const prompt = __testables.buildPrompt(data, settings, makeContext());
   assert.match(prompt, /<BST_STAT_SEMANTICS>/);
-  assert.match(prompt, /<BST_BEHAVIOR_BANDS>/);
-  assert.match(prompt, /<BST_REACT_RULES>/);
+  assert.doesNotMatch(prompt, /<BST_BEHAVIOR_BANDS>/);
+  assert.doesNotMatch(prompt, /<BST_REACT_RULES>/);
   assert.match(prompt, /<BST_PRIORITY_RULES>/);
   assert.match(prompt, /<BST_TRACKER_STATE>/);
   assert.doesNotMatch(prompt, /<BST_PUBLIC_STATE_STATS>/);
   assert.doesNotMatch(prompt, /<BST_OWNER_STATE_STATS>/);
   assert.doesNotMatch(prompt, /<BST_OWNER_STATE_LINES>/);
-  assert.match(prompt, /<BST_SUMMARIZATION_NOTE>/);
+  assert.doesNotMatch(prompt, /<BST_SUMMARIZATION_NOTE>/);
+  assert.doesNotMatch(prompt, /\n{3,}/);
+});
+
+test("buildPrompt uses constructive hidden-state guidance instead of aggressive output suppression", () => {
+  const settings = makeSettings({
+    trackMood: true,
+  });
+  const data = makeTracker({
+    statistics: {
+      affection: {},
+      trust: {},
+      desire: {},
+      connection: {},
+      mood: { Seraphina: "Calm" },
+      lastThought: {},
+    },
+  });
+
+  const prompt = __testables.buildPrompt(data, settings, makeContext());
+  assert.match(prompt, /This block is hidden control data for maintaining character behavior consistency\./);
+  assert.match(prompt, /Continue roleplaying naturally - this guidance only influences how the character feels and acts\./);
+  assert.doesNotMatch(prompt, /Never reveal, copy, paraphrase, summarize, or transform/i);
+  assert.doesNotMatch(prompt, /Never output numeric stats/i);
 });
 
 test("buildPrompt keeps bst_inject_block wrapper outside the header placeholder content", () => {

@@ -2,6 +2,11 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.7-dev1] - 2026-05-24
+### Changed
+- Softened the hidden prompt-injection guidance so tracker state still stays private without overloading roleplay models with aggressive output-suppression wording.
+- Reduced prompt-injection noise by skipping empty BST XML blocks and collapsing excessive blank lines in custom injection templates.
+
 ## [2.5.4.7] - 2026-05-06
 ### Fixed
 - Fixed tracker generation shutdown so a single `Stop` now fully aborts the active extraction run and all queued follow-up work, including bootstrap re-entry, resolver or audit requests, pending extraction schedules, swipe continuations, late-render recovery, and user-turn replay.
