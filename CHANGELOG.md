@@ -2,6 +2,10 @@
 
 All notable changes to BetterSimTracker are documented here.
 
+## [2.5.4.9] - 2026-05-24
+### Fixed
+- Fixed BST mood image upload and delete requests to use SillyTavern's current CSRF request headers, while keeping multipart uploads free of JSON `Content-Type` headers.
+
 ## [2.5.4.8] - 2026-05-24
 ### Fixed
 - Reduced cases where hidden tracker prompt injection could make roleplay models return blank replies by replacing aggressive output-suppression wording with calmer behavioral guidance.

@@ -452,6 +452,7 @@ export interface STContext {
     };
   };
   csrf_token?: string;
+  getRequestHeaders?: () => Record<string, string>;
 }
 
 export interface DeltaDebugRecord {

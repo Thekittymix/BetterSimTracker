@@ -193,6 +193,21 @@ function normalizeSpriteList(data: unknown): Array<{ label?: string; path?: stri
   return [];
 }
 
+function getSpriteRequestHeaders(context: STContext, includeJsonContentType = false): Record<string, string> {
+  const requestHeaders = typeof context.getRequestHeaders === "function"
+    ? context.getRequestHeaders()
+    : {};
+  const csrfToken = requestHeaders["X-CSRF-Token"] ?? context.csrf_token;
+  const headers: Record<string, string> = includeJsonContentType ? { ...requestHeaders } : {};
+  if (!includeJsonContentType) {
+    delete headers["Content-Type"];
+  }
+  if (csrfToken != null) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+  return headers;
+}
+
 async function fetchSpriteList(
   headers: Record<string, string>,
   folderName: string,
@@ -220,10 +235,7 @@ async function uploadMoodImage(
   file: File,
 ): Promise<string> {
   const label = moodSpriteName(mood);
-  const headers: Record<string, string> = {};
-  if (context.csrf_token) {
-    headers["X-CSRF-Token"] = context.csrf_token;
-  }
+  const headers = getSpriteRequestHeaders(context);
 
   const beforeSprites = await fetchSpriteList(headers, folderName, settings).catch(() => []);
   logDebug(settings, "moodImages", "persona.sprites.upload.start", { folderName, mood, label, beforeCount: beforeSprites.length });
@@ -263,10 +275,7 @@ async function deleteMoodImage(
   mood: MoodLabel,
 ): Promise<void> {
   const spriteName = moodSpriteName(mood);
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (context.csrf_token) {
-    headers["X-CSRF-Token"] = context.csrf_token;
-  }
+  const headers = getSpriteRequestHeaders(context, true);
   const response = await fetch("/api/sprites/delete", {
     method: "POST",
     headers,
@@ -278,6 +287,11 @@ async function deleteMoodImage(
     throw new Error(`Failed to delete ${mood} image (${response.status}).`);
   }
 }
+
+export const __testables = {
+  uploadMoodImage,
+  deleteMoodImage,
+};
 
 async function hasExpressionSpritesForPersonaName(personaName: string): Promise<boolean> {
   const key = personaName.trim().toLowerCase();
