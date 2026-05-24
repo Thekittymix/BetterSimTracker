@@ -2,9 +2,9 @@
 
 All notable changes to BetterSimTracker are documented here.
 
-## [2.5.4.7-dev1] - 2026-05-24
-### Changed
-- Softened the hidden prompt-injection guidance so tracker state still stays private without overloading roleplay models with aggressive output-suppression wording.
+## [2.5.4.8] - 2026-05-24
+### Fixed
+- Reduced cases where hidden tracker prompt injection could make roleplay models return blank replies by replacing aggressive output-suppression wording with calmer behavioral guidance.
 - Reduced prompt-injection noise by skipping empty BST XML blocks and collapsing excessive blank lines in custom injection templates.
 
 ## [2.5.4.7] - 2026-05-06
