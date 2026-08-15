@@ -15,6 +15,7 @@ import {
 import type {
   BetterSimTrackerSettings,
   CustomStatDefinition,
+  MoodExpressionMap,
   MoodLabel,
   MoodSource,
   StExpressionImageOptions,
@@ -45,6 +46,29 @@ const EXPRESSION_CHECK_TTL_MS = 30_000;
 const expressionAvailabilityCache = new Map<string, { checkedAt: number; hasExpressions: boolean }>();
 const moodLabelSet = new Set(moodOptions.map(label => label.toLowerCase()));
 const moodLabels = moodOptions as MoodLabel[];
+// Mirror of characterPanel.ts DEFAULT_MOOD_EXPRESSION_MAP so persona defaults
+// show the same built-in placeholder mapping when no override is set.
+const DEFAULT_MOOD_EXPRESSION_MAP: Record<MoodLabel, string> = {
+  "Happy": "joy",
+  "Sad": "sadness",
+  "Angry": "anger",
+  "Excited": "excitement",
+  "Confused": "confusion",
+  "In Love": "love",
+  "Shy": "nervousness",
+  "Playful": "amusement",
+  "Serious": "neutral",
+  "Lonely": "grief",
+  "Hopeful": "optimism",
+  "Anxious": "nervousness",
+  "Content": "relief",
+  "Frustrated": "annoyance",
+  "Neutral": "neutral",
+};
+
+function sanitizeExpressionValue(raw: string): string {
+  return raw.trim().slice(0, 80);
+}
 
 type InitInput = {
   getContext: () => STContext | null;
@@ -487,6 +511,8 @@ function renderPanel(input: InitInput, force = false): void {
   const stExpressionImageOptionsOverride = sanitizeStExpressionImageOptions(defaults.stExpressionImageOptions, globalStImageDefaults);
   const hasStExpressionImageOverride = Boolean(stExpressionImageOptionsOverride);
   const stExpressionImageOptions = stExpressionImageOptionsOverride ?? globalStImageDefaults;
+  const moodExpressionMap = (defaults.moodExpressionMap as MoodExpressionMap | undefined) ?? {};
+  const globalMoodExpressionMap = (settings.moodExpressionMap as MoodExpressionMap | undefined) ?? DEFAULT_MOOD_EXPRESSION_MAP;
   const customStatDefinitions = Array.isArray(settings.customStats)
     ? settings.customStats as CustomStatDefinition[]
     : [];
@@ -656,6 +682,25 @@ function renderPanel(input: InitInput, force = false): void {
       </div>
     </div>
     <div style="display:${showStExpressionControls ? "grid" : "none"}; gap:8px;">
+      <div class="bst-character-divider">Mood to ST Expression Map</div>
+      <div class="bst-character-help">
+        Optional per-persona overrides. Leave a field empty to use the global map from extension settings.
+      </div>
+      <div class="bst-character-map">
+        ${moodLabels.map(label => {
+          const safeLabel = escapeHtml(label);
+          const value = typeof moodExpressionMap[label] === "string" ? moodExpressionMap[label] ?? "" : "";
+          const safeValue = value ? escapeHtml(value) : "";
+          const placeholder = globalMoodExpressionMap[label] || DEFAULT_MOOD_EXPRESSION_MAP[label];
+          const safePlaceholder = escapeHtml(placeholder);
+          return `
+            <label class="bst-character-map-row">
+              <span>${safeLabel}</span>
+              <input type="text" data-bst-persona-mood-map="${safeLabel}" value="${safeValue}" placeholder="${safePlaceholder}">
+            </label>
+          `;
+        }).join("")}
+      </div>
       <div class="bst-character-divider">ST Expression Image Options</div>
       <div class="bst-character-help">
         Optional per-persona override for ST expression image framing on user cards.
@@ -674,7 +719,7 @@ function renderPanel(input: InitInput, force = false): void {
       </div>
     </div>
     <div class="bst-character-help" style="display:${showStExpressionControls ? "none" : "block"};">
-      Switch effective mood source to ST expressions to edit persona ST expression framing.
+      Switch effective mood source to ST expressions to edit persona expression mapping and framing.
     </div>
     <div class="bst-character-section">
       <div class="bst-character-divider">Persona Defaults</div>
@@ -789,6 +834,31 @@ function renderPanel(input: InitInput, force = false): void {
     });
     persistSettings(next);
     renderPanel(input, true);
+  });
+
+  panel.querySelectorAll<HTMLInputElement>("[data-bst-persona-mood-map]").forEach(node => {
+    node.addEventListener("change", () => {
+      const mood = normalizeMoodLabel(node.dataset.bstPersonaMoodMap ?? "");
+      if (!mood) return;
+      const expression = sanitizeExpressionValue(node.value);
+      node.value = expression;
+      const next = withUpdatedDefaults(input.getSettings() ?? settings, identity, current => {
+        const copy = { ...current };
+        const map = { ...((copy.moodExpressionMap as MoodExpressionMap | undefined) ?? {}) };
+        if (!expression) {
+          delete map[mood];
+        } else {
+          map[mood] = expression;
+        }
+        if (Object.keys(map).length) {
+          copy.moodExpressionMap = map;
+        } else {
+          delete copy.moodExpressionMap;
+        }
+        return copy;
+      });
+      persistSettings(next);
+    });
   });
 
   const stImageOverrideToggle = panel.querySelector<HTMLInputElement>("[data-bst-persona-st-image-override]");

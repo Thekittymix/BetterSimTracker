@@ -6340,7 +6340,17 @@ export function renderTracker(
       const ownerUiKey = target.uiKey;
       const isUserCard = isRenderedUserOwner(name);
       const moodLookupName = isUserCard ? displayName : name;
-      const characterAvatar = resolveCharacterAvatar?.(name) ?? undefined;
+      // Group-chat fix: in group chats the user's tracker entry can arrive with
+      // ownerName set to the persona display name (e.g. "LO") instead of the
+      // internal USER_TRACKER_KEY. That made resolveCharacterAvatar return null
+      // (no character has that name), which in turn made getResolvedStExpressionImageOptions
+      // and getMoodImageUrl fall back to a name-key lookup that never matches
+      // the persona-scoped save key (`avatar:persona:<id>`). Force user cards
+      // to always resolve their avatar via USER_TRACKER_KEY so the persona
+      // framing override + BST mood images apply the same in group and solo chats.
+      const characterAvatar = isUserCard
+        ? (resolveCharacterAvatar?.(USER_TRACKER_KEY) ?? undefined)
+        : (resolveCharacterAvatar?.(name) ?? undefined);
       const cardKey = `${entry.messageIndex}:${ownerUiKey}`;
       const cardCollapsed = resolveTrackerCardCollapsed({
         cardKey,
